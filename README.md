@@ -1,4 +1,8 @@
-# WitchDrawer
+<p align="center">
+  <img src="https://raw.githubusercontent.com/witchscottishfoldcat/WitchDrawer/main/src/WitchDrawer.App/Assets/app.png" alt="WitchDrawer Logo" width="128" height="128" />
+</p>
+
+<h1 align="center">WitchDrawer</h1>
 
 WitchDrawer is a lightweight Windows desktop file drawer built with native WPF. It is designed for desktop beautification and daily file staging: drag common files into small desktop drawers, open them quickly, and keep temporary work material organized without turning the UI into a heavy Electron/WebView app.
 
