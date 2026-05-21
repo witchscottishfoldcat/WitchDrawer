@@ -14,6 +14,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private readonly IFileLauncher _launcher;
     private readonly IFileTrash _trash;
     private readonly IAppLogger _logger;
+    private readonly DesktopBoxLayoutSettings _layoutSettings;
     private Box _box;
     private bool _isBusy;
     private string _statusText = "拖入文件";
@@ -23,18 +24,22 @@ public sealed class DesktopBoxViewModel : ObservableObject
         DrawerService drawerService,
         IFileLauncher launcher,
         IFileTrash trash,
-        IAppLogger logger)
+        IAppLogger logger,
+        DesktopBoxLayoutSettings layoutSettings)
     {
         _box = box;
         _drawerService = drawerService;
         _launcher = launcher;
         _trash = trash;
         _logger = logger;
+        _layoutSettings = layoutSettings;
 
         OpenItemCommand = new AsyncRelayCommand<DrawerItemViewModel?>(OpenItemAsync);
         DeleteItemCommand = new AsyncRelayCommand<DrawerItemViewModel?>(DeleteItemAsync);
         RefreshCommand = new AsyncRelayCommand(LoadAsync);
     }
+
+    public DesktopBoxLayoutSettings LayoutSettings => _layoutSettings;
 
     public event EventHandler? ItemsChanged;
 
@@ -52,11 +57,25 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     public BoxType Type => _box.Type;
 
-    public string TypeLabel => _box.Type == BoxType.Normal ? "普通" : "映射";
+    public string TypeLabel => _box.Type switch
+    {
+        BoxType.Normal => "普通",
+        BoxType.Mapping => "映射",
+        BoxType.Pixel => "像素",
+        _ => "未知"
+    };
 
-    public string Description => _box.Type == BoxType.Normal ? "移动收纳" : "路径映射";
+    public string Description => _box.Type switch
+    {
+        BoxType.Normal => "移动收纳",
+        BoxType.Mapping => "路径映射",
+        BoxType.Pixel => "像素收纳",
+        _ => string.Empty
+    };
 
     public string ItemCountLabel => $"{Items.Count} 项";
+
+    public bool IsEmpty => Items.Count == 0;
 
     public bool IsBusy
     {
@@ -77,6 +96,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
         OnPropertyChanged(nameof(Type));
         OnPropertyChanged(nameof(TypeLabel));
         OnPropertyChanged(nameof(Description));
+        OnPropertyChanged(nameof(IsEmpty));
     }
 
     public async Task LoadAsync()
@@ -85,13 +105,15 @@ public sealed class DesktopBoxViewModel : ObservableObject
         {
             var items = await _drawerService.GetItemsAsync(BoxId);
             Items.Clear();
+            var isPixelated = Type == BoxType.Pixel;
             foreach (var item in items)
             {
-                Items.Add(new DrawerItemViewModel(item, Name));
+                Items.Add(new DrawerItemViewModel(item, Name, isPixelated));
             }
 
             StatusText = Items.Count == 0 ? "拖入文件" : "已同步";
             OnPropertyChanged(nameof(ItemCountLabel));
+            OnPropertyChanged(nameof(IsEmpty));
         }
         catch (Exception exception)
         {

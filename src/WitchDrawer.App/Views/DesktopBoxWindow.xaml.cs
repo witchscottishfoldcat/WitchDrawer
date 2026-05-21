@@ -21,6 +21,7 @@ public partial class DesktopBoxWindow : Window
         InitializeComponent();
         Loaded += OnLoaded;
         AppThemeManager.ThemeChanged += OnThemeChanged;
+        Deactivated += OnWindowDeactivated;
     }
 
     public DesktopBoxViewModel ViewModel => (DesktopBoxViewModel)DataContext;
@@ -47,6 +48,7 @@ public partial class DesktopBoxWindow : Window
     {
         Loaded -= OnLoaded;
         AppThemeManager.ThemeChanged -= OnThemeChanged;
+        Deactivated -= OnWindowDeactivated;
         base.OnClosed(e);
     }
 
@@ -60,6 +62,15 @@ public partial class DesktopBoxWindow : Window
     private void OnThemeChanged(object? sender, AppTheme theme)
     {
         AppThemeManager.ApplyToWindow(this);
+    }
+
+    private void OnWindowDeactivated(object? sender, EventArgs e)
+    {
+        if (IconList != null)
+        {
+            IconList.SelectedItem = null;
+            _keyboardDeleteTarget = null;
+        }
     }
 
     private void OnCloseClick(object sender, RoutedEventArgs e)
@@ -134,6 +145,12 @@ public partial class DesktopBoxWindow : Window
             return;
         }
 
+        if (IconList != null)
+        {
+            IconList.SelectedItem = null;
+            _keyboardDeleteTarget = null;
+        }
+
         if (e.ButtonState == MouseButtonState.Pressed)
         {
             try
@@ -157,6 +174,14 @@ public partial class DesktopBoxWindow : Window
         {
             IconList.SelectedItem = drawerItem;
             _keyboardDeleteTarget = drawerItem;
+        }
+        else
+        {
+            if (IconList != null)
+            {
+                IconList.SelectedItem = null;
+                _keyboardDeleteTarget = null;
+            }
         }
     }
 

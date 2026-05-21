@@ -17,12 +17,34 @@ public sealed class BoxViewModel
 
     public BoxType Type => Model.Type;
 
-    public string TypeLabel => Model.Type == BoxType.Normal ? "普通" : "映射";
+    public string TypeLabel => Model.Type switch
+    {
+        BoxType.Normal => "普通",
+        BoxType.Mapping => "映射",
+        BoxType.Pixel => "像素",
+        _ => "未知"
+    };
 
-    public string Description => Model.Type == BoxType.Normal ? "拖入后移动到收纳盒" : "只保存路径引用";
+    public string Description => Model.Type switch
+    {
+        BoxType.Normal => "拖入后移动到收纳盒",
+        BoxType.Mapping => "只保存路径引用",
+        BoxType.Pixel => "像素艺术风格收纳",
+        _ => string.Empty
+    };
 
-    public string Badge => Model.Type == BoxType.Normal ? "N" : "M";
+    public string Badge => Model.Type switch
+    {
+        BoxType.Normal => "N",
+        BoxType.Mapping => "M",
+        BoxType.Pixel => "P",
+        _ => "?"
+    };
 
-    public string StorageLabel => Model.Type == BoxType.Normal ? Model.StoragePath ?? string.Empty : "源文件保留在原位置";
+    public string StorageLabel => Model.Type switch
+    {
+        BoxType.Normal or BoxType.Pixel => Model.StoragePath ?? string.Empty,
+        _ => "源文件保留在原位置"
+    };
 }
 

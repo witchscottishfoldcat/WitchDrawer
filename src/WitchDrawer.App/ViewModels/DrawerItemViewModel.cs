@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using WitchDrawer.App.Infrastructure;
 using WitchDrawer.Core.Models;
@@ -12,10 +13,13 @@ public sealed class DrawerItemViewModel : ObservableObject
     private ImageSource? _iconImage;
     private bool _hasIcon;
 
-    public DrawerItemViewModel(DrawerItem model, string? boxName = null)
+    private readonly bool _isPixelated;
+
+    public DrawerItemViewModel(DrawerItem model, string? boxName = null, bool isPixelated = false)
     {
         Model = model;
         BoxName = boxName ?? string.Empty;
+        _isPixelated = isPixelated;
         _ = LoadIconAsync();
     }
 
@@ -23,7 +27,18 @@ public sealed class DrawerItemViewModel : ObservableObject
 
     public Guid Id => Model.Id;
 
-    public string DisplayName => Model.DisplayName;
+    public string DisplayName
+    {
+        get
+        {
+            var name = Model.DisplayName;
+            if (name.EndsWith(".lnk", System.StringComparison.OrdinalIgnoreCase))
+            {
+                return name[..^4];
+            }
+            return name;
+        }
+    }
 
     public string KindLabel => Model.ItemKind == ItemKind.Directory ? "文件夹" : "文件";
 
@@ -79,6 +94,17 @@ public sealed class DrawerItemViewModel : ObservableObject
         {
             var isDirectory = Model.ItemKind == ItemKind.Directory;
             var icon = await Task.Run(() => ShellIconProvider.GetIcon(path, isDirectory, 32)).ConfigureAwait(false);
+
+            if (_isPixelated && icon is BitmapSource bitmapSource)
+            {
+                var scaleX = 16.0 / bitmapSource.PixelWidth;
+                var scaleY = 16.0 / bitmapSource.PixelHeight;
+                var scale = new ScaleTransform(scaleX, scaleY);
+                scale.Freeze();
+                var transformed = new TransformedBitmap(bitmapSource, scale);
+                transformed.Freeze();
+                icon = transformed;
+            }
 
             await Application.Current.Dispatcher.InvokeAsync(() =>
             {

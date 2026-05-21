@@ -29,13 +29,14 @@ public partial class App : Application
             var drawerService = new DrawerService(paths, repository);
             var launcher = new ShellFileLauncher();
             var trash = new FileSystemRecycleBin();
+            var desktopBoxLayoutSettings = new DesktopBoxLayoutSettings();
 
             await drawerService.InitializeAsync();
 
             var quickPanelViewModel = new QuickPanelViewModel(drawerService, launcher, logger);
             var quickPanel = new QuickPanelWindow(quickPanelViewModel);
-            var mainViewModel = new MainViewModel(drawerService, launcher, trash, logger, quickPanelViewModel);
-            var desktopBoxManager = new DesktopBoxManager(drawerService, launcher, trash, logger);
+            var mainViewModel = new MainViewModel(drawerService, launcher, trash, logger, quickPanelViewModel, desktopBoxLayoutSettings);
+            var desktopBoxManager = new DesktopBoxManager(drawerService, launcher, trash, logger, desktopBoxLayoutSettings);
             var mainWindow = new MainWindow(mainViewModel, quickPanel, logger);
 
             mainViewModel.BoxesChanged += async (_, _) => await desktopBoxManager.RefreshAsync();

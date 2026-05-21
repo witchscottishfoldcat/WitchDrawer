@@ -38,6 +38,42 @@ public sealed class DrawerServiceTests
     }
 
     [Fact]
+    public async Task ImportPathAsync_PixelBoxMovesFileIntoStorage()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var source = workspace.CreateSourceFile("source-p", "pixelart.png", "hello");
+        var pixelBox = await workspace.Service.CreateBoxAsync("像素收纳盒 1", BoxType.Pixel);
+
+        var item = await workspace.Service.ImportPathAsync(pixelBox.Id, source);
+        var storedItems = await workspace.Repository.GetItemsAsync(pixelBox.Id);
+
+        Assert.False(File.Exists(source));
+        Assert.NotNull(item.StoredPath);
+        Assert.True(File.Exists(item.StoredPath));
+        Assert.Equal(source, item.SourcePath);
+        Assert.Equal("pixelart.png", item.DisplayName);
+        Assert.Single(storedItems);
+    }
+
+    [Fact]
+    public async Task DeleteBoxAsync_PixelBoxUsesTrashAndRemovesItems()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var source = workspace.CreateSourceFile("source-p", "boxedpixel.txt", "hello");
+        var pixelBox = await workspace.Service.CreateBoxAsync("像素收纳盒 1", BoxType.Pixel);
+        await workspace.Service.ImportPathAsync(pixelBox.Id, source);
+        var trash = new RecordingTrash();
+
+        await workspace.Service.DeleteBoxAsync(pixelBox.Id, trash);
+        var boxes = await workspace.Service.GetBoxesAsync();
+        var remainingItems = await workspace.Repository.GetItemsAsync(pixelBox.Id);
+
+        Assert.Equal(pixelBox.StoragePath, Assert.Single(trash.Paths));
+        Assert.DoesNotContain(boxes, box => box.Id == pixelBox.Id);
+        Assert.Empty(remainingItems);
+    }
+
+    [Fact]
     public async Task ImportPathAsync_MappingBoxKeepsSourceFileInPlace()
     {
         using var workspace = await TestWorkspace.CreateAsync();

@@ -54,7 +54,7 @@ public sealed class DrawerService
 
         var id = Guid.NewGuid();
         var now = DateTimeOffset.UtcNow;
-        var storagePath = type == BoxType.Normal ? Path.Combine(_paths.BoxesDirectory, id.ToString("N")) : null;
+        var storagePath = (type == BoxType.Normal || type == BoxType.Pixel) ? Path.Combine(_paths.BoxesDirectory, id.ToString("N")) : null;
         if (storagePath is not null)
         {
             Directory.CreateDirectory(storagePath);
@@ -153,7 +153,7 @@ public sealed class DrawerService
         var box = await _repository.GetBoxAsync(boxId, cancellationToken)
             ?? throw new InvalidOperationException("Box does not exist.");
 
-        if (box.Type == BoxType.Normal)
+        if (box.Type == BoxType.Normal || box.Type == BoxType.Pixel)
         {
             var storagePath = box.StoragePath ?? Path.Combine(_paths.BoxesDirectory, box.Id.ToString("N"));
             PathSafety.EnsureChildPath(_paths.BoxesDirectory, storagePath);

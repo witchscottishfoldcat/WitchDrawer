@@ -27,17 +27,20 @@ public sealed class MainViewModel : ObservableObject
         IFileLauncher launcher,
         IFileTrash trash,
         IAppLogger logger,
-        QuickPanelViewModel quickPanelViewModel)
+        QuickPanelViewModel quickPanelViewModel,
+        DesktopBoxLayoutSettings desktopBoxLayoutSettings)
     {
         _drawerService = drawerService;
         _launcher = launcher;
         _trash = trash;
         _logger = logger;
         _quickPanelViewModel = quickPanelViewModel;
+        DesktopBoxLayout = desktopBoxLayoutSettings;
 
         LoadCommand = new AsyncRelayCommand(LoadAsync);
         CreateNormalBoxCommand = new AsyncRelayCommand(() => CreateBoxAsync(BoxType.Normal));
         CreateMappingBoxCommand = new AsyncRelayCommand(() => CreateBoxAsync(BoxType.Mapping));
+        CreatePixelBoxCommand = new AsyncRelayCommand(() => CreateBoxAsync(BoxType.Pixel));
         DeleteSelectedBoxCommand = new AsyncRelayCommand(DeleteSelectedBoxAsync, () => SelectedBox is not null);
         OpenItemCommand = new AsyncRelayCommand<DrawerItemViewModel?>(OpenItemAsync);
         DeleteItemCommand = new AsyncRelayCommand<DrawerItemViewModel?>(DeleteItemAsync);
@@ -56,11 +59,15 @@ public sealed class MainViewModel : ObservableObject
 
     public ObservableCollection<DrawerItemViewModel> Items { get; } = [];
 
+    public DesktopBoxLayoutSettings DesktopBoxLayout { get; }
+
     public IAsyncRelayCommand LoadCommand { get; }
 
     public IAsyncRelayCommand CreateNormalBoxCommand { get; }
 
     public IAsyncRelayCommand CreateMappingBoxCommand { get; }
+
+    public IAsyncRelayCommand CreatePixelBoxCommand { get; }
 
     public IAsyncRelayCommand DeleteSelectedBoxCommand { get; }
 
@@ -173,7 +180,13 @@ public sealed class MainViewModel : ObservableObject
     {
         await RunBusyAsync(async () =>
         {
-            var prefix = type == BoxType.Normal ? "普通收纳盒" : "映射收纳盒";
+            var prefix = type switch
+            {
+                BoxType.Normal => "普通收纳盒",
+                BoxType.Mapping => "映射收纳盒",
+                BoxType.Pixel => "像素收纳盒",
+                _ => "收纳盒"
+            };
             var name = $"{prefix} {Boxes.Count(box => box.Type == type) + 1}";
             var box = await _drawerService.CreateBoxAsync(name, type);
             var viewModel = new BoxViewModel(box);
@@ -235,9 +248,10 @@ public sealed class MainViewModel : ObservableObject
         try
         {
             var items = await _drawerService.GetItemsAsync(selectedBox.Id);
+            var isPixelated = selectedBox.Type == BoxType.Pixel;
             foreach (var item in items)
             {
-                Items.Add(new DrawerItemViewModel(item, selectedBox.Name));
+                Items.Add(new DrawerItemViewModel(item, selectedBox.Name, isPixelated));
             }
         }
         catch (Exception exception)
