@@ -10,6 +10,7 @@ namespace WitchDrawer.App.Views;
 
 public partial class DesktopBoxWindow : Window
 {
+    private const string InternalDrawerItemDragFormat = "WitchDrawer.DesktopBoxItem";
     private bool _forceClose;
     private Point? _dragStartPoint;
     private DrawerItemViewModel? _keyboardDeleteTarget;
@@ -61,14 +62,33 @@ public partial class DesktopBoxWindow : Window
         AppThemeManager.ApplyToWindow(this);
     }
 
+    private void OnCloseClick(object sender, RoutedEventArgs e)
+    {
+        Close();
+    }
+
     private void OnPreviewDragOver(object sender, DragEventArgs e)
     {
-        e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Move : DragDropEffects.None;
+        if (e.Data.GetDataPresent(InternalDrawerItemDragFormat))
+        {
+            e.Effects = DragDropEffects.None;
+        }
+        else
+        {
+            e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Move : DragDropEffects.None;
+        }
+
         e.Handled = true;
     }
 
     private async void OnFilesDropped(object sender, DragEventArgs e)
     {
+        if (e.Data.GetDataPresent(InternalDrawerItemDragFormat))
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (e.Data.GetData(DataFormats.FileDrop) is string[] paths)
         {
             await ViewModel.ImportPathsAsync(paths);
@@ -140,7 +160,7 @@ public partial class DesktopBoxWindow : Window
         }
     }
 
-    private void OnIconMouseMove(object sender, MouseEventArgs e)
+    private async void OnIconMouseMove(object sender, MouseEventArgs e)
     {
         if (_dragStartPoint is null || e.LeftButton != MouseButtonState.Pressed)
         {
@@ -161,9 +181,16 @@ public partial class DesktopBoxWindow : Window
             && (File.Exists(drawerItem.PathLabel) || Directory.Exists(drawerItem.PathLabel)))
         {
             var data = new DataObject();
+            data.SetData(InternalDrawerItemDragFormat, drawerItem.Id);
             data.SetData(DataFormats.FileDrop, new[] { drawerItem.PathLabel });
 
-            DragDrop.DoDragDrop(IconList, data, DragDropEffects.Copy | DragDropEffects.Move);
+            var effect = DragDrop.DoDragDrop(IconList, data, DragDropEffects.Copy);
+            if ((effect & DragDropEffects.Copy) == DragDropEffects.Copy)
+            {
+                await ViewModel.CompleteDragOutAsync(drawerItem);
+                _keyboardDeleteTarget = null;
+                IconList.Focus();
+            }
         }
 
         _dragStartPoint = null;

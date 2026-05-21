@@ -59,8 +59,17 @@ public partial class App : Application
         }
         catch (Exception exception)
         {
+            var sb = new System.Text.StringBuilder();
+            var ex = exception;
+            while (ex != null)
+            {
+                sb.AppendLine(ex.GetType().Name + ": " + ex.Message);
+                sb.AppendLine(ex.StackTrace);
+                sb.AppendLine("---");
+                ex = ex.InnerException;
+            }
             MessageBox.Show(
-                exception.Message,
+                sb.ToString(),
                 "WitchDrawer startup failed",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);

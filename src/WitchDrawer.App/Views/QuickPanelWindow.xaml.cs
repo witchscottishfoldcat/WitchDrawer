@@ -102,10 +102,48 @@ public partial class QuickPanelWindow : Window
             return;
         }
 
-        if (e.Key == Key.Enter && QuickItems.SelectedItem is DrawerItemViewModel drawerItem)
+        if (e.Key == Key.Enter)
         {
-            await ViewModel.OpenItemCommand.ExecuteAsync(drawerItem);
-            Hide();
+            var item = QuickItems.SelectedItem as DrawerItemViewModel;
+            if (item is null && QuickItems.Items.Count > 0)
+            {
+                item = QuickItems.Items[0] as DrawerItemViewModel;
+            }
+            if (item is not null)
+            {
+                await ViewModel.OpenItemCommand.ExecuteAsync(item);
+                Hide();
+                e.Handled = true;
+            }
+            return;
+        }
+
+        if (e.Key == Key.Down)
+        {
+            if (QuickItems.Items.Count > 0)
+            {
+                int nextIndex = QuickItems.SelectedIndex + 1;
+                if (nextIndex >= QuickItems.Items.Count)
+                {
+                    nextIndex = 0;
+                }
+                QuickItems.SelectedIndex = nextIndex;
+                QuickItems.ScrollIntoView(QuickItems.SelectedItem);
+            }
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Up)
+        {
+            if (QuickItems.Items.Count > 0)
+            {
+                int prevIndex = QuickItems.SelectedIndex - 1;
+                if (prevIndex < 0)
+                {
+                    prevIndex = QuickItems.Items.Count - 1;
+                }
+                QuickItems.SelectedIndex = prevIndex;
+                QuickItems.ScrollIntoView(QuickItems.SelectedItem);
+            }
             e.Handled = true;
         }
     }

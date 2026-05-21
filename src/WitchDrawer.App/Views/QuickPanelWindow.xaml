@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="WitchDrawer Quick Panel"
         Width="780"
-        Height="540"
+        Height="520"
         MinWidth="540"
         MinHeight="380"
         WindowStartupLocation="CenterScreen"
@@ -14,97 +14,271 @@
         Topmost="True"
         Background="Transparent"
         KeyDown="OnKeyDown">
-    <Border Margin="12"
-            Background="{DynamicResource PanelBrush}"
-            BorderBrush="{DynamicResource BorderBrushSoft}"
+
+    <Border Margin="15"
+            Background="{DynamicResource GlassSurfaceBrush}"
+            BorderBrush="{DynamicResource GlassStrokeBrush}"
             BorderThickness="1"
-            CornerRadius="28">
-        <DockPanel>
-            <Border DockPanel.Dock="Top"
-                    Padding="18"
+            CornerRadius="22">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="22" Color="#000000" Opacity="0.25" ShadowDepth="3" Direction="270" />
+        </Border.Effect>
+        
+        <Grid>
+            <Grid.RowDefinitions>
+                <!-- 顶部一体化搜索栏 -->
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- 搜索框区域 -->
+            <Border Grid.Row="0"
+                    Padding="16,14,16,14"
                     BorderBrush="{DynamicResource BorderBrushSoft}"
                     BorderThickness="0,0,0,1"
-                    CornerRadius="28,28,0,0"
-                    Background="{DynamicResource PanelAltBrush}"
                     MouseLeftButtonDown="OnHeaderMouseLeftButtonDown">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
+                    
+                    <!-- 极简大字体搜索框，带内置放大镜和水印 -->
                     <TextBox x:Name="SearchBox"
-                             Height="42"
                              FontSize="16"
-                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Grid.Column="1"
-                               Margin="14,0,0,0"
-                               VerticalAlignment="Center"
-                               Foreground="{DynamicResource TextMutedBrush}"
-                               Text="{Binding StatusText}" />
+                             FontWeight="SemiBold"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             Foreground="{DynamicResource TextPrimaryBrush}"
+                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                             VerticalContentAlignment="Center">
+                        <TextBox.Template>
+                            <ControlTemplate TargetType="TextBox">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="32" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    
+                                    <!-- 放大镜 Path -->
+                                    <Path Data="M 11,5 A 6,6 0 1 0 11,17 A 6,6 0 1 0 11,5 M 15.5,15.5 L 21,21" 
+                                          Stroke="{DynamicResource TextMutedBrush}" 
+                                          StrokeThickness="1.8" 
+                                          StrokeStartLineCap="Round" 
+                                          StrokeEndLineCap="Round" 
+                                          Width="16" Height="16" 
+                                          HorizontalAlignment="Left" 
+                                          VerticalAlignment="Center" 
+                                          SnapsToDevicePixels="True"/>
+                                    
+                                    <!-- 真实输入区域 -->
+                                    <ScrollViewer x:Name="PART_ContentHost" 
+                                                  Grid.Column="1" 
+                                                  VerticalAlignment="Center" 
+                                                  Margin="0,0,8,0" />
+                                    
+                                    <!-- 水印提示文本 -->
+                                    <TextBlock x:Name="Watermark"
+                                               Grid.Column="1"
+                                               Text="输入关键字搜索文件或收纳盒..."
+                                               Foreground="{DynamicResource TextMutedBrush}"
+                                               FontSize="15"
+                                               FontWeight="Normal"
+                                               VerticalAlignment="Center"
+                                               IsHitTestVisible="False"
+                                               Visibility="Collapsed" />
+                                </Grid>
+                                <ControlTemplate.Triggers>
+                                    <!-- 当文本为空时，显示水印 -->
+                                    <Trigger Property="Text" Value="">
+                                        <Setter TargetName="Watermark" Property="Visibility" Value="Visible" />
+                                    </Trigger>
+                                    <!-- 键盘聚焦时，隐藏水印 -->
+                                    <Trigger Property="IsKeyboardFocused" Value="True">
+                                        <Setter TargetName="Watermark" Property="Visibility" Value="Collapsed" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </TextBox.Template>
+                    </TextBox>
+                    
+                    <!-- 药丸状状态 Badge -->
+                    <Border Grid.Column="1"
+                            VerticalAlignment="Center"
+                            Height="24"
+                            CornerRadius="12"
+                            Padding="10,0"
+                            Background="{DynamicResource HoverBrush}"
+                            BorderBrush="{DynamicResource BorderBrushSoft}"
+                            BorderThickness="0.8">
+                        <TextBlock VerticalAlignment="Center"
+                                   HorizontalAlignment="Center"
+                                   FontSize="11.5"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextMutedBrush}"
+                                   Text="{Binding StatusText}" />
+                    </Border>
                 </Grid>
             </Border>
 
+            <!-- 列表搜索结果 -->
             <ListBox x:Name="QuickItems"
-                     Margin="10"
+                     Grid.Row="1"
+                     Margin="12,8,12,12"
                      ItemsSource="{Binding Items}"
                      MouseDoubleClick="OnItemsMouseDoubleClick"
                      ScrollViewer.CanContentScroll="True"
                      VirtualizingPanel.IsVirtualizing="True"
-                     VirtualizingPanel.VirtualizationMode="Recycling">
+                     VirtualizingPanel.VirtualizationMode="Recycling"
+                     FocusVisualStyle="{x:Null}">
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="{x:Type ListBoxItem}">
+                        <Setter Property="MinHeight" Value="52" />
+                        <Setter Property="Padding" Value="8,6" />
+                        <Setter Property="Margin" Value="0,2" />
+                        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="{x:Type ListBoxItem}">
+                                    <Border x:Name="Root"
+                                            Background="Transparent"
+                                            BorderBrush="Transparent"
+                                            BorderThickness="0"
+                                            CornerRadius="10"
+                                            Padding="{TemplateBinding Padding}">
+                                        <Grid>
+                                            <!-- 左侧高亮蓝色指示胶囊 -->
+                                            <Border x:Name="Indicator" 
+                                                    Width="3.5" 
+                                                    Height="18" 
+                                                    CornerRadius="1.75" 
+                                                    Background="{DynamicResource AccentBrush}" 
+                                                    HorizontalAlignment="Left" 
+                                                    VerticalAlignment="Center" 
+                                                    Margin="-4,0,0,0" 
+                                                    Opacity="0" />
+                                            
+                                            <!-- 正式内容展示 -->
+                                            <ContentPresenter Margin="8,0,0,0" />
+                                        </Grid>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource HoverBrush}" />
+                                        </Trigger>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+                                            <Setter TargetName="Indicator" Property="Opacity" Value="1" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </ListBox.ItemContainerStyle>
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="44" />
+                                <ColumnDefinition Width="42" />
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <Border Width="34"
-                                    Height="34"
-                                    CornerRadius="12"
-                                    Background="{DynamicResource AccentSoftBrush}">
+                            
+                            <!-- 图标卡片 -->
+                            <Border Width="38"
+                                    Height="38"
+                                    CornerRadius="10"
+                                    Background="{DynamicResource GlassInnerBrush}"
+                                    BorderBrush="{DynamicResource GlassStrokeBrush}"
+                                    BorderThickness="0.8">
                                 <Grid>
                                     <Image Source="{Binding IconImage}"
-                                           Width="23"
-                                           Height="23"
+                                           Width="30"
+                                           Height="30"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
                                            Stretch="Uniform"
+                                           RenderOptions.BitmapScalingMode="HighQuality"
                                            Visibility="{Binding HasIcon, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                    
                                     <TextBlock Text="{Binding FallbackIconText}"
                                                HorizontalAlignment="Center"
                                                VerticalAlignment="Center"
-                                               FontSize="9"
-                                               FontWeight="SemiBold"
+                                               FontSize="9.5"
+                                               FontWeight="Bold"
                                                Foreground="{DynamicResource AccentBrush}"
                                                Visibility="{Binding HasIcon, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
                                 </Grid>
                             </Border>
-                            <StackPanel Grid.Column="1">
+                            
+                            <!-- 名称与副标题 -->
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="10,0,8,0">
                                 <TextBlock Text="{Binding DisplayName}"
+                                           FontSize="13.5"
                                            FontWeight="SemiBold"
                                            Foreground="{DynamicResource TextPrimaryBrush}"
                                            TextTrimming="CharacterEllipsis" />
+                                
                                 <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
-                                    <TextBlock Text="{Binding BoxName}"
-                                               FontSize="12"
-                                               FontWeight="SemiBold"
-                                               Foreground="{DynamicResource AccentBrush}" />
-                                    <TextBlock Text="  "
-                                               FontSize="12" />
+                                    <!-- 收纳盒名称 Badge -->
+                                    <Border Background="{DynamicResource AccentSoftBrush}"
+                                            CornerRadius="4"
+                                            Padding="4,1"
+                                            SnapsToDevicePixels="True">
+                                        <TextBlock Text="{Binding BoxName}"
+                                                   FontSize="10"
+                                                   FontWeight="Bold"
+                                                   Foreground="{DynamicResource AccentBrush}" />
+                                    </Border>
+                                    
+                                    <!-- 路径 -->
                                     <TextBlock Text="{Binding ShortPathLabel}"
-                                               FontSize="12"
+                                               Margin="8,0,0,0"
+                                               FontSize="11"
+                                               VerticalAlignment="Center"
                                                Foreground="{DynamicResource TextMutedBrush}"
                                                TextTrimming="CharacterEllipsis" />
                                 </StackPanel>
                             </StackPanel>
-                            <Button Grid.Column="2"
-                                    Content="打开"
-                                    VerticalAlignment="Center"
+                            
+                            <!-- 键盘操作交互暗示按钮 (回车键打开功能) -->
+                            <Button Grid.Column="2" 
+                                    Style="{x:Null}"
                                     Command="{Binding DataContext.OpenItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                    CommandParameter="{Binding}" />
+                                    CommandParameter="{Binding}"
+                                    VerticalAlignment="Center"
+                                    Focusable="False"
+                                    Foreground="{DynamicResource TextMutedBrush}"
+                                    Cursor="Hand">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="BtnBorder" 
+                                                BorderBrush="{DynamicResource BorderBrushSoft}" 
+                                                BorderThickness="1" 
+                                                CornerRadius="4" 
+                                                Padding="6,3" 
+                                                Background="{DynamicResource PanelBrush}">
+                                            <TextBlock Text="⏎ Enter" 
+                                                       FontSize="9.5" 
+                                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource TemplatedParent}}" 
+                                                       FontWeight="SemiBold" />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="BtnBorder" Property="Background" Value="{DynamicResource AccentBrush}"/>
+                                                <Setter TargetName="BtnBorder" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                                                <Setter Property="Foreground" Value="White"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
                         </Grid>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
             </ListBox>
-        </DockPanel>
+        </Grid>
     </Border>
 </Window>

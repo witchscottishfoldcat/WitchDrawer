@@ -133,6 +133,11 @@ public sealed class DesktopBoxViewModel : ObservableObject
         }
     }
 
+    public Task CompleteDragOutAsync(DrawerItemViewModel? item)
+    {
+        return DeleteItemAsync(item);
+    }
+
     private async Task OpenItemAsync(DrawerItemViewModel? item)
     {
         if (item is null)

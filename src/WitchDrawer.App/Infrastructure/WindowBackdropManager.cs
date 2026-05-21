@@ -26,7 +26,7 @@ public static class WindowBackdropManager
             SetIntAttribute(
                 handle,
                 DwmwaSystemBackdropType,
-                theme == AppTheme.Glass ? DwmSystemBackdropTransientWindow : DwmSystemBackdropNone);
+                theme == AppTheme.Glass || theme == AppTheme.Crystal ? DwmSystemBackdropTransientWindow : DwmSystemBackdropNone);
         }
         catch
         {

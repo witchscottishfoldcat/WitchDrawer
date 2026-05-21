@@ -17,47 +17,69 @@ public static class AppThemeManager
 
         if (theme == AppTheme.Glass)
         {
-            SetColor("AppBackgroundBrush", "#DDF4F6FA");
-            SetColor("PanelBrush", "#CCFFFFFF");
-            SetColor("PanelAltBrush", "#88FFFFFF");
-            SetColor("BorderBrushSoft", "#66FFFFFF");
-            SetColor("TextPrimaryBrush", "#1D1D1F");
-            SetColor("TextMutedBrush", "#6E7480");
-            SetColor("AccentBrush", "#0A84FF");
-            SetColor("AccentSoftBrush", "#4D0A84FF");
-            SetColor("GlassSurfaceBrush", "#A6FFFFFF");
-            SetColor("GlassInnerBrush", "#4DFFFFFF");
-            SetColor("GlassStrokeBrush", "#8CFFFFFF");
-            SetColor("PositiveBrush", "#30D158");
-            SetColor("PositiveSoftBrush", "#5530D158");
-            SetColor("DangerBrush", "#FF453A");
-            SetColor("DangerSoftBrush", "#33FF453A");
-            SetColor("HoverBrush", "#5CFFFFFF");
-            SetColor("CardShadowBrush", "#00111827");
-            SetColor("DropZoneBrush", "#50FFFFFF");
-            SetColor("WindowOverlayBrush", "#00FFFFFF");
+            SetColor("AppBackgroundBrush", "#E60D0D16"); // Deep obsidian dark translucent
+            SetColor("PanelBrush", "#CC1A1A24");         // Dark card/panel background
+            SetColor("PanelAltBrush", "#9914141E");      // Deep sidebar/control background
+            SetColor("BorderBrushSoft", "#26FFFFFF");     // Translucent border for glassmorphism
+            SetColor("TextPrimaryBrush", "#F3F4F6");     // High contrast silver-white text
+            SetColor("TextMutedBrush", "#9CA3AF");       // Muted silver text
+            SetColor("AccentBrush", "#A855F7");          // Vibrant Cyber Violet
+            SetColor("AccentSoftBrush", "#33A855F7");     // Translucent selection highlight
+            SetColor("GlassSurfaceBrush", "#B3121218");  // Floating desktop box surface
+            SetColor("GlassInnerBrush", "#1AFFFFFF");     // File icon container backplate
+            SetColor("GlassStrokeBrush", "#26FFFFFF");    // Thin desktop box outline
+            SetColor("PositiveBrush", "#10B981");         // Glowing emerald green
+            SetColor("PositiveSoftBrush", "#2610B981");   // Translucent positive feedback
+            SetColor("DangerBrush", "#EF4444");           // Glowing rose red
+            SetColor("DangerSoftBrush", "#26EF4444");     // Translucent danger feedback
+            SetColor("HoverBrush", "#1FFFFFFF");          // Light glare hover on glass
+            SetColor("CardShadowBrush", "#4D000000");     // Shadow overlay
+            SetColor("DropZoneBrush", "#0DFFFFFF");       // Very thin white drop-zone
+            SetColor("WindowOverlayBrush", "#40000000");  // Dimming overlay
+        }
+        else if (theme == AppTheme.Crystal)
+        {
+            SetColor("AppBackgroundBrush", "#66FFFFFF");  // High transparent crystal white
+            SetColor("PanelBrush", "#4DFFFFFF");          // Very translucent card panel
+            SetColor("PanelAltBrush", "#33FFFFFF");       // Ultra translucent sidebar
+            SetColor("BorderBrushSoft", "#40FFFFFF");     // Frosted glass border
+            SetColor("TextPrimaryBrush", "#111827");      // Dark slate text
+            SetColor("TextMutedBrush", "#4B5563");        // Muted slate text
+            SetColor("AccentBrush", "#0EA5E9");           // Clear Sky Blue
+            SetColor("AccentSoftBrush", "#330EA5E9");     // Translucent Sky Blue tint
+            SetColor("GlassSurfaceBrush", "#4DFFFFFF");   // Very light floating surface
+            SetColor("GlassInnerBrush", "#26FFFFFF");     // Barely visible inner glass
+            SetColor("GlassStrokeBrush", "#66FFFFFF");    // Pronounced crystal outline
+            SetColor("PositiveBrush", "#10B981");         // Emerald green
+            SetColor("PositiveSoftBrush", "#3310B981");   // Translucent green
+            SetColor("DangerBrush", "#EF4444");           // Rose red
+            SetColor("DangerSoftBrush", "#33EF4444");     // Translucent red
+            SetColor("HoverBrush", "#40FFFFFF");          // Crystal light glare hover
+            SetColor("CardShadowBrush", "#1A000000");     // Very soft shadow
+            SetColor("DropZoneBrush", "#1AFFFFFF");       // Translucent drop-zone
+            SetColor("WindowOverlayBrush", "#33FFFFFF");  // Light dimming overlay
         }
         else
         {
-            SetColor("AppBackgroundBrush", "#F5F5F7");
-            SetColor("PanelBrush", "#FFFFFF");
-            SetColor("PanelAltBrush", "#FAFAFC");
-            SetColor("BorderBrushSoft", "#E5E5EA");
-            SetColor("TextPrimaryBrush", "#1D1D1F");
-            SetColor("TextMutedBrush", "#86868B");
-            SetColor("AccentBrush", "#007AFF");
-            SetColor("AccentSoftBrush", "#EAF3FF");
-            SetColor("GlassSurfaceBrush", "#FFFFFF");
-            SetColor("GlassInnerBrush", "#FAFAFC");
-            SetColor("GlassStrokeBrush", "#E5E5EA");
-            SetColor("PositiveBrush", "#34C759");
-            SetColor("PositiveSoftBrush", "#E9F8EE");
-            SetColor("DangerBrush", "#FF3B30");
-            SetColor("DangerSoftBrush", "#FFF1F0");
-            SetColor("HoverBrush", "#F2F2F7");
-            SetColor("CardShadowBrush", "#001D1D1F");
-            SetColor("DropZoneBrush", "#FAFAFC");
-            SetColor("WindowOverlayBrush", "#00FFFFFF");
+            SetColor("AppBackgroundBrush", "#F3F4F6");    // Clean soft light background
+            SetColor("PanelBrush", "#FFFFFF");            // White card/panel background
+            SetColor("PanelAltBrush", "#F9FAFB");         // Light gray sidebar background
+            SetColor("BorderBrushSoft", "#E5E7EB");       // Soft light gray border
+            SetColor("TextPrimaryBrush", "#111827");      // Slate primary text
+            SetColor("TextMutedBrush", "#6B7280");        // Slate muted text
+            SetColor("AccentBrush", "#6366F1");           // Deep elegant indigo blue
+            SetColor("AccentSoftBrush", "#EEF2FF");        // Soft indigo tint
+            SetColor("GlassSurfaceBrush", "#FBFBFD");     // Light floating box surface
+            SetColor("GlassInnerBrush", "#F3F4F6");       // Light icon container backplate
+            SetColor("GlassStrokeBrush", "#E5E7EB");      // Light box outline
+            SetColor("PositiveBrush", "#10B981");         // Emerald green
+            SetColor("PositiveSoftBrush", "#ECFDF5");     // Soft green feedback
+            SetColor("DangerBrush", "#EF4444");           // Rose red
+            SetColor("DangerSoftBrush", "#FEF2F2");       // Soft red feedback
+            SetColor("HoverBrush", "#F3F4F6");            // Light gray hover
+            SetColor("CardShadowBrush", "#0A000000");     // Soft gray shadow
+            SetColor("DropZoneBrush", "#F9FAFB");         // Soft gray drop-zone
+            SetColor("WindowOverlayBrush", "#00FFFFFF");  // Transparent overlay
         }
 
         ThemeChanged?.Invoke(null, theme);

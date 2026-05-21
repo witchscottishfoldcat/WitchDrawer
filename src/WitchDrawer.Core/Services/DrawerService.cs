@@ -27,19 +27,22 @@ public sealed class DrawerService
         return _repository.GetBoxesAsync(cancellationToken);
     }
 
-    public Task<IReadOnlyList<DrawerItem>> GetItemsAsync(Guid boxId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<DrawerItem>> GetItemsAsync(Guid boxId, CancellationToken cancellationToken = default)
     {
-        return _repository.GetItemsAsync(boxId, cancellationToken);
+        await PruneMissingStoredItemsAsync(boxId, cancellationToken);
+        return await _repository.GetItemsAsync(boxId, cancellationToken);
     }
 
-    public Task<IReadOnlyList<DrawerItem>> GetAllItemsAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<DrawerItem>> GetAllItemsAsync(CancellationToken cancellationToken = default)
     {
-        return _repository.GetItemsAsync(null, cancellationToken);
+        await PruneMissingStoredItemsAsync(null, cancellationToken);
+        return await _repository.GetItemsAsync(null, cancellationToken);
     }
 
-    public Task<IReadOnlyList<DrawerItem>> SearchItemsAsync(string query, int limit = 200, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<DrawerItem>> SearchItemsAsync(string query, int limit = 200, CancellationToken cancellationToken = default)
     {
-        return _repository.SearchItemsAsync(query.Trim(), limit, cancellationToken);
+        await PruneMissingStoredItemsAsync(null, cancellationToken);
+        return await _repository.SearchItemsAsync(query.Trim(), limit, cancellationToken);
     }
 
     public async Task<Box> CreateBoxAsync(string name, BoxType type, CancellationToken cancellationToken = default)
@@ -176,6 +179,31 @@ public sealed class DrawerService
         }
 
         await launcher.OpenAsync(path, cancellationToken);
+    }
+
+    private async Task PruneMissingStoredItemsAsync(Guid? boxId, CancellationToken cancellationToken)
+    {
+        var items = await _repository.GetItemsAsync(boxId, cancellationToken);
+        var missingItemIds = await Task.Run(() =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return items
+                .Where(IsMissingStoredItem)
+                .Select(item => item.Id)
+                .ToArray();
+        }, cancellationToken);
+
+        foreach (var itemId in missingItemIds)
+        {
+            await _repository.RemoveItemAsync(itemId, cancellationToken);
+        }
+    }
+
+    private static bool IsMissingStoredItem(DrawerItem item)
+    {
+        return !string.IsNullOrWhiteSpace(item.StoredPath)
+            && !File.Exists(item.StoredPath)
+            && !Directory.Exists(item.StoredPath);
     }
 
     private async Task EnsureDefaultBoxesAsync(CancellationToken cancellationToken)

@@ -70,6 +70,25 @@ public sealed class DrawerServiceTests
     }
 
     [Fact]
+    public async Task GetItemsAsync_NormalBoxRemovesMissingStoredItems()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var source = workspace.CreateSourceFile("source-a", "moved-out.txt", "hello");
+        var normalBox = await workspace.GetBoxAsync(BoxType.Normal);
+        var item = await workspace.Service.ImportPathAsync(normalBox.Id, source);
+        var exportedPath = Path.Combine(workspace.Root, "exported", "moved-out.txt");
+        Directory.CreateDirectory(Path.GetDirectoryName(exportedPath)!);
+
+        File.Move(item.StoredPath!, exportedPath);
+        var items = await workspace.Service.GetItemsAsync(normalBox.Id);
+        var storedItems = await workspace.Repository.GetItemsAsync(normalBox.Id);
+
+        Assert.True(File.Exists(exportedPath));
+        Assert.Empty(items);
+        Assert.Empty(storedItems);
+    }
+
+    [Fact]
     public async Task DeleteItemAsync_NormalBoxUsesTrashAbstraction()
     {
         using var workspace = await TestWorkspace.CreateAsync();

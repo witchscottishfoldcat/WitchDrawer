@@ -43,6 +43,7 @@ public sealed class MainViewModel : ObservableObject
         DeleteItemCommand = new AsyncRelayCommand<DrawerItemViewModel?>(DeleteItemAsync);
         ApplyMoeThemeCommand = new RelayCommand(() => ApplyTheme(AppTheme.Moe));
         ApplyGlassThemeCommand = new RelayCommand(() => ApplyTheme(AppTheme.Glass));
+        ApplyCrystalThemeCommand = new RelayCommand(() => ApplyTheme(AppTheme.Crystal));
         ShowDashboardCommand = new RelayCommand(() => IsSettingsPage = false);
         ShowSettingsCommand = new RelayCommand(() => IsSettingsPage = true);
     }
@@ -70,6 +71,8 @@ public sealed class MainViewModel : ObservableObject
     public IRelayCommand ApplyMoeThemeCommand { get; }
 
     public IRelayCommand ApplyGlassThemeCommand { get; }
+
+    public IRelayCommand ApplyCrystalThemeCommand { get; }
 
     public IRelayCommand ShowDashboardCommand { get; }
 
@@ -278,7 +281,7 @@ public sealed class MainViewModel : ObservableObject
     private void ApplyTheme(AppTheme theme)
     {
         AppThemeManager.Apply(theme);
-        ThemeLabel = theme == AppTheme.Glass ? "毛玻璃" : "清透";
+        ThemeLabel = theme == AppTheme.Glass ? "黑曜石毛玻璃" : (theme == AppTheme.Crystal ? "全透水晶玻璃" : "冰莓雅致浅色");
         StatusText = $"已切换到 {ThemeLabel} 风格";
     }
 
