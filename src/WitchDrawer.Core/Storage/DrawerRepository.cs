@@ -122,6 +122,25 @@ public sealed class DrawerRepository
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    public async Task UpdateBoxNameAsync(Guid boxId, string newName, CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            UPDATE Boxes
+            SET Name = $name, UpdatedAt = $updatedAt
+            WHERE Id = $id;
+            """;
+        command.Parameters.AddWithValue("$id", boxId.ToString());
+        command.Parameters.AddWithValue("$name", newName);
+        command.Parameters.AddWithValue("$updatedAt", ToDb(DateTimeOffset.UtcNow));
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     public async Task RemoveBoxAsync(Guid boxId, CancellationToken cancellationToken = default)
     {
         await using var connection = CreateConnection();

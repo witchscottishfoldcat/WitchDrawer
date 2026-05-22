@@ -167,6 +167,17 @@ public sealed class DrawerService
         await _repository.RemoveBoxAsync(boxId, cancellationToken);
     }
 
+    public async Task RenameBoxAsync(Guid boxId, string newName, CancellationToken cancellationToken = default)
+    {
+        if (newName == null)
+            newName = string.Empty;
+
+        var box = await _repository.GetBoxAsync(boxId, cancellationToken)
+            ?? throw new InvalidOperationException("Box does not exist.");
+
+        await _repository.UpdateBoxNameAsync(boxId, newName, cancellationToken);
+    }
+
     public async Task OpenItemAsync(Guid itemId, IFileLauncher launcher, CancellationToken cancellationToken = default)
     {
         var item = await _repository.GetItemAsync(itemId, cancellationToken)

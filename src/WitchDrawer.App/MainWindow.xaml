@@ -347,11 +347,64 @@
                                                FontWeight="Bold"
                                                />
                                 </StackPanel>
-                                <TextBlock Text="{Binding SelectedBox.Name, TargetNullValue=选择一个收纳盒}"
-                                           Margin="0,4,0,0"
-                                           Foreground="{DynamicResource TextPrimaryBrush}"
-                                           FontSize="28"
-                                           FontWeight="Bold" />
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
+                                    <TextBlock Text="{Binding SelectedBox.Name, TargetNullValue=选择一个收纳盒}"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               FontSize="28"
+                                               FontWeight="Bold" />
+                                    
+                                    <!-- 重命名收纳盒悬浮按钮与浮窗 -->
+                                    <Grid Margin="12,4,0,0">
+                                        <Button x:Name="BtnRenameBox"
+                                                Click="OnRenameBoxClicked"
+                                                Focusable="False"
+                                                Style="{StaticResource GhostButtonStyle}"
+                                                Width="28" Height="28"
+                                                ToolTip="重命名收纳盒"
+                                                BorderThickness="0">
+                                            <Path Data="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                                                  Fill="{DynamicResource TextMutedBrush}"
+                                                  Stretch="Uniform" Width="14" Height="14" />
+                                        </Button>
+
+                                        <Popup x:Name="RenameBoxPopup"
+                                               StaysOpen="False"
+                                               AllowsTransparency="True"
+                                               PlacementTarget="{Binding ElementName=BtnRenameBox}"
+                                               Placement="Right"
+                                               HorizontalOffset="10"
+                                               VerticalOffset="-12"
+                                               PopupAnimation="Fade">
+                                            <Border Background="{DynamicResource PanelBrush}"
+                                                    BorderBrush="{DynamicResource BorderBrushSoft}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="10"
+                                                    Padding="12,12"
+                                                    Margin="16">
+                                                <Border.Effect>
+                                                    <DropShadowEffect BlurRadius="16" ShadowDepth="4" Opacity="0.15" Direction="270" />
+                                                </Border.Effect>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBox x:Name="TxtRenameBox"
+                                                             Width="180" Height="32"
+                                                             VerticalContentAlignment="Center"
+                                                             Foreground="{DynamicResource TextPrimaryBrush}"
+                                                             Background="{DynamicResource BackgroundBrush}"
+                                                             BorderBrush="{DynamicResource BorderBrush}"
+                                                             BorderThickness="1"
+                                                             Padding="8,0"
+                                                             KeyDown="OnRenameBoxKeyDown"
+                                                             PreviewKeyDown="OnRenameBoxPreviewKeyDown" />
+                                                    <Button Content="确认" 
+                                                            Click="OnConfirmRenameBoxClicked"
+                                                            Style="{StaticResource PrimaryButtonStyle}"
+                                                            Margin="8,0,0,0"
+                                                            Padding="16,0" Height="32"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </Popup>
+                                    </Grid>
+                                </StackPanel>
                             </StackPanel>
 
                             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom">
@@ -475,25 +528,56 @@
                                                            TextWrapping="Wrap" />
                                             </StackPanel>
 
-                                            <!-- 微型悬浮垃圾桶小按钮：节省了原先整行删除按钮的巨额垂直空间 -->
-                                            <Button Grid.Column="1"
-                                                    Command="{Binding DeleteSelectedBoxCommand}"
-                                                    Style="{StaticResource DangerButtonStyle}"
-                                                    Width="26"
-                                                    Height="26"
-                                                    Padding="0"
-                                                    ToolTip="删除当前收纳盒"
-                                                    VerticalAlignment="Top"
-                                                    HorizontalAlignment="Right"
-                                                    BorderThickness="0">
-                                                <Path Data="M 3,3 L 13,3 M 4,3 L 4,14 C 4,15 5,16 6,16 L 10,16 C 11,16 12,15 12,14 L 12,3 M 6,3 L 6,1 L 10,1 L 10,3" 
-                                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" 
-                                                      StrokeThickness="1.2" 
-                                                      Width="10" 
-                                                      Height="11" 
-                                                      Stretch="Uniform" 
-                                                      SnapsToDevicePixels="True" />
-                                            </Button>
+                                            <!-- 微型悬浮垃圾桶小按钮与高质感二次确认浮窗 -->
+                                            <Grid Grid.Column="1" VerticalAlignment="Top" HorizontalAlignment="Right">
+                                                <Button x:Name="BtnDeleteBox"
+                                                        Click="OnDeleteBoxClicked"
+                                                        Style="{StaticResource DangerButtonStyle}"
+                                                        Width="34"
+                                                        Height="34"
+                                                        MinWidth="34"
+                                                        MinHeight="34"
+                                                        Padding="0"
+                                                        ToolTip="删除当前收纳盒"
+                                                        BorderThickness="0">
+                                                    <Path Data="M 3,3 L 13,3 M 4,3 L 4,14 C 4,15 5,16 6,16 L 10,16 C 11,16 12,15 12,14 L 12,3 M 6,3 L 6,1 L 10,1 L 10,3" 
+                                                          Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" 
+                                                          StrokeThickness="1.2" 
+                                                          Width="13" 
+                                                          Height="14" 
+                                                          Stretch="Uniform" 
+                                                          SnapsToDevicePixels="True" />
+                                                </Button>
+                                                
+                                                <!-- 定制级极简二次确认玻璃悬浮窗 -->
+                                                <Popup x:Name="DeleteConfirmPopup"
+                                                       StaysOpen="False"
+                                                       AllowsTransparency="True"
+                                                       PlacementTarget="{Binding ElementName=BtnDeleteBox}"
+                                                       Placement="Bottom"
+                                                       VerticalOffset="6"
+                                                       HorizontalOffset="-130"
+                                                       PopupAnimation="Fade">
+                                                    <Border Background="{DynamicResource PanelBrush}"
+                                                            BorderBrush="{DynamicResource BorderBrushSoft}"
+                                                            BorderThickness="1"
+                                                            CornerRadius="14"
+                                                            Padding="16,14"
+                                                            Margin="16">
+                                                        <Border.Effect>
+                                                            <DropShadowEffect BlurRadius="20" ShadowDepth="6" Opacity="0.18" Direction="270" />
+                                                        </Border.Effect>
+                                                        <StackPanel MinWidth="200">
+                                                            <TextBlock Text="确定要删除该收纳盒吗？" FontWeight="SemiBold" FontSize="13" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,6"/>
+                                                            <TextBlock Text="收纳盒和内部的文件将被移入回收站。" FontSize="11.5" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,16" TextWrapping="Wrap"/>
+                                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                                <Button Content="取消" Click="OnCancelDeleteBoxClicked" Style="{StaticResource GhostButtonStyle}" Margin="0,0,8,0" Padding="12,6"/>
+                                                                <Button Content="删除" Click="OnConfirmDeleteBoxClicked" Style="{StaticResource DangerButtonStyle}" Padding="16,6"/>
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </Popup>
+                                            </Grid>
                                         </Grid>
 
                                         <!-- 极简精致微透分割线 -->

@@ -42,6 +42,7 @@ public sealed class MainViewModel : ObservableObject
         CreateMappingBoxCommand = new AsyncRelayCommand(() => CreateBoxAsync(BoxType.Mapping));
         CreatePixelBoxCommand = new AsyncRelayCommand(() => CreateBoxAsync(BoxType.Pixel));
         DeleteSelectedBoxCommand = new AsyncRelayCommand(DeleteSelectedBoxAsync, () => SelectedBox is not null);
+        RenameSelectedBoxCommand = new AsyncRelayCommand<string?>(RenameSelectedBoxAsync, _ => SelectedBox is not null);
         OpenItemCommand = new AsyncRelayCommand<DrawerItemViewModel?>(OpenItemAsync);
         DeleteItemCommand = new AsyncRelayCommand<DrawerItemViewModel?>(DeleteItemAsync);
         ApplyMoeThemeCommand = new RelayCommand(() => ApplyTheme(AppTheme.Moe));
@@ -71,6 +72,8 @@ public sealed class MainViewModel : ObservableObject
 
     public IAsyncRelayCommand DeleteSelectedBoxCommand { get; }
 
+    public IAsyncRelayCommand<string?> RenameSelectedBoxCommand { get; }
+
     public IAsyncRelayCommand<DrawerItemViewModel?> OpenItemCommand { get; }
 
     public IAsyncRelayCommand<DrawerItemViewModel?> DeleteItemCommand { get; }
@@ -93,6 +96,7 @@ public sealed class MainViewModel : ObservableObject
             if (SetProperty(ref _selectedBox, value))
             {
                 DeleteSelectedBoxCommand.NotifyCanExecuteChanged();
+                RenameSelectedBoxCommand.NotifyCanExecuteChanged();
                 _ = LoadItemsForSelectedBoxAsync();
             }
         }
@@ -230,8 +234,40 @@ public sealed class MainViewModel : ObservableObject
             await _quickPanelViewModel.LoadAsync();
             StatusText = $"\u5df2\u5220\u9664 {deletedName}\uff0c\u6536\u7eb3\u680f\u5df2\u79fb\u9664";
             DeleteSelectedBoxCommand.NotifyCanExecuteChanged();
+            RenameSelectedBoxCommand.NotifyCanExecuteChanged();
             BoxesChanged?.Invoke(this, EventArgs.Empty);
             ItemsChanged?.Invoke(this, EventArgs.Empty);
+        });
+    }
+
+    private async Task RenameSelectedBoxAsync(string? newName)
+    {
+        var selectedBox = SelectedBox;
+        if (selectedBox is null || newName is null)
+        {
+            return;
+        }
+
+        await RunBusyAsync(async () =>
+        {
+            await _drawerService.RenameBoxAsync(selectedBox.Id, newName);
+
+            var boxes = await _drawerService.GetBoxesAsync();
+            Boxes.Clear();
+            foreach (var box in boxes)
+            {
+                Boxes.Add(new BoxViewModel(box));
+            }
+
+            SelectedBox = Boxes.FirstOrDefault(b => b.Id == selectedBox.Id) ?? Boxes.FirstOrDefault();
+            if (SelectedBox is not null)
+            {
+                await LoadItemsForSelectedBoxAsync();
+            }
+
+            await _quickPanelViewModel.LoadAsync();
+            StatusText = $"已重命名收纳盒为 {newName.Trim()}";
+            BoxesChanged?.Invoke(this, EventArgs.Empty);
         });
     }
 

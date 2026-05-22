@@ -156,4 +156,72 @@ public partial class MainWindow : Window
     {
         CreateBoxPopup.IsOpen = true;
     }
+
+    private void OnDeleteBoxClicked(object sender, RoutedEventArgs e)
+    {
+        DeleteConfirmPopup.IsOpen = true;
+    }
+
+    private void OnCancelDeleteBoxClicked(object sender, RoutedEventArgs e)
+    {
+        DeleteConfirmPopup.IsOpen = false;
+    }
+
+    private void OnConfirmDeleteBoxClicked(object sender, RoutedEventArgs e)
+    {
+        DeleteConfirmPopup.IsOpen = false;
+        if (ViewModel.DeleteSelectedBoxCommand.CanExecute(null))
+        {
+            ViewModel.DeleteSelectedBoxCommand.Execute(null);
+        }
+    }
+
+    private void OnRenameBoxClicked(object sender, RoutedEventArgs e)
+    {
+        RenameBoxPopup.IsOpen = true;
+        TxtRenameBox.Text = ViewModel.SelectedBox?.Name ?? "";
+        
+        Dispatcher.InvokeAsync(() =>
+        {
+            TxtRenameBox.Focus();
+            System.Windows.Input.Keyboard.Focus(TxtRenameBox);
+            TxtRenameBox.SelectAll();
+        }, System.Windows.Threading.DispatcherPriority.Input);
+    }
+
+    private void OnRenameBoxPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Space && sender is System.Windows.Controls.TextBox tb)
+        {
+            var caret = tb.CaretIndex;
+            tb.Text = tb.Text.Insert(caret, " ");
+            tb.CaretIndex = caret + 1;
+            e.Handled = true;
+        }
+    }
+
+    private void OnConfirmRenameBoxClicked(object sender, RoutedEventArgs e)
+    {
+        var newName = TxtRenameBox.Text ?? "";
+
+        RenameBoxPopup.IsOpen = false;
+        if (ViewModel.RenameSelectedBoxCommand.CanExecute(newName))
+        {
+            ViewModel.RenameSelectedBoxCommand.Execute(newName);
+        }
+    }
+
+    private void OnRenameBoxKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            OnConfirmRenameBoxClicked(sender, e);
+        }
+        else if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            RenameBoxPopup.IsOpen = false;
+        }
+    }
 }
