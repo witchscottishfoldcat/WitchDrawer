@@ -154,11 +154,6 @@ public partial class MainWindow : Window
 
     private void OnCreateBoxClicked(object sender, RoutedEventArgs e)
     {
-        if (sender is Button btn && btn.ContextMenu != null)
-        {
-            btn.ContextMenu.PlacementTarget = btn;
-            btn.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Top;
-            btn.ContextMenu.IsOpen = true;
-        }
+        CreateBoxPopup.IsOpen = true;
     }
 }

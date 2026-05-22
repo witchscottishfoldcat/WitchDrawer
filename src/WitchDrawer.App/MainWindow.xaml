@@ -285,27 +285,40 @@
                         </StackPanel>
 
                         <StackPanel DockPanel.Dock="Bottom" VerticalAlignment="Bottom">
-                            <Button Style="{StaticResource PrimaryButtonStyle}"
-                                    Command="{Binding CreateNormalBoxCommand}"
+                            <Button x:Name="BtnCreateBox"
+                                    Style="{StaticResource PrimaryButtonStyle}"
+                                    Click="OnCreateBoxClicked"
                                     Margin="0,0,0,10">
                                 <StackPanel Orientation="Horizontal">
                                     <Path Data="M 0,4 L 8,4 M 4,0 L 4,8" Stroke="White" StrokeThickness="1.5" Width="8" Height="8" VerticalAlignment="Center" Margin="0,0,8,0" SnapsToDevicePixels="True" />
-                                    <TextBlock Text="新建普通收纳盒" VerticalAlignment="Center" FontSize="12.5" />
+                                    <TextBlock Text="新建收纳盒..." VerticalAlignment="Center" FontSize="12.5" />
                                 </StackPanel>
                             </Button>
-                            <Button Command="{Binding CreateMappingBoxCommand}"
-                                    Margin="0,0,0,10">
-                                <StackPanel Orientation="Horizontal">
-                                    <Path Data="M 0,4 L 8,4 M 4,0 L 4,8" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.5" Width="8" Height="8" VerticalAlignment="Center" Margin="0,0,8,0" SnapsToDevicePixels="True" />
-                                    <TextBlock Text="新建映射收纳盒" VerticalAlignment="Center" FontSize="12.5" />
-                                </StackPanel>
-                            </Button>
-                            <Button Command="{Binding CreatePixelBoxCommand}">
-                                <StackPanel Orientation="Horizontal">
-                                    <Path Data="M 0,4 L 8,4 M 4,0 L 4,8" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.5" Width="8" Height="8" VerticalAlignment="Center" Margin="0,0,8,0" SnapsToDevicePixels="True" />
-                                    <TextBlock Text="新建像素收纳盒" VerticalAlignment="Center" FontSize="12.5" />
-                                </StackPanel>
-                            </Button>
+                            
+                            <!-- 定制级极简纯净菜单悬浮窗 -->
+                            <Popup x:Name="CreateBoxPopup"
+                                   AllowsTransparency="True"
+                                   StaysOpen="False"
+                                   PlacementTarget="{Binding ElementName=BtnCreateBox}"
+                                   Placement="Top"
+                                   VerticalOffset="-6"
+                                   PopupAnimation="Fade">
+                                <Border Background="{DynamicResource PanelBrush}"
+                                        BorderBrush="{DynamicResource BorderBrushSoft}"
+                                        BorderThickness="1"
+                                        CornerRadius="14"
+                                        Padding="6"
+                                        Margin="16">
+                                    <Border.Effect>
+                                        <DropShadowEffect BlurRadius="16" ShadowDepth="4" Opacity="0.12" Direction="270" />
+                                    </Border.Effect>
+                                    <StackPanel MinWidth="160">
+                                        <Button Content="普通收纳盒" Command="{Binding CreateNormalBoxCommand}" Style="{StaticResource GhostButtonStyle}" Margin="0,0,0,4" Padding="12,10" />
+                                        <Button Content="映射收纳盒" Command="{Binding CreateMappingBoxCommand}" Style="{StaticResource GhostButtonStyle}" Margin="0,0,0,4" Padding="12,10" />
+                                        <Button Content="像素收纳盒" Command="{Binding CreatePixelBoxCommand}" Style="{StaticResource GhostButtonStyle}" Padding="12,10" />
+                                    </StackPanel>
+                                </Border>
+                            </Popup>
                         </StackPanel>
                     </DockPanel>
                 </Border>
