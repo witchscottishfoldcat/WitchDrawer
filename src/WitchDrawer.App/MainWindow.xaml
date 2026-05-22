@@ -3,10 +3,10 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="WitchDrawer"
         Icon="/Assets/app.png"
-        Width="1120"
-        Height="700"
+        Width="920"
+        Height="560"
         MinWidth="920"
-        MinHeight="580"
+        MinHeight="560"
         WindowStyle="None"
         AllowsTransparency="True"
         ResizeMode="NoResize"
@@ -114,7 +114,7 @@
             </Grid>
 
             <!-- Main Panel -->
-            <Grid Grid.Row="1">
+            <Grid Grid.Row="1" VerticalAlignment="Stretch">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="260" />
                     <ColumnDefinition Width="*" />
@@ -311,9 +311,9 @@
                 </Border>
 
                 <!-- Right Content Area -->
-                <Grid Grid.Column="1" Margin="28,24,28,24">
+                <Grid Grid.Column="1" Margin="28,24,28,24" VerticalAlignment="Stretch">
                     <!-- Dashboard Page -->
-                    <Grid Visibility="{Binding IsSettingsPage, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                    <Grid Visibility="{Binding IsSettingsPage, Converter={StaticResource InverseBooleanToVisibilityConverter}}" VerticalAlignment="Stretch">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
@@ -370,19 +370,26 @@
                             </StackPanel>
                         </Grid>
 
-                        <Grid Grid.Row="1">
+                        <Grid Grid.Row="1" VerticalAlignment="Stretch">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="230" />
                                 <ColumnDefinition Width="20" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
 
-                            <!-- Left Cards Stack -->
-                            <StackPanel Grid.Column="0">
-                                <!-- Top Satin Gradient Card -->
-                                <Border Background="{DynamicResource AccentBrush}"
+                            <!-- 左侧卡片自适应容器 (采用高度纵向拉伸 Grid，实现与右侧完美对称对齐) -->
+                            <Grid Grid.Column="0" Margin="0,0,8,0" VerticalAlignment="Stretch">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" /> <!-- 顶部状态卡片 -->
+                                    <RowDefinition Height="Auto" /> <!-- 收纳盒属性配置卡片 -->
+                                    <RowDefinition Height="*" />    <!-- 投放区：使用 * 星号自适应撑满左侧的全部剩余纵向空间 -->
+                                </Grid.RowDefinitions>
+
+                                <!-- 顶部精美渐变桌面状态卡片 -->
+                                <Border Grid.Row="0"
+                                        Background="{DynamicResource AccentBrush}"
                                         CornerRadius="20"
-                                        Margin="0,0,0,16">
+                                        Margin="0,0,0,12">
                                     <Grid>
                                         <Border CornerRadius="20" IsHitTestVisible="False">
                                             <Border.Background>
@@ -413,128 +420,162 @@
                                     </Grid>
                                 </Border>
 
-                                <!-- Current Mode Card -->
-                                <Border Background="{DynamicResource PanelBrush}"
+                                <!-- 扁平合并型“收纳盒配置”超级卡片 (高度极度紧凑自适应) -->
+                                <Border Grid.Row="1"
+                                        Background="{DynamicResource PanelBrush}"
                                         BorderBrush="{DynamicResource BorderBrushSoft}"
                                         BorderThickness="1"
                                         CornerRadius="18"
-                                        Padding="18"
-                                        Margin="0,0,0,16">
+                                        Padding="12,12"
+                                        Margin="0,0,0,12">
                                     <StackPanel>
-                                        <TextBlock Text="当前模式"
-                                                   Foreground="{DynamicResource TextMutedBrush}"
-                                                   FontSize="12"
-                                                   FontWeight="Bold" />
-                                        <TextBlock Text="{Binding SelectedBox.TypeLabel}"
-                                                   Margin="0,8,0,0"
-                                                   Foreground="{DynamicResource AccentBrush}"
-                                                   FontSize="20"
-                                                   FontWeight="Bold" />
-                                        <TextBlock Text="{Binding SelectedBox.Description}"
-                                                   Foreground="{DynamicResource TextMutedBrush}"
-                                                   FontSize="11.5"
-                                                   LineHeight="14"
-                                                   Margin="0,2,0,0"
-                                                   TextWrapping="Wrap" />
-                                        <Button Command="{Binding DeleteSelectedBoxCommand}"
-                                                Style="{StaticResource DangerButtonStyle}"
-                                                HorizontalAlignment="Left"
-                                                Height="26"
-                                                Padding="8,0"
-                                                Margin="0,10,0,0">
-                                            <StackPanel Orientation="Horizontal">
+                                        <!-- 第一层：当前模式与删除小按钮的左右并排 -->
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            
+                                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <TextBlock Text="当前模式"
+                                                               Foreground="{DynamicResource TextMutedBrush}"
+                                                               FontSize="11.5"
+                                                               FontWeight="Bold"
+                                                               VerticalAlignment="Center" />
+                                                    <Border Background="{DynamicResource AccentSoftBrush}"
+                                                            CornerRadius="6"
+                                                            Padding="6,2"
+                                                            Margin="8,0,0,0"
+                                                            VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding SelectedBox.TypeLabel}"
+                                                                   Foreground="{DynamicResource AccentBrush}"
+                                                                   FontSize="10.5"
+                                                                   FontWeight="Bold" />
+                                                    </Border>
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding SelectedBox.Description}"
+                                                           Foreground="{DynamicResource TextMutedBrush}"
+                                                           FontSize="11"
+                                                           LineHeight="13"
+                                                           Margin="0,4,0,0"
+                                                           TextWrapping="Wrap" />
+                                            </StackPanel>
+
+                                            <!-- 微型悬浮垃圾桶小按钮：节省了原先整行删除按钮的巨额垂直空间 -->
+                                            <Button Grid.Column="1"
+                                                    Command="{Binding DeleteSelectedBoxCommand}"
+                                                    Style="{StaticResource DangerButtonStyle}"
+                                                    Width="26"
+                                                    Height="26"
+                                                    Padding="0"
+                                                    ToolTip="删除当前收纳盒"
+                                                    VerticalAlignment="Top"
+                                                    HorizontalAlignment="Right"
+                                                    BorderThickness="0">
                                                 <Path Data="M 3,3 L 13,3 M 4,3 L 4,14 C 4,15 5,16 6,16 L 10,16 C 11,16 12,15 12,14 L 12,3 M 6,3 L 6,1 L 10,1 L 10,3" 
                                                       Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" 
-                                                      StrokeThickness="1.2" Width="10" Height="11" VerticalAlignment="Center" Margin="0,0,4,0" SnapsToDevicePixels="True" />
-                                                <TextBlock Text="删除收纳盒" VerticalAlignment="Center" FontSize="11.5" />
+                                                      StrokeThickness="1.2" 
+                                                      Width="10" 
+                                                      Height="11" 
+                                                      Stretch="Uniform" 
+                                                      SnapsToDevicePixels="True" />
+                                            </Button>
+                                        </Grid>
+
+                                        <!-- 极简精致微透分割线 -->
+                                        <Border Height="1" 
+                                                Background="{DynamicResource BorderBrushSoft}" 
+                                                Margin="0,10,0,10" 
+                                                Opacity="0.6" />
+
+                                        <!-- 第二层：桌面图标排列密度左右并排布局，极速压缩高度 -->
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            
+                                            <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,8,0">
+                                                <TextBlock Text="排列密度"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                                           FontSize="11.5"
+                                                           FontWeight="Bold" />
                                             </StackPanel>
-                                        </Button>
+
+                                            <!-- 胶囊样式小按钮组，提供流畅的桌面网格排列控制 -->
+                                            <UniformGrid Grid.Column="1" Columns="4" Rows="1" VerticalAlignment="Center">
+                                                <Button Content="3x3"
+                                                        ToolTip="大图标 (3x3风格)"
+                                                        Style="{StaticResource GhostButtonStyle}"
+                                                        Command="{Binding DesktopBoxLayout.ApplyPresetCommand}"
+                                                        CommandParameter="3x3"
+                                                        Margin="0,0,2,0"
+                                                        Padding="0,3.5"
+                                                        MinHeight="22"
+                                                        FontSize="10.5" />
+                                                <Button Content="4x4"
+                                                        ToolTip="中大图标 (4x4风格)"
+                                                        Style="{StaticResource GhostButtonStyle}"
+                                                        Command="{Binding DesktopBoxLayout.ApplyPresetCommand}"
+                                                        CommandParameter="4x4"
+                                                        Margin="0,0,2,0"
+                                                        Padding="0,3.5"
+                                                        MinHeight="22"
+                                                        FontSize="10.5" />
+                                                <Button Content="5x5"
+                                                        ToolTip="标准图标 (5x5风格)"
+                                                        Style="{StaticResource GhostButtonStyle}"
+                                                        Command="{Binding DesktopBoxLayout.ApplyPresetCommand}"
+                                                        CommandParameter="5x5"
+                                                        Margin="0,0,2,0"
+                                                        Padding="0,3.5"
+                                                        MinHeight="22"
+                                                        FontSize="10.5" />
+                                                <Button Content="6x6"
+                                                        ToolTip="极小图标 (6x6风格)"
+                                                        Style="{StaticResource GhostButtonStyle}"
+                                                        Command="{Binding DesktopBoxLayout.ApplyPresetCommand}"
+                                                        CommandParameter="6x6"
+                                                        Padding="0,3.5"
+                                                        MinHeight="22"
+                                                        FontSize="10.5" />
+                                            </UniformGrid>
+                                        </Grid>
                                     </StackPanel>
                                 </Border>
 
-                                <!-- Desktop icon layout controls -->
-                                <Border Background="{DynamicResource PanelBrush}"
-                                        BorderBrush="{DynamicResource BorderBrushSoft}"
-                                        BorderThickness="1"
-                                        CornerRadius="18"
-                                        Padding="12"
-                                        Margin="0,0,0,10">
-                                    <StackPanel>
-                                        <TextBlock Text="桌面图标"
-                                                   Foreground="{DynamicResource TextMutedBrush}"
-                                                   FontSize="12"
-                                                   FontWeight="Bold" />
-                                        <TextBlock Text="排列密度"
-                                                   Margin="0,4,0,6"
-                                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                                   FontSize="16"
-                                                   FontWeight="Bold" />
-
-                                        <UniformGrid Columns="4" Rows="1">
-                                            <Button Content="3x3"
-                                                    ToolTip="大图标 (3x3风格)"
-                                                    Style="{StaticResource GhostButtonStyle}"
-                                                    Command="{Binding DesktopBoxLayout.ApplyPresetCommand}"
-                                                    CommandParameter="3x3"
-                                                    Margin="0,0,4,0"
-                                                    Padding="0,6"
-                                                    FontSize="11.5" />
-                                            <Button Content="4x4"
-                                                    ToolTip="中大图标 (4x4风格)"
-                                                    Style="{StaticResource GhostButtonStyle}"
-                                                    Command="{Binding DesktopBoxLayout.ApplyPresetCommand}"
-                                                    CommandParameter="4x4"
-                                                    Margin="0,0,4,0"
-                                                    Padding="0,6"
-                                                    FontSize="11.5" />
-                                            <Button Content="5x5"
-                                                    ToolTip="标准图标 (5x5风格)"
-                                                    Style="{StaticResource GhostButtonStyle}"
-                                                    Command="{Binding DesktopBoxLayout.ApplyPresetCommand}"
-                                                    CommandParameter="5x5"
-                                                    Margin="0,0,4,0"
-                                                    Padding="0,6"
-                                                    FontSize="11.5" />
-                                            <Button Content="6x6"
-                                                    ToolTip="极小图标 (6x6风格)"
-                                                    Style="{StaticResource GhostButtonStyle}"
-                                                    Command="{Binding DesktopBoxLayout.ApplyPresetCommand}"
-                                                    CommandParameter="6x6"
-                                                    Padding="0,6"
-                                                    FontSize="11.5" />
-                                        </UniformGrid>
-                                    </StackPanel>
-                                </Border>
-
-                                <!-- Drag & Drop Zone -->
-                                <Border Background="{DynamicResource DropZoneBrush}"
+                                <!-- 投放区 (去除硬编码高度，高度由 Grid 自动伸缩拉长并保持居中，实现与右侧完美对称对齐！) -->
+                                <Border Grid.Row="2"
+                                        Background="{DynamicResource DropZoneBrush}"
                                         BorderThickness="0"
                                         CornerRadius="18"
-                                        Height="60">
+                                        MinHeight="82"
+                                        VerticalAlignment="Stretch">
                                     <Grid>
                                         <Rectangle Stroke="{DynamicResource BorderBrushSoft}"
                                                    StrokeThickness="1.5"
                                                    StrokeDashArray="4 3"
                                                    RadiusX="18"
                                                    RadiusY="18" />
-                                        <StackPanel Margin="16" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <StackPanel Margin="8" HorizontalAlignment="Center" VerticalAlignment="Center">
                                             <Path Data="M 6,1 L 6,11 M 2,7 L 6,11 L 10,7 M 1,14 L 11,14" 
                                                   Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" 
-                                                  Width="12" Height="14" HorizontalAlignment="Center" Margin="0,0,0,6" SnapsToDevicePixels="True" />
+                                                  Width="12" Height="14" HorizontalAlignment="Center" Margin="0,0,0,4" SnapsToDevicePixels="True" />
                                             <TextBlock Text="投放区"
                                                        Foreground="{DynamicResource TextPrimaryBrush}"
-                                                       FontSize="13.5"
+                                                       FontSize="13"
                                                        FontWeight="Bold"
                                                        HorizontalAlignment="Center" />
                                             <TextBlock Text="拖入文件至此快速归纳"
-                                                       Margin="0,3,0,0"
-                                                       FontSize="11.5"
+                                                       Margin="0,2,0,0"
+                                                       FontSize="10.5"
                                                        Foreground="{DynamicResource TextMutedBrush}"
                                                        HorizontalAlignment="Center" />
                                         </StackPanel>
                                     </Grid>
                                 </Border>
-                            </StackPanel>
+                            </Grid>
 
                             <!-- Right Files List (Glass Card panel) -->
                             <Border Grid.Column="2"

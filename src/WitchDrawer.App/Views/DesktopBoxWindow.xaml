@@ -20,6 +20,37 @@
         Drop="OnFilesDropped"
         PreviewDragOver="OnPreviewDragOver">
     <Window.Resources>
+        <!-- 精致自适应 8x8 复古透明像素微网格笔刷 -->
+        <DrawingBrush x:Key="PixelGridBrush" TileMode="Tile" Viewport="0,0,8,8" ViewportUnits="Absolute">
+            <DrawingBrush.Drawing>
+                <DrawingGroup>
+                    <GeometryDrawing Brush="Transparent">
+                        <GeometryDrawing.Geometry>
+                            <RectangleGeometry Rect="0,0,8,8" />
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                    <!-- 极淡半透明黑色像素 (在亮色主题下优雅显现) -->
+                    <GeometryDrawing Brush="#0B000000">
+                        <GeometryDrawing.Geometry>
+                            <GeometryGroup>
+                                <RectangleGeometry Rect="0,0,4,4" />
+                                <RectangleGeometry Rect="4,4,4,4" />
+                            </GeometryGroup>
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                    <!-- 极淡半透明白色像素 (在暗色主题下高光显现) -->
+                    <GeometryDrawing Brush="#0EFFFFFF">
+                        <GeometryDrawing.Geometry>
+                            <GeometryGroup>
+                                <RectangleGeometry Rect="4,0,4,4" />
+                                <RectangleGeometry Rect="0,4,4,4" />
+                            </GeometryGroup>
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                </DrawingGroup>
+            </DrawingBrush.Drawing>
+        </DrawingBrush>
+
         <!-- 虚线滚动跑马灯动画 -->
         <Storyboard x:Key="ScrollDashes" RepeatBehavior="Forever">
             <DoubleAnimation Storyboard.TargetName="DashRect"
@@ -36,6 +67,11 @@
                 <Setter Property="BorderBrush" Value="{DynamicResource GlassStrokeBrush}" />
                 <Setter Property="BorderThickness" Value="1" />
                 <Setter Property="CornerRadius" Value="20" />
+                <Setter Property="Effect">
+                    <Setter.Value>
+                        <DropShadowEffect BlurRadius="18" Color="#000000" Opacity="0.22" ShadowDepth="2" Direction="270" />
+                    </Setter.Value>
+                </Setter>
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding IsDragOver}" Value="True">
                         <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
@@ -43,21 +79,41 @@
                     <DataTrigger Binding="{Binding Type}" Value="Pixel">
                         <Setter Property="CornerRadius" Value="0" />
                         <Setter Property="BorderThickness" Value="2" />
-                        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                        <!-- 动态绑定主题前景色作为硬朗边框，完美进行主题自适应 -->
+                        <Setter Property="BorderBrush" Value="{DynamicResource TextPrimaryBrush}" />
+                        <!-- 替换高斯模糊投影为硬朗的立体硬像素投影 -->
+                        <Setter Property="Effect">
+                            <Setter.Value>
+                                <DropShadowEffect BlurRadius="0" Color="#000000" Opacity="0.45" ShadowDepth="5" Direction="315" />
+                            </Setter.Value>
+                        </Setter>
                         <Setter Property="TextElement.FontFamily" Value="Consolas, Courier New, 微软雅黑" />
                     </DataTrigger>
                 </Style.Triggers>
             </Style>
         </Border.Style>
-        <Border.Effect>
-            <DropShadowEffect BlurRadius="18" Color="#000000" Opacity="0.22" ShadowDepth="2" Direction="270" />
-        </Border.Effect>
         
         <Grid MouseLeftButtonDown="OnSurfaceMouseLeftButtonDown">
             <Grid.RowDefinitions>
                 <RowDefinition Height="38" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
+
+            <!-- 像素模式专用精致主题自适应微网格图层 -->
+            <Rectangle Grid.RowSpan="2" Panel.ZIndex="-1" IsHitTestVisible="False">
+                <Rectangle.Style>
+                    <Style TargetType="Rectangle">
+                        <Setter Property="Fill" Value="Transparent" />
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Type}" Value="Pixel">
+                                <Setter Property="Fill" Value="{StaticResource PixelGridBrush}" />
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Rectangle.Style>
+            </Rectangle>
 
             <!-- 顶部标题栏与 macOS 关闭小红点 -->
             <Grid Grid.Row="0" Background="Transparent">
@@ -73,7 +129,7 @@
                                VerticalAlignment="Center"/>
                 </StackPanel>
 
-                <!-- 关闭小按钮 (悬浮变亮红，自带微过渡) -->
+                <!-- 关闭小按钮 (悬浮变亮红，自带微过渡，像素模式下自动方块化) -->
                 <Button Click="OnCloseClick"
                         Width="12"
                         Height="12"
@@ -84,7 +140,7 @@
                     <Button.Template>
                         <ControlTemplate TargetType="Button">
                             <Grid Background="Transparent">
-                                <Ellipse x:Name="Circle" Fill="#20808080" Width="12" Height="12" />
+                                <Rectangle x:Name="Circle" Fill="#20808080" Width="12" Height="12" RadiusX="6" RadiusY="6" SnapsToDevicePixels="True" />
                                 <Path x:Name="Cross" Data="M 3.5,3.5 L 8.5,8.5 M 8.5,3.5 L 3.5,8.5" 
                                       Stroke="White" StrokeThickness="1.2" Opacity="0" 
                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
@@ -94,6 +150,11 @@
                                     <Setter TargetName="Circle" Property="Fill" Value="#FF5F56" />
                                     <Setter TargetName="Cross" Property="Opacity" Value="0.9" />
                                 </Trigger>
+                                <!-- 在像素模式下自动将关闭红点转换为复古硬像素方块 -->
+                                <DataTrigger Binding="{Binding DataContext.Type, RelativeSource={RelativeSource AncestorType={x:Type Window}}}" Value="Pixel">
+                                    <Setter TargetName="Circle" Property="RadiusX" Value="0" />
+                                    <Setter TargetName="Circle" Property="RadiusY" Value="0" />
+                                </DataTrigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
                     </Button.Template>
@@ -264,6 +325,10 @@
                         <DataTemplate.Triggers>
                             <DataTrigger Binding="{Binding DataContext.Type, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" Value="Pixel">
                                 <Setter TargetName="IconBorder" Property="CornerRadius" Value="0" />
+                                <Setter TargetName="IconBorder" Property="BorderThickness" Value="1.5" />
+                                <!-- 绑定主题前景色与悬浮色，实现完美的暗色/亮色像素图标框自适应 -->
+                                <Setter TargetName="IconBorder" Property="BorderBrush" Value="{DynamicResource TextPrimaryBrush}" />
+                                <Setter TargetName="IconBorder" Property="Background" Value="{DynamicResource HoverBrush}" />
                                 <Setter TargetName="IconImage" Property="RenderOptions.BitmapScalingMode" Value="NearestNeighbor" />
                             </DataTrigger>
                         </DataTemplate.Triggers>
