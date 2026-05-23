@@ -219,6 +219,7 @@
 
                             <ListBox ItemsSource="{Binding Boxes}"
                                      SelectedItem="{Binding SelectedBox, Mode=TwoWay}"
+                                     SelectionChanged="OnBoxesSelectionChanged"
                                      ScrollViewer.CanContentScroll="True"
                                      VirtualizingPanel.IsVirtualizing="True"
                                      VirtualizingPanel.VirtualizationMode="Recycling"
@@ -344,9 +345,9 @@
                                         <DropShadowEffect BlurRadius="16" ShadowDepth="4" Opacity="0.12" Direction="270" />
                                     </Border.Effect>
                                     <StackPanel MinWidth="160">
-                                        <Button Content="普通收纳盒" Command="{Binding CreateNormalBoxCommand}" Style="{StaticResource GhostButtonStyle}" Margin="0,0,0,4" Padding="12,10" />
-                                        <Button Content="映射收纳盒" Command="{Binding CreateMappingBoxCommand}" Style="{StaticResource GhostButtonStyle}" Margin="0,0,0,4" Padding="12,10" />
-                                        <Button Content="像素收纳盒" Command="{Binding CreatePixelBoxCommand}" Style="{StaticResource GhostButtonStyle}" Padding="12,10" />
+                                        <Button Content="普通收纳盒" Click="OnCreateNormalBoxClicked" Style="{StaticResource GhostButtonStyle}" Margin="0,0,0,4" Padding="12,10" />
+                                        <Button Content="映射收纳盒" Click="OnCreateMappingBoxClicked" Style="{StaticResource GhostButtonStyle}" Margin="0,0,0,4" Padding="12,10" />
+                                        <Button Content="像素收纳盒" Click="OnCreatePixelBoxClicked" Style="{StaticResource GhostButtonStyle}" Padding="12,10" />
                                     </StackPanel>
                                 </Border>
                             </Popup>

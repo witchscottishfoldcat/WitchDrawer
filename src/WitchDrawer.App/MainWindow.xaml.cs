@@ -195,6 +195,14 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnBoxesSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (sender is ListBox listBox && listBox.SelectedItem is not null)
+        {
+            listBox.ScrollIntoView(listBox.SelectedItem);
+        }
+    }
+
     private async void OnMainItemsPreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key != Key.Delete || MainItemsList.SelectedItem is not DrawerItemViewModel item)
@@ -210,6 +218,24 @@ public partial class MainWindow : Window
     private void OnCreateBoxClicked(object sender, RoutedEventArgs e)
     {
         CreateBoxPopup.IsOpen = true;
+    }
+
+    private async void OnCreateNormalBoxClicked(object sender, RoutedEventArgs e)
+    {
+        CreateBoxPopup.IsOpen = false;
+        await ViewModel.CreateNormalBoxCommand.ExecuteAsync(null);
+    }
+
+    private async void OnCreateMappingBoxClicked(object sender, RoutedEventArgs e)
+    {
+        CreateBoxPopup.IsOpen = false;
+        await ViewModel.CreateMappingBoxCommand.ExecuteAsync(null);
+    }
+
+    private async void OnCreatePixelBoxClicked(object sender, RoutedEventArgs e)
+    {
+        CreateBoxPopup.IsOpen = false;
+        await ViewModel.CreatePixelBoxCommand.ExecuteAsync(null);
     }
 
     private void OnDeleteBoxClicked(object sender, RoutedEventArgs e)
