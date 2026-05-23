@@ -179,16 +179,15 @@ public sealed class DesktopBoxManager
     {
         const double margin = 18;
         const double gap = 12;
+        const double topPadding = 84;
 
         var workArea = SystemParameters.WorkArea;
-        window.Left = workArea.Right - window.DesiredSize.Width - margin;
-        window.Top = workArea.Top + 84 + index * (window.DesiredSize.Height + gap);
+        var centerX = workArea.Left + (workArea.Width - window.DesiredSize.Width) / 2;
+        var centerY = workArea.Top + (workArea.Height - window.DesiredSize.Height) / 2;
 
-        if (window.Top + window.DesiredSize.Height > workArea.Bottom - margin)
-        {
-            window.Top = workArea.Top + margin;
-            window.Left = Math.Max(workArea.Left + margin, window.Left - window.DesiredSize.Width - gap);
-        }
+        var offset = index * (window.DesiredSize.Width + gap);
+        window.Left = Math.Max(workArea.Left + margin, Math.Min(centerX + offset, workArea.Right - window.DesiredSize.Width - margin));
+        window.Top = Math.Max(workArea.Top + margin, Math.Min(centerY + topPadding * 0.5, workArea.Bottom - window.DesiredSize.Height - margin));
     }
 
     private void OnWindowLocationChanged(object? sender, EventArgs e)

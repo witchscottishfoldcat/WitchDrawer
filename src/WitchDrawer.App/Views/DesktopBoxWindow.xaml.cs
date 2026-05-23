@@ -61,15 +61,9 @@ public partial class DesktopBoxWindow : Window
         Loaded += OnLoaded;
         AppThemeManager.ThemeChanged += OnThemeChanged;
         Deactivated += OnWindowDeactivated;
-        Activated += OnWindowActivated;
     }
 
     public DesktopBoxViewModel ViewModel => (DesktopBoxViewModel)DataContext;
-
-    private void OnWindowActivated(object? sender, EventArgs e)
-    {
-        SendToBottom();
-    }
 
     private void SendToBottom()
     {
@@ -132,6 +126,7 @@ public partial class DesktopBoxWindow : Window
         IconList.SelectedItem = null;
         FileList.SelectedItem = null;
         _keyboardDeleteTarget = null;
+        SendToBottom();
     }
 
     private void OnCloseClick(object sender, RoutedEventArgs e)
