@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -13,6 +14,13 @@ public partial class DesktopBoxWindow : Window
     private bool _forceClose;
     private Point? _dragStartPoint;
     private DrawerItemViewModel? _keyboardDeleteTarget;
+
+    private sealed class DesktopBoxDragPayload(Guid itemId)
+    {
+        public Guid ItemId { get; } = itemId;
+
+        public bool WasDroppedInsideWitchDrawer { get; set; }
+    }
 
     public DesktopBoxWindow(DesktopBoxViewModel viewModel)
     {
@@ -122,14 +130,15 @@ public partial class DesktopBoxWindow : Window
         {
             if (e.Data.GetDataPresent(InternalDrawerItemDragFormat))
             {
-                if (e.Data.GetData(InternalDrawerItemDragFormat) is Guid itemId)
+                if (TryGetInternalDragPayload(e.Data, out var payload))
                 {
                     var slot = GetDropSlot(e);
-                    var moved = await ViewModel.DropDrawerItemAsync(itemId, slot.Column, slot.Row);
+                    var moved = await ViewModel.DropDrawerItemAsync(payload.ItemId, slot.Column, slot.Row);
                     e.Effects = moved ? DragDropEffects.Move : DragDropEffects.None;
                     if (moved)
                     {
-                        SelectItem(itemId);
+                        payload.WasDroppedInsideWitchDrawer = true;
+                        SelectItem(payload.ItemId);
                     }
                 }
 
@@ -229,7 +238,7 @@ public partial class DesktopBoxWindow : Window
         }
     }
 
-    private void OnIconMouseMove(object sender, MouseEventArgs e)
+    private async void OnIconMouseMove(object sender, MouseEventArgs e)
     {
         if (_dragStartPoint is null || e.LeftButton != MouseButtonState.Pressed)
         {
@@ -247,13 +256,24 @@ public partial class DesktopBoxWindow : Window
 
         if (TryGetDrawerItem(e.OriginalSource, out var drawerItem))
         {
+            var payload = new DesktopBoxDragPayload(drawerItem.Id);
             var data = new DataObject();
-            data.SetData(InternalDrawerItemDragFormat, drawerItem.Id);
+            data.SetData(InternalDrawerItemDragFormat, payload);
+            if (!string.IsNullOrWhiteSpace(drawerItem.PathLabel)
+                && (File.Exists(drawerItem.PathLabel) || Directory.Exists(drawerItem.PathLabel)))
+            {
+                data.SetData(DataFormats.FileDrop, new[] { drawerItem.PathLabel });
+            }
 
             drawerItem.IsDragSource = true;
             try
             {
-                DragDrop.DoDragDrop(IconList, data, DragDropEffects.Move);
+                var effect = DragDrop.DoDragDrop(IconList, data, DragDropEffects.Copy | DragDropEffects.Move);
+                if (!payload.WasDroppedInsideWitchDrawer && effect != DragDropEffects.None)
+                {
+                    await ViewModel.CompleteDragOutAsync(drawerItem);
+                    _keyboardDeleteTarget = null;
+                }
             }
             finally
             {
@@ -283,6 +303,25 @@ public partial class DesktopBoxWindow : Window
         IconList.SelectedItem = item;
         _keyboardDeleteTarget = item;
         IconList.Focus();
+    }
+
+    private static bool TryGetInternalDragPayload(IDataObject data, out DesktopBoxDragPayload payload)
+    {
+        payload = null!;
+        var rawPayload = data.GetData(InternalDrawerItemDragFormat);
+        if (rawPayload is DesktopBoxDragPayload typedPayload)
+        {
+            payload = typedPayload;
+            return true;
+        }
+
+        if (rawPayload is Guid itemId)
+        {
+            payload = new DesktopBoxDragPayload(itemId);
+            return true;
+        }
+
+        return false;
     }
 
     private async void OnItemsMouseDoubleClick(object sender, MouseButtonEventArgs e)

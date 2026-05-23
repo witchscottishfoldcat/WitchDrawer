@@ -12,6 +12,7 @@ namespace WitchDrawer.App;
 
 public partial class MainWindow : Window
 {
+    private const string InternalDrawerItemDragFormat = "WitchDrawer.DesktopBoxItem";
     private const int WmHotKey = 0x0312;
     private const int QuickPanelHotKeyId = 0x5744;
 
@@ -145,12 +146,25 @@ public partial class MainWindow : Window
 
     private void OnPreviewDragOver(object sender, DragEventArgs e)
     {
+        if (e.Data.GetDataPresent(InternalDrawerItemDragFormat))
+        {
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
         e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Move : DragDropEffects.None;
         e.Handled = true;
     }
 
     private async void OnFilesDropped(object sender, DragEventArgs e)
     {
+        if (e.Data.GetDataPresent(InternalDrawerItemDragFormat))
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (!e.Data.GetDataPresent(DataFormats.FileDrop))
         {
             return;

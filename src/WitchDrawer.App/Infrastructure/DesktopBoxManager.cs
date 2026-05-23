@@ -65,10 +65,6 @@ public sealed class DesktopBoxManager
             else
             {
                 window.ViewModel.UpdateBox(box);
-                if (!window.IsVisible)
-                {
-                    window.Show();
-                }
             }
 
             await window.ViewModel.LoadAsync();
