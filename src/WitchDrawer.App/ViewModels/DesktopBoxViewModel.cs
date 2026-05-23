@@ -215,23 +215,23 @@ public sealed class DesktopBoxViewModel : ObservableObject
         }
     }
 
-    public async Task ImportPathsAsync(IEnumerable<string> paths)
+    public Task ImportPathsAsync(IEnumerable<string> paths)
     {
-        await ImportPathsAsync(paths, null, null);
+        return ImportPathsAsync(paths, null, null);
     }
 
-    public async Task ImportPathsAsync(IEnumerable<string> paths, int? startColumn, int? startRow)
+    public async Task<IReadOnlyList<Guid>> ImportPathsAsync(IEnumerable<string> paths, int? startColumn, int? startRow)
     {
         var pathList = paths.ToArray();
         if (pathList.Length == 0 || IsBusy)
         {
-            return;
+            return Array.Empty<Guid>();
         }
 
         try
         {
             IsBusy = true;
-            var imported = 0;
+            var importedIds = new List<Guid>(pathList.Length);
             var reservedSlots = Items.Select(item => (item.GridColumn, item.GridRow)).ToHashSet();
             var nextColumn = startColumn ?? 0;
             var nextRow = startRow ?? 0;
@@ -239,20 +239,22 @@ public sealed class DesktopBoxViewModel : ObservableObject
             {
                 var slot = FindFirstFreeSlot(nextColumn, nextRow, reservedSlots);
                 reservedSlots.Add(slot);
-                await _drawerService.ImportPathAsync(BoxId, path, slot.Column, slot.Row);
+                var importedItem = await _drawerService.ImportPathAsync(BoxId, path, slot.Column, slot.Row);
+                importedIds.Add(importedItem.Id);
                 nextColumn = slot.Column + 1;
                 nextRow = slot.Row;
-                imported++;
             }
 
             await LoadAsync();
-            StatusText = $"已收纳 {imported} 项";
+            StatusText = $"已收纳 {importedIds.Count} 项";
             ItemsChanged?.Invoke(this, EventArgs.Empty);
+            return importedIds;
         }
         catch (Exception exception)
         {
             _logger.Error(exception, "Failed to import into desktop box.");
             StatusText = exception.Message;
+            return Array.Empty<Guid>();
         }
         finally
         {

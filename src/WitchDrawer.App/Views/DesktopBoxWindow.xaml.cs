@@ -132,12 +132,12 @@ public partial class DesktopBoxWindow : Window
             {
                 if (TryGetInternalDragPayload(e.Data, out var payload))
                 {
+                    payload.WasDroppedInsideWitchDrawer = true;
                     var slot = GetDropSlot(e);
                     var moved = await ViewModel.DropDrawerItemAsync(payload.ItemId, slot.Column, slot.Row);
                     e.Effects = moved ? DragDropEffects.Move : DragDropEffects.None;
                     if (moved)
                     {
-                        payload.WasDroppedInsideWitchDrawer = true;
                         SelectItem(payload.ItemId);
                     }
                 }
@@ -149,12 +149,15 @@ public partial class DesktopBoxWindow : Window
             if (e.Data.GetData(DataFormats.FileDrop) is string[] paths)
             {
                 var slot = GetDropSlot(e);
-                await ViewModel.ImportPathsAsync(paths, slot.Column, slot.Row);
-                var lastItem = ViewModel.Items.LastOrDefault();
-                if (lastItem is not null)
+                var importedIds = await ViewModel.ImportPathsAsync(paths, slot.Column, slot.Row);
+                var lastImportedId = importedIds.LastOrDefault();
+                var importedItem = lastImportedId != Guid.Empty
+                    ? ViewModel.Items.FirstOrDefault(candidate => candidate.Id == lastImportedId)
+                    : null;
+                if (importedItem is not null)
                 {
-                    IconList.SelectedItem = lastItem;
-                    _keyboardDeleteTarget = lastItem;
+                    IconList.SelectedItem = importedItem;
+                    _keyboardDeleteTarget = importedItem;
                 }
 
                 IconList.Focus();
