@@ -3,10 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="{Binding Name}"
         Icon="/Assets/app.png"
-        Width="300"
-        Height="300"
-        MinWidth="240"
-        MinHeight="220"
+        SizeToContent="WidthAndHeight"
+        MinWidth="180"
+        MinHeight="120"
         WindowStyle="None"
         AllowsTransparency="True"
         ResizeMode="NoResize"
@@ -130,8 +129,10 @@
             <ListBox x:Name="IconList"
                      Grid.Row="1"
                      Panel.ZIndex="1"
-                     Margin="24,5,24,5"
-                     Padding="0"
+                     Margin="6"
+                     Padding="8"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Center"
                      BorderThickness="0"
                      Background="Transparent"
                      Focusable="True"
@@ -149,9 +150,9 @@
                      MouseDoubleClick="OnItemsMouseDoubleClick">
                 <ListBox.ItemsPanel>
                     <ItemsPanelTemplate>
-                        <Canvas IsItemsHost="True"
-                                MinWidth="{Binding DataContext.GridCanvasWidth, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
-                                MinHeight="{Binding DataContext.GridCanvasHeight, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" />
+                        <Canvas IsItemsHost="True" 
+                                Width="{Binding DataContext.GridCanvasWidth, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
+                                Height="{Binding DataContext.GridCanvasHeight, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" />
                     </ItemsPanelTemplate>
                 </ListBox.ItemsPanel>
                 <ListBox.ItemContainerStyle>
@@ -310,9 +311,13 @@
 
             <Canvas Grid.Row="1"
                     Panel.ZIndex="2"
-                    Margin="24,5,24,5"
+                    Margin="6"
                     IsHitTestVisible="False"
-                    ClipToBounds="True"
+                    ClipToBounds="False"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Width="{Binding GridCanvasWidth}"
+                    Height="{Binding GridCanvasHeight}"
                     Visibility="{Binding IsDragPreviewVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <Rectangle Canvas.Left="{Binding DragPreviewLeft}"
                            Canvas.Top="{Binding DragPreviewTop}"

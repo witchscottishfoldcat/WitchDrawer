@@ -301,7 +301,7 @@ public partial class DesktopBoxWindow : Window
     private (int Column, int Row) GetDropSlot(DragEventArgs e)
     {
         var point = e.GetPosition(IconList);
-        return ViewModel.GetGridSlot(point.X, point.Y);
+        return ViewModel.GetGridSlot(point.X - 8, point.Y - 8);
     }
 
     private void SelectItem(Guid itemId)

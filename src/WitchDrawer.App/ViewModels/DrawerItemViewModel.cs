@@ -21,6 +21,8 @@ public sealed class DrawerItemViewModel : ObservableObject
     private double _gridLeft;
     private double _gridTop;
     private bool _isDragSource;
+    private double _tempOffsetX;
+    private double _tempOffsetY;
 
     private readonly bool _isPixelated;
 
@@ -133,15 +135,22 @@ public sealed class DrawerItemViewModel : ObservableObject
 
     public void SetGridPosition(int column, int row, DesktopBoxLayoutSettings layoutSettings)
     {
-        GridColumn = Math.Max(0, column);
-        GridRow = Math.Max(0, row);
+        GridColumn = column;
+        GridRow = row;
+        UpdateCanvasPosition(layoutSettings);
+    }
+
+    public void SetTempOffset(double offsetX, double offsetY, DesktopBoxLayoutSettings layoutSettings)
+    {
+        _tempOffsetX = offsetX;
+        _tempOffsetY = offsetY;
         UpdateCanvasPosition(layoutSettings);
     }
 
     public void UpdateCanvasPosition(DesktopBoxLayoutSettings layoutSettings)
     {
-        GridLeft = GridColumn * layoutSettings.ItemSlotWidth;
-        GridTop = GridRow * layoutSettings.ItemSlotHeight;
+        GridLeft = GridColumn * layoutSettings.ItemSlotWidth + _tempOffsetX;
+        GridTop = GridRow * layoutSettings.ItemSlotHeight + _tempOffsetY;
     }
 
     private async Task LoadIconAsync()

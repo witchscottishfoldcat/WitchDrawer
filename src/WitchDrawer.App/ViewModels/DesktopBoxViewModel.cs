@@ -23,6 +23,8 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private bool _isDragPreviewVisible;
     private double _dragPreviewLeft;
     private double _dragPreviewTop;
+    private int _previewColumn;
+    private int _previewRow;
     private string _statusText = "拖入文件";
 
     public DesktopBoxViewModel(
@@ -143,23 +145,33 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     public (int Column, int Row) GetGridSlot(double x, double y)
     {
-        var maxColumn = Math.Max(0, LayoutSettings.Columns - 1);
-        var column = Math.Clamp((int)Math.Floor(x / Math.Max(1, LayoutSettings.ItemSlotWidth)), 0, maxColumn);
-        var row = Math.Max(0, (int)Math.Floor(y / Math.Max(1, LayoutSettings.ItemSlotHeight)));
+        var column = (int)Math.Floor(x / Math.Max(1, LayoutSettings.ItemSlotWidth));
+        var row = (int)Math.Floor(y / Math.Max(1, LayoutSettings.ItemSlotHeight));
         return (column, row);
     }
 
     public void ShowDragPreview(int column, int row)
     {
-        var slot = NormalizeGridSlot(column, row);
-        DragPreviewLeft = (slot.Column * LayoutSettings.ItemSlotWidth) + LayoutSettings.ItemSpacing;
-        DragPreviewTop = (slot.Row * LayoutSettings.ItemSlotHeight) + LayoutSettings.ItemSpacing;
+        _previewColumn = column;
+        _previewRow = row;
         IsDragPreviewVisible = true;
+        UpdateGridCanvasSize();
+
+        var minCol = Math.Min(0, _previewColumn);
+        var minRow = Math.Min(0, _previewRow);
+        var offsetX = -minCol * LayoutSettings.ItemSlotWidth;
+        var offsetY = -minRow * LayoutSettings.ItemSlotHeight;
+
+        DragPreviewLeft = (column * LayoutSettings.ItemSlotWidth) + LayoutSettings.ItemSpacing + offsetX;
+        DragPreviewTop = (row * LayoutSettings.ItemSlotHeight) + LayoutSettings.ItemSpacing + offsetY;
     }
 
     public void HideDragPreview()
     {
         IsDragPreviewVisible = false;
+        _previewColumn = 0;
+        _previewRow = 0;
+        UpdateGridCanvasSize();
     }
 
     public async Task LoadAsync()
@@ -202,6 +214,8 @@ public sealed class DesktopBoxViewModel : ObservableObject
                 itemViewModel.SetGridPosition(itemPosition.Column, itemPosition.Row, LayoutSettings);
                 Items.Insert(i, itemViewModel);
             }
+
+            await NormalizeGridAndSaveAsync();
 
             StatusText = Items.Count == 0 ? "拖入文件" : "已同步";
             UpdateGridCanvasSize();
@@ -246,6 +260,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
             }
 
             await LoadAsync();
+            await NormalizeGridAndSaveAsync();
             StatusText = $"已收纳 {importedIds.Count} 项";
             ItemsChanged?.Invoke(this, EventArgs.Empty);
             return importedIds;
@@ -289,6 +304,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
             if (movedAcrossBoxes)
             {
+                await NormalizeGridAndSaveAsync();
                 ItemsChanged?.Invoke(this, EventArgs.Empty);
             }
 
@@ -341,6 +357,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
         {
             await _drawerService.DeleteItemAsync(item.Id, _trash);
             await LoadAsync();
+            await NormalizeGridAndSaveAsync();
             StatusText = $"已移除 {item.DisplayName}";
             ItemsChanged?.Invoke(this, EventArgs.Empty);
         }
@@ -372,8 +389,8 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
         await _drawerService.UpdateItemGridPositionAsync(item.Id, targetColumn, targetRow);
         item.SetGridPosition(targetColumn, targetRow, LayoutSettings);
-
-        UpdateGridCanvasSize();
+        
+        await NormalizeGridAndSaveAsync();
     }
 
     private Dictionary<Guid, (int Column, int Row)> ResolveItemPositions(IReadOnlyList<DrawerItem> items)
@@ -413,17 +430,17 @@ public sealed class DesktopBoxViewModel : ObservableObject
         int startRow,
         HashSet<(int Column, int Row)> occupiedSlots)
     {
-        var slot = NormalizeGridSlot(startColumn, startRow);
-        var column = slot.Column;
-        var row = slot.Row;
-        var maxColumn = Math.Max(0, LayoutSettings.Columns - 1);
+        var column = startColumn;
+        var row = startRow;
+        var maxOccupiedColumn = occupiedSlots.Count > 0 ? occupiedSlots.Max(s => s.Column) : 0;
+        var wrapColumn = Math.Max(LayoutSettings.Columns - 1, Math.Max(column, maxOccupiedColumn));
 
         while (occupiedSlots.Contains((column, row)))
         {
             column++;
-            if (column > maxColumn)
+            if (column > wrapColumn)
             {
-                column = 0;
+                column = Math.Max(0, startColumn);
                 row++;
             }
         }
@@ -433,19 +450,57 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     private (int Column, int Row) NormalizeGridSlot(int column, int row)
     {
-        var maxColumn = Math.Max(0, LayoutSettings.Columns - 1);
-        return (Math.Clamp(column, 0, maxColumn), Math.Max(0, row));
+        return (column, row);
     }
 
     private void UpdateGridCanvasSize()
     {
-        var maxColumn = Items.Count == 0 ? LayoutSettings.Columns - 1 : Items.Max(item => item.GridColumn);
+        var maxCol = Items.Count == 0 ? 0 : Items.Max(item => item.GridColumn);
         var maxRow = Items.Count == 0 ? 0 : Items.Max(item => item.GridRow);
 
-        GridCanvasWidth = Math.Max(1, Math.Max(LayoutSettings.Columns, maxColumn + 1)) * LayoutSettings.ItemSlotWidth;
-        GridCanvasHeight = Math.Max(1, maxRow + 1) * LayoutSettings.ItemSlotHeight;
+        int minCol = 0;
+        int minRow = 0;
+
+        if (IsDragPreviewVisible)
+        {
+            minCol = Math.Min(0, _previewColumn);
+            minRow = Math.Min(0, _previewRow);
+            maxCol = Math.Max(maxCol, _previewColumn);
+            maxRow = Math.Max(maxRow, _previewRow);
+        }
+
+        var offsetX = -minCol * LayoutSettings.ItemSlotWidth;
+        var offsetY = -minRow * LayoutSettings.ItemSlotHeight;
+
+        foreach (var item in Items)
+        {
+            item.SetTempOffset(offsetX, offsetY, LayoutSettings);
+        }
+
+        GridCanvasWidth = Math.Max(1, maxCol - minCol + 1) * LayoutSettings.ItemSlotWidth;
+        GridCanvasHeight = Math.Max(1, maxRow - minRow + 1) * LayoutSettings.ItemSlotHeight;
         OnPropertyChanged(nameof(DragPreviewWidth));
         OnPropertyChanged(nameof(DragPreviewHeight));
+    }
+
+    private async Task NormalizeGridAndSaveAsync()
+    {
+        if (Items.Count == 0) return;
+        var minCol = Items.Min(i => i.GridColumn);
+        var minRow = Items.Min(i => i.GridRow);
+
+        if (minCol != 0 || minRow != 0)
+        {
+            foreach (var item in Items)
+            {
+                var newCol = item.GridColumn - minCol;
+                var newRow = item.GridRow - minRow;
+                item.SetGridPosition(newCol, newRow, LayoutSettings);
+                await _drawerService.UpdateItemGridPositionAsync(item.Id, newCol, newRow);
+            }
+        }
+        
+        UpdateGridCanvasSize();
     }
 
     private void OnLayoutSettingsChanged(object? sender, PropertyChangedEventArgs e)
