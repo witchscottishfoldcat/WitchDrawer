@@ -640,7 +640,7 @@
                                             </Grid.ColumnDefinitions>
                                             
                                             <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,8,0">
-                                                <TextBlock Text="排列密度"
+                                                <TextBlock Text="图标大小"
                                                            Foreground="{DynamicResource TextPrimaryBrush}"
                                                            FontSize="11.5"
                                                            FontWeight="Bold" />
@@ -648,8 +648,8 @@
 
                                             <!-- 胶囊样式小按钮组，提供流畅的桌面网格排列控制 -->
                                             <UniformGrid Grid.Column="1" Columns="4" Rows="1" VerticalAlignment="Center">
-                                                <Button Content="3x3"
-                                                        ToolTip="大图标 (3x3风格)"
+                                                <Button Content="超大"
+                                                        ToolTip="超大图标"
                                                         Style="{StaticResource GhostButtonStyle}"
                                                         Command="{Binding DesktopBoxLayout.ApplyPresetCommand}"
                                                         CommandParameter="3x3"
@@ -657,8 +657,8 @@
                                                         Padding="0,3.5"
                                                         MinHeight="22"
                                                         FontSize="10.5" />
-                                                <Button Content="4x4"
-                                                        ToolTip="中大图标 (4x4风格)"
+                                                <Button Content="大"
+                                                        ToolTip="大图标"
                                                         Style="{StaticResource GhostButtonStyle}"
                                                         Command="{Binding DesktopBoxLayout.ApplyPresetCommand}"
                                                         CommandParameter="4x4"
@@ -666,8 +666,8 @@
                                                         Padding="0,3.5"
                                                         MinHeight="22"
                                                         FontSize="10.5" />
-                                                <Button Content="5x5"
-                                                        ToolTip="标准图标 (5x5风格)"
+                                                <Button Content="中"
+                                                        ToolTip="中等图标"
                                                         Style="{StaticResource GhostButtonStyle}"
                                                         Command="{Binding DesktopBoxLayout.ApplyPresetCommand}"
                                                         CommandParameter="5x5"
@@ -675,8 +675,8 @@
                                                         Padding="0,3.5"
                                                         MinHeight="22"
                                                         FontSize="10.5" />
-                                                <Button Content="6x6"
-                                                        ToolTip="极小图标 (6x6风格)"
+                                                <Button Content="小"
+                                                        ToolTip="小图标"
                                                         Style="{StaticResource GhostButtonStyle}"
                                                         Command="{Binding DesktopBoxLayout.ApplyPresetCommand}"
                                                         CommandParameter="6x6"
