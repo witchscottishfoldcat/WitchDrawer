@@ -1,8 +1,8 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using CommunityToolkit.Mvvm.Messaging;
 using WitchDrawer.Core.Abstractions;
 using WitchDrawer.Core.Logging;
 using WitchDrawer.Core.Models;
@@ -10,8 +10,10 @@ using WitchDrawer.Core.Services;
 
 namespace WitchDrawer.App.ViewModels;
 
-public sealed class DesktopBoxViewModel : ObservableObject, IRecipient<WitchDrawer.App.Messages.BoxLayoutPresetChangedMessage>
+public sealed class DesktopBoxViewModel : ObservableObject
 {
+    private const double EdgeExpandThreshold = 14;
+
     private readonly DrawerService _drawerService;
     private readonly IFileLauncher _launcher;
     private readonly IFileTrash _trash;
@@ -33,14 +35,15 @@ public sealed class DesktopBoxViewModel : ObservableObject, IRecipient<WitchDraw
         DrawerService drawerService,
         IFileLauncher launcher,
         IFileTrash trash,
-        IAppLogger logger)
+        IAppLogger logger,
+        DesktopBoxLayoutSettings? layoutSettings = null)
     {
         _box = box;
         _drawerService = drawerService;
         _launcher = launcher;
         _trash = trash;
         _logger = logger;
-        _layoutSettings = new DesktopBoxLayoutSettings();
+        _layoutSettings = layoutSettings ?? new DesktopBoxLayoutSettings();
         _layoutSettings.PropertyChanged += OnLayoutSettingsChanged;
 
         OpenItemCommand = new AsyncRelayCommand<DrawerItemViewModel?>(OpenItemAsync);
@@ -143,10 +146,30 @@ public sealed class DesktopBoxViewModel : ObservableObject, IRecipient<WitchDraw
         OnPropertyChanged(nameof(IsEmpty));
     }
 
-    public (int Column, int Row) GetGridSlot(double x, double y)
+    public (int Column, int Row) GetGridSlot(
+        double x,
+        double y,
+        double surfaceWidth = 0,
+        double surfaceHeight = 0)
     {
         var column = Math.Max(0, (int)Math.Floor(x / Math.Max(1, LayoutSettings.ItemSlotWidth)));
         var row = Math.Max(0, (int)Math.Floor(y / Math.Max(1, LayoutSettings.ItemSlotHeight)));
+        if (surfaceWidth > 0 && surfaceHeight > 0)
+        {
+            var maxCol = Items.Count == 0 ? 0 : Items.Max(item => item.GridColumn);
+            var maxRow = Items.Count == 0 ? 0 : Items.Max(item => item.GridRow);
+
+            if (x >= surfaceWidth - EdgeExpandThreshold)
+            {
+                column = Math.Max(column, maxCol + 1);
+            }
+
+            if (y >= surfaceHeight - EdgeExpandThreshold)
+            {
+                row = Math.Max(row, maxRow + 1);
+            }
+        }
+
         return (column, row);
     }
 
@@ -157,7 +180,6 @@ public sealed class DesktopBoxViewModel : ObservableObject, IRecipient<WitchDraw
         var row = Math.Max(0, (int)Math.Floor(y / Math.Max(1, LayoutSettings.ItemSlotHeight)));
         _previewColumn = column;
         _previewRow = row;
-        UpdateGridCanvasSize();
     }
 
     public void ShowDragPreview(int column, int row)
@@ -167,13 +189,8 @@ public sealed class DesktopBoxViewModel : ObservableObject, IRecipient<WitchDraw
         IsDragPreviewVisible = true;
         UpdateGridCanvasSize();
 
-        var minCol = Math.Min(0, _previewColumn);
-        var minRow = Math.Min(0, _previewRow);
-        var offsetX = -minCol * LayoutSettings.ItemSlotWidth;
-        var offsetY = -minRow * LayoutSettings.ItemSlotHeight;
-
-        DragPreviewLeft = (column * LayoutSettings.ItemSlotWidth) + LayoutSettings.ItemSpacing + offsetX;
-        DragPreviewTop = (row * LayoutSettings.ItemSlotHeight) + LayoutSettings.ItemSpacing + offsetY;
+        DragPreviewLeft = (column * LayoutSettings.ItemSlotWidth) + LayoutSettings.ItemSpacing;
+        DragPreviewTop = (row * LayoutSettings.ItemSlotHeight) + LayoutSettings.ItemSpacing;
     }
 
     public void HideDragPreview()
@@ -184,25 +201,25 @@ public sealed class DesktopBoxViewModel : ObservableObject, IRecipient<WitchDraw
         UpdateGridCanvasSize();
     }
 
-    public void Receive(WitchDrawer.App.Messages.BoxLayoutPresetChangedMessage message)
+    public (int Column, int Row) GetAvailableDropSlot(int targetColumn, int targetRow, Guid? movingItemId = null)
     {
-        if (message.BoxId == BoxId)
-        {
-            _layoutSettings.ApplyPresetCommand.Execute(message.Preset);
-        }
+        var targetSlot = NormalizeGridSlot(targetColumn, targetRow);
+        var occupiedSlots = Items
+            .Where(item => movingItemId is null || item.Id != movingItemId.Value)
+            .Select(item => (item.GridColumn, item.GridRow))
+            .ToHashSet();
+
+        return FindFirstFreeSlot(targetSlot.Column, targetSlot.Row, occupiedSlots);
     }
 
     public async Task LoadAsync()
     {
         try
         {
-            var preset = await _drawerService.GetSettingAsync($"BoxPreset_{BoxId}");
-            if (!string.IsNullOrEmpty(preset))
-            {
-                _layoutSettings.ApplyPresetCommand.Execute(preset);
-            }
-
-            WeakReferenceMessenger.Default.RegisterAll(this);
+            // Layout density is global (shared DesktopBoxLayoutSettings, controlled from
+            // Settings). Boxes intentionally do NOT apply a per-box preset: every box shares
+            // one settings instance, so re-applying each box's own preset on load made boxes
+            // fight over the slot size and the windows visibly oscillated on every reload.
 
             var items = await _drawerService.GetItemsAsync(BoxId);
             var isPixelated = Type == BoxType.Pixel;
@@ -353,6 +370,41 @@ public sealed class DesktopBoxViewModel : ObservableObject, IRecipient<WitchDraw
         return DeleteItemAsync(item);
     }
 
+    public async Task<bool> ExportItemToDesktopAsync(DrawerItemViewModel? item)
+    {
+        if (item is null || IsBusy)
+        {
+            return false;
+        }
+
+        try
+        {
+            IsBusy = true;
+            var desktopDirectory = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+            if (string.IsNullOrWhiteSpace(desktopDirectory))
+            {
+                desktopDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            }
+
+            var exportedPath = await _drawerService.ExportItemToDirectoryAsync(item.Id, desktopDirectory);
+            await LoadAsync();
+            await NormalizeGridAndSaveAsync();
+            StatusText = $"Moved to desktop: {Path.GetFileName(exportedPath)}";
+            ItemsChanged?.Invoke(this, EventArgs.Empty);
+            return true;
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to export desktop box item.");
+            StatusText = exception.Message;
+            return false;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
     private async Task OpenItemAsync(DrawerItemViewModel? item)
     {
         if (item is null)
@@ -451,73 +503,6 @@ public sealed class DesktopBoxViewModel : ObservableObject, IRecipient<WitchDraw
         return positions;
     }
 
-    private void ClampToGrid(DrawerItemViewModel item)
-    {
-        var column = Math.Max(0, item.GridColumn);
-        var row = Math.Max(0, item.GridRow);
-
-        item.SetGridPosition(column, row, LayoutSettings);
-    }
-
-    private (int Column, int Row) FindFirstFreeSlot(
-        int startColumn,
-        int startRow,
-        HashSet<(int Column, int Row)> occupiedSlots)
-    {
-
-        var column = startColumn;
-        var row = startRow;
-        var maxOccupiedColumn = occupiedSlots.Count > 0 ? occupiedSlots.Max(s => s.Column) : 0;
-        var wrapColumn = Math.Max(4, Math.Max(column, maxOccupiedColumn));
-
-        while (occupiedSlots.Contains((column, row)))
-        {
-            column++;
-            if (column > wrapColumn)
-            {
-                column = Math.Max(0, startColumn);
-                row++;
-            }
-        }
-
-        return (column, row);
-    }
-
-    private (int Column, int Row) NormalizeGridSlot(int column, int row)
-    {
-        return (column, row);
-    }
-
-    private void UpdateGridCanvasSize()
-    {
-        var maxCol = Items.Count == 0 ? 0 : Items.Max(item => item.GridColumn);
-        var maxRow = Items.Count == 0 ? 0 : Items.Max(item => item.GridRow);
-
-        int minCol = 0;
-        int minRow = 0;
-
-        if (IsDragPreviewVisible)
-        {
-            minCol = Math.Min(0, _previewColumn);
-            minRow = Math.Min(0, _previewRow);
-            maxCol = Math.Max(maxCol, _previewColumn);
-            maxRow = Math.Max(maxRow, _previewRow);
-        }
-
-        var offsetX = -minCol * LayoutSettings.ItemSlotWidth;
-        var offsetY = -minRow * LayoutSettings.ItemSlotHeight;
-
-        foreach (var item in Items)
-        {
-            item.SetTempOffset(offsetX, offsetY, LayoutSettings);
-        }
-
-        GridCanvasWidth = Math.Max(1, maxCol - minCol + 1) * LayoutSettings.ItemSlotWidth;
-        GridCanvasHeight = Math.Max(1, maxRow - minRow + 1) * LayoutSettings.ItemSlotHeight;
-        OnPropertyChanged(nameof(DragPreviewWidth));
-        OnPropertyChanged(nameof(DragPreviewHeight));
-    }
-
     private async Task NormalizeGridAndSaveAsync()
     {
         if (Items.Count == 0) return;
@@ -536,6 +521,61 @@ public sealed class DesktopBoxViewModel : ObservableObject, IRecipient<WitchDraw
         }
         
         UpdateGridCanvasSize();
+    }
+
+    private (int Column, int Row) FindFirstFreeSlot(
+        int startColumn,
+        int startRow,
+        HashSet<(int Column, int Row)> occupiedSlots)
+    {
+
+        var column = Math.Max(0, startColumn);
+        var row = Math.Max(0, startRow);
+        var maxOccupiedColumn = occupiedSlots.Count > 0 ? occupiedSlots.Max(s => s.Column) : 0;
+        var wrapColumn = Math.Max(4, Math.Max(column, maxOccupiedColumn));
+
+        while (occupiedSlots.Contains((column, row)))
+        {
+            column++;
+            if (column > wrapColumn)
+            {
+                column = Math.Max(0, startColumn);
+                row++;
+            }
+        }
+
+        return (column, row);
+    }
+
+    private (int Column, int Row) NormalizeGridSlot(int column, int row)
+    {
+        return (Math.Max(0, column), Math.Max(0, row));
+    }
+
+    private void UpdateGridCanvasSize()
+    {
+        var maxCol = Items.Count == 0 ? 0 : Items.Max(item => item.GridColumn);
+        var maxRow = Items.Count == 0 ? 0 : Items.Max(item => item.GridRow);
+
+        // While a drag preview is showing, grow the canvas to include the previewed slot so
+        // dropping at the right/bottom edge visibly extends the box by one cell (and shrinks
+        // back when the pointer leaves). This is a deliberate interaction, distinct from the
+        // earlier cross-box preset oscillation that caused unwanted jitter.
+        if (IsDragPreviewVisible)
+        {
+            maxCol = Math.Max(maxCol, _previewColumn);
+            maxRow = Math.Max(maxRow, _previewRow);
+        }
+
+        foreach (var item in Items)
+        {
+            item.SetTempOffset(0, 0, LayoutSettings);
+        }
+
+        GridCanvasWidth = Math.Max(1, maxCol + 1) * LayoutSettings.ItemSlotWidth;
+        GridCanvasHeight = Math.Max(1, maxRow + 1) * LayoutSettings.ItemSlotHeight;
+        OnPropertyChanged(nameof(DragPreviewWidth));
+        OnPropertyChanged(nameof(DragPreviewHeight));
     }
 
     private void OnLayoutSettingsChanged(object? sender, PropertyChangedEventArgs e)

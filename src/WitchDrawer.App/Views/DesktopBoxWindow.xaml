@@ -16,6 +16,7 @@
         Background="Transparent"
         Focusable="True"
         PreviewKeyDown="OnPreviewKeyDown"
+        PreviewDrop="OnFilesDropped"
         Drop="OnFilesDropped"
         PreviewDragOver="OnPreviewDragOver"
         PreviewDragLeave="OnPreviewDragLeave">
@@ -68,7 +69,7 @@
         
         <Grid MouseLeftButtonDown="OnSurfaceMouseLeftButtonDown">
             <Grid.RowDefinitions>
-                <RowDefinition Height="28" />
+                <RowDefinition Height="24" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
@@ -131,8 +132,8 @@
                      Panel.ZIndex="1"
                      Margin="6,0,6,6"
                      Padding="2"
-                     HorizontalAlignment="Center"
-                     VerticalAlignment="Center"
+                     HorizontalAlignment="Left"
+                     VerticalAlignment="Top"
                      BorderThickness="0"
                      Background="Transparent"
                      Focusable="True"
@@ -311,11 +312,11 @@
 
             <Canvas Grid.Row="1"
                     Panel.ZIndex="2"
-                    Margin="6"
+                    Margin="8,2,8,8"
                     IsHitTestVisible="False"
                     ClipToBounds="False"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
                     Width="{Binding GridCanvasWidth}"
                     Height="{Binding GridCanvasHeight}"
                     Visibility="{Binding IsDragPreviewVisible, Converter={StaticResource BooleanToVisibilityConverter}}">

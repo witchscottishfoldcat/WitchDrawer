@@ -16,6 +16,7 @@ public sealed class DesktopBoxManager
     private readonly IFileLauncher _launcher;
     private readonly IFileTrash _trash;
     private readonly IAppLogger _logger;
+    private readonly DesktopBoxLayoutSettings _layoutSettings;
     private readonly Dictionary<Guid, DesktopBoxWindow> _windows = [];
     private bool _closing;
     private GuideLineWindow? _verticalGuide;
@@ -26,12 +27,14 @@ public sealed class DesktopBoxManager
         DrawerService drawerService,
         IFileLauncher launcher,
         IFileTrash trash,
-        IAppLogger logger)
+        IAppLogger logger,
+        DesktopBoxLayoutSettings layoutSettings)
     {
         _drawerService = drawerService;
         _launcher = launcher;
         _trash = trash;
         _logger = logger;
+        _layoutSettings = layoutSettings;
     }
 
     public event EventHandler? ItemsChanged;
@@ -60,7 +63,7 @@ public sealed class DesktopBoxManager
             var box = boxes[index];
             if (!_windows.TryGetValue(box.Id, out var window))
             {
-                var viewModel = new DesktopBoxViewModel(box, _drawerService, _launcher, _trash, _logger);
+                var viewModel = new DesktopBoxViewModel(box, _drawerService, _launcher, _trash, _logger, _layoutSettings);
                 viewModel.ItemsChanged += (_, _) => ItemsChanged?.Invoke(this, EventArgs.Empty);
 
                 window = new DesktopBoxWindow(viewModel);
@@ -138,8 +141,10 @@ public sealed class DesktopBoxManager
 
     private async Task PlaceWindowAsync(Window window, Guid boxId, int fallbackIndex)
     {
+        // SizeToContent windows report NaN for Width/Height before they are shown; measure
+        // first and use DesiredSize so saved positions are restored correctly.
         window.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        
+
         var savedPosition = await _drawerService.GetSettingAsync(BoxPositionSettingPrefix + boxId.ToString("N"));
         if (TryParsePosition(savedPosition, out var left, out var top))
         {
@@ -269,7 +274,7 @@ public sealed class DesktopBoxManager
     private void PerformSnappingAndAlignment(DesktopBoxWindow draggedWindow, bool applySnap = true)
     {
         const double snapThreshold = 10.0;
-        
+
         double currentLeft = draggedWindow.Left;
         double currentTop = draggedWindow.Top;
         double width = draggedWindow.ActualWidth;
@@ -415,4 +420,3 @@ public sealed class DesktopBoxManager
         }
     }
 }
-

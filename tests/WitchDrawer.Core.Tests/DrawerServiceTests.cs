@@ -259,6 +259,58 @@ public sealed class DrawerServiceTests
     }
 
     [Fact]
+    public async Task ExportItemToDirectoryAsync_NormalBoxMovesStoredFileAndRemovesItem()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var source = workspace.CreateSourceFile("source-a", "export-me.txt", "hello");
+        var normalBox = await workspace.GetBoxAsync(BoxType.Normal);
+        var item = await workspace.Service.ImportPathAsync(normalBox.Id, source);
+        var oldStoredPath = item.StoredPath!;
+        var exportDirectory = Path.Combine(workspace.Root, "desktop");
+
+        var exportedPath = await workspace.Service.ExportItemToDirectoryAsync(item.Id, exportDirectory);
+        var remainingItem = await workspace.Repository.GetItemAsync(item.Id);
+
+        Assert.Equal(Path.Combine(exportDirectory, "export-me.txt"), exportedPath);
+        Assert.True(File.Exists(exportedPath));
+        Assert.False(File.Exists(oldStoredPath));
+        Assert.Null(remainingItem);
+    }
+
+    [Fact]
+    public async Task ExportItemToDirectoryAsync_AddsSuffixForConflictingName()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var source = workspace.CreateSourceFile("source-a", "export-me.txt", "hello");
+        var normalBox = await workspace.GetBoxAsync(BoxType.Normal);
+        var item = await workspace.Service.ImportPathAsync(normalBox.Id, source);
+        var exportDirectory = Path.Combine(workspace.Root, "desktop");
+        Directory.CreateDirectory(exportDirectory);
+        File.WriteAllText(Path.Combine(exportDirectory, "export-me.txt"), "existing");
+
+        var exportedPath = await workspace.Service.ExportItemToDirectoryAsync(item.Id, exportDirectory);
+
+        Assert.Equal(Path.Combine(exportDirectory, "export-me (1).txt"), exportedPath);
+        Assert.True(File.Exists(exportedPath));
+    }
+
+    [Fact]
+    public async Task ExportItemToDirectoryAsync_MappingItemIsRejected()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var source = workspace.CreateSourceFile("source-a", "reference.txt", "hello");
+        var mappingBox = await workspace.GetBoxAsync(BoxType.Mapping);
+        var item = await workspace.Service.ImportPathAsync(mappingBox.Id, source);
+        var exportDirectory = Path.Combine(workspace.Root, "desktop");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => workspace.Service.ExportItemToDirectoryAsync(item.Id, exportDirectory));
+
+        Assert.True(File.Exists(source));
+        Assert.NotNull(await workspace.Repository.GetItemAsync(item.Id));
+    }
+
+    [Fact]
     public async Task GetItemsAsync_NormalBoxRemovesMissingStoredItems()
     {
         using var workspace = await TestWorkspace.CreateAsync();

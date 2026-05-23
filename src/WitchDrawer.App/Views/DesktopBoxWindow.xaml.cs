@@ -11,16 +11,37 @@ namespace WitchDrawer.App.Views;
 public partial class DesktopBoxWindow : Window
 {
     private const string InternalDrawerItemDragFormat = "WitchDrawer.DesktopBoxItem";
+    private static readonly HashSet<Guid> CompletedInternalDragIds = [];
+    private static readonly HashSet<Guid> CompletedInternalItemIds = [];
     private bool _forceClose;
     private Point? _dragStartPoint;
+    private DrawerItemViewModel? _dragStartItem;
     private DrawerItemViewModel? _keyboardDeleteTarget;
     private Func<Guid, Task>? _positionChangedCallback;
 
-    private sealed class DesktopBoxDragPayload(Guid itemId)
+    private sealed class DesktopBoxDragPayload(Guid dragId, Guid itemId, Guid sourceBoxId)
     {
+        private readonly TaskCompletionSource<bool> _dropCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Guid DragId { get; } = dragId;
+
         public Guid ItemId { get; } = itemId;
 
+        public Guid SourceBoxId { get; } = sourceBoxId;
+
         public bool WasDroppedInsideWitchDrawer { get; set; }
+
+        public Task<bool> DropCompletion => _dropCompletion.Task;
+
+        public void CompleteDrop(bool succeeded)
+        {
+            _dropCompletion.TrySetResult(succeeded);
+        }
+
+        public static DesktopBoxDragPayload Create(Guid itemId, Guid sourceBoxId)
+        {
+            return new DesktopBoxDragPayload(Guid.NewGuid(), itemId, sourceBoxId);
+        }
     }
 
     public DesktopBoxWindow(DesktopBoxViewModel viewModel)
@@ -94,23 +115,32 @@ public partial class DesktopBoxWindow : Window
     private void OnPreviewDragOver(object sender, DragEventArgs e)
     {
         var acceptsDrop = false;
+        var showPreview = false;
         if (e.Data.GetDataPresent(InternalDrawerItemDragFormat))
         {
-            e.Effects = DragDropEffects.Move;
-            acceptsDrop = true;
+            acceptsDrop = TryGetInternalDragPayload(e.Data, out var payload);
+            showPreview = acceptsDrop;
+            e.Effects = acceptsDrop ? DragDropEffects.Move : DragDropEffects.None;
+            if (showPreview)
+            {
+                var slot = GetDropSlot(e, payload);
+                ViewModel.ShowDragPreview(slot.Column, slot.Row);
+            }
         }
         else
         {
-            acceptsDrop = e.Data.GetDataPresent(DataFormats.FileDrop);
-            e.Effects = acceptsDrop ? DragDropEffects.Move : DragDropEffects.None;
+            var dropEffect = ChooseFileDropEffect(e.AllowedEffects);
+            acceptsDrop = e.Data.GetDataPresent(DataFormats.FileDrop) && dropEffect != DragDropEffects.None;
+            showPreview = acceptsDrop;
+            e.Effects = acceptsDrop ? dropEffect : DragDropEffects.None;
+            if (showPreview)
+            {
+                var slot = GetDropSlot(e);
+                ViewModel.ShowDragPreview(slot.Column, slot.Row);
+            }
         }
 
-        if (acceptsDrop)
-        {
-            var slot = GetDropSlot(e);
-            ViewModel.ShowDragPreview(slot.Column, slot.Row);
-        }
-        else
+        if (!showPreview)
         {
             ViewModel.HideDragPreview();
         }
@@ -132,42 +162,50 @@ public partial class DesktopBoxWindow : Window
 
     private async void OnFilesDropped(object sender, DragEventArgs e)
     {
+        if (!e.Data.GetDataPresent(InternalDrawerItemDragFormat)
+            && !e.Data.GetDataPresent(DataFormats.FileDrop))
+        {
+            return;
+        }
+
+        e.Handled = true;
         try
         {
             if (e.Data.GetDataPresent(InternalDrawerItemDragFormat))
             {
                 if (TryGetInternalDragPayload(e.Data, out var payload))
                 {
+                    e.Effects = DragDropEffects.Move;
+                    // Mark synchronously (same object instance, in-process) so the source
+                    // box sees it immediately after DoDragDrop returns and treats this as
+                    // an internal move/rearrange rather than a move-out to the desktop.
                     payload.WasDroppedInsideWitchDrawer = true;
-                    var slot = GetDropSlot(e);
-                    var moved = await ViewModel.DropDrawerItemAsync(payload.ItemId, slot.Column, slot.Row);
-                    e.Effects = moved ? DragDropEffects.Move : DragDropEffects.None;
-                    if (moved)
-                    {
-                        SelectItem(payload.ItemId);
-                    }
+                    var slot = GetDropSlot(e, payload);
+                    _ = CompleteInternalDropAsync(payload, slot);
                 }
 
-                e.Handled = true;
                 return;
             }
 
             if (e.Data.GetData(DataFormats.FileDrop) is string[] paths)
             {
                 var slot = GetDropSlot(e);
+                e.Effects = paths.Length > 0 ? ChooseFileDropEffect(e.AllowedEffects) : DragDropEffects.None;
+                // ImportPathsAsync already reloads the box internally; no extra LoadAsync here.
                 var importedIds = await ViewModel.ImportPathsAsync(paths, slot.Column, slot.Row);
+                e.Effects = importedIds.Count > 0 ? ChooseFileDropEffect(e.AllowedEffects) : DragDropEffects.None;
                 var lastImportedId = importedIds.LastOrDefault();
                 var importedItem = lastImportedId != Guid.Empty
                     ? ViewModel.Items.FirstOrDefault(candidate => candidate.Id == lastImportedId)
                     : null;
                 if (importedItem is not null)
                 {
+                    importedItem.ReloadIconIfNeeded();
                     IconList.SelectedItem = importedItem;
                     _keyboardDeleteTarget = importedItem;
                 }
 
                 IconList.Focus();
-                e.Handled = true;
             }
         }
         finally
@@ -231,29 +269,19 @@ public partial class DesktopBoxWindow : Window
 
     private void OnIconPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        IconList.Focus();
-        Keyboard.Focus(IconList);
-        _dragStartPoint = e.GetPosition(IconList);
-
-        if (TryGetDrawerItem(e.OriginalSource, out var drawerItem))
-        {
-            IconList.SelectedItem = drawerItem;
-            _keyboardDeleteTarget = drawerItem;
-        }
-        else
-        {
-            if (IconList != null)
-            {
-                IconList.SelectedItem = null;
-                _keyboardDeleteTarget = null;
-            }
-        }
+        BeginIconDrag(e);
     }
 
     private async void OnIconMouseMove(object sender, MouseEventArgs e)
     {
-        if (_dragStartPoint is null || e.LeftButton != MouseButtonState.Pressed)
+        if (_dragStartPoint is null || _dragStartItem is null)
         {
+            return;
+        }
+
+        if (e.LeftButton != MouseButtonState.Pressed)
+        {
+            ClearPendingIconDrag();
             return;
         }
 
@@ -266,42 +294,23 @@ public partial class DesktopBoxWindow : Window
             return;
         }
 
-        if (TryGetDrawerItem(e.OriginalSource, out var drawerItem))
-        {
-            var payload = new DesktopBoxDragPayload(drawerItem.Id);
-            var data = new DataObject();
-            data.SetData(InternalDrawerItemDragFormat, payload);
-            if (!string.IsNullOrWhiteSpace(drawerItem.PathLabel)
-                && (File.Exists(drawerItem.PathLabel) || Directory.Exists(drawerItem.PathLabel)))
-            {
-                data.SetData(DataFormats.FileDrop, new[] { drawerItem.PathLabel });
-            }
-
-            drawerItem.IsDragSource = true;
-            try
-            {
-                var effect = DragDrop.DoDragDrop(IconList, data, DragDropEffects.Copy | DragDropEffects.Move);
-                if (!payload.WasDroppedInsideWitchDrawer && effect != DragDropEffects.None)
-                {
-                    await ViewModel.CompleteDragOutAsync(drawerItem);
-                    _keyboardDeleteTarget = null;
-                }
-            }
-            finally
-            {
-                drawerItem.IsDragSource = false;
-                ViewModel.HideDragPreview();
-                IconList.Focus();
-            }
-        }
-
-        _dragStartPoint = null;
+        var drawerItem = _dragStartItem;
+        await RunItemDragAsync(drawerItem);
+        ClearPendingIconDrag();
     }
 
-    private (int Column, int Row) GetDropSlot(DragEventArgs e)
+    private (int Column, int Row) GetDropSlot(DragEventArgs e, DesktopBoxDragPayload? payload = null)
     {
         var point = e.GetPosition(IconList);
-        return ViewModel.GetGridSlot(point.X - 8, point.Y - 8);
+        var padding = IconList.Padding;
+        var rawSlot = ViewModel.GetGridSlot(
+            point.X - padding.Left,
+            point.Y - padding.Top,
+            Math.Max(0, IconList.ActualWidth - padding.Left - padding.Right),
+            Math.Max(0, IconList.ActualHeight - padding.Top - padding.Bottom));
+
+        var movingItemId = payload?.SourceBoxId == ViewModel.BoxId ? payload.ItemId : (Guid?)null;
+        return ViewModel.GetAvailableDropSlot(rawSlot.Column, rawSlot.Row, movingItemId);
     }
 
     private void SelectItem(Guid itemId)
@@ -317,6 +326,123 @@ public partial class DesktopBoxWindow : Window
         IconList.Focus();
     }
 
+    private async Task CompleteInternalDropAsync(DesktopBoxDragPayload payload, (int Column, int Row) slot)
+    {
+        var moved = false;
+        try
+        {
+            moved = await ViewModel.DropDrawerItemAsync(payload.ItemId, slot.Column, slot.Row);
+            if (moved)
+            {
+                MarkDroppedInsideWitchDrawer(payload);
+                SelectItem(payload.ItemId);
+            }
+        }
+        finally
+        {
+            payload.CompleteDrop(moved);
+        }
+    }
+
+    private void BeginIconDrag(MouseButtonEventArgs e)
+    {
+        // Bring the box to the foreground so keyboard input (e.g. Delete) reaches this window.
+        Activate();
+        IconList.Focus();
+        Keyboard.Focus(IconList);
+        _dragStartPoint = e.GetPosition(IconList);
+        _dragStartItem = null;
+
+        if (TryGetDrawerItem(e.OriginalSource, out var drawerItem))
+        {
+            IconList.SelectedItem = drawerItem;
+            _keyboardDeleteTarget = drawerItem;
+            _dragStartItem = drawerItem;
+        }
+        else
+        {
+            IconList.SelectedItem = null;
+            _keyboardDeleteTarget = null;
+        }
+    }
+
+    private void ClearPendingIconDrag()
+    {
+        _dragStartPoint = null;
+        _dragStartItem = null;
+    }
+
+    // A single left-button drag handles every case based on where it is released:
+    //   - dropped on the same box  -> rearrange
+    //   - dropped on another box   -> move into that box
+    //   - dropped outside the app  -> move out to the desktop
+    private async Task RunItemDragAsync(DrawerItemViewModel drawerItem)
+    {
+        var payload = DesktopBoxDragPayload.Create(drawerItem.Id, ViewModel.BoxId);
+        var data = new DataObject();
+        data.SetData(InternalDrawerItemDragFormat, payload, autoConvert: false);
+        var canExportPath = PathExists(drawerItem.PathLabel);
+
+        var endedByMouseDrop = false;
+        QueryContinueDragEventHandler queryContinueDrag = (_, args) =>
+        {
+            // We only need to know whether the gesture ended by releasing the (left) mouse
+            // button rather than by Esc. Reading KeyStates is reliable regardless of the
+            // default handler's ordering.
+            if (!args.EscapePressed
+                && (args.KeyStates & DragDropKeyStates.LeftMouseButton) == 0)
+            {
+                endedByMouseDrop = true;
+            }
+        };
+
+        drawerItem.IsDragSource = true;
+        IconList.QueryContinueDrag += queryContinueDrag;
+        try
+        {
+            DragDrop.DoDragDrop(IconList, data, DragDropEffects.Move);
+            var internalDropSucceeded = payload.WasDroppedInsideWitchDrawer
+                || ConsumeDroppedInsideWitchDrawer(payload);
+            var cursorOverApp = IsCursorOverWitchDrawerWindow();
+
+            if (internalDropSucceeded)
+            {
+                // Dropped onto a WitchDrawer box (same box = rearrange, other box = move).
+                // The destination performs the move asynchronously; wait for it to commit
+                // before refreshing the source box.
+                await WaitForInternalDropAsync(payload);
+                await ViewModel.LoadAsync();
+                if (!ViewModel.Items.Any(item => item.Id == drawerItem.Id))
+                {
+                    _keyboardDeleteTarget = null;
+                }
+            }
+            else if (endedByMouseDrop && canExportPath && !cursorOverApp)
+            {
+                // Released outside every WitchDrawer window → move the file to the desktop.
+                var exported = await ViewModel.ExportItemToDesktopAsync(drawerItem);
+                if (exported)
+                {
+                    _keyboardDeleteTarget = null;
+                }
+            }
+            // else: released over the same box without moving, or cancelled with Esc → no action.
+        }
+        finally
+        {
+            IconList.QueryContinueDrag -= queryContinueDrag;
+            drawerItem.IsDragSource = false;
+            ViewModel.HideDragPreview();
+            IconList.Focus();
+        }
+    }
+
+    private static async Task<bool> WaitForInternalDropAsync(DesktopBoxDragPayload payload)
+    {
+        var completedTask = await Task.WhenAny(payload.DropCompletion, Task.Delay(750));
+        return completedTask == payload.DropCompletion && await payload.DropCompletion;
+    }
+
     private static bool TryGetInternalDragPayload(IDataObject data, out DesktopBoxDragPayload payload)
     {
         payload = null!;
@@ -329,8 +455,97 @@ public partial class DesktopBoxWindow : Window
 
         if (rawPayload is Guid itemId)
         {
-            payload = new DesktopBoxDragPayload(itemId);
+            payload = DesktopBoxDragPayload.Create(itemId, Guid.Empty);
             return true;
+        }
+
+        return false;
+    }
+
+    private static DragDropEffects ChooseFileDropEffect(DragDropEffects allowedEffects)
+    {
+        if ((allowedEffects & DragDropEffects.Move) == DragDropEffects.Move)
+        {
+            return DragDropEffects.Move;
+        }
+
+        return (allowedEffects & DragDropEffects.Copy) == DragDropEffects.Copy
+            ? DragDropEffects.Copy
+            : (allowedEffects & DragDropEffects.Link) == DragDropEffects.Link
+                ? DragDropEffects.Link
+                : DragDropEffects.None;
+    }
+
+    private static void MarkDroppedInsideWitchDrawer(DesktopBoxDragPayload payload)
+    {
+        payload.WasDroppedInsideWitchDrawer = true;
+        CompletedInternalDragIds.Add(payload.DragId);
+        CompletedInternalItemIds.Add(payload.ItemId);
+    }
+
+    private static bool ConsumeDroppedInsideWitchDrawer(DesktopBoxDragPayload payload)
+    {
+        var matchedByDrag = CompletedInternalDragIds.Remove(payload.DragId);
+        var matchedByItem = CompletedInternalItemIds.Remove(payload.ItemId);
+        var matched = matchedByDrag || matchedByItem;
+        if (!matched)
+        {
+            return false;
+        }
+
+        payload.WasDroppedInsideWitchDrawer = true;
+        return true;
+    }
+
+    private static bool PathExists(string? path)
+    {
+        return !string.IsNullOrWhiteSpace(path)
+            && (File.Exists(path) || Directory.Exists(path));
+    }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct NativePoint
+    {
+        public int X;
+        public int Y;
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool GetCursorPos(out NativePoint lpPoint);
+
+    private static bool IsCursorOverWitchDrawerWindow()
+    {
+        // Mouse.GetPosition is stale right after DoDragDrop; use the real cursor screen
+        // position and compare against each window's on-screen rectangle.
+        if (!GetCursorPos(out var cursor))
+        {
+            return false;
+        }
+
+        foreach (Window window in Application.Current.Windows)
+        {
+            if (!window.IsVisible || window.ActualWidth <= 0 || window.ActualHeight <= 0)
+            {
+                continue;
+            }
+
+            try
+            {
+                var topLeft = window.PointToScreen(new Point(0, 0));
+                var bottomRight = window.PointToScreen(new Point(window.ActualWidth, window.ActualHeight));
+                if (cursor.X >= topLeft.X
+                    && cursor.X <= bottomRight.X
+                    && cursor.Y >= topLeft.Y
+                    && cursor.Y <= bottomRight.Y)
+                {
+                    return true;
+                }
+            }
+            catch (InvalidOperationException)
+            {
+                // Window has no presentation source yet; skip it.
+            }
         }
 
         return false;

@@ -288,14 +288,4 @@ public partial class MainWindow : Window
             UseShellExecute = true
         });
     }
-
-    private void OnHyperlinkRequestNavigate(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
-    {
-        Process.Start(new ProcessStartInfo
-        {
-            FileName = e.Uri.AbsoluteUri,
-            UseShellExecute = true
-        });
-        e.Handled = true;
-    }
 }

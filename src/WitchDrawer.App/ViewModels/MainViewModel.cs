@@ -37,13 +37,15 @@ public sealed class MainViewModel : ObservableObject
         IFileLauncher launcher,
         IFileTrash trash,
         IAppLogger logger,
-        QuickPanelViewModel quickPanelViewModel)
+        QuickPanelViewModel quickPanelViewModel,
+        DesktopBoxLayoutSettings desktopBoxLayoutSettings)
     {
         _drawerService = drawerService;
         _launcher = launcher;
         _trash = trash;
         _logger = logger;
         _quickPanelViewModel = quickPanelViewModel;
+        DesktopBoxLayout = desktopBoxLayoutSettings;
 
         LoadCommand = new AsyncRelayCommand(LoadAsync);
         CreateNormalBoxCommand = new AsyncRelayCommand(() => CreateBoxAsync(BoxType.Normal));
@@ -71,6 +73,8 @@ public sealed class MainViewModel : ObservableObject
     public ObservableCollection<BoxViewModel> Boxes { get; } = [];
 
     public ObservableCollection<DrawerItemViewModel> Items { get; } = [];
+
+    public DesktopBoxLayoutSettings DesktopBoxLayout { get; }
 
     public IAsyncRelayCommand LoadCommand { get; }
 
@@ -534,7 +538,11 @@ public sealed class MainViewModel : ObservableObject
 
     private async Task RestoreLayoutPresetAsync()
     {
-        // Legacy layout sync removed. BoxViewModel handles layout internally.
+        var savedPreset = await _drawerService.GetSettingAsync(LayoutPresetSettingKey);
+        if (!string.IsNullOrEmpty(savedPreset))
+        {
+            DesktopBoxLayout.ApplyPresetCommand.Execute(savedPreset);
+        }
     }
 
     public async Task SaveLayoutPresetAsync(string preset)

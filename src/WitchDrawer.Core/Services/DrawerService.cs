@@ -241,6 +241,49 @@ public sealed class DrawerService
             cancellationToken);
     }
 
+    public async Task<string> ExportItemToDirectoryAsync(
+        Guid itemId,
+        string targetDirectory,
+        CancellationToken cancellationToken = default)
+    {
+        var item = await _repository.GetItemAsync(itemId, cancellationToken)
+            ?? throw new InvalidOperationException("Item does not exist.");
+
+        if (string.IsNullOrWhiteSpace(item.StoredPath))
+        {
+            throw new InvalidOperationException("Only stored items can be exported.");
+        }
+
+        var sourcePath = PathSafety.GetFullExistingPath(item.StoredPath);
+        PathSafety.EnsureChildPath(_paths.BoxesDirectory, sourcePath);
+
+        var fullTargetDirectory = Path.GetFullPath(targetDirectory);
+        Directory.CreateDirectory(fullTargetDirectory);
+
+        var displayName = string.IsNullOrWhiteSpace(item.DisplayName)
+            ? Path.GetFileName(sourcePath)
+            : item.DisplayName;
+        var isDirectory = item.ItemKind == ItemKind.Directory;
+        var targetPath = FileNameService.GetUniqueDestinationPath(fullTargetDirectory, displayName, isDirectory);
+        PathSafety.EnsureChildPath(fullTargetDirectory, targetPath);
+
+        await Task.Run(() =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (isDirectory)
+            {
+                Directory.Move(sourcePath, targetPath);
+            }
+            else
+            {
+                File.Move(sourcePath, targetPath);
+            }
+        }, cancellationToken);
+
+        await _repository.RemoveItemAsync(itemId, cancellationToken);
+        return targetPath;
+    }
+
     public async Task DeleteItemAsync(Guid itemId, IFileTrash trash, CancellationToken cancellationToken = default)
     {
         var item = await _repository.GetItemAsync(itemId, cancellationToken)
