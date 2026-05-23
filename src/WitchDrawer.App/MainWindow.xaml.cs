@@ -46,6 +46,9 @@ public partial class MainWindow : Window
         Show();
         WindowState = WindowState.Normal;
         Activate();
+        Topmost = true;
+        Topmost = false;
+        Focus();
     }
 
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)

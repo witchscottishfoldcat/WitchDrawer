@@ -1,3 +1,6 @@
+using System.IO;
+using System.IO.Pipes;
+using System.Text;
 using System.Windows;
 using System.Windows.Interop;
 using WitchDrawer.App.Infrastructure;
@@ -14,6 +17,13 @@ namespace WitchDrawer.App;
 
 public partial class App : Application
 {
+    private const string SingleInstanceMutexName = @"Local\WitchDrawer.SingleInstance";
+    private const string SingleInstancePipeName = "WitchDrawer.SingleInstance";
+    private const string ActivateInstanceCommand = "activate";
+    private const string ThemeSettingKey = "Theme";
+
+    private Mutex? _singleInstanceMutex;
+    private CancellationTokenSource? _singleInstancePipeCts;
     private TaskbarIcon? _taskbarIcon;
     private MainWindow? _mainWindow;
     private DesktopBoxManager? _desktopBoxManager;
@@ -23,7 +33,14 @@ public partial class App : Application
         base.OnStartup(e);
 
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
-        AppThemeManager.Apply(AppTheme.Moe);
+
+        _singleInstanceMutex = new Mutex(true, SingleInstanceMutexName, out var isFirstInstance);
+        if (!isFirstInstance)
+        {
+            await SignalExistingInstanceAsync();
+            Shutdown(0);
+            return;
+        }
 
         try
         {
@@ -38,12 +55,14 @@ public partial class App : Application
             var desktopBoxLayoutSettings = new DesktopBoxLayoutSettings();
 
             await drawerService.InitializeAsync();
+            AppThemeManager.Apply(await LoadSavedThemeAsync(drawerService));
 
             var quickPanelViewModel = new QuickPanelViewModel(drawerService, launcher, logger);
             var quickPanel = new QuickPanelWindow(quickPanelViewModel);
             var mainViewModel = new MainViewModel(drawerService, launcher, trash, logger, quickPanelViewModel, desktopBoxLayoutSettings);
             _desktopBoxManager = new DesktopBoxManager(drawerService, launcher, trash, logger, desktopBoxLayoutSettings);
             _mainWindow = new MainWindow(mainViewModel, quickPanel, logger);
+            StartSingleInstanceServer(logger);
 
             mainViewModel.BoxesChanged += async (_, _) => await _desktopBoxManager.RefreshAsync();
             mainViewModel.ItemsChanged += async (_, _) =>
@@ -85,6 +104,83 @@ public partial class App : Application
                 MessageBoxImage.Error);
             Shutdown(-1);
         }
+    }
+
+    private static async Task<AppTheme> LoadSavedThemeAsync(DrawerService drawerService)
+    {
+        var savedTheme = await drawerService.GetSettingAsync(ThemeSettingKey);
+        return Enum.TryParse<AppTheme>(savedTheme, ignoreCase: true, out var theme)
+            ? theme
+            : AppTheme.Moe;
+    }
+
+    private void StartSingleInstanceServer(IAppLogger logger)
+    {
+        _singleInstancePipeCts = new CancellationTokenSource();
+        var cancellationToken = _singleInstancePipeCts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                try
+                {
+                    await using var server = new NamedPipeServerStream(
+                        SingleInstancePipeName,
+                        PipeDirection.In,
+                        maxNumberOfServerInstances: 1,
+                        PipeTransmissionMode.Byte,
+                        PipeOptions.Asynchronous);
+
+                    await server.WaitForConnectionAsync(cancellationToken);
+                    using var reader = new StreamReader(server, Encoding.UTF8);
+                    var command = await reader.ReadLineAsync(cancellationToken);
+                    if (string.Equals(command, ActivateInstanceCommand, StringComparison.OrdinalIgnoreCase))
+                    {
+                        await Dispatcher.InvokeAsync(ActivateExistingMainWindow);
+                    }
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (Exception exception)
+                {
+                    logger.Error(exception, "Single-instance pipe server failed.");
+                    await Task.Delay(250, cancellationToken);
+                }
+            }
+        }, cancellationToken);
+    }
+
+    private static async Task SignalExistingInstanceAsync()
+    {
+        for (var attempt = 0; attempt < 6; attempt++)
+        {
+            try
+            {
+                await using var client = new NamedPipeClientStream(
+                    ".",
+                    SingleInstancePipeName,
+                    PipeDirection.Out,
+                    PipeOptions.Asynchronous);
+
+                using var timeoutCts = new CancellationTokenSource(TimeSpan.FromMilliseconds(350));
+                await client.ConnectAsync(timeoutCts.Token);
+                await using var writer = new StreamWriter(client, Encoding.UTF8) { AutoFlush = true };
+                await writer.WriteLineAsync(ActivateInstanceCommand);
+                return;
+            }
+            catch
+            {
+                await Task.Delay(120);
+            }
+        }
+    }
+
+    private void ActivateExistingMainWindow()
+    {
+        _mainWindow?.RestoreFromTray();
     }
 
     private void InitializeTaskbarIcon(AppPaths paths, IAppLogger logger)
@@ -170,7 +266,10 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _singleInstancePipeCts?.Cancel();
+        _singleInstancePipeCts?.Dispose();
         _taskbarIcon?.Dispose();
+        _singleInstanceMutex?.Dispose();
         base.OnExit(e);
     }
 

@@ -71,6 +71,18 @@ public sealed class DrawerServiceTests
     }
 
     [Fact]
+    public async Task SetSettingAsync_PersistsAndUpdatesValue()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+
+        await workspace.Service.SetSettingAsync("Theme", "Moe");
+        await workspace.Service.SetSettingAsync("Theme", "Crystal");
+        var value = await workspace.Service.GetSettingAsync("Theme");
+
+        Assert.Equal("Crystal", value);
+    }
+
+    [Fact]
     public async Task ImportPathAsync_PixelBoxMovesFileIntoStorage()
     {
         using var workspace = await TestWorkspace.CreateAsync();

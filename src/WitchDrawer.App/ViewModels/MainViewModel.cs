@@ -12,6 +12,8 @@ namespace WitchDrawer.App.ViewModels;
 
 public sealed class MainViewModel : ObservableObject
 {
+    private const string ThemeSettingKey = "Theme";
+
     private readonly DrawerService _drawerService;
     private readonly IFileLauncher _launcher;
     private readonly IFileTrash _trash;
@@ -23,7 +25,8 @@ public sealed class MainViewModel : ObservableObject
     private bool _isBusy;
     private bool _isSettingsPage;
     private string _statusText = "准备就绪";
-    private string _themeLabel = "清透";
+    private string _themeLabel = "清透雅致";
+    private AppTheme _currentTheme;
 
     public MainViewModel(
         DrawerService drawerService,
@@ -48,9 +51,11 @@ public sealed class MainViewModel : ObservableObject
         RenameSelectedBoxCommand = new AsyncRelayCommand<string?>(RenameSelectedBoxAsync, _ => SelectedBox is not null);
         OpenItemCommand = new AsyncRelayCommand<DrawerItemViewModel?>(OpenItemAsync);
         DeleteItemCommand = new AsyncRelayCommand<DrawerItemViewModel?>(DeleteItemAsync);
-        ApplyMoeThemeCommand = new RelayCommand(() => ApplyTheme(AppTheme.Moe));
-        ApplyGlassThemeCommand = new RelayCommand(() => ApplyTheme(AppTheme.Glass));
-        ApplyCrystalThemeCommand = new RelayCommand(() => ApplyTheme(AppTheme.Crystal));
+        SetCurrentTheme(AppThemeManager.CurrentTheme);
+
+        ApplyMoeThemeCommand = new AsyncRelayCommand(() => ApplyThemeAsync(AppTheme.Moe));
+        ApplyGlassThemeCommand = new AsyncRelayCommand(() => ApplyThemeAsync(AppTheme.Glass));
+        ApplyCrystalThemeCommand = new AsyncRelayCommand(() => ApplyThemeAsync(AppTheme.Crystal));
         ShowDashboardCommand = new RelayCommand(() => IsSettingsPage = false);
         ShowSettingsCommand = new RelayCommand(() => IsSettingsPage = true);
     }
@@ -81,11 +86,11 @@ public sealed class MainViewModel : ObservableObject
 
     public IAsyncRelayCommand<DrawerItemViewModel?> DeleteItemCommand { get; }
 
-    public IRelayCommand ApplyMoeThemeCommand { get; }
+    public IAsyncRelayCommand ApplyMoeThemeCommand { get; }
 
-    public IRelayCommand ApplyGlassThemeCommand { get; }
+    public IAsyncRelayCommand ApplyGlassThemeCommand { get; }
 
-    public IRelayCommand ApplyCrystalThemeCommand { get; }
+    public IAsyncRelayCommand ApplyCrystalThemeCommand { get; }
 
     public IRelayCommand ShowDashboardCommand { get; }
 
@@ -126,6 +131,26 @@ public sealed class MainViewModel : ObservableObject
         get => _themeLabel;
         private set => SetProperty(ref _themeLabel, value);
     }
+
+    public AppTheme CurrentTheme
+    {
+        get => _currentTheme;
+        private set
+        {
+            if (SetProperty(ref _currentTheme, value))
+            {
+                OnPropertyChanged(nameof(IsMoeTheme));
+                OnPropertyChanged(nameof(IsGlassTheme));
+                OnPropertyChanged(nameof(IsCrystalTheme));
+            }
+        }
+    }
+
+    public bool IsMoeTheme => CurrentTheme == AppTheme.Moe;
+
+    public bool IsGlassTheme => CurrentTheme == AppTheme.Glass;
+
+    public bool IsCrystalTheme => CurrentTheme == AppTheme.Crystal;
 
     public async Task LoadAsync()
     {
@@ -381,11 +406,31 @@ public sealed class MainViewModel : ObservableObject
         });
     }
 
-    private void ApplyTheme(AppTheme theme)
+    private async Task ApplyThemeAsync(AppTheme theme)
     {
-        AppThemeManager.Apply(theme);
-        ThemeLabel = theme == AppTheme.Glass ? "黑曜石毛玻璃" : (theme == AppTheme.Crystal ? "全透水晶玻璃" : "冰莓雅致浅色");
-        StatusText = $"已切换到 {ThemeLabel} 风格";
+        try
+        {
+            AppThemeManager.Apply(theme);
+            SetCurrentTheme(theme);
+            await _drawerService.SetSettingAsync(ThemeSettingKey, theme.ToString());
+            StatusText = $"已切换到 {ThemeLabel} 风格";
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to apply theme.");
+            StatusText = exception.Message;
+        }
+    }
+
+    private void SetCurrentTheme(AppTheme theme)
+    {
+        CurrentTheme = theme;
+        ThemeLabel = theme switch
+        {
+            AppTheme.Glass => "暗黑曜石",
+            AppTheme.Crystal => "全透水晶",
+            _ => "清透雅致"
+        };
     }
 
     private async Task RunBusyAsync(Func<Task> action)

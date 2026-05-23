@@ -161,7 +161,7 @@
                         <Setter Property="Width" Value="{Binding DataContext.LayoutSettings.ItemSlotWidth, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" />
                         <Setter Property="Height" Value="{Binding DataContext.LayoutSettings.ItemSlotHeight, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" />
                         <Setter Property="Padding" Value="{Binding DataContext.LayoutSettings.ItemPadding, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" />
-                        <Setter Property="Margin" Value="{Binding DataContext.LayoutSettings.ItemMargin, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" />
+                        <Setter Property="Margin" Value="0" />
                         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
                         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                         <Setter Property="Opacity" Value="1" />
@@ -172,6 +172,7 @@
                                             Background="Transparent"
                                             BorderBrush="Transparent"
                                             BorderThickness="1.2"
+                                            Margin="{Binding DataContext.LayoutSettings.ItemMargin, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
                                             Padding="{TemplateBinding Padding}"
                                             RenderTransformOrigin="0.5,0.5">
                                         <Border.Style>
@@ -187,7 +188,7 @@
                                         <Border.RenderTransform>
                                             <ScaleTransform x:Name="CardScale" ScaleX="1" ScaleY="1"/>
                                         </Border.RenderTransform>
-                                        <ContentPresenter />
+                                        <ContentPresenter x:Name="ItemContent" />
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <!-- Normal hover (with scale animation) -->
@@ -253,15 +254,15 @@
                                             <Setter TargetName="Root" Property="Background" Value="{DynamicResource AccentSoftBrush}" />
                                             <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                                         </Trigger>
+                                        <DataTrigger Binding="{Binding IsDragSource}" Value="True">
+                                            <Setter TargetName="Root" Property="Background" Value="Transparent" />
+                                            <Setter TargetName="Root" Property="BorderBrush" Value="Transparent" />
+                                            <Setter TargetName="ItemContent" Property="Opacity" Value="0.38" />
+                                        </DataTrigger>
                                     </ControlTemplate.Triggers>
                                 </ControlTemplate>
                             </Setter.Value>
                         </Setter>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsDragSource}" Value="True">
-                                <Setter Property="Opacity" Value="0.42" />
-                            </DataTrigger>
-                        </Style.Triggers>
                     </Style>
                 </ListBox.ItemContainerStyle>
                 <ListBox.ItemTemplate>
@@ -325,8 +326,8 @@
                            RenderTransformOrigin="0.5,0.5">
                     <Rectangle.Style>
                         <Style TargetType="Rectangle">
-                            <Setter Property="RadiusX" Value="10" />
-                            <Setter Property="RadiusY" Value="10" />
+                            <Setter Property="RadiusX" Value="{Binding LayoutSettings.ItemCornerRadius.TopLeft}" />
+                            <Setter Property="RadiusY" Value="{Binding LayoutSettings.ItemCornerRadius.TopLeft}" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding Type}" Value="Pixel">
                                     <Setter Property="RadiusX" Value="6" />
@@ -335,9 +336,6 @@
                             </Style.Triggers>
                         </Style>
                     </Rectangle.Style>
-                    <Rectangle.RenderTransform>
-                        <ScaleTransform ScaleX="0.92" ScaleY="0.92" />
-                    </Rectangle.RenderTransform>
                 </Rectangle>
             </Canvas>
 

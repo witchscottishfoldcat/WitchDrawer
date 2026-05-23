@@ -130,7 +130,7 @@
                     <DockPanel>
                         <!-- Navigation Tabs Local Resources -->
                         <DockPanel.Resources>
-                            <Style x:Key="NavTabStyle" TargetType="{x:Type RadioButton}">
+                            <Style x:Key="NavButtonBaseStyle" TargetType="{x:Type Button}">
                                 <Setter Property="Background" Value="Transparent" />
                                 <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
                                 <Setter Property="BorderThickness" Value="0" />
@@ -139,7 +139,7 @@
                                 <Setter Property="Cursor" Value="Hand" />
                                 <Setter Property="Template">
                                     <Setter.Value>
-                                        <ControlTemplate TargetType="{x:Type RadioButton}">
+                                        <ControlTemplate TargetType="{x:Type Button}">
                                             <Border x:Name="Root"
                                                     Background="{TemplateBinding Background}"
                                                     CornerRadius="14"
@@ -148,35 +148,49 @@
                                             </Border>
                                             <ControlTemplate.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter TargetName="Root" Property="Background" Value="{DynamicResource HoverBrush}" />
-                                                    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-                                                </Trigger>
-                                                <Trigger Property="IsChecked" Value="True">
-                                                    <Setter TargetName="Root" Property="Background" Value="{DynamicResource AccentBrush}" />
-                                                    <Setter Property="Foreground" Value="White" />
-                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                    <Setter TargetName="Root" Property="Opacity" Value="0.9" />
                                                 </Trigger>
                                             </ControlTemplate.Triggers>
                                         </ControlTemplate>
                                     </Setter.Value>
                                 </Setter>
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="{DynamicResource HoverBrush}" />
+                                        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                            <Style x:Key="NavOverviewButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource NavButtonBaseStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSettingsPage}" Value="False">
+                                        <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                                        <Setter Property="Foreground" Value="White" />
+                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                            <Style x:Key="NavSettingsButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource NavButtonBaseStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSettingsPage}" Value="True">
+                                        <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                                        <Setter Property="Foreground" Value="White" />
+                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                    </DataTrigger>
+                                </Style.Triggers>
                             </Style>
                         </DockPanel.Resources>
 
                         <StackPanel DockPanel.Dock="Top">
                             <!-- Nav Control -->
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,20" HorizontalAlignment="Center">
-                                <RadioButton Content="概览"
-                                             GroupName="Nav"
-                                             IsChecked="{Binding IsSettingsPage, Converter={StaticResource InverseBooleanToVisibilityConverter}, Mode=OneWay}"
-                                             Command="{Binding ShowDashboardCommand}"
-                                             Style="{StaticResource NavTabStyle}"
-                                             Margin="0,0,8,0" />
-                                <RadioButton Content="设置"
-                                             GroupName="Nav"
-                                             IsChecked="{Binding IsSettingsPage, Mode=OneWay}"
-                                             Command="{Binding ShowSettingsCommand}"
-                                             Style="{StaticResource NavTabStyle}" />
+                                <Button Content="概览"
+                                        Command="{Binding ShowDashboardCommand}"
+                                        Style="{StaticResource NavOverviewButtonStyle}"
+                                        Margin="0,0,8,0" />
+                                <Button Content="设置"
+                                        Command="{Binding ShowSettingsCommand}"
+                                        Style="{StaticResource NavSettingsButtonStyle}" />
                             </StackPanel>
 
                             <TextBlock Text="收纳盒列表"
@@ -355,16 +369,17 @@
                                     
                                     <!-- 重命名收纳盒悬浮按钮与浮窗 -->
                                     <Grid Margin="12,4,0,0">
-                                        <Button x:Name="BtnRenameBox"
-                                                Click="OnRenameBoxClicked"
-                                                Focusable="False"
-                                                Style="{StaticResource GhostButtonStyle}"
-                                                Width="28" Height="28"
-                                                ToolTip="重命名收纳盒"
-                                                BorderThickness="0">
+                                         <Button x:Name="BtnRenameBox"
+                                                 Click="OnRenameBoxClicked"
+                                                 Focusable="False"
+                                                 Style="{StaticResource GhostButtonStyle}"
+                                                 Width="32" Height="32"
+                                                 Padding="0"
+                                                 ToolTip="重命名收纳盒"
+                                                 BorderThickness="0">
                                             <Path Data="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
                                                   Fill="{DynamicResource TextMutedBrush}"
-                                                  Stretch="Uniform" Width="14" Height="14" />
+                                                  Stretch="Uniform" Width="16" Height="16" />
                                         </Button>
 
                                         <Popup x:Name="RenameBoxPopup"
@@ -878,22 +893,113 @@
                                                    Foreground="{DynamicResource TextMutedBrush}" />
                                     </StackPanel>
                                     <UniformGrid Grid.Column="1" Columns="3" VerticalAlignment="Center">
+                                        <UniformGrid.Resources>
+                                            <Style x:Key="ThemeChoiceButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Setter Property="Height" Value="32" />
+                                                <Setter Property="Padding" Value="12,2" />
+                                                <Setter Property="FontWeight" Value="Medium" />
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="{x:Type Button}">
+                                                            <Border x:Name="Root"
+                                                                    Background="{TemplateBinding Background}"
+                                                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                                                    CornerRadius="10"
+                                                                    Padding="{TemplateBinding Padding}"
+                                                                    RenderTransformOrigin="0.5,0.5">
+                                                                <Border.RenderTransform>
+                                                                    <ScaleTransform x:Name="RootScale" ScaleX="1" ScaleY="1" />
+                                                                </Border.RenderTransform>
+                                                                <ContentPresenter HorizontalAlignment="Center"
+                                                                                  VerticalAlignment="Center"
+                                                                                  RecognizesAccessKey="True" />
+                                                            </Border>
+                                                            <ControlTemplate.Triggers>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter TargetName="Root" Property="Opacity" Value="0.9" />
+                                                                    <Trigger.EnterActions>
+                                                                        <BeginStoryboard>
+                                                                            <Storyboard>
+                                                                                <DoubleAnimation Storyboard.TargetName="RootScale"
+                                                                                                 Storyboard.TargetProperty="ScaleX"
+                                                                                                 To="1.025"
+                                                                                                 Duration="0:0:0.1" />
+                                                                                <DoubleAnimation Storyboard.TargetName="RootScale"
+                                                                                                 Storyboard.TargetProperty="ScaleY"
+                                                                                                 To="1.025"
+                                                                                                 Duration="0:0:0.1" />
+                                                                            </Storyboard>
+                                                                        </BeginStoryboard>
+                                                                    </Trigger.EnterActions>
+                                                                    <Trigger.ExitActions>
+                                                                        <BeginStoryboard>
+                                                                            <Storyboard>
+                                                                                <DoubleAnimation Storyboard.TargetName="RootScale"
+                                                                                                 Storyboard.TargetProperty="ScaleX"
+                                                                                                 To="1"
+                                                                                                 Duration="0:0:0.12" />
+                                                                                <DoubleAnimation Storyboard.TargetName="RootScale"
+                                                                                                 Storyboard.TargetProperty="ScaleY"
+                                                                                                 To="1"
+                                                                                                 Duration="0:0:0.12" />
+                                                                            </Storyboard>
+                                                                        </BeginStoryboard>
+                                                                    </Trigger.ExitActions>
+                                                                </Trigger>
+                                                                <Trigger Property="IsPressed" Value="True">
+                                                                    <Setter TargetName="Root" Property="Opacity" Value="0.78" />
+                                                                </Trigger>
+                                                                <Trigger Property="IsEnabled" Value="False">
+                                                                    <Setter TargetName="Root" Property="Opacity" Value="0.5" />
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Style>
+                                            <Style x:Key="MoeThemeChoiceButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource ThemeChoiceButtonStyle}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsMoeTheme}" Value="True">
+                                                        <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                                                        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                                        <Setter Property="Foreground" Value="White" />
+                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                            <Style x:Key="GlassThemeChoiceButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource ThemeChoiceButtonStyle}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsGlassTheme}" Value="True">
+                                                        <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                                                        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                                        <Setter Property="Foreground" Value="White" />
+                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                            <Style x:Key="CrystalThemeChoiceButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource ThemeChoiceButtonStyle}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsCrystalTheme}" Value="True">
+                                                        <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                                                        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                                        <Setter Property="Foreground" Value="White" />
+                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </UniformGrid.Resources>
                                         <Button Content="清透雅致"
                                                 Command="{Binding ApplyMoeThemeCommand}"
-                                                Height="32"
-                                                Padding="12,2"
+                                                Style="{StaticResource MoeThemeChoiceButtonStyle}"
                                                 Margin="0,0,8,0" />
                                         <Button Content="暗黑曜石"
                                                 Command="{Binding ApplyGlassThemeCommand}"
-                                                Style="{StaticResource PrimaryButtonStyle}"
-                                                Height="32"
-                                                Padding="12,2"
+                                                Style="{StaticResource GlassThemeChoiceButtonStyle}"
                                                 Margin="0,0,8,0" />
                                         <Button Content="全透水晶"
                                                 Command="{Binding ApplyCrystalThemeCommand}"
-                                                Style="{StaticResource PrimaryButtonStyle}"
-                                                Height="32"
-                                                Padding="12,2" />
+                                                Style="{StaticResource CrystalThemeChoiceButtonStyle}" />
                                     </UniformGrid>
                                 </Grid>
                             </Border>

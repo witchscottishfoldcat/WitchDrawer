@@ -115,9 +115,9 @@ public sealed class DesktopBoxViewModel : ObservableObject
         private set => SetProperty(ref _dragPreviewTop, value);
     }
 
-    public double DragPreviewWidth => LayoutSettings.ItemSlotWidth;
+    public double DragPreviewWidth => Math.Max(1, LayoutSettings.ItemSlotWidth - (LayoutSettings.ItemSpacing * 2));
 
-    public double DragPreviewHeight => LayoutSettings.ItemSlotHeight;
+    public double DragPreviewHeight => Math.Max(1, LayoutSettings.ItemSlotHeight - (LayoutSettings.ItemSpacing * 2));
 
     public bool IsBusy
     {
@@ -152,8 +152,8 @@ public sealed class DesktopBoxViewModel : ObservableObject
     public void ShowDragPreview(int column, int row)
     {
         var slot = NormalizeGridSlot(column, row);
-        DragPreviewLeft = slot.Column * LayoutSettings.ItemSlotWidth;
-        DragPreviewTop = slot.Row * LayoutSettings.ItemSlotHeight;
+        DragPreviewLeft = (slot.Column * LayoutSettings.ItemSlotWidth) + LayoutSettings.ItemSpacing;
+        DragPreviewTop = (slot.Row * LayoutSettings.ItemSlotHeight) + LayoutSettings.ItemSpacing;
         IsDragPreviewVisible = true;
     }
 

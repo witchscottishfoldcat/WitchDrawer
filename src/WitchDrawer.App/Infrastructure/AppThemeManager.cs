@@ -23,8 +23,8 @@ public static class AppThemeManager
             SetColor("BorderBrushSoft", "#26FFFFFF");     // Translucent border for glassmorphism
             SetColor("TextPrimaryBrush", "#F3F4F6");     // High contrast silver-white text
             SetColor("TextMutedBrush", "#9CA3AF");       // Muted silver text
-            SetColor("AccentBrush", "#A855F7");          // Vibrant Cyber Violet
-            SetColor("AccentSoftBrush", "#33A855F7");     // Translucent selection highlight
+            SetColor("AccentBrush", "#3B82F6");          // Clear blue accent
+            SetColor("AccentSoftBrush", "#333B82F6");     // Translucent selection highlight
             SetColor("GlassSurfaceBrush", "#B3121218");  // Floating desktop box surface
             SetColor("GlassInnerBrush", "#1AFFFFFF");     // File icon container backplate
             SetColor("GlassStrokeBrush", "#26FFFFFF");    // Thin desktop box outline
@@ -67,8 +67,8 @@ public static class AppThemeManager
             SetColor("BorderBrushSoft", "#E5E7EB");       // Soft light gray border
             SetColor("TextPrimaryBrush", "#111827");      // Slate primary text
             SetColor("TextMutedBrush", "#6B7280");        // Slate muted text
-            SetColor("AccentBrush", "#6366F1");           // Deep elegant indigo blue
-            SetColor("AccentSoftBrush", "#EEF2FF");        // Soft indigo tint
+            SetColor("AccentBrush", "#007AFF");           // Clean system blue
+            SetColor("AccentSoftBrush", "#EAF3FF");        // Soft blue tint
             SetColor("GlassSurfaceBrush", "#FBFBFD");     // Light floating box surface
             SetColor("GlassInnerBrush", "#F3F4F6");       // Light icon container backplate
             SetColor("GlassStrokeBrush", "#E5E7EB");      // Light box outline
