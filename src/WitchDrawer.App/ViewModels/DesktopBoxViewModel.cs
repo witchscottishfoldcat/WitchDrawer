@@ -13,6 +13,9 @@ namespace WitchDrawer.App.ViewModels;
 public sealed class DesktopBoxViewModel : ObservableObject
 {
     private const double EdgeExpandThreshold = 14;
+    private const string MappingViewModeSettingPrefix = "MappingViewMode:";
+    private const string MappingListViewMode = "List";
+    private const string MappingGridViewMode = "Grid";
 
     private readonly DrawerService _drawerService;
     private readonly IFileLauncher _launcher;
@@ -29,6 +32,8 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private int _previewColumn;
     private int _previewRow;
     private string _statusText = "拖入文件";
+    private bool _isDragOver;
+    private bool _isMappingListMode;
 
     public DesktopBoxViewModel(
         Box box,
@@ -49,7 +54,10 @@ public sealed class DesktopBoxViewModel : ObservableObject
         OpenItemCommand = new AsyncRelayCommand<DrawerItemViewModel?>(OpenItemAsync);
         DeleteItemCommand = new AsyncRelayCommand<DrawerItemViewModel?>(DeleteItemAsync);
         RefreshCommand = new AsyncRelayCommand(LoadAsync);
+        UseMappingGridModeCommand = new AsyncRelayCommand(() => SetMappingViewModeAsync(useListMode: false));
+        UseMappingListModeCommand = new AsyncRelayCommand(() => SetMappingViewModeAsync(useListMode: true));
         UpdateGridCanvasSize();
+        _ = LoadMappingViewModeAsync();
     }
 
     public DesktopBoxLayoutSettings LayoutSettings => _layoutSettings;
@@ -64,11 +72,21 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     public IAsyncRelayCommand RefreshCommand { get; }
 
+    public IAsyncRelayCommand UseMappingGridModeCommand { get; }
+
+    public IAsyncRelayCommand UseMappingListModeCommand { get; }
+
     public Guid BoxId => _box.Id;
 
     public string Name => _box.Name;
 
     public BoxType Type => _box.Type;
+
+    public bool IsMappingBox => Type == BoxType.Mapping;
+
+    public bool IsMappingListMode => IsMappingBox && _isMappingListMode;
+
+    public bool IsGridMode => !IsMappingListMode;
 
     public string TypeLabel => _box.Type switch
     {
@@ -130,6 +148,12 @@ public sealed class DesktopBoxViewModel : ObservableObject
         private set => SetProperty(ref _isBusy, value);
     }
 
+    public bool IsDragOver
+    {
+        get => _isDragOver;
+        set => SetProperty(ref _isDragOver, value);
+    }
+
     public string StatusText
     {
         get => _statusText;
@@ -141,6 +165,9 @@ public sealed class DesktopBoxViewModel : ObservableObject
         _box = box;
         OnPropertyChanged(nameof(Name));
         OnPropertyChanged(nameof(Type));
+        OnPropertyChanged(nameof(IsMappingBox));
+        OnPropertyChanged(nameof(IsMappingListMode));
+        OnPropertyChanged(nameof(IsGridMode));
         OnPropertyChanged(nameof(TypeLabel));
         OnPropertyChanged(nameof(Description));
         OnPropertyChanged(nameof(IsEmpty));
@@ -195,6 +222,12 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     public void ShowDragPreview(int column, int row)
     {
+        if (IsMappingListMode)
+        {
+            IsDragPreviewVisible = false;
+            return;
+        }
+
         _previewColumn = column;
         _previewRow = row;
         IsDragPreviewVisible = true;
@@ -221,6 +254,17 @@ public sealed class DesktopBoxViewModel : ObservableObject
             .ToHashSet();
 
         return FindFirstFreeSlot(targetSlot.Column, targetSlot.Row, occupiedSlots);
+    }
+
+    public (int Column, int Row) GetListDropSlot(Guid? movingItemId = null)
+    {
+        var maxRow = Items
+            .Where(item => movingItemId is null || item.Id != movingItemId.Value)
+            .Select(item => item.GridRow)
+            .DefaultIfEmpty(-1)
+            .Max();
+
+        return (0, maxRow + 1);
     }
 
     public async Task LoadAsync()
@@ -413,6 +457,52 @@ public sealed class DesktopBoxViewModel : ObservableObject
         finally
         {
             IsBusy = false;
+        }
+    }
+
+    private async Task LoadMappingViewModeAsync()
+    {
+        if (!IsMappingBox)
+        {
+            return;
+        }
+
+        try
+        {
+            var savedMode = await _drawerService.GetSettingAsync(MappingViewModeSettingPrefix + BoxId.ToString("N"));
+            SetMappingListMode(string.Equals(savedMode, MappingListViewMode, StringComparison.OrdinalIgnoreCase));
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to load mapping view mode.");
+        }
+    }
+
+    private async Task SetMappingViewModeAsync(bool useListMode)
+    {
+        if (!IsMappingBox)
+        {
+            return;
+        }
+
+        try
+        {
+            SetMappingListMode(useListMode);
+            var mode = useListMode ? MappingListViewMode : MappingGridViewMode;
+            await _drawerService.SetSettingAsync(MappingViewModeSettingPrefix + BoxId.ToString("N"), mode);
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to save mapping view mode.");
+        }
+    }
+
+    private void SetMappingListMode(bool value)
+    {
+        if (SetProperty(ref _isMappingListMode, value, nameof(IsMappingListMode)))
+        {
+            OnPropertyChanged(nameof(IsGridMode));
+            HideDragPreview();
         }
     }
 

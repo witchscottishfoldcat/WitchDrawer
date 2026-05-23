@@ -40,6 +40,40 @@
                              Storyboard.TargetProperty="StrokeDashOffset"
                              From="0" To="7" Duration="0:0:0.6" />
         </Storyboard>
+
+        <Style x:Key="MappingModeButtonStyle" TargetType="{x:Type Button}">
+            <Setter Property="Width" Value="22" />
+            <Setter Property="Height" Value="22" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Opacity" Value="0.62" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource HoverBrush}" />
+                                <Setter Property="Opacity" Value="1" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Border x:Name="WindowBorder"
@@ -62,6 +96,16 @@
                     <DataTrigger Binding="{Binding Type}" Value="Pixel">
                         <Setter Property="CornerRadius" Value="14" />
                         <Setter Property="TextElement.FontFamily" Value="Consolas, Courier New, 微软雅黑" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding IsMappingListMode}" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource GlassSurfaceBrush}" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource GlassStrokeBrush}" />
+                        <Setter Property="CornerRadius" Value="8" />
+                        <Setter Property="Effect">
+                            <Setter.Value>
+                                <DropShadowEffect BlurRadius="12" Color="#000000" Opacity="0.26" ShadowDepth="1" Direction="270" />
+                            </Setter.Value>
+                        </Setter>
                     </DataTrigger>
                 </Style.Triggers>
             </Style>
@@ -92,14 +136,110 @@
             <!-- 顶部标题栏与 macOS 关闭小红点 -->
             <Grid Grid.Row="0" Background="Transparent">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="14,0,0,0">
+                    <StackPanel.Style>
+                        <Style TargetType="{x:Type StackPanel}">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsMappingListMode}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
                     <TextBlock Text="{Binding Name}"
-                               Foreground="{DynamicResource TextPrimaryBrush}"
                                FontSize="12"
                                FontWeight="SemiBold"
-                               VerticalAlignment="Center"/>
+                               VerticalAlignment="Center">
+                        <TextBlock.Style>
+                            <Style TargetType="{x:Type TextBlock}">
+                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsMappingListMode}" Value="True">
+                                        <Setter Property="Foreground" Value="White" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
                 </StackPanel>
 
                 <!-- 关闭小按钮 (悬浮变亮红，自带微过渡，像素模式下自动方块化) -->
+                <TextBlock Text="{Binding Name}"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
+                           FontSize="15"
+                           FontWeight="SemiBold"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Margin="56,0,86,0">
+                    <TextBlock.Style>
+                        <Style TargetType="{x:Type TextBlock}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsMappingListMode}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Margin="0,0,34,0">
+                    <StackPanel.Style>
+                        <Style TargetType="{x:Type StackPanel}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsMappingBox}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+                    <Button Command="{Binding UseMappingGridModeCommand}"
+                            ToolTip="网格视图"
+                            Margin="0,0,4,0">
+                        <Button.Style>
+                            <Style TargetType="{x:Type Button}" BasedOn="{StaticResource MappingModeButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsGridMode}" Value="True">
+                                        <Setter Property="Opacity" Value="1" />
+                                        <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                        <Path Data="M 2,2 L 7,2 L 7,7 L 2,7 Z M 10,2 L 15,2 L 15,7 L 10,7 Z M 2,10 L 7,10 L 7,15 L 2,15 Z M 10,10 L 15,10 L 15,15 L 10,15 Z"
+                              Stroke="{DynamicResource TextMutedBrush}"
+                              StrokeThickness="1.4"
+                              Width="16"
+                              Height="16"
+                              Stretch="Uniform" />
+                    </Button>
+                    <Button Command="{Binding UseMappingListModeCommand}"
+                            ToolTip="列表视图">
+                        <Button.Style>
+                            <Style TargetType="{x:Type Button}" BasedOn="{StaticResource MappingModeButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsMappingListMode}" Value="True">
+                                        <Setter Property="Opacity" Value="1" />
+                                        <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                        <Path Data="M 3,4 L 15,4 M 3,8 L 15,8 M 3,12 L 15,12"
+                              Stroke="{DynamicResource TextMutedBrush}"
+                              StrokeThickness="1.7"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              Width="16"
+                              Height="16"
+                              Stretch="Uniform" />
+                    </Button>
+                </StackPanel>
+
                 <Button Click="OnCloseClick"
                         Width="12"
                         Height="12"
@@ -149,6 +289,16 @@
                      PreviewMouseLeftButtonDown="OnIconPreviewMouseLeftButtonDown"
                      MouseMove="OnIconMouseMove"
                      MouseDoubleClick="OnItemsMouseDoubleClick">
+                <ListBox.Style>
+                    <Style TargetType="{x:Type ListBox}" BasedOn="{StaticResource {x:Type ListBox}}">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsMappingListMode}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ListBox.Style>
                 <ListBox.ItemsPanel>
                     <ItemsPanelTemplate>
                         <Canvas IsItemsHost="True" 
@@ -310,6 +460,114 @@
                 </ListBox.ItemTemplate>
             </ListBox>
 
+            <ListBox x:Name="FileList"
+                     Grid.Row="1"
+                     Panel.ZIndex="1"
+                     Width="310"
+                     MinHeight="118"
+                     MaxHeight="520"
+                     Margin="0,2,0,8"
+                     Padding="7,4"
+                     HorizontalAlignment="Left"
+                     VerticalAlignment="Top"
+                     BorderThickness="0"
+                     Background="Transparent"
+                     Focusable="True"
+                     FocusVisualStyle="{x:Null}"
+                     ItemsSource="{Binding Items}"
+                     SelectionMode="Single"
+                     ScrollViewer.CanContentScroll="True"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     VirtualizingPanel.IsVirtualizing="True"
+                     VirtualizingPanel.VirtualizationMode="Recycling"
+                     SelectionChanged="OnItemsSelectionChanged"
+                     PreviewMouseLeftButtonDown="OnIconPreviewMouseLeftButtonDown"
+                     MouseMove="OnIconMouseMove"
+                     MouseDoubleClick="OnItemsMouseDoubleClick">
+                <ListBox.Style>
+                    <Style TargetType="{x:Type ListBox}" BasedOn="{StaticResource {x:Type ListBox}}">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsMappingListMode}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ListBox.Style>
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="{x:Type ListBoxItem}">
+                        <Setter Property="Height" Value="32" />
+                        <Setter Property="Padding" Value="2,3" />
+                        <Setter Property="Margin" Value="0,1" />
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="{x:Type ListBoxItem}">
+                                    <Border x:Name="Root"
+                                            Background="Transparent"
+                                            BorderBrush="Transparent"
+                                            BorderThickness="1"
+                                            CornerRadius="4"
+                                            Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource HoverBrush}" />
+                                        </Trigger>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+                                            <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </ListBox.ItemContainerStyle>
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Grid ToolTip="{Binding PathLabel}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="26" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid Width="22"
+                                  Height="22"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center">
+                                <Image Source="{Binding IconImage}"
+                                       Width="20"
+                                       Height="20"
+                                       Stretch="Uniform"
+                                       RenderOptions.BitmapScalingMode="HighQuality"
+                                       Visibility="{Binding HasIcon, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                <Border Background="{DynamicResource AccentSoftBrush}"
+                                        CornerRadius="2"
+                                        Padding="2,1"
+                                        Visibility="{Binding HasIcon, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                                    <TextBlock Text="{Binding FallbackIconText}"
+                                               Foreground="{DynamicResource AccentBrush}"
+                                               FontSize="7.5"
+                                               FontWeight="Bold"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis" />
+                                </Border>
+                            </Grid>
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding DisplayName}"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       FontSize="16"
+                                       VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis" />
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
             <Canvas Grid.Row="1"
                     Panel.ZIndex="2"
                     Margin="8,2,8,8"
@@ -358,7 +616,7 @@
                         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushSoft}"/>
                         <Style.Triggers>
                             <!-- 拖拽滑入时，卡片背景高亮，启动跑马灯 -->
-                            <DataTrigger Binding="{Binding IsDragOver, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                            <DataTrigger Binding="{Binding IsDragOver}" Value="True">
                                 <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                             </DataTrigger>
                         </Style.Triggers>

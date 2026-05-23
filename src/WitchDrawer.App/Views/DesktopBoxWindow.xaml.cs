@@ -55,6 +55,8 @@ public partial class DesktopBoxWindow : Window
 
     public DesktopBoxViewModel ViewModel => (DesktopBoxViewModel)DataContext;
 
+    private ListBox ActiveItemsList => ViewModel.IsMappingListMode ? FileList : IconList;
+
     public void SetPositionChangedCallback(Func<Guid, Task> callback)
     {
         _positionChangedCallback = callback;
@@ -90,7 +92,7 @@ public partial class DesktopBoxWindow : Window
     {
         AppThemeManager.ApplyToWindow(this);
         WindowMotion.PopIn(this, 0.97, 140);
-        IconList.Focus();
+        ActiveItemsList.Focus();
     }
 
     private void OnThemeChanged(object? sender, AppTheme theme)
@@ -100,11 +102,9 @@ public partial class DesktopBoxWindow : Window
 
     private void OnWindowDeactivated(object? sender, EventArgs e)
     {
-        if (IconList != null)
-        {
-            IconList.SelectedItem = null;
-            _keyboardDeleteTarget = null;
-        }
+        IconList.SelectedItem = null;
+        FileList.SelectedItem = null;
+        _keyboardDeleteTarget = null;
     }
 
     private void OnCloseClick(object sender, RoutedEventArgs e)
@@ -145,18 +145,22 @@ public partial class DesktopBoxWindow : Window
             ViewModel.HideDragPreview();
         }
 
+        ViewModel.IsDragOver = acceptsDrop;
+
         e.Handled = true;
     }
 
     private void OnPreviewDragLeave(object sender, DragEventArgs e)
     {
-        var point = e.GetPosition(IconList);
+        var itemList = ActiveItemsList;
+        var point = e.GetPosition(itemList);
         if (point.X < 0
             || point.Y < 0
-            || point.X > IconList.ActualWidth
-            || point.Y > IconList.ActualHeight)
+            || point.X > itemList.ActualWidth
+            || point.Y > itemList.ActualHeight)
         {
             ViewModel.HideDragPreview();
+            ViewModel.IsDragOver = false;
         }
     }
 
@@ -201,16 +205,17 @@ public partial class DesktopBoxWindow : Window
                 if (importedItem is not null)
                 {
                     importedItem.ReloadIconIfNeeded();
-                    IconList.SelectedItem = importedItem;
+                    ActiveItemsList.SelectedItem = importedItem;
                     _keyboardDeleteTarget = importedItem;
                 }
 
-                IconList.Focus();
+                ActiveItemsList.Focus();
             }
         }
         finally
         {
             ViewModel.HideDragPreview();
+            ViewModel.IsDragOver = false;
         }
     }
 
@@ -221,7 +226,8 @@ public partial class DesktopBoxWindow : Window
             return;
         }
 
-        var item = IconList.SelectedItem as DrawerItemViewModel ?? _keyboardDeleteTarget;
+        var itemList = ActiveItemsList;
+        var item = itemList.SelectedItem as DrawerItemViewModel ?? _keyboardDeleteTarget;
         if (item is null || !ViewModel.Items.Contains(item))
         {
             return;
@@ -230,12 +236,15 @@ public partial class DesktopBoxWindow : Window
         e.Handled = true;
         await ViewModel.DeleteItemCommand.ExecuteAsync(item);
         _keyboardDeleteTarget = null;
-        IconList.Focus();
+        itemList.Focus();
     }
 
     private void OnItemsSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        _keyboardDeleteTarget = IconList.SelectedItem as DrawerItemViewModel;
+        if (sender is ListBox listBox)
+        {
+            _keyboardDeleteTarget = listBox.SelectedItem as DrawerItemViewModel;
+        }
     }
 
     private void OnSurfaceMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -245,11 +254,9 @@ public partial class DesktopBoxWindow : Window
             return;
         }
 
-        if (IconList != null)
-        {
-            IconList.SelectedItem = null;
-            _keyboardDeleteTarget = null;
-        }
+        IconList.SelectedItem = null;
+        FileList.SelectedItem = null;
+        _keyboardDeleteTarget = null;
 
         if (e.ButtonState == MouseButtonState.Pressed)
         {
@@ -269,11 +276,12 @@ public partial class DesktopBoxWindow : Window
 
     private void OnIconPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        BeginIconDrag(e);
+        BeginIconDrag(e, sender as ListBox ?? ActiveItemsList);
     }
 
     private async void OnIconMouseMove(object sender, MouseEventArgs e)
     {
+        var itemList = sender as ListBox ?? ActiveItemsList;
         if (_dragStartPoint is null || _dragStartItem is null)
         {
             return;
@@ -285,7 +293,7 @@ public partial class DesktopBoxWindow : Window
             return;
         }
 
-        var current = e.GetPosition(IconList);
+        var current = e.GetPosition(itemList);
         var distanceX = Math.Abs(current.X - _dragStartPoint.Value.X);
         var distanceY = Math.Abs(current.Y - _dragStartPoint.Value.Y);
         if (distanceX < SystemParameters.MinimumHorizontalDragDistance
@@ -295,21 +303,27 @@ public partial class DesktopBoxWindow : Window
         }
 
         var drawerItem = _dragStartItem;
-        await RunItemDragAsync(drawerItem);
+        await RunItemDragAsync(drawerItem, itemList);
         ClearPendingIconDrag();
     }
 
     private (int Column, int Row) GetDropSlot(DragEventArgs e, DesktopBoxDragPayload? payload = null)
     {
-        var point = e.GetPosition(IconList);
-        var padding = IconList.Padding;
+        var movingItemId = payload?.SourceBoxId == ViewModel.BoxId ? payload.ItemId : (Guid?)null;
+        if (ViewModel.IsMappingListMode)
+        {
+            return ViewModel.GetListDropSlot(movingItemId);
+        }
+
+        var itemList = ActiveItemsList;
+        var point = e.GetPosition(itemList);
+        var padding = itemList.Padding;
         var rawSlot = ViewModel.GetGridSlot(
             point.X - padding.Left,
             point.Y - padding.Top,
-            Math.Max(0, IconList.ActualWidth - padding.Left - padding.Right),
-            Math.Max(0, IconList.ActualHeight - padding.Top - padding.Bottom));
+            Math.Max(0, itemList.ActualWidth - padding.Left - padding.Right),
+            Math.Max(0, itemList.ActualHeight - padding.Top - padding.Bottom));
 
-        var movingItemId = payload?.SourceBoxId == ViewModel.BoxId ? payload.ItemId : (Guid?)null;
         return ViewModel.GetAvailableDropSlot(rawSlot.Column, rawSlot.Row, movingItemId);
     }
 
@@ -321,9 +335,9 @@ public partial class DesktopBoxWindow : Window
             return;
         }
 
-        IconList.SelectedItem = item;
+        ActiveItemsList.SelectedItem = item;
         _keyboardDeleteTarget = item;
-        IconList.Focus();
+        ActiveItemsList.Focus();
     }
 
     private async Task CompleteInternalDropAsync(DesktopBoxDragPayload payload, (int Column, int Row) slot)
@@ -344,24 +358,24 @@ public partial class DesktopBoxWindow : Window
         }
     }
 
-    private void BeginIconDrag(MouseButtonEventArgs e)
+    private void BeginIconDrag(MouseButtonEventArgs e, ListBox itemList)
     {
         // Bring the box to the foreground so keyboard input (e.g. Delete) reaches this window.
         Activate();
-        IconList.Focus();
-        Keyboard.Focus(IconList);
-        _dragStartPoint = e.GetPosition(IconList);
+        itemList.Focus();
+        Keyboard.Focus(itemList);
+        _dragStartPoint = e.GetPosition(itemList);
         _dragStartItem = null;
 
         if (TryGetDrawerItem(e.OriginalSource, out var drawerItem))
         {
-            IconList.SelectedItem = drawerItem;
+            itemList.SelectedItem = drawerItem;
             _keyboardDeleteTarget = drawerItem;
             _dragStartItem = drawerItem;
         }
         else
         {
-            IconList.SelectedItem = null;
+            itemList.SelectedItem = null;
             _keyboardDeleteTarget = null;
         }
     }
@@ -376,7 +390,7 @@ public partial class DesktopBoxWindow : Window
     //   - dropped on the same box  -> rearrange
     //   - dropped on another box   -> move into that box
     //   - dropped outside the app  -> move out to the desktop
-    private async Task RunItemDragAsync(DrawerItemViewModel drawerItem)
+    private async Task RunItemDragAsync(DrawerItemViewModel drawerItem, ListBox dragSourceList)
     {
         var payload = DesktopBoxDragPayload.Create(drawerItem.Id, ViewModel.BoxId);
         var data = new DataObject();
@@ -415,11 +429,11 @@ public partial class DesktopBoxWindow : Window
         };
 
         drawerItem.IsDragSource = true;
-        IconList.QueryContinueDrag += queryContinueDrag;
-        IconList.GiveFeedback += giveFeedback;
+        dragSourceList.QueryContinueDrag += queryContinueDrag;
+        dragSourceList.GiveFeedback += giveFeedback;
         try
         {
-            DragDrop.DoDragDrop(IconList, data, DragDropEffects.Move);
+            DragDrop.DoDragDrop(dragSourceList, data, DragDropEffects.Move);
             var internalDropSucceeded = payload.WasDroppedInsideWitchDrawer
                 || ConsumeDroppedInsideWitchDrawer(payload);
             var cursorOverApp = IsCursorOverWitchDrawerWindow();
@@ -449,11 +463,11 @@ public partial class DesktopBoxWindow : Window
         }
         finally
         {
-            IconList.QueryContinueDrag -= queryContinueDrag;
-            IconList.GiveFeedback -= giveFeedback;
+            dragSourceList.QueryContinueDrag -= queryContinueDrag;
+            dragSourceList.GiveFeedback -= giveFeedback;
             drawerItem.IsDragSource = false;
             ViewModel.HideDragPreview();
-            IconList.Focus();
+            dragSourceList.Focus();
         }
     }
 
@@ -587,7 +601,8 @@ public partial class DesktopBoxWindow : Window
             return false;
         }
 
-        var container = ItemsControl.ContainerFromElement(IconList, dependencyObject) as FrameworkElement;
+        var container = ItemsControl.ContainerFromElement(IconList, dependencyObject) as FrameworkElement
+            ?? ItemsControl.ContainerFromElement(FileList, dependencyObject) as FrameworkElement;
         if (container?.DataContext is not DrawerItemViewModel item)
         {
             return false;
