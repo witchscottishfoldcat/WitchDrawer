@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using WitchDrawer.App.Infrastructure;
@@ -17,6 +18,8 @@ public sealed class MainViewModel : ObservableObject
     private readonly IAppLogger _logger;
     private readonly QuickPanelViewModel _quickPanelViewModel;
     private BoxViewModel? _selectedBox;
+    private CancellationTokenSource? _itemsLoadCts;
+    private int _itemsLoadVersion;
     private bool _isBusy;
     private bool _isSettingsPage;
     private string _statusText = "准备就绪";
@@ -93,11 +96,9 @@ public sealed class MainViewModel : ObservableObject
         get => _selectedBox;
         set
         {
-            if (SetProperty(ref _selectedBox, value))
+            if (UpdateSelectedBoxCore(value))
             {
-                DeleteSelectedBoxCommand.NotifyCanExecuteChanged();
-                RenameSelectedBoxCommand.NotifyCanExecuteChanged();
-                _ = LoadItemsForSelectedBoxAsync();
+                QueueSelectedBoxItemsLoad();
             }
         }
     }
@@ -139,11 +140,7 @@ public sealed class MainViewModel : ObservableObject
                 Boxes.Add(new BoxViewModel(box));
             }
 
-            SelectedBox = Boxes.FirstOrDefault(box => box.Id == existingSelection) ?? Boxes.FirstOrDefault();
-            if (SelectedBox is not null)
-            {
-                await LoadItemsForSelectedBoxAsync();
-            }
+            await SelectBoxAsync(Boxes.FirstOrDefault(box => box.Id == existingSelection) ?? Boxes.FirstOrDefault());
 
             StatusText = $"{Boxes.Count} 个收纳盒已同步到桌面";
             BoxesChanged?.Invoke(this, EventArgs.Empty);
@@ -152,7 +149,8 @@ public sealed class MainViewModel : ObservableObject
 
     public async Task ImportPathsAsync(IEnumerable<string> paths)
     {
-        if (SelectedBox is null)
+        var selectedBox = SelectedBox;
+        if (selectedBox is null)
         {
             StatusText = "请先选择一个收纳盒";
             return;
@@ -169,13 +167,13 @@ public sealed class MainViewModel : ObservableObject
             var imported = 0;
             foreach (var path in pathList)
             {
-                await _drawerService.ImportPathAsync(SelectedBox.Id, path);
+                await _drawerService.ImportPathAsync(selectedBox.Id, path);
                 imported++;
             }
 
-            await LoadItemsForSelectedBoxAsync();
+            await LoadItemsForSelectedBoxAsync(selectedBox);
             await _quickPanelViewModel.LoadAsync();
-            StatusText = $"已导入 {imported} 项到 {SelectedBox.Name}";
+            StatusText = $"已导入 {imported} 项到 {selectedBox.Name}";
             ItemsChanged?.Invoke(this, EventArgs.Empty);
         });
     }
@@ -195,7 +193,7 @@ public sealed class MainViewModel : ObservableObject
             var box = await _drawerService.CreateBoxAsync(name, type);
             var viewModel = new BoxViewModel(box);
             Boxes.Add(viewModel);
-            SelectedBox = viewModel;
+            await SelectBoxAsync(viewModel);
             StatusText = $"已创建 {name}，桌面收纳栏已生成";
             BoxesChanged?.Invoke(this, EventArgs.Empty);
         });
@@ -221,20 +219,10 @@ public sealed class MainViewModel : ObservableObject
                 Boxes.Add(new BoxViewModel(box));
             }
 
-            SelectedBox = Boxes.FirstOrDefault();
-            if (SelectedBox is not null)
-            {
-                await LoadItemsForSelectedBoxAsync();
-            }
-            else
-            {
-                Items.Clear();
-            }
+            await SelectBoxAsync(Boxes.FirstOrDefault());
 
             await _quickPanelViewModel.LoadAsync();
             StatusText = $"\u5df2\u5220\u9664 {deletedName}\uff0c\u6536\u7eb3\u680f\u5df2\u79fb\u9664";
-            DeleteSelectedBoxCommand.NotifyCanExecuteChanged();
-            RenameSelectedBoxCommand.NotifyCanExecuteChanged();
             BoxesChanged?.Invoke(this, EventArgs.Empty);
             ItemsChanged?.Invoke(this, EventArgs.Empty);
         });
@@ -259,11 +247,7 @@ public sealed class MainViewModel : ObservableObject
                 Boxes.Add(new BoxViewModel(box));
             }
 
-            SelectedBox = Boxes.FirstOrDefault(b => b.Id == selectedBox.Id) ?? Boxes.FirstOrDefault();
-            if (SelectedBox is not null)
-            {
-                await LoadItemsForSelectedBoxAsync();
-            }
+            await SelectBoxAsync(Boxes.FirstOrDefault(b => b.Id == selectedBox.Id) ?? Boxes.FirstOrDefault());
 
             await _quickPanelViewModel.LoadAsync();
             StatusText = $"已重命名收纳盒为 {newName.Trim()}";
@@ -271,19 +255,79 @@ public sealed class MainViewModel : ObservableObject
         });
     }
 
-    private async Task LoadItemsForSelectedBoxAsync()
+    private bool UpdateSelectedBoxCore(BoxViewModel? value)
+    {
+        if (EqualityComparer<BoxViewModel?>.Default.Equals(_selectedBox, value))
+        {
+            return false;
+        }
+
+        _selectedBox = value;
+        OnPropertyChanged(nameof(SelectedBox));
+        DeleteSelectedBoxCommand.NotifyCanExecuteChanged();
+        RenameSelectedBoxCommand.NotifyCanExecuteChanged();
+        return true;
+    }
+
+    private async Task SelectBoxAsync(BoxViewModel? box)
+    {
+        UpdateSelectedBoxCore(box);
+        await LoadItemsForSelectedBoxAsync(box);
+    }
+
+    private void QueueSelectedBoxItemsLoad()
     {
         var selectedBox = SelectedBox;
+        var (version, cancellationToken) = BeginItemsLoad();
+        _ = LoadItemsForSelectedBoxAsync(selectedBox, version, cancellationToken);
+    }
 
+    private async Task LoadItemsForSelectedBoxAsync(BoxViewModel? selectedBox)
+    {
+        var (version, cancellationToken) = BeginItemsLoad();
+        await LoadItemsForSelectedBoxAsync(selectedBox, version, cancellationToken);
+    }
+
+    private (int Version, CancellationToken CancellationToken) BeginItemsLoad()
+    {
+        _itemsLoadCts?.Cancel();
+        _itemsLoadCts = new CancellationTokenSource();
+
+        var version = Interlocked.Increment(ref _itemsLoadVersion);
+        return (version, _itemsLoadCts.Token);
+    }
+
+    private bool IsCurrentItemsLoad(BoxViewModel? selectedBox, int version)
+    {
+        return version == Volatile.Read(ref _itemsLoadVersion)
+            && SelectedBox?.Id == selectedBox?.Id;
+    }
+
+    private async Task LoadItemsForSelectedBoxAsync(
+        BoxViewModel? selectedBox,
+        int version,
+        CancellationToken cancellationToken)
+    {
         if (selectedBox is null)
         {
-            Items.Clear();
+            if (IsCurrentItemsLoad(null, version))
+            {
+                Items.Clear();
+            }
+
             return;
         }
 
         try
         {
-            var items = await _drawerService.GetItemsAsync(selectedBox.Id);
+            var items = await _drawerService.GetItemsAsync(selectedBox.Id, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (!IsCurrentItemsLoad(selectedBox, version))
+            {
+                return;
+            }
+
             var isPixelated = selectedBox.Type == BoxType.Pixel;
             Items.Clear();
             foreach (var item in items)
@@ -291,8 +335,16 @@ public sealed class MainViewModel : ObservableObject
                 Items.Add(new DrawerItemViewModel(item, selectedBox.Name, isPixelated));
             }
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
         catch (Exception exception)
         {
+            if (!IsCurrentItemsLoad(selectedBox, version))
+            {
+                return;
+            }
+
             _logger.Error(exception, "Failed to load drawer items.");
             StatusText = exception.Message;
         }
@@ -322,7 +374,7 @@ public sealed class MainViewModel : ObservableObject
         await RunBusyAsync(async () =>
         {
             await _drawerService.DeleteItemAsync(item.Id, _trash);
-            await LoadItemsForSelectedBoxAsync();
+            await LoadItemsForSelectedBoxAsync(SelectedBox);
             await _quickPanelViewModel.LoadAsync();
             StatusText = $"已移除 {item.DisplayName}";
             ItemsChanged?.Invoke(this, EventArgs.Empty);

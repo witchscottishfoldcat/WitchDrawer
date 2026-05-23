@@ -1,4 +1,5 @@
 using System.IO;
+using System.Threading;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -10,8 +11,11 @@ namespace WitchDrawer.App.ViewModels;
 
 public sealed class DrawerItemViewModel : ObservableObject
 {
+    private const int MaxIconLoadAttempts = 4;
+
     private ImageSource? _iconImage;
     private bool _hasIcon;
+    private int _isLoadingIcon;
 
     private readonly bool _isPixelated;
 
@@ -92,32 +96,53 @@ public sealed class DrawerItemViewModel : ObservableObject
 
     private async Task LoadIconAsync()
     {
+        if (Interlocked.Exchange(ref _isLoadingIcon, 1) == 1)
+        {
+            return;
+        }
+
         var path = PathLabel;
         if (string.IsNullOrWhiteSpace(path))
         {
+            Interlocked.Exchange(ref _isLoadingIcon, 0);
             return;
         }
 
         try
         {
-            var isDirectory = Model.ItemKind == ItemKind.Directory;
-            var icon = await ShellIconProvider.GetIconAsync(path, isDirectory, 32).ConfigureAwait(false);
-
-            if (_isPixelated && icon is BitmapSource bitmapSource)
+            for (var attempt = 1; attempt <= MaxIconLoadAttempts; attempt++)
             {
-                var scaleX = 16.0 / bitmapSource.PixelWidth;
-                var scaleY = 16.0 / bitmapSource.PixelHeight;
-                var scale = new ScaleTransform(scaleX, scaleY);
-                scale.Freeze();
-                var transformed = new TransformedBitmap(bitmapSource, scale);
-                transformed.Freeze();
-                icon = transformed;
+                try
+                {
+                    var isDirectory = Model.ItemKind == ItemKind.Directory;
+                    var icon = await ShellIconProvider.GetIconAsync(path, isDirectory, 32).ConfigureAwait(false);
+
+                    if (_isPixelated && icon is BitmapSource bitmapSource)
+                    {
+                        var scaleX = 16.0 / bitmapSource.PixelWidth;
+                        var scaleY = 16.0 / bitmapSource.PixelHeight;
+                        var scale = new ScaleTransform(scaleX, scaleY);
+                        scale.Freeze();
+                        var transformed = new TransformedBitmap(bitmapSource, scale);
+                        transformed.Freeze();
+                        icon = transformed;
+                    }
+
+                    if (icon is not null || attempt == MaxIconLoadAttempts)
+                    {
+                        await Application.Current.Dispatcher.InvokeAsync(() =>
+                        {
+                            IconImage = icon;
+                        });
+                        return;
+                    }
+                }
+                catch when (attempt < MaxIconLoadAttempts)
+                {
+                }
+
+                await Task.Delay(150 * attempt).ConfigureAwait(false);
             }
-
-            await Application.Current.Dispatcher.InvokeAsync(() =>
-            {
-                IconImage = icon;
-            });
         }
         catch
         {
@@ -125,6 +150,10 @@ public sealed class DrawerItemViewModel : ObservableObject
             {
                 IconImage = null;
             });
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _isLoadingIcon, 0);
         }
     }
 
