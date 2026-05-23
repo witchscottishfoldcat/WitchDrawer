@@ -1,14 +1,40 @@
+using CommunityToolkit.Mvvm.Messaging;
+using WitchDrawer.App.Messages;
 using WitchDrawer.Core.Models;
+using WitchDrawer.Core.Services;
 
 namespace WitchDrawer.App.ViewModels;
 
 public sealed class BoxViewModel
 {
-    public BoxViewModel(Box model)
+    private readonly DrawerService _drawerService;
+
+    public BoxViewModel(Box model, DrawerService drawerService)
     {
         Model = model;
+        _drawerService = drawerService;
+
+        LayoutSettings = new DesktopBoxLayoutSettings();
+        LayoutSettings.SetPresetChangedCallback(async (preset) => 
+        {
+            await _drawerService.SetSettingAsync($"BoxPreset_{Id}", preset);
+            WeakReferenceMessenger.Default.Send(new BoxLayoutPresetChangedMessage(Id, preset));
+        });
+
+        _ = LoadPresetAsync();
     }
 
+    private async Task LoadPresetAsync()
+    {
+        var preset = await _drawerService.GetSettingAsync($"BoxPreset_{Id}");
+        if (!string.IsNullOrEmpty(preset))
+        {
+            LayoutSettings.ApplyPresetCommand.Execute(preset);
+        }
+    }
+
+    public DesktopBoxLayoutSettings LayoutSettings { get; }
+    
     public Box Model { get; }
 
     public Guid Id => Model.Id;

@@ -68,7 +68,7 @@
         
         <Grid MouseLeftButtonDown="OnSurfaceMouseLeftButtonDown">
             <Grid.RowDefinitions>
-                <RowDefinition Height="38" />
+                <RowDefinition Height="28" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
@@ -129,8 +129,8 @@
             <ListBox x:Name="IconList"
                      Grid.Row="1"
                      Panel.ZIndex="1"
-                     Margin="6"
-                     Padding="8"
+                     Margin="6,0,6,6"
+                     Padding="2"
                      HorizontalAlignment="Center"
                      VerticalAlignment="Center"
                      BorderThickness="0"

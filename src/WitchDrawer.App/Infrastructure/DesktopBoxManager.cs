@@ -16,7 +16,6 @@ public sealed class DesktopBoxManager
     private readonly IFileLauncher _launcher;
     private readonly IFileTrash _trash;
     private readonly IAppLogger _logger;
-    private readonly DesktopBoxLayoutSettings _layoutSettings;
     private readonly Dictionary<Guid, DesktopBoxWindow> _windows = [];
     private bool _closing;
     private GuideLineWindow? _verticalGuide;
@@ -27,14 +26,12 @@ public sealed class DesktopBoxManager
         DrawerService drawerService,
         IFileLauncher launcher,
         IFileTrash trash,
-        IAppLogger logger,
-        DesktopBoxLayoutSettings layoutSettings)
+        IAppLogger logger)
     {
         _drawerService = drawerService;
         _launcher = launcher;
         _trash = trash;
         _logger = logger;
-        _layoutSettings = layoutSettings;
     }
 
     public event EventHandler? ItemsChanged;
@@ -63,7 +60,7 @@ public sealed class DesktopBoxManager
             var box = boxes[index];
             if (!_windows.TryGetValue(box.Id, out var window))
             {
-                var viewModel = new DesktopBoxViewModel(box, _drawerService, _launcher, _trash, _logger, _layoutSettings);
+                var viewModel = new DesktopBoxViewModel(box, _drawerService, _launcher, _trash, _logger);
                 viewModel.ItemsChanged += (_, _) => ItemsChanged?.Invoke(this, EventArgs.Empty);
 
                 window = new DesktopBoxWindow(viewModel);

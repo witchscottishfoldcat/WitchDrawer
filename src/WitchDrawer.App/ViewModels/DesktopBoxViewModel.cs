@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
 using WitchDrawer.Core.Abstractions;
 using WitchDrawer.Core.Logging;
 using WitchDrawer.Core.Models;
@@ -9,7 +10,7 @@ using WitchDrawer.Core.Services;
 
 namespace WitchDrawer.App.ViewModels;
 
-public sealed class DesktopBoxViewModel : ObservableObject
+public sealed class DesktopBoxViewModel : ObservableObject, IRecipient<WitchDrawer.App.Messages.BoxLayoutPresetChangedMessage>
 {
     private readonly DrawerService _drawerService;
     private readonly IFileLauncher _launcher;
@@ -32,15 +33,14 @@ public sealed class DesktopBoxViewModel : ObservableObject
         DrawerService drawerService,
         IFileLauncher launcher,
         IFileTrash trash,
-        IAppLogger logger,
-        DesktopBoxLayoutSettings layoutSettings)
+        IAppLogger logger)
     {
         _box = box;
         _drawerService = drawerService;
         _launcher = launcher;
         _trash = trash;
         _logger = logger;
-        _layoutSettings = layoutSettings;
+        _layoutSettings = new DesktopBoxLayoutSettings();
         _layoutSettings.PropertyChanged += OnLayoutSettingsChanged;
 
         OpenItemCommand = new AsyncRelayCommand<DrawerItemViewModel?>(OpenItemAsync);
@@ -145,9 +145,19 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     public (int Column, int Row) GetGridSlot(double x, double y)
     {
-        var column = (int)Math.Floor(x / Math.Max(1, LayoutSettings.ItemSlotWidth));
-        var row = (int)Math.Floor(y / Math.Max(1, LayoutSettings.ItemSlotHeight));
+        var column = Math.Max(0, (int)Math.Floor(x / Math.Max(1, LayoutSettings.ItemSlotWidth)));
+        var row = Math.Max(0, (int)Math.Floor(y / Math.Max(1, LayoutSettings.ItemSlotHeight)));
         return (column, row);
+    }
+
+    public void UpdateDragPreview(double x, double y)
+    {
+        IsDragPreviewVisible = true;
+        var column = Math.Max(0, (int)Math.Floor(x / Math.Max(1, LayoutSettings.ItemSlotWidth)));
+        var row = Math.Max(0, (int)Math.Floor(y / Math.Max(1, LayoutSettings.ItemSlotHeight)));
+        _previewColumn = column;
+        _previewRow = row;
+        UpdateGridCanvasSize();
     }
 
     public void ShowDragPreview(int column, int row)
@@ -174,10 +184,26 @@ public sealed class DesktopBoxViewModel : ObservableObject
         UpdateGridCanvasSize();
     }
 
+    public void Receive(WitchDrawer.App.Messages.BoxLayoutPresetChangedMessage message)
+    {
+        if (message.BoxId == BoxId)
+        {
+            _layoutSettings.ApplyPresetCommand.Execute(message.Preset);
+        }
+    }
+
     public async Task LoadAsync()
     {
         try
         {
+            var preset = await _drawerService.GetSettingAsync($"BoxPreset_{BoxId}");
+            if (!string.IsNullOrEmpty(preset))
+            {
+                _layoutSettings.ApplyPresetCommand.Execute(preset);
+            }
+
+            WeakReferenceMessenger.Default.RegisterAll(this);
+
             var items = await _drawerService.GetItemsAsync(BoxId);
             var isPixelated = Type == BoxType.Pixel;
             var positions = ResolveItemPositions(items);
@@ -425,15 +451,24 @@ public sealed class DesktopBoxViewModel : ObservableObject
         return positions;
     }
 
+    private void ClampToGrid(DrawerItemViewModel item)
+    {
+        var column = Math.Max(0, item.GridColumn);
+        var row = Math.Max(0, item.GridRow);
+
+        item.SetGridPosition(column, row, LayoutSettings);
+    }
+
     private (int Column, int Row) FindFirstFreeSlot(
         int startColumn,
         int startRow,
         HashSet<(int Column, int Row)> occupiedSlots)
     {
+
         var column = startColumn;
         var row = startRow;
         var maxOccupiedColumn = occupiedSlots.Count > 0 ? occupiedSlots.Max(s => s.Column) : 0;
-        var wrapColumn = Math.Max(LayoutSettings.Columns - 1, Math.Max(column, maxOccupiedColumn));
+        var wrapColumn = Math.Max(4, Math.Max(column, maxOccupiedColumn));
 
         while (occupiedSlots.Contains((column, row)))
         {

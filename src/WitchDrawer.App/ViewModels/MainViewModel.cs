@@ -37,15 +37,13 @@ public sealed class MainViewModel : ObservableObject
         IFileLauncher launcher,
         IFileTrash trash,
         IAppLogger logger,
-        QuickPanelViewModel quickPanelViewModel,
-        DesktopBoxLayoutSettings desktopBoxLayoutSettings)
+        QuickPanelViewModel quickPanelViewModel)
     {
         _drawerService = drawerService;
         _launcher = launcher;
         _trash = trash;
         _logger = logger;
         _quickPanelViewModel = quickPanelViewModel;
-        DesktopBoxLayout = desktopBoxLayoutSettings;
 
         LoadCommand = new AsyncRelayCommand(LoadAsync);
         CreateNormalBoxCommand = new AsyncRelayCommand(() => CreateBoxAsync(BoxType.Normal));
@@ -73,8 +71,6 @@ public sealed class MainViewModel : ObservableObject
     public ObservableCollection<BoxViewModel> Boxes { get; } = [];
 
     public ObservableCollection<DrawerItemViewModel> Items { get; } = [];
-
-    public DesktopBoxLayoutSettings DesktopBoxLayout { get; }
 
     public IAsyncRelayCommand LoadCommand { get; }
 
@@ -184,7 +180,7 @@ public sealed class MainViewModel : ObservableObject
             Boxes.Clear();
             foreach (var box in boxes)
             {
-                Boxes.Add(new BoxViewModel(box));
+                Boxes.Add(new BoxViewModel(box, _drawerService));
             }
 
             await SelectBoxAsync(Boxes.FirstOrDefault(box => box.Id == existingSelection) ?? Boxes.FirstOrDefault());
@@ -241,7 +237,7 @@ public sealed class MainViewModel : ObservableObject
             };
             var name = $"{prefix} {Boxes.Count(box => box.Type == type) + 1}";
             var box = await _drawerService.CreateBoxAsync(name, type);
-            var viewModel = new BoxViewModel(box);
+            var viewModel = new BoxViewModel(box, _drawerService);
             Boxes.Add(viewModel);
             await SelectBoxAsync(viewModel);
             StatusText = $"已创建 {name}，桌面收纳栏已生成";
@@ -266,7 +262,7 @@ public sealed class MainViewModel : ObservableObject
             Boxes.Clear();
             foreach (var box in boxes)
             {
-                Boxes.Add(new BoxViewModel(box));
+                Boxes.Add(new BoxViewModel(box, _drawerService));
             }
 
             await SelectBoxAsync(Boxes.FirstOrDefault());
@@ -294,7 +290,7 @@ public sealed class MainViewModel : ObservableObject
             Boxes.Clear();
             foreach (var box in boxes)
             {
-                Boxes.Add(new BoxViewModel(box));
+                Boxes.Add(new BoxViewModel(box, _drawerService));
             }
 
             await SelectBoxAsync(Boxes.FirstOrDefault(b => b.Id == selectedBox.Id) ?? Boxes.FirstOrDefault());
@@ -538,11 +534,7 @@ public sealed class MainViewModel : ObservableObject
 
     private async Task RestoreLayoutPresetAsync()
     {
-        var savedPreset = await _drawerService.GetSettingAsync(LayoutPresetSettingKey);
-        if (!string.IsNullOrEmpty(savedPreset))
-        {
-            DesktopBoxLayout.ApplyPresetCommand.Execute(savedPreset);
-        }
+        // Legacy layout sync removed. BoxViewModel handles layout internally.
     }
 
     public async Task SaveLayoutPresetAsync(string preset)

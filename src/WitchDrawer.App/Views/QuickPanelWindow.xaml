@@ -125,7 +125,7 @@
             <!-- 列表搜索结果 -->
             <ListBox x:Name="QuickItems"
                      Grid.Row="1"
-                     Margin="12,8,12,12"
+                     Margin="12,8,12,24"
                      ItemsSource="{Binding Items}"
                      MouseDoubleClick="OnItemsMouseDoubleClick"
                      ScrollViewer.CanContentScroll="True"

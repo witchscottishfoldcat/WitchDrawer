@@ -137,6 +137,7 @@
                                 <Setter Property="MinHeight" Value="34" />
                                 <Setter Property="Padding" Value="16,7" />
                                 <Setter Property="Cursor" Value="Hand" />
+                                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
                                 <Setter Property="Template">
                                     <Setter.Value>
                                         <ControlTemplate TargetType="{x:Type Button}">
@@ -163,11 +164,15 @@
                             </Style>
                             <Style x:Key="NavOverviewButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource NavButtonBaseStyle}">
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsSettingsPage}" Value="False">
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding IsSettingsPage}" Value="False" />
+                                            <Condition Binding="{Binding IsAboutPage}" Value="False" />
+                                        </MultiDataTrigger.Conditions>
                                         <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
                                         <Setter Property="Foreground" Value="White" />
                                         <Setter Property="FontWeight" Value="SemiBold" />
-                                    </DataTrigger>
+                                    </MultiDataTrigger>
                                 </Style.Triggers>
                             </Style>
                             <Style x:Key="NavSettingsButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource NavButtonBaseStyle}">
@@ -635,7 +640,7 @@
                                             </Grid.ColumnDefinitions>
                                             
                                             <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,8,0">
-                                                <TextBlock Text="排列密度"
+                                                <TextBlock Text="图标大小"
                                                            Foreground="{DynamicResource TextPrimaryBrush}"
                                                            FontSize="11.5"
                                                            FontWeight="Bold" />
@@ -646,7 +651,7 @@
                                                 <Button Content="3x3"
                                                         ToolTip="大图标 (3x3风格)"
                                                         Style="{StaticResource GhostButtonStyle}"
-                                                        Command="{Binding DesktopBoxLayout.ApplyPresetCommand}"
+                                                        Command="{Binding SelectedBox.LayoutSettings.ApplyPresetCommand}"
                                                         CommandParameter="3x3"
                                                         Margin="0,0,2,0"
                                                         Padding="0,3.5"
@@ -655,7 +660,7 @@
                                                 <Button Content="4x4"
                                                         ToolTip="中大图标 (4x4风格)"
                                                         Style="{StaticResource GhostButtonStyle}"
-                                                        Command="{Binding DesktopBoxLayout.ApplyPresetCommand}"
+                                                        Command="{Binding SelectedBox.LayoutSettings.ApplyPresetCommand}"
                                                         CommandParameter="4x4"
                                                         Margin="0,0,2,0"
                                                         Padding="0,3.5"
@@ -664,7 +669,7 @@
                                                 <Button Content="5x5"
                                                         ToolTip="标准图标 (5x5风格)"
                                                         Style="{StaticResource GhostButtonStyle}"
-                                                        Command="{Binding DesktopBoxLayout.ApplyPresetCommand}"
+                                                        Command="{Binding SelectedBox.LayoutSettings.ApplyPresetCommand}"
                                                         CommandParameter="5x5"
                                                         Margin="0,0,2,0"
                                                         Padding="0,3.5"
@@ -673,7 +678,7 @@
                                                 <Button Content="6x6"
                                                         ToolTip="极小图标 (6x6风格)"
                                                         Style="{StaticResource GhostButtonStyle}"
-                                                        Command="{Binding DesktopBoxLayout.ApplyPresetCommand}"
+                                                        Command="{Binding SelectedBox.LayoutSettings.ApplyPresetCommand}"
                                                         CommandParameter="6x6"
                                                         Padding="0,3.5"
                                                         MinHeight="22"
@@ -1168,6 +1173,7 @@
                                                Foreground="{DynamicResource TextMutedBrush}" />
                                 </StackPanel>
                             </Border>
+                            <Border Height="24" Background="Transparent" />
                         </StackPanel>
                     </Grid>
 
@@ -1265,10 +1271,15 @@
                                                    FontSize="12.5"
                                                    VerticalAlignment="Center" />
                                         <TextBlock Grid.Column="1"
-                                                   Text="witchscottishfoldcat@gmail.com"
-                                                   Foreground="{DynamicResource AccentBrush}"
                                                    FontSize="12.5"
-                                                   VerticalAlignment="Center" />
+                                                   VerticalAlignment="Center">
+                                            <Hyperlink NavigateUri="mailto:witchscottishfoldcat@gmail.com"
+                                                       RequestNavigate="OnHyperlinkRequestNavigate"
+                                                       Foreground="{DynamicResource AccentBrush}"
+                                                       TextDecorations="None">
+                                                witchscottishfoldcat@gmail.com
+                                            </Hyperlink>
+                                        </TextBlock>
                                     </Grid>
 
                                     <Grid Margin="0,0,0,8">
@@ -1281,10 +1292,15 @@
                                                    FontSize="12.5"
                                                    VerticalAlignment="Center" />
                                         <TextBlock Grid.Column="1"
-                                                   Text="www.witchcat.cn"
-                                                   Foreground="{DynamicResource AccentBrush}"
                                                    FontSize="12.5"
-                                                   VerticalAlignment="Center" />
+                                                   VerticalAlignment="Center">
+                                            <Hyperlink NavigateUri="http://www.witchcat.cn"
+                                                       RequestNavigate="OnHyperlinkRequestNavigate"
+                                                       Foreground="{DynamicResource AccentBrush}"
+                                                       TextDecorations="None">
+                                                www.witchcat.cn
+                                            </Hyperlink>
+                                        </TextBlock>
                                     </Grid>
 
                                     <Grid>
@@ -1339,6 +1355,7 @@
                                             Padding="14,0" />
                                 </Grid>
                             </Border>
+                            <Border Height="24" Background="Transparent" />
                         </StackPanel>
                     </Grid>
                 </Grid>
