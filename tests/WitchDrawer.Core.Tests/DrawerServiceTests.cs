@@ -38,6 +38,39 @@ public sealed class DrawerServiceTests
     }
 
     [Fact]
+    public async Task ImportPathAsync_PersistsGridPosition()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var source = workspace.CreateSourceFile("source-a", "grid.txt", "hello");
+        var normalBox = await workspace.GetBoxAsync(BoxType.Normal);
+
+        var item = await workspace.Service.ImportPathAsync(normalBox.Id, source, 2, 3);
+        var storedItem = await workspace.Repository.GetItemAsync(item.Id);
+
+        Assert.Equal(2, item.GridColumn);
+        Assert.Equal(3, item.GridRow);
+        Assert.NotNull(storedItem);
+        Assert.Equal(2, storedItem.GridColumn);
+        Assert.Equal(3, storedItem.GridRow);
+    }
+
+    [Fact]
+    public async Task UpdateItemGridPositionAsync_PersistsGridPosition()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var source = workspace.CreateSourceFile("source-a", "reposition.txt", "hello");
+        var normalBox = await workspace.GetBoxAsync(BoxType.Normal);
+        var item = await workspace.Service.ImportPathAsync(normalBox.Id, source, 0, 0);
+
+        await workspace.Service.UpdateItemGridPositionAsync(item.Id, 4, 5);
+        var storedItem = await workspace.Repository.GetItemAsync(item.Id);
+
+        Assert.NotNull(storedItem);
+        Assert.Equal(4, storedItem.GridColumn);
+        Assert.Equal(5, storedItem.GridRow);
+    }
+
+    [Fact]
     public async Task ImportPathAsync_PixelBoxMovesFileIntoStorage()
     {
         using var workspace = await TestWorkspace.CreateAsync();
@@ -103,6 +136,114 @@ public sealed class DrawerServiceTests
         Assert.Equal("report (1).txt", secondItem.DisplayName);
         Assert.True(File.Exists(firstItem.StoredPath));
         Assert.True(File.Exists(secondItem.StoredPath));
+    }
+
+    [Fact]
+    public async Task MoveItemToBoxAsync_NormalBoxMovesStoredFileAndPersistsGridPosition()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var source = workspace.CreateSourceFile("source-a", "move-me.txt", "hello");
+        var sourceBox = await workspace.GetBoxAsync(BoxType.Normal);
+        var targetBox = await workspace.Service.CreateBoxAsync("target", BoxType.Normal);
+        var item = await workspace.Service.ImportPathAsync(sourceBox.Id, source, 0, 0);
+        var oldStoredPath = item.StoredPath!;
+
+        await workspace.Service.MoveItemToBoxAsync(item.Id, targetBox.Id, 2, 3);
+        var movedItem = await workspace.Repository.GetItemAsync(item.Id);
+        var sourceItems = await workspace.Repository.GetItemsAsync(sourceBox.Id);
+
+        Assert.NotNull(movedItem);
+        Assert.Equal(targetBox.Id, movedItem.BoxId);
+        Assert.Equal(source, movedItem.SourcePath);
+        Assert.Equal("move-me.txt", movedItem.DisplayName);
+        Assert.Equal(2, movedItem.GridColumn);
+        Assert.Equal(3, movedItem.GridRow);
+        Assert.False(File.Exists(oldStoredPath));
+        Assert.NotNull(movedItem.StoredPath);
+        Assert.True(File.Exists(movedItem.StoredPath));
+        Assert.Empty(sourceItems);
+        Assert.StartsWith(Path.GetFullPath(targetBox.StoragePath!), Path.GetFullPath(movedItem.StoredPath), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task MoveItemToBoxAsync_NormalBoxAddsSuffixForConflictingTargetName()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var first = workspace.CreateSourceFile("source-a", "report.txt", "one");
+        var second = workspace.CreateSourceFile("source-b", "report.txt", "two");
+        var sourceBox = await workspace.GetBoxAsync(BoxType.Normal);
+        var targetBox = await workspace.Service.CreateBoxAsync("target", BoxType.Normal);
+
+        var existingItem = await workspace.Service.ImportPathAsync(targetBox.Id, first);
+        var movingItem = await workspace.Service.ImportPathAsync(sourceBox.Id, second);
+
+        await workspace.Service.MoveItemToBoxAsync(movingItem.Id, targetBox.Id, 1, 1);
+        var movedItem = await workspace.Repository.GetItemAsync(movingItem.Id);
+
+        Assert.NotNull(movedItem);
+        Assert.Equal("report.txt", existingItem.DisplayName);
+        Assert.Equal("report (1).txt", movedItem.DisplayName);
+        Assert.True(File.Exists(existingItem.StoredPath));
+        Assert.NotNull(movedItem.StoredPath);
+        Assert.True(File.Exists(movedItem.StoredPath));
+    }
+
+    [Fact]
+    public async Task MoveItemToBoxAsync_StoredItemToMappingBoxIsRejected()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var source = workspace.CreateSourceFile("source-a", "stored.txt", "hello");
+        var normalBox = await workspace.GetBoxAsync(BoxType.Normal);
+        var mappingBox = await workspace.GetBoxAsync(BoxType.Mapping);
+        var item = await workspace.Service.ImportPathAsync(normalBox.Id, source);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => workspace.Service.MoveItemToBoxAsync(item.Id, mappingBox.Id, 1, 1));
+
+        var storedItem = await workspace.Repository.GetItemAsync(item.Id);
+        Assert.NotNull(storedItem);
+        Assert.Equal(normalBox.Id, storedItem.BoxId);
+        Assert.True(File.Exists(item.StoredPath));
+    }
+
+    [Fact]
+    public async Task MoveItemToBoxAsync_MappingBoxMovesReferenceWithoutTouchingSourceFile()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var source = workspace.CreateSourceFile("source-a", "reference.txt", "hello");
+        var sourceBox = await workspace.GetBoxAsync(BoxType.Mapping);
+        var targetBox = await workspace.Service.CreateBoxAsync("target-map", BoxType.Mapping);
+        var item = await workspace.Service.ImportPathAsync(sourceBox.Id, source, 0, 0);
+
+        await workspace.Service.MoveItemToBoxAsync(item.Id, targetBox.Id, 2, 4);
+        var movedItem = await workspace.Repository.GetItemAsync(item.Id);
+
+        Assert.NotNull(movedItem);
+        Assert.Equal(targetBox.Id, movedItem.BoxId);
+        Assert.Equal(source, movedItem.SourcePath);
+        Assert.Null(movedItem.StoredPath);
+        Assert.Equal(2, movedItem.GridColumn);
+        Assert.Equal(4, movedItem.GridRow);
+        Assert.True(File.Exists(source));
+    }
+
+    [Fact]
+    public async Task MoveItemToBoxAsync_MappingItemToStorageBoxIsRejected()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var source = workspace.CreateSourceFile("source-a", "reference.txt", "hello");
+        var mappingBox = await workspace.GetBoxAsync(BoxType.Mapping);
+        var normalBox = await workspace.GetBoxAsync(BoxType.Normal);
+        var item = await workspace.Service.ImportPathAsync(mappingBox.Id, source);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => workspace.Service.MoveItemToBoxAsync(item.Id, normalBox.Id, 1, 1));
+
+        var storedItem = await workspace.Repository.GetItemAsync(item.Id);
+        Assert.NotNull(storedItem);
+        Assert.Equal(mappingBox.Id, storedItem.BoxId);
+        Assert.Null(storedItem.StoredPath);
+        Assert.True(File.Exists(source));
     }
 
     [Fact]

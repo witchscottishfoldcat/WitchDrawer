@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -80,37 +79,82 @@ public partial class DesktopBoxWindow : Window
 
     private void OnPreviewDragOver(object sender, DragEventArgs e)
     {
+        var acceptsDrop = false;
         if (e.Data.GetDataPresent(InternalDrawerItemDragFormat))
         {
-            e.Effects = DragDropEffects.None;
+            e.Effects = DragDropEffects.Move;
+            acceptsDrop = true;
         }
         else
         {
-            e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Move : DragDropEffects.None;
+            acceptsDrop = e.Data.GetDataPresent(DataFormats.FileDrop);
+            e.Effects = acceptsDrop ? DragDropEffects.Move : DragDropEffects.None;
+        }
+
+        if (acceptsDrop)
+        {
+            var slot = GetDropSlot(e);
+            ViewModel.ShowDragPreview(slot.Column, slot.Row);
+        }
+        else
+        {
+            ViewModel.HideDragPreview();
         }
 
         e.Handled = true;
     }
 
+    private void OnPreviewDragLeave(object sender, DragEventArgs e)
+    {
+        var point = e.GetPosition(IconList);
+        if (point.X < 0
+            || point.Y < 0
+            || point.X > IconList.ActualWidth
+            || point.Y > IconList.ActualHeight)
+        {
+            ViewModel.HideDragPreview();
+        }
+    }
+
     private async void OnFilesDropped(object sender, DragEventArgs e)
     {
-        if (e.Data.GetDataPresent(InternalDrawerItemDragFormat))
+        try
         {
-            e.Handled = true;
-            return;
-        }
-
-        if (e.Data.GetData(DataFormats.FileDrop) is string[] paths)
-        {
-            await ViewModel.ImportPathsAsync(paths);
-            var lastItem = ViewModel.Items.LastOrDefault();
-            if (lastItem is not null)
+            if (e.Data.GetDataPresent(InternalDrawerItemDragFormat))
             {
-                IconList.SelectedItem = lastItem;
-                _keyboardDeleteTarget = lastItem;
+                if (e.Data.GetData(InternalDrawerItemDragFormat) is Guid itemId)
+                {
+                    var slot = GetDropSlot(e);
+                    var moved = await ViewModel.DropDrawerItemAsync(itemId, slot.Column, slot.Row);
+                    e.Effects = moved ? DragDropEffects.Move : DragDropEffects.None;
+                    if (moved)
+                    {
+                        SelectItem(itemId);
+                    }
+                }
+
+                e.Handled = true;
+                return;
             }
 
-            IconList.Focus();
+            if (e.Data.GetData(DataFormats.FileDrop) is string[] paths)
+            {
+                var slot = GetDropSlot(e);
+                await ViewModel.ImportPathsAsync(paths, slot.Column, slot.Row);
+                var lastItem = ViewModel.Items.LastOrDefault();
+                if (lastItem is not null)
+                {
+                    IconList.SelectedItem = lastItem;
+                    _keyboardDeleteTarget = lastItem;
+                }
+
+                IconList.Focus();
+                e.Handled = true;
+            }
+        }
+        finally
+        {
+            ViewModel.HideDragPreview();
         }
     }
 
@@ -185,7 +229,7 @@ public partial class DesktopBoxWindow : Window
         }
     }
 
-    private async void OnIconMouseMove(object sender, MouseEventArgs e)
+    private void OnIconMouseMove(object sender, MouseEventArgs e)
     {
         if (_dragStartPoint is null || e.LeftButton != MouseButtonState.Pressed)
         {
@@ -201,24 +245,44 @@ public partial class DesktopBoxWindow : Window
             return;
         }
 
-        if (TryGetDrawerItem(e.OriginalSource, out var drawerItem)
-            && !string.IsNullOrWhiteSpace(drawerItem.PathLabel)
-            && (File.Exists(drawerItem.PathLabel) || Directory.Exists(drawerItem.PathLabel)))
+        if (TryGetDrawerItem(e.OriginalSource, out var drawerItem))
         {
             var data = new DataObject();
             data.SetData(InternalDrawerItemDragFormat, drawerItem.Id);
-            data.SetData(DataFormats.FileDrop, new[] { drawerItem.PathLabel });
 
-            var effect = DragDrop.DoDragDrop(IconList, data, DragDropEffects.Copy);
-            if ((effect & DragDropEffects.Copy) == DragDropEffects.Copy)
+            drawerItem.IsDragSource = true;
+            try
             {
-                await ViewModel.CompleteDragOutAsync(drawerItem);
-                _keyboardDeleteTarget = null;
+                DragDrop.DoDragDrop(IconList, data, DragDropEffects.Move);
+            }
+            finally
+            {
+                drawerItem.IsDragSource = false;
+                ViewModel.HideDragPreview();
                 IconList.Focus();
             }
         }
 
         _dragStartPoint = null;
+    }
+
+    private (int Column, int Row) GetDropSlot(DragEventArgs e)
+    {
+        var point = e.GetPosition(IconList);
+        return ViewModel.GetGridSlot(point.X, point.Y);
+    }
+
+    private void SelectItem(Guid itemId)
+    {
+        var item = ViewModel.Items.FirstOrDefault(candidate => candidate.Id == itemId);
+        if (item is null)
+        {
+            return;
+        }
+
+        IconList.SelectedItem = item;
+        _keyboardDeleteTarget = item;
+        IconList.Focus();
     }
 
     private async void OnItemsMouseDoubleClick(object sender, MouseButtonEventArgs e)

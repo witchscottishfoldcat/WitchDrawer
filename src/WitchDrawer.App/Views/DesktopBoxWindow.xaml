@@ -18,7 +18,8 @@
         Focusable="True"
         PreviewKeyDown="OnPreviewKeyDown"
         Drop="OnFilesDropped"
-        PreviewDragOver="OnPreviewDragOver">
+        PreviewDragOver="OnPreviewDragOver"
+        PreviewDragLeave="OnPreviewDragLeave">
     <Window.Resources>
         <!-- 精致现代点阵微网格背景 (取代难看的棋盘像素格子) -->
         <DrawingBrush x:Key="DotGridBrush" TileMode="Tile" Viewport="0,0,18,18" ViewportUnits="Absolute">
@@ -137,7 +138,7 @@
                      FocusVisualStyle="{x:Null}"
                      ItemsSource="{Binding Items}"
                      SelectionMode="Single"
-                     ScrollViewer.CanContentScroll="True"
+                     ScrollViewer.CanContentScroll="False"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                      ScrollViewer.VerticalScrollBarVisibility="Auto"
                      VirtualizingPanel.IsVirtualizing="True"
@@ -148,17 +149,22 @@
                      MouseDoubleClick="OnItemsMouseDoubleClick">
                 <ListBox.ItemsPanel>
                     <ItemsPanelTemplate>
-                        <WrapPanel IsItemsHost="True" />
+                        <Canvas IsItemsHost="True"
+                                MinWidth="{Binding DataContext.GridCanvasWidth, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
+                                MinHeight="{Binding DataContext.GridCanvasHeight, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" />
                     </ItemsPanelTemplate>
                 </ListBox.ItemsPanel>
                 <ListBox.ItemContainerStyle>
                     <Style TargetType="{x:Type ListBoxItem}">
+                        <Setter Property="Canvas.Left" Value="{Binding GridLeft}" />
+                        <Setter Property="Canvas.Top" Value="{Binding GridTop}" />
                         <Setter Property="Width" Value="{Binding DataContext.LayoutSettings.ItemSlotWidth, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" />
                         <Setter Property="Height" Value="{Binding DataContext.LayoutSettings.ItemSlotHeight, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" />
                         <Setter Property="Padding" Value="{Binding DataContext.LayoutSettings.ItemPadding, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" />
                         <Setter Property="Margin" Value="{Binding DataContext.LayoutSettings.ItemMargin, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" />
                         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
                         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="Opacity" Value="1" />
                         <Setter Property="Template">
                             <Setter.Value>
                                 <ControlTemplate TargetType="{x:Type ListBoxItem}">
@@ -251,6 +257,11 @@
                                 </ControlTemplate>
                             </Setter.Value>
                         </Setter>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsDragSource}" Value="True">
+                                <Setter Property="Opacity" Value="0.42" />
+                            </DataTrigger>
+                        </Style.Triggers>
                     </Style>
                 </ListBox.ItemContainerStyle>
                 <ListBox.ItemTemplate>
@@ -295,6 +306,40 @@
                     </DataTemplate>
                 </ListBox.ItemTemplate>
             </ListBox>
+
+            <Canvas Grid.Row="1"
+                    Panel.ZIndex="2"
+                    Margin="24,5,24,5"
+                    IsHitTestVisible="False"
+                    ClipToBounds="True"
+                    Visibility="{Binding IsDragPreviewVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Rectangle Canvas.Left="{Binding DragPreviewLeft}"
+                           Canvas.Top="{Binding DragPreviewTop}"
+                           Width="{Binding DragPreviewWidth}"
+                           Height="{Binding DragPreviewHeight}"
+                           Fill="{DynamicResource AccentSoftBrush}"
+                           Stroke="{DynamicResource AccentBrush}"
+                           StrokeThickness="1.4"
+                           StrokeDashArray="4 3"
+                           Opacity="0.68"
+                           RenderTransformOrigin="0.5,0.5">
+                    <Rectangle.Style>
+                        <Style TargetType="Rectangle">
+                            <Setter Property="RadiusX" Value="10" />
+                            <Setter Property="RadiusY" Value="10" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Type}" Value="Pixel">
+                                    <Setter Property="RadiusX" Value="6" />
+                                    <Setter Property="RadiusY" Value="6" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Rectangle.Style>
+                    <Rectangle.RenderTransform>
+                        <ScaleTransform ScaleX="0.92" ScaleY="0.92" />
+                    </Rectangle.RenderTransform>
+                </Rectangle>
+            </Canvas>
 
             <!-- 空列表时: 拖拽投放槽 (跑马灯虚线动画) -->
             <Border Grid.Row="1"

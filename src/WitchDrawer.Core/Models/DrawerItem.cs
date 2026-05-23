@@ -9,7 +9,9 @@ public sealed record DrawerItem(
     string? StoredPath,
     int SortOrder,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt)
+    DateTimeOffset UpdatedAt,
+    int? GridColumn = null,
+    int? GridRow = null)
 {
     public string? EffectivePath => StoredPath ?? SourcePath;
 }

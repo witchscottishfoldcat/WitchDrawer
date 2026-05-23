@@ -16,6 +16,11 @@ public sealed class DrawerItemViewModel : ObservableObject
     private ImageSource? _iconImage;
     private bool _hasIcon;
     private int _isLoadingIcon;
+    private int _gridColumn;
+    private int _gridRow;
+    private double _gridLeft;
+    private double _gridTop;
+    private bool _isDragSource;
 
     private readonly bool _isPixelated;
 
@@ -24,6 +29,8 @@ public sealed class DrawerItemViewModel : ObservableObject
         Model = model;
         BoxName = boxName ?? string.Empty;
         _isPixelated = isPixelated;
+        _gridColumn = Math.Max(0, model.GridColumn ?? 0);
+        _gridRow = Math.Max(0, model.GridRow ?? 0);
         _ = LoadIconAsync();
     }
 
@@ -66,6 +73,36 @@ public sealed class DrawerItemViewModel : ObservableObject
 
     public string BoxName { get; }
 
+    public int GridColumn
+    {
+        get => _gridColumn;
+        private set => SetProperty(ref _gridColumn, value);
+    }
+
+    public int GridRow
+    {
+        get => _gridRow;
+        private set => SetProperty(ref _gridRow, value);
+    }
+
+    public double GridLeft
+    {
+        get => _gridLeft;
+        private set => SetProperty(ref _gridLeft, value);
+    }
+
+    public double GridTop
+    {
+        get => _gridTop;
+        private set => SetProperty(ref _gridTop, value);
+    }
+
+    public bool IsDragSource
+    {
+        get => _isDragSource;
+        set => SetProperty(ref _isDragSource, value);
+    }
+
     public string FallbackIconText => Model.ItemKind == ItemKind.Directory ? "DIR" : GetFallbackExtension();
 
     public ImageSource? IconImage
@@ -92,6 +129,19 @@ public sealed class DrawerItemViewModel : ObservableObject
         {
             _ = LoadIconAsync();
         }
+    }
+
+    public void SetGridPosition(int column, int row, DesktopBoxLayoutSettings layoutSettings)
+    {
+        GridColumn = Math.Max(0, column);
+        GridRow = Math.Max(0, row);
+        UpdateCanvasPosition(layoutSettings);
+    }
+
+    public void UpdateCanvasPosition(DesktopBoxLayoutSettings layoutSettings)
+    {
+        GridLeft = GridColumn * layoutSettings.ItemSlotWidth;
+        GridTop = GridRow * layoutSettings.ItemSlotHeight;
     }
 
     private async Task LoadIconAsync()

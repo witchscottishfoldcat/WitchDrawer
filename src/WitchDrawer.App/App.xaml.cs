@@ -53,6 +53,7 @@ public partial class App : Application
             };
             _desktopBoxManager.ItemsChanged += async (_, _) =>
             {
+                await _desktopBoxManager.RefreshAsync();
                 await mainViewModel.LoadAsync();
                 await quickPanelViewModel.LoadAsync();
             };

@@ -73,7 +73,12 @@ public sealed class DrawerService
         return box;
     }
 
-    public async Task<DrawerItem> ImportPathAsync(Guid boxId, string sourcePath, CancellationToken cancellationToken = default)
+    public async Task<DrawerItem> ImportPathAsync(
+        Guid boxId,
+        string sourcePath,
+        int? gridColumn = null,
+        int? gridRow = null,
+        CancellationToken cancellationToken = default)
     {
         var box = await _repository.GetBoxAsync(boxId, cancellationToken)
             ?? throw new InvalidOperationException("Box does not exist.");
@@ -97,7 +102,9 @@ public sealed class DrawerService
                 null,
                 sortOrder,
                 now,
-                now);
+                now,
+                gridColumn,
+                gridRow);
         }
         else
         {
@@ -128,11 +135,110 @@ public sealed class DrawerService
                 targetPath,
                 sortOrder,
                 now,
-                now);
+                now,
+                gridColumn,
+                gridRow);
         }
 
         await _repository.AddItemAsync(item, cancellationToken);
         return item;
+    }
+
+    public Task UpdateItemGridPositionAsync(
+        Guid itemId,
+        int? gridColumn,
+        int? gridRow,
+        CancellationToken cancellationToken = default)
+    {
+        return _repository.UpdateItemGridPositionAsync(itemId, gridColumn, gridRow, cancellationToken);
+    }
+
+    public async Task MoveItemToBoxAsync(
+        Guid itemId,
+        Guid targetBoxId,
+        int? gridColumn = null,
+        int? gridRow = null,
+        CancellationToken cancellationToken = default)
+    {
+        var item = await _repository.GetItemAsync(itemId, cancellationToken)
+            ?? throw new InvalidOperationException("Item does not exist.");
+        var sourceBox = await _repository.GetBoxAsync(item.BoxId, cancellationToken)
+            ?? throw new InvalidOperationException("Source box does not exist.");
+        var targetBox = await _repository.GetBoxAsync(targetBoxId, cancellationToken)
+            ?? throw new InvalidOperationException("Target box does not exist.");
+
+        if (item.BoxId == targetBoxId)
+        {
+            await UpdateItemGridPositionAsync(itemId, gridColumn, gridRow, cancellationToken);
+            return;
+        }
+
+        var targetSortOrder = await _repository.GetNextItemSortOrderAsync(targetBoxId, cancellationToken);
+        var sourcePath = item.SourcePath;
+        var storedPath = item.StoredPath;
+        var displayName = item.DisplayName;
+        var isDirectory = item.ItemKind == ItemKind.Directory;
+
+        if (targetBox.Type == BoxType.Mapping)
+        {
+            if (!string.IsNullOrWhiteSpace(item.StoredPath))
+            {
+                throw new InvalidOperationException("Stored items cannot be moved into a mapping box.");
+            }
+
+            storedPath = null;
+        }
+        else
+        {
+            if (sourceBox.Type == BoxType.Mapping)
+            {
+                throw new InvalidOperationException("Mapping references cannot be moved into a storage box.");
+            }
+
+            var sourceFilePath = item.EffectivePath;
+            if (string.IsNullOrWhiteSpace(sourceFilePath))
+            {
+                throw new InvalidOperationException("Item has no file path.");
+            }
+
+            var fullSourcePath = PathSafety.GetFullExistingPath(sourceFilePath);
+            if (!string.IsNullOrWhiteSpace(item.StoredPath))
+            {
+                PathSafety.EnsureChildPath(_paths.BoxesDirectory, fullSourcePath);
+            }
+
+            var storageRoot = targetBox.StoragePath ?? Path.Combine(_paths.BoxesDirectory, targetBox.Id.ToString("N"));
+            Directory.CreateDirectory(storageRoot);
+            var targetPath = FileNameService.GetUniqueDestinationPath(storageRoot, displayName, isDirectory);
+            PathSafety.EnsureChildPath(storageRoot, targetPath);
+
+            await Task.Run(() =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (isDirectory)
+                {
+                    Directory.Move(fullSourcePath, targetPath);
+                }
+                else
+                {
+                    File.Move(fullSourcePath, targetPath);
+                }
+            }, cancellationToken);
+
+            displayName = Path.GetFileName(targetPath);
+            storedPath = targetPath;
+        }
+
+        await _repository.MoveItemToBoxAsync(
+            item,
+            targetBox.Id,
+            displayName,
+            sourcePath,
+            storedPath,
+            targetSortOrder,
+            gridColumn,
+            gridRow,
+            cancellationToken);
     }
 
     public async Task DeleteItemAsync(Guid itemId, IFileTrash trash, CancellationToken cancellationToken = default)
