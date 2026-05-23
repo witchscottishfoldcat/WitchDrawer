@@ -396,8 +396,27 @@ public partial class DesktopBoxWindow : Window
             }
         };
 
+        // The drag carries no OS file data, so the desktop/Explorer reports "no drop" and the
+        // shell shows a forbidden (🚫) cursor — misleading, because releasing there still moves
+        // the item to the desktop. Override the feedback: keep the normal move cursor over valid
+        // in-app targets, and show a neutral hand instead of 🚫 everywhere else.
+        GiveFeedbackEventHandler giveFeedback = (_, args) =>
+        {
+            args.Handled = true;
+            if (args.Effects == DragDropEffects.None)
+            {
+                args.UseDefaultCursors = false;
+                Mouse.SetCursor(Cursors.Hand);
+            }
+            else
+            {
+                args.UseDefaultCursors = true;
+            }
+        };
+
         drawerItem.IsDragSource = true;
         IconList.QueryContinueDrag += queryContinueDrag;
+        IconList.GiveFeedback += giveFeedback;
         try
         {
             DragDrop.DoDragDrop(IconList, data, DragDropEffects.Move);
@@ -431,6 +450,7 @@ public partial class DesktopBoxWindow : Window
         finally
         {
             IconList.QueryContinueDrag -= queryContinueDrag;
+            IconList.GiveFeedback -= giveFeedback;
             drawerItem.IsDragSource = false;
             ViewModel.HideDragPreview();
             IconList.Focus();

@@ -154,17 +154,28 @@ public sealed class DesktopBoxViewModel : ObservableObject
     {
         var column = Math.Max(0, (int)Math.Floor(x / Math.Max(1, LayoutSettings.ItemSlotWidth)));
         var row = Math.Max(0, (int)Math.Floor(y / Math.Max(1, LayoutSettings.ItemSlotHeight)));
+
+        // Edge expansion: when the pointer reaches the right/bottom edge of the *content*
+        // grid, target a brand-new column/row so the box grows by one cell.
+        //
+        // The reference is the item-grid extent ((maxCol+1)*slotWidth), which stays constant
+        // while dragging. Using the live window/IconList size here would create a feedback
+        // loop: expanding grows the window, which moves the edge away from the pointer, which
+        // un-expands, which shrinks the window... — the box would flicker at the threshold.
         if (surfaceWidth > 0 && surfaceHeight > 0)
         {
             var maxCol = Items.Count == 0 ? 0 : Items.Max(item => item.GridColumn);
             var maxRow = Items.Count == 0 ? 0 : Items.Max(item => item.GridRow);
 
-            if (x >= surfaceWidth - EdgeExpandThreshold)
+            var contentRight = (maxCol + 1) * LayoutSettings.ItemSlotWidth;
+            var contentBottom = (maxRow + 1) * LayoutSettings.ItemSlotHeight;
+
+            if (x >= contentRight - EdgeExpandThreshold)
             {
                 column = Math.Max(column, maxCol + 1);
             }
 
-            if (y >= surfaceHeight - EdgeExpandThreshold)
+            if (y >= contentBottom - EdgeExpandThreshold)
             {
                 row = Math.Max(row, maxRow + 1);
             }
@@ -557,10 +568,12 @@ public sealed class DesktopBoxViewModel : ObservableObject
         var maxCol = Items.Count == 0 ? 0 : Items.Max(item => item.GridColumn);
         var maxRow = Items.Count == 0 ? 0 : Items.Max(item => item.GridRow);
 
-        // While a drag preview is showing, grow the canvas to include the previewed slot so
-        // dropping at the right/bottom edge visibly extends the box by one cell (and shrinks
-        // back when the pointer leaves). This is a deliberate interaction, distinct from the
-        // earlier cross-box preset oscillation that caused unwanted jitter.
+        // While a drag preview is showing, grow the canvas just enough to include the previewed
+        // slot, so dropping at the right/bottom edge visibly extends the box by one cell and it
+        // shrinks back as soon as the pointer moves off the edge (or the preview is hidden on
+        // drop / leave). The edge threshold itself is anchored to the item grid (see
+        // GetGridSlot), so this no longer oscillates continuously — at most a brief flicker when
+        // the pointer sits right on the boundary.
         if (IsDragPreviewVisible)
         {
             maxCol = Math.Max(maxCol, _previewColumn);
