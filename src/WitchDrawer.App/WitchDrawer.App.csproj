@@ -23,4 +23,8 @@
     <Resource Include="Assets\app.png" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="Assets\app.ico" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

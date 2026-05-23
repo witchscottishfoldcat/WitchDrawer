@@ -274,10 +274,10 @@ public sealed class MainViewModel : ObservableObject
     private async Task LoadItemsForSelectedBoxAsync()
     {
         var selectedBox = SelectedBox;
-        Items.Clear();
 
         if (selectedBox is null)
         {
+            Items.Clear();
             return;
         }
 
@@ -285,6 +285,7 @@ public sealed class MainViewModel : ObservableObject
         {
             var items = await _drawerService.GetItemsAsync(selectedBox.Id);
             var isPixelated = selectedBox.Type == BoxType.Pixel;
+            Items.Clear();
             foreach (var item in items)
             {
                 Items.Add(new DrawerItemViewModel(item, selectedBox.Name, isPixelated));

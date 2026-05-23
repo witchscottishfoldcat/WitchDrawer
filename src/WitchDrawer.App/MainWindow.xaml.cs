@@ -20,6 +20,9 @@ public partial class MainWindow : Window
     private NativeHotKey? _hotKey;
     private HwndSource? _source;
 
+    public event EventHandler? WindowHidden;
+    public event EventHandler? WindowClosing;
+
     public MainWindow(MainViewModel viewModel, QuickPanelWindow quickPanel, IAppLogger logger)
     {
         DataContext = viewModel;
@@ -28,6 +31,39 @@ public partial class MainWindow : Window
         InitializeComponent();
         Loaded += OnLoaded;
         AppThemeManager.ThemeChanged += OnThemeChanged;
+    }
+
+    private bool _forceClosing;
+
+    public void MinimizeToTray()
+    {
+        Hide();
+        WindowHidden?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void RestoreFromTray()
+    {
+        Show();
+        WindowState = WindowState.Normal;
+        Activate();
+    }
+
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        if (_forceClosing)
+        {
+            base.OnClosing(e);
+            return;
+        }
+
+        e.Cancel = true;
+        MinimizeToTray();
+    }
+
+    public void ForceClose()
+    {
+        _forceClosing = true;
+        Close();
     }
 
     public MainViewModel ViewModel => (MainViewModel)DataContext;
@@ -60,6 +96,7 @@ public partial class MainWindow : Window
         _source?.RemoveHook(WndProc);
         _hotKey?.Dispose();
         _quickPanel.ForceClose();
+        WindowClosing?.Invoke(this, EventArgs.Empty);
         base.OnClosed(e);
     }
 

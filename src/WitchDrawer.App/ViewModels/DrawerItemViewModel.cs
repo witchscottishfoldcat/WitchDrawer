@@ -82,6 +82,14 @@ public sealed class DrawerItemViewModel : ObservableObject
         private set => SetProperty(ref _hasIcon, value);
     }
 
+    public void ReloadIconIfNeeded()
+    {
+        if (!HasIcon)
+        {
+            _ = LoadIconAsync();
+        }
+    }
+
     private async Task LoadIconAsync()
     {
         var path = PathLabel;
@@ -93,7 +101,7 @@ public sealed class DrawerItemViewModel : ObservableObject
         try
         {
             var isDirectory = Model.ItemKind == ItemKind.Directory;
-            var icon = await Task.Run(() => ShellIconProvider.GetIcon(path, isDirectory, 32)).ConfigureAwait(false);
+            var icon = await ShellIconProvider.GetIconAsync(path, isDirectory, 32).ConfigureAwait(false);
 
             if (_isPixelated && icon is BitmapSource bitmapSource)
             {

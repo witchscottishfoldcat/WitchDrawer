@@ -104,11 +104,34 @@ public sealed class DesktopBoxViewModel : ObservableObject
         try
         {
             var items = await _drawerService.GetItemsAsync(BoxId);
-            Items.Clear();
             var isPixelated = Type == BoxType.Pixel;
-            foreach (var item in items)
+
+            var existingIds = new HashSet<Guid>();
+            for (var i = Items.Count - 1; i >= 0; i--)
             {
-                Items.Add(new DrawerItemViewModel(item, Name, isPixelated));
+                existingIds.Add(Items[i].Id);
+            }
+
+            var newIds = items.Select(i => i.Id).ToHashSet();
+
+            for (var i = Items.Count - 1; i >= 0; i--)
+            {
+                if (!newIds.Contains(Items[i].Id))
+                {
+                    Items.RemoveAt(i);
+                }
+            }
+
+            for (var i = 0; i < items.Count; i++)
+            {
+                if (existingIds.Contains(items[i].Id))
+                {
+                    var existing = Items.FirstOrDefault(x => x.Id == items[i].Id);
+                    existing?.ReloadIconIfNeeded();
+                    continue;
+                }
+
+                Items.Insert(i, new DrawerItemViewModel(items[i], Name, isPixelated));
             }
 
             StatusText = Items.Count == 0 ? "拖入文件" : "已同步";
