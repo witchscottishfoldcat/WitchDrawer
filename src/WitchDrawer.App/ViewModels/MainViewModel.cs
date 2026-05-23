@@ -21,6 +21,7 @@ public sealed class MainViewModel : ObservableObject
     private readonly IFileTrash _trash;
     private readonly IAppLogger _logger;
     private readonly QuickPanelViewModel _quickPanelViewModel;
+    private readonly UpdateService _updateService;
     private BoxViewModel? _selectedBox;
     private CancellationTokenSource? _itemsLoadCts;
     private int _itemsLoadVersion;
@@ -31,6 +32,8 @@ public sealed class MainViewModel : ObservableObject
     private string _themeLabel = "清透雅致";
     private AppTheme _currentTheme;
     private bool _launchOnStartup;
+    private string _updateStatusText = string.Empty;
+    private bool _isCheckingUpdate;
 
     public MainViewModel(
         DrawerService drawerService,
@@ -38,7 +41,8 @@ public sealed class MainViewModel : ObservableObject
         IFileTrash trash,
         IAppLogger logger,
         QuickPanelViewModel quickPanelViewModel,
-        DesktopBoxLayoutSettings desktopBoxLayoutSettings)
+        DesktopBoxLayoutSettings desktopBoxLayoutSettings,
+        UpdateService updateService)
     {
         _drawerService = drawerService;
         _launcher = launcher;
@@ -46,6 +50,7 @@ public sealed class MainViewModel : ObservableObject
         _logger = logger;
         _quickPanelViewModel = quickPanelViewModel;
         DesktopBoxLayout = desktopBoxLayoutSettings;
+        _updateService = updateService;
 
         LoadCommand = new AsyncRelayCommand(LoadAsync);
         CreateNormalBoxCommand = new AsyncRelayCommand(() => CreateBoxAsync(BoxType.Normal));
@@ -61,6 +66,7 @@ public sealed class MainViewModel : ObservableObject
         ApplyGlassThemeCommand = new AsyncRelayCommand(() => ApplyThemeAsync(AppTheme.Glass));
         ApplyCrystalThemeCommand = new AsyncRelayCommand(() => ApplyThemeAsync(AppTheme.Crystal));
         ToggleLaunchOnStartupCommand = new AsyncRelayCommand(ToggleLaunchOnStartupAsync);
+        CheckForUpdateCommand = new AsyncRelayCommand(CheckForUpdateAsync);
         ShowDashboardCommand = new RelayCommand(() => { IsSettingsPage = false; IsAboutPage = false; });
         ShowSettingsCommand = new RelayCommand(() => { IsSettingsPage = true; IsAboutPage = false; });
         ShowAboutCommand = new RelayCommand(() => { IsSettingsPage = false; IsAboutPage = true; });
@@ -99,6 +105,8 @@ public sealed class MainViewModel : ObservableObject
     public IAsyncRelayCommand ApplyCrystalThemeCommand { get; }
 
     public IAsyncRelayCommand ToggleLaunchOnStartupCommand { get; }
+
+    public IAsyncRelayCommand CheckForUpdateCommand { get; }
 
     public IRelayCommand ShowDashboardCommand { get; }
 
@@ -172,6 +180,27 @@ public sealed class MainViewModel : ObservableObject
     {
         get => _launchOnStartup;
         private set => SetProperty(ref _launchOnStartup, value);
+    }
+
+    public string UpdateStatusText
+    {
+        get => _updateStatusText;
+        private set => SetProperty(ref _updateStatusText, value);
+    }
+
+    public bool IsCheckingUpdate
+    {
+        get => _isCheckingUpdate;
+        private set => SetProperty(ref _isCheckingUpdate, value);
+    }
+
+    public string CurrentVersionText
+    {
+        get
+        {
+            var version = GetCurrentVersion();
+            return $"v{version.Major}.{version.Minor}.{version.Build}";
+        }
     }
 
     public async Task LoadAsync()
@@ -548,5 +577,56 @@ public sealed class MainViewModel : ObservableObject
     public async Task SaveLayoutPresetAsync(string preset)
     {
         await _drawerService.SetSettingAsync(LayoutPresetSettingKey, preset);
+    }
+
+    private async Task CheckForUpdateAsync()
+    {
+        if (IsCheckingUpdate)
+        {
+            return;
+        }
+
+        try
+        {
+            IsCheckingUpdate = true;
+            UpdateStatusText = "正在检查更新...";
+
+            var currentVersion = GetCurrentVersion();
+            var result = await _updateService.CheckForUpdateAsync(currentVersion);
+
+            if (result.HasUpdate)
+            {
+                UpdateStatusText = $"发现新版本 v{result.LatestVersion.Major}.{result.LatestVersion.Minor}.{result.LatestVersion.Build}";
+                StatusText = UpdateStatusText;
+
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = result.DownloadUrl,
+                    UseShellExecute = true
+                });
+            }
+            else
+            {
+                UpdateStatusText = $"已是最新版本 v{currentVersion.Major}.{currentVersion.Minor}.{currentVersion.Build}";
+                StatusText = UpdateStatusText;
+            }
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Update check failed.");
+            UpdateStatusText = "检查更新失败";
+            StatusText = UpdateStatusText;
+        }
+        finally
+        {
+            IsCheckingUpdate = false;
+        }
+    }
+
+    private static Version GetCurrentVersion()
+    {
+        var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+        var version = assembly.GetName().Version;
+        return version ?? new Version(1, 0, 0);
     }
 }

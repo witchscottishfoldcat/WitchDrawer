@@ -6,6 +6,7 @@
         <infra:ZeroToVisibilityConverter x:Key="ZeroToVisibilityConverter" />
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <infra:InverseBooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" />
+        <infra:NonEmptyToVisibilityConverter x:Key="NonEmptyToVisibilityConverter" />
 
         <Color x:Key="AppBackgroundColor">#F4F6F8</Color>
         <Color x:Key="PanelColor">#FFFFFF</Color>

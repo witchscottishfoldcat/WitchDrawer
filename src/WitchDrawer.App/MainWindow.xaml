@@ -1078,7 +1078,44 @@
                                 </Grid>
                                 </Border>
 
-                                <!-- Startup Card -->
+                                <!-- Update Check Card -->
+                            <Border Background="{DynamicResource PanelBrush}"
+                                    BorderBrush="{DynamicResource BorderBrushSoft}"
+                                    BorderThickness="1"
+                                    CornerRadius="18"
+                                    Padding="18"
+                                    Margin="0,0,0,16">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="检查更新"
+                                                   FontWeight="Bold"
+                                                   FontSize="14"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <TextBlock Text="{Binding CurrentVersionText}"
+                                                   Margin="0,4,0,0"
+                                                   FontSize="12"
+                                                   Foreground="{DynamicResource TextMutedBrush}" />
+                                        <TextBlock Text="{Binding UpdateStatusText}"
+                                                   Margin="0,2,0,0"
+                                                   FontSize="11"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                   Visibility="{Binding UpdateStatusText, Converter={StaticResource NonEmptyToVisibilityConverter}}" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1"
+                                            Content="检查更新"
+                                            Command="{Binding CheckForUpdateCommand}"
+                                            Style="{StaticResource PrimaryButtonStyle}"
+                                            Height="32"
+                                            Padding="14,0"
+                                            VerticalAlignment="Center" />
+                                </Grid>
+                            </Border>
+
+                            <!-- Startup Card -->
                                 <Border Background="{DynamicResource PanelBrush}"
                                     BorderBrush="{DynamicResource BorderBrushSoft}"
                                     BorderThickness="1"
@@ -1325,7 +1362,7 @@
                                                 CornerRadius="6"
                                                 Padding="10,3"
                                                 HorizontalAlignment="Left">
-                                            <TextBlock Text="MIT License"
+                                            <TextBlock Text="CC BY-NC-SA 4.0"
                                                        Foreground="{DynamicResource AccentBrush}"
                                                        FontSize="12"
                                                        FontWeight="Bold" />

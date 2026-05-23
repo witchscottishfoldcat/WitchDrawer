@@ -53,13 +53,14 @@ public partial class App : Application
             var launcher = new ShellFileLauncher();
             var trash = new FileSystemRecycleBin();
             var desktopBoxLayoutSettings = new DesktopBoxLayoutSettings();
+            var updateService = new UpdateService(logger);
 
             await drawerService.InitializeAsync();
             AppThemeManager.Apply(await LoadSavedThemeAsync(drawerService));
 
             var quickPanelViewModel = new QuickPanelViewModel(drawerService, launcher, logger);
             var quickPanel = new QuickPanelWindow(quickPanelViewModel);
-            var mainViewModel = new MainViewModel(drawerService, launcher, trash, logger, quickPanelViewModel, desktopBoxLayoutSettings);
+            var mainViewModel = new MainViewModel(drawerService, launcher, trash, logger, quickPanelViewModel, desktopBoxLayoutSettings, updateService);
             desktopBoxLayoutSettings.SetPresetChangedCallback(mainViewModel.SaveLayoutPresetAsync);
             _desktopBoxManager = new DesktopBoxManager(drawerService, launcher, trash, logger, desktopBoxLayoutSettings);
             _mainWindow = new MainWindow(mainViewModel, quickPanel, logger);
