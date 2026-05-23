@@ -163,11 +163,15 @@
                             </Style>
                             <Style x:Key="NavOverviewButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource NavButtonBaseStyle}">
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsSettingsPage}" Value="False">
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding IsSettingsPage}" Value="False" />
+                                            <Condition Binding="{Binding IsAboutPage}" Value="False" />
+                                        </MultiDataTrigger.Conditions>
                                         <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
                                         <Setter Property="Foreground" Value="White" />
                                         <Setter Property="FontWeight" Value="SemiBold" />
-                                    </DataTrigger>
+                                    </MultiDataTrigger>
                                 </Style.Triggers>
                             </Style>
                             <Style x:Key="NavSettingsButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource NavButtonBaseStyle}">
@@ -895,9 +899,15 @@
                                        FontWeight="Bold" />
                         </StackPanel>
 
-                        <StackPanel Grid.Row="1" Width="520" HorizontalAlignment="Left">
-                            <!-- Theme Settings Card -->
-                            <Border Background="{DynamicResource PanelBrush}"
+                        <ScrollViewer Grid.Row="1"
+                                      Width="536"
+                                      HorizontalAlignment="Left"
+                                      VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      CanContentScroll="False">
+                            <StackPanel Width="520" Margin="0,0,0,8">
+                                <!-- Theme Settings Card -->
+                                <Border Background="{DynamicResource PanelBrush}"
                                     BorderBrush="{DynamicResource BorderBrushSoft}"
                                     BorderThickness="1"
                                     CornerRadius="18"
@@ -1028,10 +1038,10 @@
                                                 Style="{StaticResource CrystalThemeChoiceButtonStyle}" />
                                     </UniformGrid>
                                 </Grid>
-                            </Border>
+                                </Border>
 
-                            <!-- Keyboard Shortcuts Card -->
-                            <Border Background="{DynamicResource PanelBrush}"
+                                <!-- Keyboard Shortcuts Card -->
+                                <Border Background="{DynamicResource PanelBrush}"
                                     BorderBrush="{DynamicResource BorderBrushSoft}"
                                     BorderThickness="1"
                                     CornerRadius="18"
@@ -1065,10 +1075,10 @@
                                                    FontSize="13" />
                                     </Border>
                                 </Grid>
-                            </Border>
+                                </Border>
 
-                            <!-- Startup Card -->
-                            <Border Background="{DynamicResource PanelBrush}"
+                                <!-- Startup Card -->
+                                <Border Background="{DynamicResource PanelBrush}"
                                     BorderBrush="{DynamicResource BorderBrushSoft}"
                                     BorderThickness="1"
                                     CornerRadius="18"
@@ -1147,10 +1157,10 @@
                                         </Button.Style>
                                     </Button>
                                 </Grid>
-                            </Border>
+                                </Border>
 
-                            <!-- Custom Widget Rules Card -->
-                            <Border Background="{DynamicResource PanelBrush}"
+                                <!-- Custom Widget Rules Card -->
+                                <Border Background="{DynamicResource PanelBrush}"
                                     BorderBrush="{DynamicResource BorderBrushSoft}"
                                     BorderThickness="1"
                                     CornerRadius="18"
@@ -1167,8 +1177,9 @@
                                                TextWrapping="Wrap"
                                                Foreground="{DynamicResource TextMutedBrush}" />
                                 </StackPanel>
-                            </Border>
-                        </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
                     </Grid>
 
                     <!-- About Page -->
@@ -1190,9 +1201,15 @@
                                        FontWeight="Bold" />
                         </StackPanel>
 
-                        <StackPanel Grid.Row="1" Width="520" HorizontalAlignment="Left">
-                            <!-- App Info Card -->
-                            <Border Background="{DynamicResource AccentBrush}"
+                        <ScrollViewer Grid.Row="1"
+                                      Width="536"
+                                      HorizontalAlignment="Left"
+                                      VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      CanContentScroll="False">
+                            <StackPanel Width="520" Margin="0,0,0,8">
+                                <!-- App Info Card -->
+                                <Border Background="{DynamicResource AccentBrush}"
                                     CornerRadius="20"
                                     Margin="0,0,0,16">
                                 <Grid>
@@ -1222,10 +1239,10 @@
                                         </StackPanel>
                                     </StackPanel>
                                 </Grid>
-                            </Border>
+                                </Border>
 
-                            <!-- Author Card -->
-                            <Border Background="{DynamicResource PanelBrush}"
+                                <!-- Author Card -->
+                                <Border Background="{DynamicResource PanelBrush}"
                                     BorderBrush="{DynamicResource BorderBrushSoft}"
                                     BorderThickness="1"
                                     CornerRadius="18"
@@ -1268,7 +1285,10 @@
                                                    Text="witchscottishfoldcat@gmail.com"
                                                    Foreground="{DynamicResource AccentBrush}"
                                                    FontSize="12.5"
-                                                   VerticalAlignment="Center" />
+                                                   VerticalAlignment="Center"
+                                                   Cursor="Hand"
+                                                   ToolTip="Open email"
+                                                   MouseLeftButtonUp="OnOpenEmailClicked" />
                                     </Grid>
 
                                     <Grid Margin="0,0,0,8">
@@ -1284,7 +1304,10 @@
                                                    Text="www.witchcat.cn"
                                                    Foreground="{DynamicResource AccentBrush}"
                                                    FontSize="12.5"
-                                                   VerticalAlignment="Center" />
+                                                   VerticalAlignment="Center"
+                                                   Cursor="Hand"
+                                                   ToolTip="Open website"
+                                                   MouseLeftButtonUp="OnOpenWebsiteClicked" />
                                     </Grid>
 
                                     <Grid>
@@ -1308,10 +1331,10 @@
                                         </Border>
                                     </Grid>
                                 </StackPanel>
-                            </Border>
+                                </Border>
 
-                            <!-- Project Link Card -->
-                            <Border Background="{DynamicResource PanelBrush}"
+                                <!-- Project Link Card -->
+                                <Border Background="{DynamicResource PanelBrush}"
                                     BorderBrush="{DynamicResource BorderBrushSoft}"
                                     BorderThickness="1"
                                     CornerRadius="18"
@@ -1338,8 +1361,9 @@
                                             Height="32"
                                             Padding="14,0" />
                                 </Grid>
-                            </Border>
-                        </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
                     </Grid>
                 </Grid>
             </Grid>

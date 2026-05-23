@@ -282,10 +282,34 @@ public partial class MainWindow : Window
 
     private void OnOpenProjectLinkClicked(object sender, RoutedEventArgs e)
     {
-        Process.Start(new ProcessStartInfo
+        OpenExternalUri("https://github.com/witchscottishfoldcat/WitchDrawer");
+    }
+
+    private void OnOpenEmailClicked(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        OpenExternalUri("mailto:witchscottishfoldcat@gmail.com");
+    }
+
+    private void OnOpenWebsiteClicked(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        OpenExternalUri("https://www.witchcat.cn");
+    }
+
+    private void OpenExternalUri(string uri)
+    {
+        try
         {
-            FileName = "https://github.com/witchscottishfoldcat/WitchDrawer",
-            UseShellExecute = true
-        });
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = uri,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, $"Failed to open external URI: {uri}");
+        }
     }
 }
