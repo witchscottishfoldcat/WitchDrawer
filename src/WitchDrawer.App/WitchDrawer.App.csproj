@@ -24,7 +24,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="Assets\app.ico" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\app.ico" CopyToOutputDirectory="Always" CopyToPublishDirectory="Always" />
   </ItemGroup>
 
 </Project>

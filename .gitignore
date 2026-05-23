@@ -11,3 +11,5 @@ coverage/
 *.db-shm
 *.db-wal
 
+
+publish/

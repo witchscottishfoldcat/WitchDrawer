@@ -188,6 +188,17 @@ public partial class App : Application
     private void InitializeTaskbarIcon(AppPaths paths, IAppLogger logger)
     {
         var iconPath = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico");
+
+        if (!File.Exists(iconPath))
+        {
+            iconPath = System.IO.Path.Combine(AppContext.BaseDirectory, "app.ico");
+        }
+
+        if (!File.Exists(iconPath))
+        {
+            iconPath = ExtractEmbeddedIcon();
+        }
+
         _taskbarIcon = new TaskbarIcon(nint.Zero, iconPath, "WitchDrawer");
 
         _taskbarIcon.LeftClick += (_, _) =>
@@ -298,5 +309,29 @@ public partial class App : Application
     {
         GetCursorPos(out var pt);
         return pt;
+    }
+
+    private static string ExtractEmbeddedIcon()
+    {
+        var tempDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "WitchDrawer");
+        Directory.CreateDirectory(tempDir);
+        var tempPath = System.IO.Path.Combine(tempDir, "app.ico");
+
+        if (File.Exists(tempPath))
+        {
+            return tempPath;
+        }
+
+        var uri = new Uri("pack://application:,,,/Assets/app.ico");
+        var resourceInfo = Application.GetResourceStream(uri);
+
+        if (resourceInfo is not null)
+        {
+            using var stream = resourceInfo.Stream;
+            using var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write);
+            stream.CopyTo(fs);
+        }
+
+        return tempPath;
     }
 }
