@@ -60,6 +60,7 @@ public partial class App : Application
             var quickPanelViewModel = new QuickPanelViewModel(drawerService, launcher, logger);
             var quickPanel = new QuickPanelWindow(quickPanelViewModel);
             var mainViewModel = new MainViewModel(drawerService, launcher, trash, logger, quickPanelViewModel, desktopBoxLayoutSettings);
+            desktopBoxLayoutSettings.SetPresetChangedCallback(mainViewModel.SaveLayoutPresetAsync);
             _desktopBoxManager = new DesktopBoxManager(drawerService, launcher, trash, logger, desktopBoxLayoutSettings);
             _mainWindow = new MainWindow(mainViewModel, quickPanel, logger);
             StartSingleInstanceServer(logger);
@@ -76,7 +77,7 @@ public partial class App : Application
                 await mainViewModel.LoadAsync();
                 await quickPanelViewModel.LoadAsync();
             };
-            _mainWindow.Closed += (_, _) => _desktopBoxManager.CloseAll();
+            _mainWindow.Closed += async (_, _) => await _desktopBoxManager.CloseAllAsync();
 
             InitializeTaskbarIcon(paths, logger);
 
@@ -254,7 +255,7 @@ public partial class App : Application
     {
         _taskbarIcon?.Dispose();
         _taskbarIcon = null;
-        _desktopBoxManager?.CloseAll();
+        _desktopBoxManager?.CloseAllAsync().GetAwaiter().GetResult();
 
         if (_mainWindow is not null)
         {

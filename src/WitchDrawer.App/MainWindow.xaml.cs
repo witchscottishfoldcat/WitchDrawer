@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -277,5 +278,14 @@ public partial class MainWindow : Window
             e.Handled = true;
             RenameBoxPopup.IsOpen = false;
         }
+    }
+
+    private void OnOpenProjectLinkClicked(object sender, RoutedEventArgs e)
+    {
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = "https://github.com/witchscottishfoldcat/WitchDrawer",
+            UseShellExecute = true
+        });
     }
 }

@@ -14,6 +14,7 @@ public partial class DesktopBoxWindow : Window
     private bool _forceClose;
     private Point? _dragStartPoint;
     private DrawerItemViewModel? _keyboardDeleteTarget;
+    private Func<Guid, Task>? _positionChangedCallback;
 
     private sealed class DesktopBoxDragPayload(Guid itemId)
     {
@@ -32,6 +33,11 @@ public partial class DesktopBoxWindow : Window
     }
 
     public DesktopBoxViewModel ViewModel => (DesktopBoxViewModel)DataContext;
+
+    public void SetPositionChangedCallback(Func<Guid, Task> callback)
+    {
+        _positionChangedCallback = callback;
+    }
 
     public void ForceClose()
     {
@@ -212,10 +218,13 @@ public partial class DesktopBoxWindow : Window
             try
             {
                 DragMove();
+                if (_positionChangedCallback is not null)
+                {
+                    _ = _positionChangedCallback(ViewModel.BoxId);
+                }
             }
             catch (InvalidOperationException)
             {
-                // The desktop host may reject DragMove during focus transitions.
             }
         }
     }

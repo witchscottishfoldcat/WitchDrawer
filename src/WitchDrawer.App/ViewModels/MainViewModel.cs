@@ -13,6 +13,8 @@ namespace WitchDrawer.App.ViewModels;
 public sealed class MainViewModel : ObservableObject
 {
     private const string ThemeSettingKey = "Theme";
+    private const string LayoutPresetSettingKey = "LayoutPreset";
+    private const string StartupRegistryKeyName = "WitchDrawer";
 
     private readonly DrawerService _drawerService;
     private readonly IFileLauncher _launcher;
@@ -24,9 +26,11 @@ public sealed class MainViewModel : ObservableObject
     private int _itemsLoadVersion;
     private bool _isBusy;
     private bool _isSettingsPage;
+    private bool _isAboutPage;
     private string _statusText = "准备就绪";
     private string _themeLabel = "清透雅致";
     private AppTheme _currentTheme;
+    private bool _launchOnStartup;
 
     public MainViewModel(
         DrawerService drawerService,
@@ -56,8 +60,10 @@ public sealed class MainViewModel : ObservableObject
         ApplyMoeThemeCommand = new AsyncRelayCommand(() => ApplyThemeAsync(AppTheme.Moe));
         ApplyGlassThemeCommand = new AsyncRelayCommand(() => ApplyThemeAsync(AppTheme.Glass));
         ApplyCrystalThemeCommand = new AsyncRelayCommand(() => ApplyThemeAsync(AppTheme.Crystal));
-        ShowDashboardCommand = new RelayCommand(() => IsSettingsPage = false);
-        ShowSettingsCommand = new RelayCommand(() => IsSettingsPage = true);
+        ToggleLaunchOnStartupCommand = new AsyncRelayCommand(ToggleLaunchOnStartupAsync);
+        ShowDashboardCommand = new RelayCommand(() => { IsSettingsPage = false; IsAboutPage = false; });
+        ShowSettingsCommand = new RelayCommand(() => { IsSettingsPage = true; IsAboutPage = false; });
+        ShowAboutCommand = new RelayCommand(() => { IsSettingsPage = false; IsAboutPage = true; });
     }
 
     public event EventHandler? BoxesChanged;
@@ -92,9 +98,13 @@ public sealed class MainViewModel : ObservableObject
 
     public IAsyncRelayCommand ApplyCrystalThemeCommand { get; }
 
+    public IAsyncRelayCommand ToggleLaunchOnStartupCommand { get; }
+
     public IRelayCommand ShowDashboardCommand { get; }
 
     public IRelayCommand ShowSettingsCommand { get; }
+
+    public IRelayCommand ShowAboutCommand { get; }
 
     public BoxViewModel? SelectedBox
     {
@@ -118,6 +128,12 @@ public sealed class MainViewModel : ObservableObject
     {
         get => _isSettingsPage;
         set => SetProperty(ref _isSettingsPage, value);
+    }
+
+    public bool IsAboutPage
+    {
+        get => _isAboutPage;
+        set => SetProperty(ref _isAboutPage, value);
     }
 
     public string StatusText
@@ -152,6 +168,12 @@ public sealed class MainViewModel : ObservableObject
 
     public bool IsCrystalTheme => CurrentTheme == AppTheme.Crystal;
 
+    public bool LaunchOnStartup
+    {
+        get => _launchOnStartup;
+        private set => SetProperty(ref _launchOnStartup, value);
+    }
+
     public async Task LoadAsync()
     {
         await RunBusyAsync(async () =>
@@ -166,6 +188,9 @@ public sealed class MainViewModel : ObservableObject
             }
 
             await SelectBoxAsync(Boxes.FirstOrDefault(box => box.Id == existingSelection) ?? Boxes.FirstOrDefault());
+
+            LaunchOnStartup = ReadStartupRegistry();
+            await RestoreLayoutPresetAsync();
 
             StatusText = $"{Boxes.Count} 个收纳盒已同步到桌面";
             BoxesChanged?.Invoke(this, EventArgs.Empty);
@@ -454,5 +479,74 @@ public sealed class MainViewModel : ObservableObject
         {
             IsBusy = false;
         }
+    }
+
+    private async Task ToggleLaunchOnStartupAsync()
+    {
+        try
+        {
+            var newState = !LaunchOnStartup;
+            WriteStartupRegistry(newState);
+            LaunchOnStartup = newState;
+            StatusText = newState ? "已开启开机自启动" : "已关闭开机自启动";
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to toggle startup registry key.");
+            StatusText = exception.Message;
+        }
+    }
+
+    private static bool ReadStartupRegistry()
+    {
+        try
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                @"Software\Microsoft\Windows\CurrentVersion\Run", writable: false);
+            var value = key?.GetValue(StartupRegistryKeyName) as string;
+            return !string.IsNullOrEmpty(value);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static void WriteStartupRegistry(bool enable)
+    {
+        using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+            @"Software\Microsoft\Windows\CurrentVersion\Run", writable: true);
+
+        if (key is null)
+        {
+            return;
+        }
+
+        if (enable)
+        {
+            var exePath = Environment.ProcessPath;
+            if (!string.IsNullOrEmpty(exePath))
+            {
+                key.SetValue(StartupRegistryKeyName, $"\"{exePath}\"");
+            }
+        }
+        else
+        {
+            key.DeleteValue(StartupRegistryKeyName, throwOnMissingValue: false);
+        }
+    }
+
+    private async Task RestoreLayoutPresetAsync()
+    {
+        var savedPreset = await _drawerService.GetSettingAsync(LayoutPresetSettingKey);
+        if (!string.IsNullOrEmpty(savedPreset))
+        {
+            DesktopBoxLayout.ApplyPresetCommand.Execute(savedPreset);
+        }
+    }
+
+    public async Task SaveLayoutPresetAsync(string preset)
+    {
+        await _drawerService.SetSettingAsync(LayoutPresetSettingKey, preset);
     }
 }

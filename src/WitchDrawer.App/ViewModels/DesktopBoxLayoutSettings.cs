@@ -18,6 +18,7 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
     private CornerRadius _iconCornerRadius = new CornerRadius(6);
     private int _columns = 5;
     private string _currentPreset = "5x5";
+    private Func<string, Task>? _presetChangedCallback;
 
     public double IconSize
     {
@@ -106,11 +107,21 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
         UpdateDimensions();
     }
 
+    public void SetPresetChangedCallback(Func<string, Task> callback)
+    {
+        _presetChangedCallback = callback;
+    }
+
     [CommunityToolkit.Mvvm.Input.RelayCommand]
-    private void ApplyPreset(string preset)
+    private async Task ApplyPresetAsync(string preset)
     {
         _currentPreset = preset;
         UpdateDimensions();
+
+        if (_presetChangedCallback is not null)
+        {
+            await _presetChangedCallback(preset);
+        }
     }
 
     private void UpdateDimensions()

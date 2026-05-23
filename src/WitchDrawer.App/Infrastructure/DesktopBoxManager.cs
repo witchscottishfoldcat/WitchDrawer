@@ -9,6 +9,9 @@ namespace WitchDrawer.App.Infrastructure;
 
 public sealed class DesktopBoxManager
 {
+    private const string BoxPositionSettingPrefix = "BoxPosition:";
+    private const char PositionSeparator = ',';
+
     private readonly DrawerService _drawerService;
     private readonly IFileLauncher _launcher;
     private readonly IFileTrash _trash;
@@ -58,7 +61,8 @@ public sealed class DesktopBoxManager
                 viewModel.ItemsChanged += (_, _) => ItemsChanged?.Invoke(this, EventArgs.Empty);
 
                 window = new DesktopBoxWindow(viewModel);
-                PlaceNewWindow(window, index);
+                window.SetPositionChangedCallback(SavePositionAsync);
+                await PlaceWindowAsync(window, box.Id, index);
                 _windows.Add(box.Id, window);
                 window.Show();
             }
@@ -71,15 +75,70 @@ public sealed class DesktopBoxManager
         }
     }
 
-    public void CloseAll()
+    public async Task SaveAllPositionsAsync()
+    {
+        foreach (var (boxId, window) in _windows)
+        {
+            var key = BoxPositionSettingPrefix + boxId.ToString("N");
+            var value = $"{window.Left}{PositionSeparator}{window.Top}";
+            await _drawerService.SetSettingAsync(key, value);
+        }
+    }
+
+    public async Task SavePositionAsync(Guid boxId)
+    {
+        if (!_windows.TryGetValue(boxId, out var window))
+        {
+            return;
+        }
+
+        var key = BoxPositionSettingPrefix + boxId.ToString("N");
+        var value = $"{window.Left}{PositionSeparator}{window.Top}";
+        await _drawerService.SetSettingAsync(key, value);
+    }
+
+    public async Task CloseAllAsync()
     {
         _closing = true;
+        await SaveAllPositionsAsync();
         foreach (var window in _windows.Values)
         {
             window.ForceClose();
         }
 
         _windows.Clear();
+    }
+
+    private async Task PlaceWindowAsync(Window window, Guid boxId, int fallbackIndex)
+    {
+        var savedPosition = await _drawerService.GetSettingAsync(BoxPositionSettingPrefix + boxId.ToString("N"));
+        if (TryParsePosition(savedPosition, out var left, out var top))
+        {
+            var workArea = SystemParameters.WorkArea;
+            window.Left = Math.Max(workArea.Left, Math.Min(left, workArea.Right - window.Width));
+            window.Top = Math.Max(workArea.Top, Math.Min(top, workArea.Bottom - window.Height));
+            return;
+        }
+
+        PlaceNewWindow(window, fallbackIndex);
+    }
+
+    private static bool TryParsePosition(string? raw, out double left, out double top)
+    {
+        left = 0;
+        top = 0;
+        if (string.IsNullOrEmpty(raw))
+        {
+            return false;
+        }
+
+        var parts = raw.Split(PositionSeparator);
+        if (parts.Length != 2)
+        {
+            return false;
+        }
+
+        return double.TryParse(parts[0], out left) && double.TryParse(parts[1], out top);
     }
 
     private static void PlaceNewWindow(Window window, int index)

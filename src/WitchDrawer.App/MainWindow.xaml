@@ -179,6 +179,15 @@
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
+                            <Style x:Key="NavAboutButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource NavButtonBaseStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsAboutPage}" Value="True">
+                                        <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                                        <Setter Property="Foreground" Value="White" />
+                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
                         </DockPanel.Resources>
 
                         <StackPanel DockPanel.Dock="Top">
@@ -190,7 +199,11 @@
                                         Margin="0,0,8,0" />
                                 <Button Content="设置"
                                         Command="{Binding ShowSettingsCommand}"
-                                        Style="{StaticResource NavSettingsButtonStyle}" />
+                                        Style="{StaticResource NavSettingsButtonStyle}"
+                                        Margin="0,0,8,0" />
+                                <Button Content="关于"
+                                        Command="{Binding ShowAboutCommand}"
+                                        Style="{StaticResource NavAboutButtonStyle}" />
                             </StackPanel>
 
                             <TextBlock Text="收纳盒列表"
@@ -340,7 +353,20 @@
                 <!-- Right Content Area -->
                 <Grid Grid.Column="1" Margin="28,24,28,24" VerticalAlignment="Stretch">
                     <!-- Dashboard Page -->
-                    <Grid Visibility="{Binding IsSettingsPage, Converter={StaticResource InverseBooleanToVisibilityConverter}}" VerticalAlignment="Stretch">
+                    <Grid VerticalAlignment="Stretch">
+                        <Grid.Style>
+                            <Style TargetType="Grid">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSettingsPage}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsAboutPage}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Grid.Style>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
@@ -1041,6 +1067,88 @@
                                 </Grid>
                             </Border>
 
+                            <!-- Startup Card -->
+                            <Border Background="{DynamicResource PanelBrush}"
+                                    BorderBrush="{DynamicResource BorderBrushSoft}"
+                                    BorderThickness="1"
+                                    CornerRadius="18"
+                                    Padding="18"
+                                    Margin="0,0,0,16">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="开机自启动"
+                                                   FontWeight="Bold"
+                                                   FontSize="14"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <TextBlock Text="系统启动时自动运行 WitchDrawer"
+                                                   Margin="0,4,0,0"
+                                                   FontSize="12"
+                                                   Foreground="{DynamicResource TextMutedBrush}" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1"
+                                            Command="{Binding ToggleLaunchOnStartupCommand}"
+                                            VerticalAlignment="Center"
+                                            Height="32"
+                                            MinWidth="56"
+                                            Padding="14,0">
+                                        <Button.Style>
+                                            <Style TargetType="{x:Type Button}" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Setter Property="Content" Value="已关闭" />
+                                                <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="{x:Type Button}">
+                                                            <Border x:Name="Root"
+                                                                    Background="{DynamicResource PanelAltBrush}"
+                                                                    BorderBrush="{DynamicResource BorderBrushSoft}"
+                                                                    BorderThickness="1"
+                                                                    CornerRadius="10"
+                                                                    Padding="{TemplateBinding Padding}">
+                                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                            </Border>
+                                                            <ControlTemplate.Triggers>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter TargetName="Root" Property="Opacity" Value="0.85" />
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding LaunchOnStartup}" Value="True">
+                                                        <Setter Property="Content" Value="已开启" />
+                                                        <Setter Property="Foreground" Value="White" />
+                                                        <Setter Property="Template">
+                                                            <Setter.Value>
+                                                                <ControlTemplate TargetType="{x:Type Button}">
+                                                                    <Border x:Name="Root"
+                                                                            Background="{DynamicResource AccentBrush}"
+                                                                            BorderBrush="{DynamicResource AccentBrush}"
+                                                                            BorderThickness="1"
+                                                                            CornerRadius="10"
+                                                                            Padding="{TemplateBinding Padding}">
+                                                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                                    </Border>
+                                                                    <ControlTemplate.Triggers>
+                                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                                            <Setter TargetName="Root" Property="Opacity" Value="0.85" />
+                                                                        </Trigger>
+                                                                    </ControlTemplate.Triggers>
+                                                                </ControlTemplate>
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </Grid>
+                            </Border>
+
                             <!-- Custom Widget Rules Card -->
                             <Border Background="{DynamicResource PanelBrush}"
                                     BorderBrush="{DynamicResource BorderBrushSoft}"
@@ -1059,6 +1167,177 @@
                                                TextWrapping="Wrap"
                                                Foreground="{DynamicResource TextMutedBrush}" />
                                 </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- About Page -->
+                    <Grid Visibility="{Binding IsAboutPage, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <StackPanel Grid.Row="0" Margin="0,0,0,24">
+                            <TextBlock Text="About"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       FontSize="13"
+                                       FontWeight="Bold" />
+                            <TextBlock Text="关于"
+                                       Margin="0,4,0,0"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       FontSize="28"
+                                       FontWeight="Bold" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="1" Width="520" HorizontalAlignment="Left">
+                            <!-- App Info Card -->
+                            <Border Background="{DynamicResource AccentBrush}"
+                                    CornerRadius="20"
+                                    Margin="0,0,0,16">
+                                <Grid>
+                                    <Border CornerRadius="20" IsHitTestVisible="False">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                <GradientStop Color="#33FFFFFF" Offset="0" />
+                                                <GradientStop Color="#00FFFFFF" Offset="0.6" />
+                                                <GradientStop Color="#1A000000" Offset="1" />
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                    </Border>
+                                    <StackPanel Margin="18" Orientation="Horizontal">
+                                        <Border Width="52" Height="52" CornerRadius="14" ClipToBounds="True" Background="Transparent">
+                                            <Image Source="/Assets/app.png" RenderOptions.BitmapScalingMode="HighQuality" Width="52" Height="52" />
+                                        </Border>
+                                        <StackPanel VerticalAlignment="Center" Margin="14,0,0,0">
+                                            <TextBlock Text="WitchDrawer"
+                                                       Foreground="White"
+                                                       FontSize="22"
+                                                       FontWeight="Bold" />
+                                            <TextBlock Text="轻量级 Windows 桌面文件收纳工具"
+                                                       Foreground="White"
+                                                       FontSize="12"
+                                                       Opacity="0.85"
+                                                       Margin="0,2,0,0" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <!-- Author Card -->
+                            <Border Background="{DynamicResource PanelBrush}"
+                                    BorderBrush="{DynamicResource BorderBrushSoft}"
+                                    BorderThickness="1"
+                                    CornerRadius="18"
+                                    Padding="18"
+                                    Margin="0,0,0,16">
+                                <StackPanel>
+                                    <TextBlock Text="开发者"
+                                               FontWeight="Bold"
+                                               FontSize="14"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               Margin="0,0,0,12" />
+
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="80" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="作者"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                   FontSize="12.5"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="1"
+                                                   Text="Thewitchcat"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                   FontSize="12.5"
+                                                   FontWeight="SemiBold"
+                                                   VerticalAlignment="Center" />
+                                    </Grid>
+
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="80" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="邮箱"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                   FontSize="12.5"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="1"
+                                                   Text="witchscottishfoldcat@gmail.com"
+                                                   Foreground="{DynamicResource AccentBrush}"
+                                                   FontSize="12.5"
+                                                   VerticalAlignment="Center" />
+                                    </Grid>
+
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="80" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="网站"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                   FontSize="12.5"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="1"
+                                                   Text="www.witchcat.cn"
+                                                   Foreground="{DynamicResource AccentBrush}"
+                                                   FontSize="12.5"
+                                                   VerticalAlignment="Center" />
+                                    </Grid>
+
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="80" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="开源协议"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                   FontSize="12.5"
+                                                   VerticalAlignment="Center" />
+                                        <Border Grid.Column="1"
+                                                Background="{DynamicResource AccentSoftBrush}"
+                                                CornerRadius="6"
+                                                Padding="10,3"
+                                                HorizontalAlignment="Left">
+                                            <TextBlock Text="MIT License"
+                                                       Foreground="{DynamicResource AccentBrush}"
+                                                       FontSize="12"
+                                                       FontWeight="Bold" />
+                                        </Border>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Project Link Card -->
+                            <Border Background="{DynamicResource PanelBrush}"
+                                    BorderBrush="{DynamicResource BorderBrushSoft}"
+                                    BorderThickness="1"
+                                    CornerRadius="18"
+                                    Padding="18">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="项目仓库"
+                                                   FontWeight="Bold"
+                                                   FontSize="14"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <TextBlock Text="github.com/witchscottishfoldcat/WitchDrawer"
+                                                   Margin="0,4,0,0"
+                                                   FontSize="12"
+                                                   Foreground="{DynamicResource TextMutedBrush}" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1"
+                                            Content="在浏览器中打开"
+                                            Style="{StaticResource PrimaryButtonStyle}"
+                                            Click="OnOpenProjectLinkClicked"
+                                            Height="32"
+                                            Padding="14,0" />
+                                </Grid>
                             </Border>
                         </StackPanel>
                     </Grid>
