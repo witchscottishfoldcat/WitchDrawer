@@ -1,8 +1,10 @@
 using System.ComponentModel;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using WitchDrawer.App.Infrastructure;
 using WitchDrawer.App.ViewModels;
 
@@ -11,6 +13,14 @@ namespace WitchDrawer.App.Views;
 public partial class DesktopBoxWindow : Window
 {
     private const string InternalDrawerItemDragFormat = "WitchDrawer.DesktopBoxItem";
+
+    private const uint SwpNoActivate = 0x0010;
+    private const uint SwpNoMove = 0x0002;
+    private const uint SwpNoSize = 0x0001;
+    private static readonly IntPtr HwndBottom = new IntPtr(1);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
     private static readonly HashSet<Guid> CompletedInternalDragIds = [];
     private static readonly HashSet<Guid> CompletedInternalItemIds = [];
     private bool _forceClose;
@@ -51,9 +61,26 @@ public partial class DesktopBoxWindow : Window
         Loaded += OnLoaded;
         AppThemeManager.ThemeChanged += OnThemeChanged;
         Deactivated += OnWindowDeactivated;
+        Activated += OnWindowActivated;
     }
 
     public DesktopBoxViewModel ViewModel => (DesktopBoxViewModel)DataContext;
+
+    private void OnWindowActivated(object? sender, EventArgs e)
+    {
+        SendToBottom();
+    }
+
+    private void SendToBottom()
+    {
+        var helper = new WindowInteropHelper(this);
+        if (helper.Handle == IntPtr.Zero)
+        {
+            return;
+        }
+
+        SetWindowPos(helper.Handle, HwndBottom, 0, 0, 0, 0, SwpNoMove | SwpNoSize | SwpNoActivate);
+    }
 
     private ListBox ActiveItemsList => ViewModel.IsMappingListMode ? FileList : IconList;
 
@@ -263,6 +290,7 @@ public partial class DesktopBoxWindow : Window
             try
             {
                 DragMove();
+                SendToBottom();
                 if (_positionChangedCallback is not null)
                 {
                     _ = _positionChangedCallback(ViewModel.BoxId);
