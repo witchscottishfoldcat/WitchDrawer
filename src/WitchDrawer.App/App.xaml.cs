@@ -80,6 +80,26 @@ public partial class App : Application
             };
             _mainWindow.Closed += async (_, _) => await _desktopBoxManager.CloseAllAsync();
 
+            mainViewModel.UpdateRequested += async (_, result) =>
+            {
+                var versionText = $"v{result.LatestVersion.Major}.{result.LatestVersion.Minor}.{result.LatestVersion.Build}";
+                var dialogResult = System.Windows.MessageBox.Show(
+                    $"发现新版本 {versionText}\n\n是否立即更新？\n更新将自动下载并重启应用。",
+                    "发现新版本",
+                    System.Windows.MessageBoxButton.OKCancel,
+                    System.Windows.MessageBoxImage.Question);
+
+                if (dialogResult == System.Windows.MessageBoxResult.OK)
+                {
+                    await mainViewModel.ExecuteUpdateAsync(result.DownloadUrl);
+                }
+            };
+
+            mainViewModel.UpdateConfirmed += (_, _) =>
+            {
+                PerformShutdown();
+            };
+
             InitializeTaskbarIcon(paths, logger);
 
             MainWindow = _mainWindow;

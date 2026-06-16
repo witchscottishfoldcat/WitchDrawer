@@ -594,22 +594,18 @@ public sealed class MainViewModel : ObservableObject
             var currentVersion = GetCurrentVersion();
             var result = await _updateService.CheckForUpdateAsync(currentVersion);
 
-            if (result.HasUpdate)
-            {
-                UpdateStatusText = $"发现新版本 v{result.LatestVersion.Major}.{result.LatestVersion.Minor}.{result.LatestVersion.Build}";
-                StatusText = UpdateStatusText;
-
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = result.DownloadUrl,
-                    UseShellExecute = true
-                });
-            }
-            else
+            if (!result.HasUpdate)
             {
                 UpdateStatusText = $"已是最新版本 v{currentVersion.Major}.{currentVersion.Minor}.{currentVersion.Build}";
                 StatusText = UpdateStatusText;
+                return;
             }
+
+            var versionText = $"v{result.LatestVersion.Major}.{result.LatestVersion.Minor}.{result.LatestVersion.Build}";
+            UpdateStatusText = $"发现新版本 {versionText}，正在下载...";
+            StatusText = UpdateStatusText;
+
+            UpdateRequested?.Invoke(this, result);
         }
         catch (Exception exception)
         {
@@ -622,6 +618,47 @@ public sealed class MainViewModel : ObservableObject
             IsCheckingUpdate = false;
         }
     }
+
+    public async Task ExecuteUpdateAsync(string downloadUrl)
+    {
+        try
+        {
+            IsCheckingUpdate = true;
+            UpdateStatusText = "正在下载更新...";
+
+            var progress = new Progress<int>(percent =>
+            {
+                UpdateStatusText = $"正在下载更新... {percent}%";
+            });
+
+            var success = await _updateService.DownloadAndApplyUpdateAsync(downloadUrl, progress);
+
+            if (success)
+            {
+                UpdateStatusText = "更新下载完成，正在重启...";
+                StatusText = UpdateStatusText;
+                UpdateConfirmed?.Invoke(this, EventArgs.Empty);
+            }
+            else
+            {
+                UpdateStatusText = "下载更新失败";
+                StatusText = UpdateStatusText;
+            }
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Update download failed.");
+            UpdateStatusText = "下载更新失败";
+            StatusText = UpdateStatusText;
+        }
+        finally
+        {
+            IsCheckingUpdate = false;
+        }
+    }
+
+    public event EventHandler<UpdateCheckResult>? UpdateRequested;
+    public event EventHandler? UpdateConfirmed;
 
     private static Version GetCurrentVersion()
     {
