@@ -304,16 +304,51 @@ public sealed class DrawerService
 
         if (box.Type == BoxType.Normal || box.Type == BoxType.Pixel)
         {
-            var storagePath = box.StoragePath ?? Path.Combine(_paths.BoxesDirectory, box.Id.ToString("N"));
-            PathSafety.EnsureChildPath(_paths.BoxesDirectory, storagePath);
-
-            if (Directory.Exists(storagePath))
-            {
-                await trash.MoveToRecycleBinAsync(storagePath, cancellationToken);
-            }
+            await RestoreItemsToDesktopAsync(boxId, cancellationToken);
         }
 
         await _repository.RemoveBoxAsync(boxId, cancellationToken);
+    }
+
+    private async Task RestoreItemsToDesktopAsync(Guid boxId, CancellationToken cancellationToken)
+    {
+        var desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+        if (string.IsNullOrWhiteSpace(desktopPath))
+        {
+            return;
+        }
+
+        var items = await _repository.GetItemsAsync(boxId, cancellationToken);
+        foreach (var item in items)
+        {
+            if (string.IsNullOrWhiteSpace(item.StoredPath))
+            {
+                continue;
+            }
+
+            var sourcePath = item.StoredPath;
+            if (!File.Exists(sourcePath) && !Directory.Exists(sourcePath))
+            {
+                continue;
+            }
+
+            var fileName = Path.GetFileName(sourcePath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            var isDirectory = Directory.Exists(sourcePath);
+            var targetPath = FileNameService.GetUniqueDestinationPath(desktopPath, fileName, isDirectory);
+
+            await Task.Run(() =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (isDirectory)
+                {
+                    Directory.Move(sourcePath, targetPath);
+                }
+                else
+                {
+                    File.Move(sourcePath, targetPath);
+                }
+            }, cancellationToken);
+        }
     }
 
     public Task<string?> GetSettingAsync(string key, CancellationToken cancellationToken = default)

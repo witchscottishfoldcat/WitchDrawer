@@ -113,7 +113,13 @@ public sealed class DrawerServiceTests
         var boxes = await workspace.Service.GetBoxesAsync();
         var remainingItems = await workspace.Repository.GetItemsAsync(pixelBox.Id);
 
-        Assert.Equal(pixelBox.StoragePath, Assert.Single(trash.Paths));
+        // Deleting a box restores files to the user's desktop instead of recycling them.
+        Assert.Empty(trash.Paths);
+        var desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+        var restoredFile = Path.Combine(desktopPath, "boxedpixel.txt");
+        Assert.True(File.Exists(restoredFile), "Pixel box file should be restored to desktop.");
+        File.Delete(restoredFile);
+
         Assert.DoesNotContain(boxes, box => box.Id == pixelBox.Id);
         Assert.Empty(remainingItems);
     }
@@ -359,7 +365,13 @@ public sealed class DrawerServiceTests
         var boxes = await workspace.Service.GetBoxesAsync();
         var remainingItems = await workspace.Repository.GetItemsAsync(normalBox.Id);
 
-        Assert.Equal(normalBox.StoragePath, Assert.Single(trash.Paths));
+        // Deleting a box restores files to the user's desktop instead of recycling them.
+        Assert.Empty(trash.Paths);
+        var desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+        var restoredFile = Path.Combine(desktopPath, "boxed.txt");
+        Assert.True(File.Exists(restoredFile), "Normal box file should be restored to desktop.");
+        File.Delete(restoredFile);
+
         Assert.DoesNotContain(boxes, box => box.Id == normalBox.Id);
         Assert.Empty(remainingItems);
     }

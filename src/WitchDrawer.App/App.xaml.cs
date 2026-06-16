@@ -83,7 +83,15 @@ public partial class App : Application
             InitializeTaskbarIcon(paths, logger);
 
             MainWindow = _mainWindow;
-            _mainWindow.Show();
+            var silentStart = Array.IndexOf(Environment.GetCommandLineArgs(), "--silent") >= 0;
+            if (silentStart)
+            {
+                _mainWindow.MinimizeToTray();
+            }
+            else
+            {
+                _mainWindow.Show();
+            }
             await mainViewModel.LoadAsync();
             await quickPanelViewModel.LoadAsync();
             await _desktopBoxManager.RefreshAsync();

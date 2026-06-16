@@ -556,7 +556,7 @@ public sealed class MainViewModel : ObservableObject
             var exePath = Environment.ProcessPath;
             if (!string.IsNullOrEmpty(exePath))
             {
-                key.SetValue(StartupRegistryKeyName, $"\"{exePath}\"");
+                key.SetValue(StartupRegistryKeyName, $"\"{exePath}\" --silent");
             }
         }
         else
