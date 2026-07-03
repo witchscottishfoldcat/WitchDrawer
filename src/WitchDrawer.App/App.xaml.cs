@@ -4,6 +4,7 @@ using System.Text;
 using System.Windows;
 using System.Windows.Interop;
 using WitchDrawer.App.Infrastructure;
+using WitchDrawer.App.Services;
 using WitchDrawer.App.ViewModels;
 using WitchDrawer.App.Views;
 using WitchDrawer.Core;
@@ -42,14 +43,33 @@ public partial class App : Application
             return;
         }
 
+        // Create the logger before anything else so the catch block below can record the real
+        // cause of a startup failure rather than only showing a message box.
+        FileAppLogger logger;
+        try
+        {
+            var earlyPaths = AppPaths.ForCurrentUser();
+            earlyPaths.EnsureCreated();
+            logger = new FileAppLogger(earlyPaths.LogsDirectory);
+        }
+        catch (Exception loggerFailure)
+        {
+            // If we cannot even initialize logging, fall back to the message box directly.
+            MessageBox.Show(
+                loggerFailure.GetType().Name + ": " + loggerFailure.Message,
+                "WitchDrawer startup failed",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            Shutdown(-1);
+            return;
+        }
+
         try
         {
             var paths = AppPaths.ForCurrentUser();
-            paths.EnsureCreated();
 
-            var logger = new FileAppLogger(paths.LogsDirectory);
             var repository = new DrawerRepository(paths.DatabasePath);
-            var drawerService = new DrawerService(paths, repository);
+            var drawerService = new DrawerService(paths, repository, logger);
             var launcher = new ShellFileLauncher();
             var trash = new FileSystemRecycleBin();
             var desktopBoxLayoutSettings = new DesktopBoxLayoutSettings();
@@ -91,7 +111,12 @@ public partial class App : Application
 
                 if (dialogResult == System.Windows.MessageBoxResult.OK)
                 {
-                    await mainViewModel.ExecuteUpdateAsync(result.DownloadUrl);
+                    await mainViewModel.ExecuteUpdateAsync(result.DownloadUrl, result.ExpectedSha256);
+                }
+                else
+                {
+                    // User cancelled: release the check guard so future checks are not blocked.
+                    mainViewModel.ReleaseUpdateGuard();
                 }
             };
 
@@ -118,6 +143,8 @@ public partial class App : Application
         }
         catch (Exception exception)
         {
+            logger.Error(exception, "WitchDrawer startup failed.");
+
             var sb = new System.Text.StringBuilder();
             var ex = exception;
             while (ex != null)

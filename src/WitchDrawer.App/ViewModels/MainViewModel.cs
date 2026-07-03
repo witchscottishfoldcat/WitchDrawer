@@ -3,6 +3,7 @@ using System.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using WitchDrawer.App.Infrastructure;
+using WitchDrawer.App.Services;
 using WitchDrawer.Core.Abstractions;
 using WitchDrawer.Core.Logging;
 using WitchDrawer.Core.Models;
@@ -21,7 +22,7 @@ public sealed class MainViewModel : ObservableObject
     private readonly IFileTrash _trash;
     private readonly IAppLogger _logger;
     private readonly QuickPanelViewModel _quickPanelViewModel;
-    private readonly UpdateService _updateService;
+    private readonly IUpdateService _updateService;
     private BoxViewModel? _selectedBox;
     private CancellationTokenSource? _itemsLoadCts;
     private int _itemsLoadVersion;
@@ -34,6 +35,11 @@ public sealed class MainViewModel : ObservableObject
     private bool _launchOnStartup;
     private string _updateStatusText = string.Empty;
     private bool _isCheckingUpdate;
+    private bool _isUpdateInProgress;
+
+    // Single reentrancy guard spanning check -> prompt -> download so the dialog window
+    // cannot be opened twice by overlapping CheckForUpdateAsync invocations.
+    private bool _updateBusy;
 
     public MainViewModel(
         DrawerService drawerService,
@@ -42,7 +48,7 @@ public sealed class MainViewModel : ObservableObject
         IAppLogger logger,
         QuickPanelViewModel quickPanelViewModel,
         DesktopBoxLayoutSettings desktopBoxLayoutSettings,
-        UpdateService updateService)
+        IUpdateService updateService)
     {
         _drawerService = drawerService;
         _launcher = launcher;
@@ -60,6 +66,7 @@ public sealed class MainViewModel : ObservableObject
         RenameSelectedBoxCommand = new AsyncRelayCommand<string?>(RenameSelectedBoxAsync, _ => SelectedBox is not null);
         OpenItemCommand = new AsyncRelayCommand<DrawerItemViewModel?>(OpenItemAsync);
         DeleteItemCommand = new AsyncRelayCommand<DrawerItemViewModel?>(DeleteItemAsync);
+        CheckForUpdateCommand = new AsyncRelayCommand(CheckForUpdateAsync, () => !_updateBusy);
         SetCurrentTheme(AppThemeManager.CurrentTheme);
 
         ApplyMoeThemeCommand = new AsyncRelayCommand(() => ApplyThemeAsync(AppTheme.Moe));
@@ -194,6 +201,12 @@ public sealed class MainViewModel : ObservableObject
         private set => SetProperty(ref _isCheckingUpdate, value);
     }
 
+    public bool IsUpdateInProgress
+    {
+        get => _isUpdateInProgress;
+        private set => SetProperty(ref _isUpdateInProgress, value);
+    }
+
     public string CurrentVersionText
     {
         get
@@ -301,7 +314,7 @@ public sealed class MainViewModel : ObservableObject
             await SelectBoxAsync(Boxes.FirstOrDefault());
 
             await _quickPanelViewModel.LoadAsync();
-            StatusText = $"\u5df2\u5220\u9664 {deletedName}\uff0c\u6536\u7eb3\u680f\u5df2\u79fb\u9664";
+            StatusText = $"已删除 {deletedName}，收纳栏已移除";
             BoxesChanged?.Invoke(this, EventArgs.Empty);
             ItemsChanged?.Invoke(this, EventArgs.Empty);
         });
@@ -581,11 +594,14 @@ public sealed class MainViewModel : ObservableObject
 
     private async Task CheckForUpdateAsync()
     {
-        if (IsCheckingUpdate)
+        if (_updateBusy)
         {
             return;
         }
 
+        _updateBusy = true;
+        CheckForUpdateCommand.NotifyCanExecuteChanged();
+        var awaitingPrompt = false;
         try
         {
             IsCheckingUpdate = true;
@@ -602,9 +618,13 @@ public sealed class MainViewModel : ObservableObject
             }
 
             var versionText = $"v{result.LatestVersion.Major}.{result.LatestVersion.Minor}.{result.LatestVersion.Build}";
-            UpdateStatusText = $"发现新版本 {versionText}，正在下载...";
+            UpdateStatusText = $"发现新版本 {versionText}，等待确认...";
             StatusText = UpdateStatusText;
 
+            // The handler (App.xaml.cs) shows a confirmation dialog and, on OK, calls
+            // ExecuteUpdateAsync. _updateBusy stays held for the entire check -> prompt -> download
+            // window, so a stray second check cannot stack a second dialog on top.
+            awaitingPrompt = true;
             UpdateRequested?.Invoke(this, result);
         }
         catch (Exception exception)
@@ -616,14 +636,24 @@ public sealed class MainViewModel : ObservableObject
         finally
         {
             IsCheckingUpdate = false;
+            // Only release the reentrancy guard when we are not leaving a prompt open. When an
+            // update is available, the guard is released either by ExecuteUpdateAsync (on confirm)
+            // or by ReleaseUpdateGuard (on cancel). On every other exit path we release it here.
+            if (!awaitingPrompt)
+            {
+                _updateBusy = false;
+                CheckForUpdateCommand.NotifyCanExecuteChanged();
+            }
         }
     }
 
-    public async Task ExecuteUpdateAsync(string downloadUrl)
+    public async Task ExecuteUpdateAsync(string downloadUrl, string? expectedSha256 = null)
     {
+        // Keep _updateBusy held from the originating check; only flip it off once the whole
+        // operation settles. IsUpdateInProgress tracks the download phase specifically.
         try
         {
-            IsCheckingUpdate = true;
+            IsUpdateInProgress = true;
             UpdateStatusText = "正在下载更新...";
 
             var progress = new Progress<int>(percent =>
@@ -631,7 +661,7 @@ public sealed class MainViewModel : ObservableObject
                 UpdateStatusText = $"正在下载更新... {percent}%";
             });
 
-            var success = await _updateService.DownloadAndApplyUpdateAsync(downloadUrl, progress);
+            var success = await _updateService.DownloadAndApplyUpdateAsync(downloadUrl, progress, expectedSha256);
 
             if (success)
             {
@@ -653,12 +683,25 @@ public sealed class MainViewModel : ObservableObject
         }
         finally
         {
-            IsCheckingUpdate = false;
+            IsUpdateInProgress = false;
+            _updateBusy = false;
+            CheckForUpdateCommand.NotifyCanExecuteChanged();
         }
     }
 
     public event EventHandler<UpdateCheckResult>? UpdateRequested;
     public event EventHandler? UpdateConfirmed;
+
+    // Called by the host when the user dismisses the update dialog without confirming, so the
+    // reentrancy guard does not stay latched forever and block future checks.
+    public void ReleaseUpdateGuard()
+    {
+        if (_updateBusy && !IsUpdateInProgress)
+        {
+            _updateBusy = false;
+            CheckForUpdateCommand.NotifyCanExecuteChanged();
+        }
+    }
 
     private static Version GetCurrentVersion()
     {

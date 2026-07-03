@@ -1,4 +1,4 @@
-namespace WitchDrawer.Core.Services;
+namespace WitchDrawer.App.Services;
 
 public sealed class UpdateCheckResult
 {
@@ -9,4 +9,6 @@ public sealed class UpdateCheckResult
     public string ReleaseNotes { get; init; } = string.Empty;
 
     public string DownloadUrl { get; init; } = string.Empty;
+
+    public string? ExpectedSha256 { get; init; }
 }

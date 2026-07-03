@@ -1,4 +1,5 @@
 using WitchDrawer.Core.Abstractions;
+using WitchDrawer.Core.Logging;
 using WitchDrawer.Core.Models;
 using WitchDrawer.Core.Storage;
 
@@ -8,11 +9,25 @@ public sealed class DrawerService
 {
     private readonly AppPaths _paths;
     private readonly DrawerRepository _repository;
+    private readonly IAppLogger? _logger;
+    private readonly MissingItemTracker _missingItemTracker;
 
     public DrawerService(AppPaths paths, DrawerRepository repository)
+        : this(paths, repository, logger: null, missingItemTracker: new MissingItemTracker())
+    {
+    }
+
+    public DrawerService(AppPaths paths, DrawerRepository repository, IAppLogger? logger)
+        : this(paths, repository, logger, new MissingItemTracker())
+    {
+    }
+
+    private DrawerService(AppPaths paths, DrawerRepository repository, IAppLogger? logger, MissingItemTracker missingItemTracker)
     {
         _paths = paths;
         _repository = repository;
+        _logger = logger;
+        _missingItemTracker = missingItemTracker;
     }
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
@@ -140,7 +155,19 @@ public sealed class DrawerService
                 gridRow);
         }
 
-        await _repository.AddItemAsync(item, cancellationToken);
+        // Move-then-persist is inherently non-atomic. If the DB write fails after the file has
+        // already been relocated, roll the file back to its source so we never leave an orphan
+        // the user cannot see or recover.
+        try
+        {
+            await _repository.AddItemAsync(item, cancellationToken);
+        }
+        catch (Exception persistException) when (item.StoredPath is not null)
+        {
+            _logger?.Error(persistException, $"Persisting imported item failed; rolling file back to source.");
+            await TryRollbackMoveAsync(item.StoredPath, fullSourcePath, isDirectory, cancellationToken);
+            throw;
+        }
         return item;
     }
 
@@ -227,6 +254,29 @@ public sealed class DrawerService
 
             displayName = Path.GetFileName(targetPath);
             storedPath = targetPath;
+
+            // Persist with rollback: if the DB update fails, move the file back to its previous
+            // location so the item is neither lost nor stranded in the new box without a record.
+            try
+            {
+                await _repository.MoveItemToBoxAsync(
+                    item,
+                    targetBox.Id,
+                    displayName,
+                    sourcePath,
+                    storedPath,
+                    targetSortOrder,
+                    gridColumn,
+                    gridRow,
+                    cancellationToken);
+            }
+            catch (Exception persistException)
+            {
+                _logger?.Error(persistException, "Persisting cross-box move failed; rolling file back to source.");
+                await TryRollbackMoveAsync(targetPath, fullSourcePath, isDirectory, cancellationToken);
+                throw;
+            }
+            return;
         }
 
         await _repository.MoveItemToBoxAsync(
@@ -280,7 +330,18 @@ public sealed class DrawerService
             }
         }, cancellationToken);
 
-        await _repository.RemoveItemAsync(itemId, cancellationToken);
+        // If the record cannot be removed after the export move, put the file back so the box
+        // stays consistent and the item is still reachable.
+        try
+        {
+            await _repository.RemoveItemAsync(itemId, cancellationToken);
+        }
+        catch (Exception persistException)
+        {
+            _logger?.Error(persistException, "Removing exported item record failed; rolling file back into box storage.");
+            await TryRollbackMoveAsync(targetPath, sourcePath, isDirectory, cancellationToken);
+            throw;
+        }
         return targetPath;
     }
 
@@ -332,22 +393,32 @@ public sealed class DrawerService
                 continue;
             }
 
-            var fileName = Path.GetFileName(sourcePath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
-            var isDirectory = Directory.Exists(sourcePath);
-            var targetPath = FileNameService.GetUniqueDestinationPath(desktopPath, fileName, isDirectory);
-
-            await Task.Run(() =>
+            // Restore each file independently. A single failure (desktop full, name clash,
+            // permission) must not abort the whole box deletion and leave the remaining files
+            // stranded inside storage that is about to be unreferenced.
+            try
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (isDirectory)
+                var fileName = Path.GetFileName(sourcePath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+                var isDirectory = Directory.Exists(sourcePath);
+                var targetPath = FileNameService.GetUniqueDestinationPath(desktopPath, fileName, isDirectory);
+
+                await Task.Run(() =>
                 {
-                    Directory.Move(sourcePath, targetPath);
-                }
-                else
-                {
-                    File.Move(sourcePath, targetPath);
-                }
-            }, cancellationToken);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (isDirectory)
+                    {
+                        Directory.Move(sourcePath, targetPath);
+                    }
+                    else
+                    {
+                        File.Move(sourcePath, targetPath);
+                    }
+                }, cancellationToken);
+            }
+            catch (Exception restoreException)
+            {
+                _logger?.Error(restoreException, $"Failed to restore item {item.Id} to desktop during box deletion; skipping.");
+            }
         }
     }
 
@@ -386,29 +457,37 @@ public sealed class DrawerService
         await launcher.OpenAsync(path, cancellationToken);
     }
 
+    // Reads no longer delete on first miss. Each stored item whose backing file is absent is
+    // tallied by the tracker; only after MissingThreshold consecutive misses is the record
+    // pruned, with a log line explaining the decision. Transient misses (locked file, detached
+    // network drive, AV quarantine) therefore do not silently erase the user's data.
     private async Task PruneMissingStoredItemsAsync(Guid? boxId, CancellationToken cancellationToken)
     {
         var items = await _repository.GetItemsAsync(boxId, cancellationToken);
-        var missingItemIds = await Task.Run(() =>
+
+        var itemsToPrune = await Task.Run(() =>
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return items
-                .Where(IsMissingStoredItem)
-                .Select(item => item.Id)
-                .ToArray();
+            var toPrune = new List<DrawerItem>();
+            foreach (var item in items)
+            {
+                var missing = !string.IsNullOrWhiteSpace(item.StoredPath)
+                    && !File.Exists(item.StoredPath)
+                    && !Directory.Exists(item.StoredPath);
+
+                if (_missingItemTracker.Record(item, missing) == MissingItemTracker.RecordOutcome.Prune)
+                {
+                    toPrune.Add(item);
+                }
+            }
+            return toPrune;
         }, cancellationToken);
 
-        foreach (var itemId in missingItemIds)
+        foreach (var item in itemsToPrune)
         {
-            await _repository.RemoveItemAsync(itemId, cancellationToken);
+            _logger?.Info($"Pruned missing item {item.Id} ('{item.DisplayName}') after {MissingItemTracker.MissingThreshold} consecutive missing reads.");
+            await _repository.RemoveItemAsync(item.Id, cancellationToken);
         }
-    }
-
-    private static bool IsMissingStoredItem(DrawerItem item)
-    {
-        return !string.IsNullOrWhiteSpace(item.StoredPath)
-            && !File.Exists(item.StoredPath)
-            && !Directory.Exists(item.StoredPath);
     }
 
     private async Task EnsureDefaultBoxesAsync(CancellationToken cancellationToken)
@@ -421,5 +500,36 @@ public sealed class DrawerService
 
         await CreateBoxAsync("普通收纳盒", BoxType.Normal, cancellationToken);
         await CreateBoxAsync("映射收纳盒", BoxType.Mapping, cancellationToken);
+    }
+
+    // Best-effort rollback used when a persist step fails after a file move. We never let a
+    // rollback error mask the original failure: it is logged and swallowed so the caller sees
+    // the real cause. If the destination is already gone (concurrent delete) we silently move on.
+    private async Task TryRollbackMoveAsync(string currentPath, string originalPath, bool isDirectory, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (isDirectory ? !Directory.Exists(currentPath) : !File.Exists(currentPath))
+            {
+                return;
+            }
+
+            await Task.Run(() =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (isDirectory)
+                {
+                    Directory.Move(currentPath, originalPath);
+                }
+                else
+                {
+                    File.Move(currentPath, originalPath);
+                }
+            }, cancellationToken);
+        }
+        catch (Exception rollbackException)
+        {
+            _logger?.Error(rollbackException, $"Rollback move from '{currentPath}' to '{originalPath}' failed.");
+        }
     }
 }

@@ -240,7 +240,7 @@ public sealed class DrawerRepository
         return await reader.ReadAsync(cancellationToken) ? ReadItem(reader) : null;
     }
 
-    public async Task AddItemAsync(DrawerItem item, CancellationToken cancellationToken = default)
+    public virtual async Task AddItemAsync(DrawerItem item, CancellationToken cancellationToken = default)
     {
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);
@@ -292,7 +292,7 @@ public sealed class DrawerRepository
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    public async Task MoveItemToBoxAsync(
+    public virtual async Task MoveItemToBoxAsync(
         DrawerItem item,
         Guid targetBoxId,
         string displayName,
@@ -333,7 +333,7 @@ public sealed class DrawerRepository
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    public async Task RemoveItemAsync(Guid itemId, CancellationToken cancellationToken = default)
+    public virtual async Task RemoveItemAsync(Guid itemId, CancellationToken cancellationToken = default)
     {
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);

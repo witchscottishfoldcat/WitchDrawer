@@ -27,9 +27,40 @@ internal static class FileNameService
         throw new IOException($"Could not find a free file name for {originalName}.");
     }
 
+    // Windows file systems are case-insensitive, so File.Exists("report.txt") already returns true
+    // when "Report.TXT" is on disk. The EnumateFileSystemEntries fallback guards against edge
+    // cases (e.g. long paths or alternative separators) where the direct probe can miss an
+    // existing entry of different casing, which would otherwise produce a silent overwrite.
     private static bool Exists(string path, bool isDirectory)
     {
-        return isDirectory ? Directory.Exists(path) : File.Exists(path);
+        if (isDirectory ? Directory.Exists(path) : File.Exists(path))
+        {
+            return true;
+        }
+
+        var parent = Path.GetDirectoryName(path);
+        var leaf = Path.GetFileName(path);
+        if (string.IsNullOrEmpty(parent) || string.IsNullOrEmpty(leaf))
+        {
+            return false;
+        }
+
+        try
+        {
+            return Directory.EnumerateFileSystemEntries(parent, leaf)
+                .Any(existing => string.Equals(Path.GetFileName(existing), leaf, StringComparison.OrdinalIgnoreCase));
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return false;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 }
-

@@ -327,11 +327,20 @@ public sealed class DrawerServiceTests
         Directory.CreateDirectory(Path.GetDirectoryName(exportedPath)!);
 
         File.Move(item.StoredPath!, exportedPath);
-        var items = await workspace.Service.GetItemsAsync(normalBox.Id);
+
+        // Pruning is now delayed: the first couple of reads tolerate a transient miss so a
+        // locked file or detached drive does not erase the record. Only the third consecutive
+        // miss prunes.
+        var firstRead = await workspace.Service.GetItemsAsync(normalBox.Id);
+        var secondRead = await workspace.Service.GetItemsAsync(normalBox.Id);
+        Assert.Single(firstRead);
+        Assert.Single(secondRead);
+
+        var thirdRead = await workspace.Service.GetItemsAsync(normalBox.Id);
         var storedItems = await workspace.Repository.GetItemsAsync(normalBox.Id);
 
         Assert.True(File.Exists(exportedPath));
-        Assert.Empty(items);
+        Assert.Empty(thirdRead);
         Assert.Empty(storedItems);
     }
 
@@ -393,77 +402,5 @@ public sealed class DrawerServiceTests
         Assert.True(File.Exists(source));
         Assert.DoesNotContain(boxes, box => box.Id == mappingBox.Id);
         Assert.Empty(remainingItems);
-    }
-
-    private sealed class RecordingTrash : IFileTrash
-    {
-        public List<string> Paths { get; } = [];
-
-        public Task MoveToRecycleBinAsync(string path, CancellationToken cancellationToken = default)
-        {
-            Paths.Add(path);
-            return Task.CompletedTask;
-        }
-    }
-
-    private sealed class TestWorkspace : IDisposable
-    {
-        private TestWorkspace(string root, AppPaths paths, DrawerRepository repository, DrawerService service)
-        {
-            Root = root;
-            Paths = paths;
-            Repository = repository;
-            Service = service;
-        }
-
-        public string Root { get; }
-
-        public AppPaths Paths { get; }
-
-        public DrawerRepository Repository { get; }
-
-        public DrawerService Service { get; }
-
-        public static async Task<TestWorkspace> CreateAsync()
-        {
-            var root = Path.Combine(Path.GetTempPath(), "WitchDrawer.Tests", Guid.NewGuid().ToString("N"));
-            var paths = new AppPaths(root);
-            var repository = new DrawerRepository(paths.DatabasePath);
-            var service = new DrawerService(paths, repository);
-
-            await service.InitializeAsync();
-            return new TestWorkspace(root, paths, repository, service);
-        }
-
-        public string CreateSourceFile(string folderName, string fileName, string content)
-        {
-            var directory = Path.Combine(Root, "sources", folderName);
-            Directory.CreateDirectory(directory);
-
-            var path = Path.Combine(directory, fileName);
-            File.WriteAllText(path, content);
-            return path;
-        }
-
-        public async Task<Box> GetBoxAsync(BoxType type)
-        {
-            var boxes = await Service.GetBoxesAsync();
-            return boxes.Single(box => box.Type == type);
-        }
-
-        public void Dispose()
-        {
-            try
-            {
-                if (Directory.Exists(Root))
-                {
-                    Directory.Delete(Root, recursive: true);
-                }
-            }
-            catch
-            {
-                // Temp cleanup should not hide the test result.
-            }
-        }
     }
 }

@@ -128,6 +128,7 @@ public sealed class TaskbarIcon : IDisposable
         private readonly TaskbarIcon _owner;
         private readonly nint _hwnd;
         private readonly NativeMethods.WndProcDelegate _wndProc;
+        private readonly ushort _classAtom;
 
         public nint Handle => _hwnd;
 
@@ -146,7 +147,7 @@ public sealed class TaskbarIcon : IDisposable
                 hInstance = NativeMethods.GetModuleHandle(nint.Zero),
             };
 
-            NativeMethods.RegisterClassW(ref wc);
+            _classAtom = NativeMethods.RegisterClassW(ref wc);
             _hwnd = NativeMethods.CreateWindowExW(0, className, string.Empty, 0, 0, 0, 0, 0, nint.Zero, nint.Zero, wc.hInstance, nint.Zero);
         }
 
@@ -173,6 +174,13 @@ public sealed class TaskbarIcon : IDisposable
             if (_hwnd != nint.Zero)
             {
                 NativeMethods.DestroyWindow(_hwnd);
+            }
+
+            // The window class was registered per-instance; unregister it so repeated show/hide
+            // cycles do not leak entries in the per-process atom table.
+            if (_classAtom != 0)
+            {
+                NativeMethods.UnregisterClassW(_classAtom, NativeMethods.GetModuleHandle(nint.Zero));
             }
 
             GC.SuppressFinalize(this);
@@ -239,6 +247,10 @@ public sealed class TaskbarIcon : IDisposable
 
         [DllImport("user32.dll", CharSet = CharSet.Unicode)]
         public static extern ushort RegisterClassW(ref WNDCLASS lpWndClass);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool UnregisterClassW(ushort atom, nint hInstance);
 
         [DllImport("user32.dll", CharSet = CharSet.Unicode)]
         public static extern nint CreateWindowExW(uint dwExStyle, string lpClassName, string lpWindowName, uint dwStyle, int x, int y, int nWidth, int nHeight, nint hWndParent, nint hMenu, nint hInstance, nint lpParam);
