@@ -5,7 +5,7 @@
 <h1 align="center">WitchDrawer</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.0-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.0.3-blue" alt="Version" />
   <img src="https://img.shields.io/badge/license-CC%20BY--NC--SA%204.0-green" alt="License" />
   <img src="https://img.shields.io/badge/.NET-10.0-purple" alt=".NET" />
   <img src="https://img.shields.io/badge/platform-Windows-blue" alt="Platform" />
@@ -30,7 +30,7 @@ English: WitchDrawer is a lightweight Windows desktop file drawer built with nat
 - **图标大小** — 超大 / 大 / 中 / 小 四档可调
 - **开机自启动** — 可在设置中开启/关闭
 - **检查更新** — 自动检测 GitHub Releases 新版本
-- **回收站删除** — 删除操作默认使用回收站，保护用户数据
+- **原位还原删除** — 删除收纳项或收纳盒时，普通/像素盒文件恢复到原来的位置；原位置不可用则回退到桌面，重名自动加后缀；映射盒只删除引用
 - **系统托盘** — 最小化到系统托盘，不占用任务栏
 - **单实例运行** — 防止重复启动
 
@@ -40,7 +40,7 @@ English: WitchDrawer is a lightweight Windows desktop file drawer built with nat
 |------|------|
 | .NET 10 | 运行时 |
 | WPF | 原生 Windows UI |
-| Win32 API | Shell 打开、回收站、全局快捷键、窗口层级 |
+| Win32 API | Shell 打开、全局快捷键、窗口层级 |
 | SQLite | 本地持久化（WAL 模式） |
 | CommunityToolkit.Mvvm | MVVM 框架 |
 | xUnit | 单元测试 |
@@ -54,7 +54,7 @@ WitchDrawer.sln
 src/
   WitchDrawer.App/       WPF UI、窗口、视图模型、拖放、快捷键绑定
   WitchDrawer.Core/      模型、SQLite 持久化、文件导入/删除规则、更新检查
-  WitchDrawer.Native/    Shell 打开、回收站、全局快捷键、系统托盘
+  WitchDrawer.Native/    Shell 打开、全局快捷键、系统托盘
 tests/
   WitchDrawer.Core.Tests/
 ```
@@ -82,7 +82,7 @@ src/WitchDrawer.App/bin/Debug/net10.0-windows/WitchDrawer.App.exe
 dotnet test WitchDrawer.sln
 ```
 
-测试覆盖：默认收纳盒创建、普通/映射/像素盒导入、重复文件名后缀、跨盒移动、回收站删除等。
+测试覆盖：默认收纳盒创建、普通/映射/像素盒导入、重复文件名后缀、跨盒移动、原位还原删除、更新 URL 校验等。
 
 ## 运行时数据
 

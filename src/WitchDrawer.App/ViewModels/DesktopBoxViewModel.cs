@@ -19,7 +19,6 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     private readonly DrawerService _drawerService;
     private readonly IFileLauncher _launcher;
-    private readonly IFileTrash _trash;
     private readonly IAppLogger _logger;
     private readonly DesktopBoxLayoutSettings _layoutSettings;
     private Box _box;
@@ -39,14 +38,12 @@ public sealed class DesktopBoxViewModel : ObservableObject
         Box box,
         DrawerService drawerService,
         IFileLauncher launcher,
-        IFileTrash trash,
         IAppLogger logger,
         DesktopBoxLayoutSettings? layoutSettings = null)
     {
         _box = box;
         _drawerService = drawerService;
         _launcher = launcher;
-        _trash = trash;
         _logger = logger;
         _layoutSettings = layoutSettings ?? new DesktopBoxLayoutSettings();
         _layoutSettings.PropertyChanged += OnLayoutSettingsChanged;
@@ -313,8 +310,6 @@ public sealed class DesktopBoxViewModel : ObservableObject
                 Items.Insert(i, itemViewModel);
             }
 
-            await NormalizeGridAndSaveAsync();
-
             StatusText = Items.Count == 0 ? "拖入文件" : "已同步";
             UpdateGridCanvasSize();
             OnPropertyChanged(nameof(ItemCountLabel));
@@ -358,7 +353,6 @@ public sealed class DesktopBoxViewModel : ObservableObject
             }
 
             await LoadAsync();
-            await NormalizeGridAndSaveAsync();
             StatusText = $"已收纳 {importedIds.Count} 项";
             ItemsChanged?.Invoke(this, EventArgs.Empty);
             return importedIds;
@@ -402,7 +396,6 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
             if (movedAcrossBoxes)
             {
-                await NormalizeGridAndSaveAsync();
                 ItemsChanged?.Invoke(this, EventArgs.Empty);
             }
 
@@ -443,8 +436,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
             var exportedPath = await _drawerService.ExportItemToDirectoryAsync(item.Id, desktopDirectory);
             await LoadAsync();
-            await NormalizeGridAndSaveAsync();
-            StatusText = $"Moved to desktop: {Path.GetFileName(exportedPath)}";
+            StatusText = $"已移到桌面：{Path.GetFileName(exportedPath)}";
             ItemsChanged?.Invoke(this, EventArgs.Empty);
             return true;
         }
@@ -534,10 +526,9 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
         try
         {
-            await _drawerService.DeleteItemAsync(item.Id, _trash);
+            var result = await _drawerService.DeleteItemAsync(item.Id);
             await LoadAsync();
-            await NormalizeGridAndSaveAsync();
-            StatusText = $"已移除 {item.DisplayName}";
+            StatusText = result.StatusMessage;
             ItemsChanged?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception exception)
@@ -568,8 +559,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
         await _drawerService.UpdateItemGridPositionAsync(item.Id, targetColumn, targetRow);
         item.SetGridPosition(targetColumn, targetRow, LayoutSettings);
-        
-        await NormalizeGridAndSaveAsync();
+        UpdateGridCanvasSize();
     }
 
     private Dictionary<Guid, (int Column, int Row)> ResolveItemPositions(IReadOnlyList<DrawerItem> items)
@@ -602,26 +592,6 @@ public sealed class DesktopBoxViewModel : ObservableObject
         }
 
         return positions;
-    }
-
-    private async Task NormalizeGridAndSaveAsync()
-    {
-        if (Items.Count == 0) return;
-        var minCol = Items.Min(i => i.GridColumn);
-        var minRow = Items.Min(i => i.GridRow);
-
-        if (minCol != 0 || minRow != 0)
-        {
-            foreach (var item in Items)
-            {
-                var newCol = item.GridColumn - minCol;
-                var newRow = item.GridRow - minRow;
-                item.SetGridPosition(newCol, newRow, LayoutSettings);
-                await _drawerService.UpdateItemGridPositionAsync(item.Id, newCol, newRow);
-            }
-        }
-        
-        UpdateGridCanvasSize();
     }
 
     private (int Column, int Row) FindFirstFreeSlot(
