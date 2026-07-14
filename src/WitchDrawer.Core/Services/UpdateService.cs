@@ -1,15 +1,20 @@
 using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using WitchDrawer.Core.Logging;
 
 namespace WitchDrawer.Core.Services;
 
 public sealed class UpdateService
 {
-    private const string GitHubRepoApiUrl = "https://api.github.com/repos/witchscottishfoldcat/WitchDrawer/releases/latest";
-    private const string GitHubReleasePageUrl = "https://github.com/witchscottishfoldcat/WitchDrawer/releases/latest";
+    private const string GitHubOwner = "witchscottishfoldcat";
+    private const string GitHubRepo = "WitchDrawer";
+    private const string GitHubRepoApiUrl = $"https://api.github.com/repos/{GitHubOwner}/{GitHubRepo}/releases/latest";
+    private const string GitHubReleasePageUrl = $"https://github.com/{GitHubOwner}/{GitHubRepo}/releases/latest";
     private const string VersionTagPrefix = "v";
 
     private static readonly HttpClient HttpClient = new(new HttpClientHandler())
@@ -19,6 +24,8 @@ public sealed class UpdateService
             { "User-Agent", "WitchDrawer" }
         }
     };
+
+    private static readonly Regex Sha256HexRegex = new("^[a-fA-F0-9]{64}$", RegexOptions.Compiled);
 
     private readonly IAppLogger _logger;
 
@@ -53,14 +60,20 @@ public sealed class UpdateService
             }
 
             var hasUpdate = remoteVersion > currentVersion;
-            var downloadUrl = FindAssetUrl(response.Assets);
+            var (downloadUrl, expectedSha256) = await ResolveAssetAsync(response.Assets);
+
+            if (string.IsNullOrWhiteSpace(downloadUrl))
+            {
+                downloadUrl = string.IsNullOrEmpty(response.HtmlUrl) ? GitHubReleasePageUrl : response.HtmlUrl;
+            }
 
             return new UpdateCheckResult
             {
                 HasUpdate = hasUpdate,
                 LatestVersion = remoteVersion,
                 ReleaseNotes = TruncateReleaseNotes(response.Body, 500),
-                DownloadUrl = downloadUrl ?? (string.IsNullOrEmpty(response.HtmlUrl) ? GitHubReleasePageUrl : response.HtmlUrl)
+                DownloadUrl = downloadUrl,
+                ExpectedSha256 = expectedSha256
             };
         }
         catch (Exception exception)
@@ -70,10 +83,19 @@ public sealed class UpdateService
         }
     }
 
-    public async Task<bool> DownloadAndApplyUpdateAsync(string downloadUrl, IProgress<int>? progress = null)
+    public async Task<bool> DownloadAndApplyUpdateAsync(
+        string downloadUrl,
+        IProgress<int>? progress = null,
+        string? expectedSha256 = null)
     {
         try
         {
+            if (!IsAllowedDownloadUrl(downloadUrl))
+            {
+                _logger.Info($"Rejected update download URL: {downloadUrl}");
+                return false;
+            }
+
             var tempDir = Path.Combine(Path.GetTempPath(), "WitchDrawerUpdate");
             if (Directory.Exists(tempDir))
             {
@@ -108,9 +130,25 @@ public sealed class UpdateService
                 }
             }
 
+            if (!string.IsNullOrWhiteSpace(expectedSha256))
+            {
+                var actualHash = await ComputeSha256HexAsync(zipPath);
+                if (!string.Equals(actualHash, expectedSha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.Info($"Update hash mismatch. expected={expectedSha256} actual={actualHash}");
+                    TryDeleteDirectory(tempDir);
+                    return false;
+                }
+            }
+            else
+            {
+                _logger.Info("Update asset has no published SHA-256; continuing with URL allowlist only.");
+            }
+
             System.IO.Compression.ZipFile.ExtractToDirectory(zipPath, tempDir, overwriteFiles: true);
 
-            var appDir = AppContext.BaseDirectory;
+            var appDir = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                + Path.DirectorySeparatorChar;
             var updaterPath = Path.Combine(tempDir, "updater.bat");
 
             var batContent = $"""
@@ -131,7 +169,7 @@ rmdir /s /q "{tempDir}" >nul 2>&1
 del "%~f0" >nul 2>&1
 """;
 
-            await File.WriteAllTextAsync(updaterPath, batContent);
+            await File.WriteAllTextAsync(updaterPath, batContent, Encoding.ASCII);
 
             Process.Start(new ProcessStartInfo
             {
@@ -150,19 +188,157 @@ del "%~f0" >nul 2>&1
         }
     }
 
-    private static string? FindAssetUrl(List<GitHubAsset>? assets)
+    internal static bool IsAllowedDownloadUrl(string downloadUrl)
+    {
+        if (!Uri.TryCreate(downloadUrl, UriKind.Absolute, out var uri))
+        {
+            return false;
+        }
+
+        if (!string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var host = uri.Host;
+        if (host.Equals("github.com", StringComparison.OrdinalIgnoreCase))
+        {
+            return uri.AbsolutePath.Contains($"/{GitHubOwner}/{GitHubRepo}/", StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (host.Equals("objects.githubusercontent.com", StringComparison.OrdinalIgnoreCase)
+            || host.Equals("release-assets.githubusercontent.com", StringComparison.OrdinalIgnoreCase)
+            || host.EndsWith(".githubusercontent.com", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private async Task<(string? DownloadUrl, string? Sha256)> ResolveAssetAsync(List<GitHubAsset>? assets)
     {
         if (assets is null || assets.Count == 0)
         {
-            return null;
+            return (null, null);
         }
 
-        // Detect architecture to pick the right asset.
         var arch = RuntimeInformation.ProcessArchitecture;
         var archKeyword = arch == Architecture.Arm64 ? "arm64" : "x64";
 
-        var match = assets.FirstOrDefault(a => a.Name.Contains(archKeyword, StringComparison.OrdinalIgnoreCase));
-        return (match ?? assets[0]).BrowserDownloadUrl;
+        var zipAssets = assets
+            .Where(asset => asset.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        var match = zipAssets.FirstOrDefault(asset => asset.Name.Contains(archKeyword, StringComparison.OrdinalIgnoreCase))
+            ?? zipAssets.FirstOrDefault()
+            ?? assets.FirstOrDefault(asset => asset.Name.Contains(archKeyword, StringComparison.OrdinalIgnoreCase))
+            ?? assets[0];
+
+        if (match is null || string.IsNullOrWhiteSpace(match.BrowserDownloadUrl))
+        {
+            return (null, null);
+        }
+
+        if (!IsAllowedDownloadUrl(match.BrowserDownloadUrl))
+        {
+            _logger.Info($"Rejected release asset URL: {match.BrowserDownloadUrl}");
+            return (null, null);
+        }
+
+        var sha256 = await TryResolveSha256Async(assets, match);
+        return (match.BrowserDownloadUrl, sha256);
+    }
+
+    private async Task<string?> TryResolveSha256Async(List<GitHubAsset> assets, GitHubAsset packageAsset)
+    {
+        var companion = assets.FirstOrDefault(asset =>
+            asset.Name.Equals(packageAsset.Name + ".sha256", StringComparison.OrdinalIgnoreCase)
+            || asset.Name.Equals(packageAsset.Name + ".sha256.txt", StringComparison.OrdinalIgnoreCase));
+
+        if (companion is not null && IsAllowedDownloadUrl(companion.BrowserDownloadUrl))
+        {
+            return await ReadSha256FromAssetAsync(companion.BrowserDownloadUrl, packageAsset.Name);
+        }
+
+        var checksums = assets.FirstOrDefault(asset =>
+            asset.Name.Equals("SHA256SUMS", StringComparison.OrdinalIgnoreCase)
+            || asset.Name.Equals("checksums.txt", StringComparison.OrdinalIgnoreCase)
+            || asset.Name.EndsWith(".sha256sums", StringComparison.OrdinalIgnoreCase));
+
+        if (checksums is not null && IsAllowedDownloadUrl(checksums.BrowserDownloadUrl))
+        {
+            return await ReadSha256FromAssetAsync(checksums.BrowserDownloadUrl, packageAsset.Name);
+        }
+
+        return null;
+    }
+
+    private async Task<string?> ReadSha256FromAssetAsync(string url, string packageFileName)
+    {
+        try
+        {
+            var text = await HttpClient.GetStringAsync(url);
+            foreach (var rawLine in text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+            {
+                var line = rawLine.Trim();
+                if (line.Length == 0 || line.StartsWith('#'))
+                {
+                    continue;
+                }
+
+                var parts = line.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length == 0)
+                {
+                    continue;
+                }
+
+                var candidateHash = parts[0].Trim().TrimStart('*');
+                if (!Sha256HexRegex.IsMatch(candidateHash))
+                {
+                    continue;
+                }
+
+                if (parts.Length == 1)
+                {
+                    return candidateHash.ToLowerInvariant();
+                }
+
+                var fileName = parts[^1].Trim().TrimStart('*');
+                if (string.Equals(Path.GetFileName(fileName), packageFileName, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(fileName, packageFileName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return candidateHash.ToLowerInvariant();
+                }
+            }
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to read update checksum asset.");
+        }
+
+        return null;
+    }
+
+    private static async Task<string> ComputeSha256HexAsync(string filePath)
+    {
+        await using var stream = File.OpenRead(filePath);
+        var hash = await SHA256.HashDataAsync(stream);
+        return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+
+    private static void TryDeleteDirectory(string path)
+    {
+        try
+        {
+            if (Directory.Exists(path))
+            {
+                Directory.Delete(path, recursive: true);
+            }
+        }
+        catch
+        {
+        }
     }
 
     private static string TruncateReleaseNotes(string? body, int maxLength)

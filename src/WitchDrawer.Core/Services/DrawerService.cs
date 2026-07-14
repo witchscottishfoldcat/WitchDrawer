@@ -113,18 +113,7 @@ public sealed class DrawerService
             var targetPath = FileNameService.GetUniqueDestinationPath(storageRoot, displayName, isDirectory);
             PathSafety.EnsureChildPath(storageRoot, targetPath);
 
-            await Task.Run(() =>
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (isDirectory)
-                {
-                    Directory.Move(fullSourcePath, targetPath);
-                }
-                else
-                {
-                    File.Move(fullSourcePath, targetPath);
-                }
-            }, cancellationToken);
+            await SafeFileOps.MoveAsync(fullSourcePath, targetPath, isDirectory, cancellationToken);
 
             item = new DrawerItem(
                 Guid.NewGuid(),
@@ -138,6 +127,18 @@ public sealed class DrawerService
                 now,
                 gridColumn,
                 gridRow);
+
+            try
+            {
+                await _repository.AddItemAsync(item, cancellationToken);
+            }
+            catch
+            {
+                await TryCompensateMoveAsync(targetPath, fullSourcePath, isDirectory, cancellationToken);
+                throw;
+            }
+
+            return item;
         }
 
         await _repository.AddItemAsync(item, cancellationToken);
@@ -212,21 +213,31 @@ public sealed class DrawerService
             var targetPath = FileNameService.GetUniqueDestinationPath(storageRoot, displayName, isDirectory);
             PathSafety.EnsureChildPath(storageRoot, targetPath);
 
-            await Task.Run(() =>
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (isDirectory)
-                {
-                    Directory.Move(fullSourcePath, targetPath);
-                }
-                else
-                {
-                    File.Move(fullSourcePath, targetPath);
-                }
-            }, cancellationToken);
+            await SafeFileOps.MoveAsync(fullSourcePath, targetPath, isDirectory, cancellationToken);
 
             displayName = Path.GetFileName(targetPath);
             storedPath = targetPath;
+
+            try
+            {
+                await _repository.MoveItemToBoxAsync(
+                    item,
+                    targetBox.Id,
+                    displayName,
+                    sourcePath,
+                    storedPath,
+                    targetSortOrder,
+                    gridColumn,
+                    gridRow,
+                    cancellationToken);
+            }
+            catch
+            {
+                await TryCompensateMoveAsync(targetPath, fullSourcePath, isDirectory, cancellationToken);
+                throw;
+            }
+
+            return;
         }
 
         await _repository.MoveItemToBoxAsync(
@@ -267,87 +278,297 @@ public sealed class DrawerService
         var targetPath = FileNameService.GetUniqueDestinationPath(fullTargetDirectory, displayName, isDirectory);
         PathSafety.EnsureChildPath(fullTargetDirectory, targetPath);
 
-        await Task.Run(() =>
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (isDirectory)
-            {
-                Directory.Move(sourcePath, targetPath);
-            }
-            else
-            {
-                File.Move(sourcePath, targetPath);
-            }
-        }, cancellationToken);
+        await SafeFileOps.MoveAsync(sourcePath, targetPath, isDirectory, cancellationToken);
 
-        await _repository.RemoveItemAsync(itemId, cancellationToken);
+        try
+        {
+            await _repository.RemoveItemAsync(itemId, cancellationToken);
+        }
+        catch
+        {
+            await TryCompensateMoveAsync(targetPath, sourcePath, isDirectory, cancellationToken);
+            throw;
+        }
+
         return targetPath;
     }
 
-    public async Task DeleteItemAsync(Guid itemId, IFileTrash trash, CancellationToken cancellationToken = default)
+    public async Task<ItemDeleteResult> DeleteItemAsync(Guid itemId, CancellationToken cancellationToken = default)
     {
         var item = await _repository.GetItemAsync(itemId, cancellationToken)
             ?? throw new InvalidOperationException("Item does not exist.");
 
-        if (item.StoredPath is not null && (File.Exists(item.StoredPath) || Directory.Exists(item.StoredPath)))
+        if (string.IsNullOrWhiteSpace(item.StoredPath))
         {
-            await trash.MoveToRecycleBinAsync(item.StoredPath, cancellationToken);
+            await _repository.RemoveItemAsync(itemId, cancellationToken);
+            return ItemDeleteResult.ReferenceRemoved(item.Id, item.DisplayName);
         }
 
-        await _repository.RemoveItemAsync(itemId, cancellationToken);
+        var restore = await RestoreStoredItemAsync(item, reservedTargets: null, cancellationToken);
+        try
+        {
+            await _repository.RemoveItemAsync(itemId, cancellationToken);
+        }
+        catch
+        {
+            // Best effort: try to put the file back into box storage if the DB write failed.
+            if (!string.IsNullOrWhiteSpace(item.StoredPath) && !string.IsNullOrWhiteSpace(restore.RestoredPath))
+            {
+                var isDirectory = item.ItemKind == ItemKind.Directory;
+                await TryCompensateMoveAsync(restore.RestoredPath, item.StoredPath, isDirectory, cancellationToken);
+            }
+
+            throw;
+        }
+
+        return restore;
     }
 
-    public async Task DeleteBoxAsync(Guid boxId, IFileTrash trash, CancellationToken cancellationToken = default)
+    public async Task<BoxDeleteResult> DeleteBoxAsync(Guid boxId, CancellationToken cancellationToken = default)
     {
         var box = await _repository.GetBoxAsync(boxId, cancellationToken)
             ?? throw new InvalidOperationException("Box does not exist.");
 
-        if (box.Type == BoxType.Normal || box.Type == BoxType.Pixel)
+        if (box.Type == BoxType.Mapping)
         {
-            await RestoreItemsToDesktopAsync(boxId, cancellationToken);
-        }
-
-        await _repository.RemoveBoxAsync(boxId, cancellationToken);
-    }
-
-    private async Task RestoreItemsToDesktopAsync(Guid boxId, CancellationToken cancellationToken)
-    {
-        var desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-        if (string.IsNullOrWhiteSpace(desktopPath))
-        {
-            return;
+            await _repository.RemoveBoxAsync(boxId, cancellationToken);
+            return new BoxDeleteResult(
+                box.Id,
+                box.Name,
+                box.Type,
+                BoxRemoved: true,
+                RestoredCount: 0,
+                FailedCount: 0,
+                Failures: Array.Empty<string>());
         }
 
         var items = await _repository.GetItemsAsync(boxId, cancellationToken);
+        var reservedTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var restoredCount = 0;
+        var failures = new List<string>();
+
         foreach (var item in items)
         {
             if (string.IsNullOrWhiteSpace(item.StoredPath))
             {
+                await _repository.RemoveItemAsync(item.Id, cancellationToken);
                 continue;
             }
 
-            var sourcePath = item.StoredPath;
-            if (!File.Exists(sourcePath) && !Directory.Exists(sourcePath))
+            try
+            {
+                await RestoreStoredItemAsync(item, reservedTargets, cancellationToken);
+                await _repository.RemoveItemAsync(item.Id, cancellationToken);
+                restoredCount++;
+            }
+            catch (Exception exception)
+            {
+                failures.Add($"{item.DisplayName}: {exception.Message}");
+            }
+        }
+
+        if (failures.Count > 0)
+        {
+            return new BoxDeleteResult(
+                box.Id,
+                box.Name,
+                box.Type,
+                BoxRemoved: false,
+                RestoredCount: restoredCount,
+                FailedCount: failures.Count,
+                Failures: failures);
+        }
+
+        await _repository.RemoveBoxAsync(boxId, cancellationToken);
+        TryDeleteBoxStorageDirectory(box);
+
+        return new BoxDeleteResult(
+            box.Id,
+            box.Name,
+            box.Type,
+            BoxRemoved: true,
+            RestoredCount: restoredCount,
+            FailedCount: 0,
+            Failures: Array.Empty<string>());
+    }
+
+    private async Task<ItemDeleteResult> RestoreStoredItemAsync(
+        DrawerItem item,
+        HashSet<string>? reservedTargets,
+        CancellationToken cancellationToken)
+    {
+        var plan = CreateRestorePlan(item, reservedTargets);
+        await SafeFileOps.MoveAsync(plan.SourcePath, plan.TargetPath, plan.IsDirectory, cancellationToken);
+
+        return new ItemDeleteResult(
+            item.Id,
+            item.DisplayName,
+            WasStoredItem: true,
+            RestoredPath: plan.TargetPath,
+            RestoredToOriginal: plan.RestoredToOriginal,
+            RestoredToDesktop: plan.RestoredToDesktop);
+    }
+
+    private RestorePlan CreateRestorePlan(DrawerItem item, HashSet<string>? reservedTargets)
+    {
+        if (string.IsNullOrWhiteSpace(item.StoredPath))
+        {
+            throw new InvalidOperationException("Mapping items do not have stored files to restore.");
+        }
+
+        var storedPath = PathSafety.GetFullExistingPath(item.StoredPath);
+        PathSafety.EnsureChildPath(_paths.BoxesDirectory, storedPath);
+
+        var isDirectory = Directory.Exists(storedPath);
+        var originalName = ResolveRestoreFileName(item, storedPath);
+
+        if (TryGetExistingOriginalDirectory(item.SourcePath, out var originalDirectory))
+        {
+            var targetPath = GetReservedUniqueDestinationPath(originalDirectory, originalName, isDirectory, reservedTargets);
+            PathSafety.EnsureChildPath(originalDirectory, targetPath);
+            return new RestorePlan(storedPath, targetPath, isDirectory, RestoredToOriginal: true, RestoredToDesktop: false);
+        }
+
+        var desktopDirectory = GetDesktopDirectory();
+        Directory.CreateDirectory(desktopDirectory);
+        var desktopTarget = GetReservedUniqueDestinationPath(desktopDirectory, originalName, isDirectory, reservedTargets);
+        PathSafety.EnsureChildPath(desktopDirectory, desktopTarget);
+        return new RestorePlan(storedPath, desktopTarget, isDirectory, RestoredToOriginal: false, RestoredToDesktop: true);
+    }
+
+    private static string ResolveRestoreFileName(DrawerItem item, string storedPath)
+    {
+        if (!string.IsNullOrWhiteSpace(item.SourcePath))
+        {
+            try
+            {
+                var originalPath = Path.GetFullPath(item.SourcePath);
+                var fromSource = Path.GetFileName(originalPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+                if (!string.IsNullOrWhiteSpace(fromSource))
+                {
+                    return fromSource;
+                }
+            }
+            catch
+            {
+                // Fall through to display name / stored path.
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.DisplayName))
+        {
+            return item.DisplayName;
+        }
+
+        var fromStored = Path.GetFileName(storedPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        if (string.IsNullOrWhiteSpace(fromStored))
+        {
+            throw new InvalidOperationException("Item does not contain a file name to restore.");
+        }
+
+        return fromStored;
+    }
+
+    private static bool TryGetExistingOriginalDirectory(string? sourcePath, out string directory)
+    {
+        directory = string.Empty;
+        if (string.IsNullOrWhiteSpace(sourcePath))
+        {
+            return false;
+        }
+
+        try
+        {
+            var originalPath = Path.GetFullPath(sourcePath);
+            var originalDirectory = Path.GetDirectoryName(originalPath);
+            if (string.IsNullOrWhiteSpace(originalDirectory) || !Directory.Exists(originalDirectory))
+            {
+                return false;
+            }
+
+            directory = originalDirectory;
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static string GetDesktopDirectory()
+    {
+        var desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+        if (string.IsNullOrWhiteSpace(desktopPath))
+        {
+            desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        }
+
+        if (string.IsNullOrWhiteSpace(desktopPath))
+        {
+            throw new InvalidOperationException("Desktop directory is not available for restore fallback.");
+        }
+
+        return Path.GetFullPath(desktopPath);
+    }
+
+    private static string GetReservedUniqueDestinationPath(
+        string directory,
+        string fileName,
+        bool isDirectory,
+        HashSet<string>? reservedTargets)
+    {
+        var targetPath = FileNameService.GetUniqueDestinationPath(directory, fileName, isDirectory);
+        if (reservedTargets is null)
+        {
+            return targetPath;
+        }
+
+        var normalizedTargetPath = Path.GetFullPath(targetPath);
+        if (reservedTargets.Add(normalizedTargetPath))
+        {
+            return targetPath;
+        }
+
+        var nameWithoutExtension = isDirectory ? fileName : Path.GetFileNameWithoutExtension(fileName);
+        var extension = isDirectory ? string.Empty : Path.GetExtension(fileName);
+        for (var index = 1; index < 10_000; index++)
+        {
+            var candidate = Path.Combine(directory, $"{nameWithoutExtension} ({index}){extension}");
+            var normalizedCandidate = Path.GetFullPath(candidate);
+            if ((isDirectory ? Directory.Exists(candidate) : File.Exists(candidate))
+                || !reservedTargets.Add(normalizedCandidate))
             {
                 continue;
             }
 
-            var fileName = Path.GetFileName(sourcePath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
-            var isDirectory = Directory.Exists(sourcePath);
-            var targetPath = FileNameService.GetUniqueDestinationPath(desktopPath, fileName, isDirectory);
+            return candidate;
+        }
 
-            await Task.Run(() =>
+        throw new IOException($"Could not find a unique destination for {fileName}.");
+    }
+
+    private void TryDeleteBoxStorageDirectory(Box box)
+    {
+        try
+        {
+            var storagePath = box.StoragePath;
+            if (string.IsNullOrWhiteSpace(storagePath))
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (isDirectory)
-                {
-                    Directory.Move(sourcePath, targetPath);
-                }
-                else
-                {
-                    File.Move(sourcePath, targetPath);
-                }
-            }, cancellationToken);
+                storagePath = Path.Combine(_paths.BoxesDirectory, box.Id.ToString("N"));
+            }
+
+            var fullStoragePath = Path.GetFullPath(storagePath);
+            PathSafety.EnsureChildPath(_paths.BoxesDirectory, fullStoragePath);
+
+            if (Directory.Exists(fullStoragePath)
+                && Directory.GetFileSystemEntries(fullStoragePath).Length == 0)
+            {
+                Directory.Delete(fullStoragePath, recursive: false);
+            }
+        }
+        catch
+        {
+            // Storage cleanup is best-effort.
         }
     }
 
@@ -363,13 +584,15 @@ public sealed class DrawerService
 
     public async Task RenameBoxAsync(Guid boxId, string newName, CancellationToken cancellationToken = default)
     {
-        if (newName == null)
-            newName = string.Empty;
+        if (string.IsNullOrWhiteSpace(newName))
+        {
+            throw new ArgumentException("Box name cannot be empty.", nameof(newName));
+        }
 
         var box = await _repository.GetBoxAsync(boxId, cancellationToken)
             ?? throw new InvalidOperationException("Box does not exist.");
 
-        await _repository.UpdateBoxNameAsync(boxId, newName, cancellationToken);
+        await _repository.UpdateBoxNameAsync(boxId, newName.Trim(), cancellationToken);
     }
 
     public async Task OpenItemAsync(Guid itemId, IFileLauncher launcher, CancellationToken cancellationToken = default)
@@ -422,4 +645,30 @@ public sealed class DrawerService
         await CreateBoxAsync("普通收纳盒", BoxType.Normal, cancellationToken);
         await CreateBoxAsync("映射收纳盒", BoxType.Mapping, cancellationToken);
     }
+
+    private static async Task TryCompensateMoveAsync(
+        string movedPath,
+        string originalPath,
+        bool isDirectory,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            if ((isDirectory && Directory.Exists(movedPath)) || (!isDirectory && File.Exists(movedPath)))
+            {
+                await SafeFileOps.MoveAsync(movedPath, originalPath, isDirectory, cancellationToken);
+            }
+        }
+        catch
+        {
+            // Best-effort compensation only; the original failure is rethrown by the caller.
+        }
+    }
+
+    private sealed record RestorePlan(
+        string SourcePath,
+        string TargetPath,
+        bool IsDirectory,
+        bool RestoredToOriginal,
+        bool RestoredToDesktop);
 }

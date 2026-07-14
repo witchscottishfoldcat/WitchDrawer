@@ -18,7 +18,6 @@ public sealed class MainViewModel : ObservableObject
 
     private readonly DrawerService _drawerService;
     private readonly IFileLauncher _launcher;
-    private readonly IFileTrash _trash;
     private readonly IAppLogger _logger;
     private readonly QuickPanelViewModel _quickPanelViewModel;
     private readonly UpdateService _updateService;
@@ -34,11 +33,11 @@ public sealed class MainViewModel : ObservableObject
     private bool _launchOnStartup;
     private string _updateStatusText = string.Empty;
     private bool _isCheckingUpdate;
+    private string? _pendingUpdateSha256;
 
     public MainViewModel(
         DrawerService drawerService,
         IFileLauncher launcher,
-        IFileTrash trash,
         IAppLogger logger,
         QuickPanelViewModel quickPanelViewModel,
         DesktopBoxLayoutSettings desktopBoxLayoutSettings,
@@ -46,7 +45,6 @@ public sealed class MainViewModel : ObservableObject
     {
         _drawerService = drawerService;
         _launcher = launcher;
-        _trash = trash;
         _logger = logger;
         _quickPanelViewModel = quickPanelViewModel;
         DesktopBoxLayout = desktopBoxLayoutSettings;
@@ -226,6 +224,33 @@ public sealed class MainViewModel : ObservableObject
         });
     }
 
+    /// <summary>
+    /// Reloads items/quick-panel state without raising BoxesChanged (avoids desktop refresh loops).
+    /// </summary>
+    public async Task ReloadItemsFromDesktopAsync()
+    {
+        if (IsBusy)
+        {
+            return;
+        }
+
+        try
+        {
+            IsBusy = true;
+            await LoadItemsForSelectedBoxAsync(SelectedBox);
+            await _quickPanelViewModel.LoadAsync();
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to reload items from desktop boxes.");
+            StatusText = exception.Message;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
     public async Task ImportPathsAsync(IEnumerable<string> paths)
     {
         var selectedBox = SelectedBox;
@@ -288,8 +313,7 @@ public sealed class MainViewModel : ObservableObject
 
         await RunBusyAsync(async () =>
         {
-            var deletedName = selectedBox.Name;
-            await _drawerService.DeleteBoxAsync(selectedBox.Id, _trash);
+            var result = await _drawerService.DeleteBoxAsync(selectedBox.Id);
 
             var boxes = await _drawerService.GetBoxesAsync();
             Boxes.Clear();
@@ -298,10 +322,13 @@ public sealed class MainViewModel : ObservableObject
                 Boxes.Add(new BoxViewModel(box, _drawerService));
             }
 
-            await SelectBoxAsync(Boxes.FirstOrDefault());
+            await SelectBoxAsync(
+                result.BoxRemoved
+                    ? Boxes.FirstOrDefault()
+                    : Boxes.FirstOrDefault(box => box.Id == result.BoxId) ?? Boxes.FirstOrDefault());
 
             await _quickPanelViewModel.LoadAsync();
-            StatusText = $"\u5df2\u5220\u9664 {deletedName}\uff0c\u6536\u7eb3\u680f\u5df2\u79fb\u9664";
+            StatusText = result.StatusMessage;
             BoxesChanged?.Invoke(this, EventArgs.Empty);
             ItemsChanged?.Invoke(this, EventArgs.Empty);
         });
@@ -452,10 +479,10 @@ public sealed class MainViewModel : ObservableObject
 
         await RunBusyAsync(async () =>
         {
-            await _drawerService.DeleteItemAsync(item.Id, _trash);
+            var result = await _drawerService.DeleteItemAsync(item.Id);
             await LoadItemsForSelectedBoxAsync(SelectedBox);
             await _quickPanelViewModel.LoadAsync();
-            StatusText = $"已移除 {item.DisplayName}";
+            StatusText = result.StatusMessage;
             ItemsChanged?.Invoke(this, EventArgs.Empty);
         });
     }
@@ -602,8 +629,9 @@ public sealed class MainViewModel : ObservableObject
             }
 
             var versionText = $"v{result.LatestVersion.Major}.{result.LatestVersion.Minor}.{result.LatestVersion.Build}";
-            UpdateStatusText = $"发现新版本 {versionText}，正在下载...";
+            UpdateStatusText = $"发现新版本 {versionText}";
             StatusText = UpdateStatusText;
+            _pendingUpdateSha256 = result.ExpectedSha256;
 
             UpdateRequested?.Invoke(this, result);
         }
@@ -631,7 +659,10 @@ public sealed class MainViewModel : ObservableObject
                 UpdateStatusText = $"正在下载更新... {percent}%";
             });
 
-            var success = await _updateService.DownloadAndApplyUpdateAsync(downloadUrl, progress);
+            var success = await _updateService.DownloadAndApplyUpdateAsync(
+                downloadUrl,
+                progress,
+                _pendingUpdateSha256);
 
             if (success)
             {

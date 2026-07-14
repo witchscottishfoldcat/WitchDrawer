@@ -14,53 +14,67 @@ public sealed class DrawerRepository
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(_databasePath)!);
+        var databaseDirectory = Path.GetDirectoryName(_databasePath);
+        if (string.IsNullOrWhiteSpace(databaseDirectory))
+        {
+            throw new InvalidOperationException("数据库路径无效: " + _databasePath);
+        }
 
-        await using var connection = CreateConnection();
-        await connection.OpenAsync(cancellationToken);
+        try
+        {
+            Directory.CreateDirectory(databaseDirectory);
 
-        var command = connection.CreateCommand();
-        command.CommandText =
-            """
-            PRAGMA journal_mode=WAL;
+            await using var connection = CreateConnection();
+            await connection.OpenAsync(cancellationToken);
 
-            CREATE TABLE IF NOT EXISTS Boxes (
-                Id TEXT PRIMARY KEY,
-                Name TEXT NOT NULL,
-                Type INTEGER NOT NULL,
-                StoragePath TEXT NULL,
-                SortOrder INTEGER NOT NULL,
-                CreatedAt TEXT NOT NULL,
-                UpdatedAt TEXT NOT NULL
-            );
+            // journal_mode 需要在同目录创建旁路文件；单独执行便于定位 Error 14。
+            await ExecuteNonQueryAsync(connection, "PRAGMA journal_mode=WAL;", cancellationToken);
 
-            CREATE TABLE IF NOT EXISTS Items (
-                Id TEXT PRIMARY KEY,
-                BoxId TEXT NOT NULL,
-                DisplayName TEXT NOT NULL,
-                ItemKind INTEGER NOT NULL,
-                SourcePath TEXT NULL,
-                StoredPath TEXT NULL,
-                SortOrder INTEGER NOT NULL,
-                GridColumn INTEGER NULL,
-                GridRow INTEGER NULL,
-                CreatedAt TEXT NOT NULL,
-                UpdatedAt TEXT NOT NULL,
-                FOREIGN KEY(BoxId) REFERENCES Boxes(Id) ON DELETE CASCADE
-            );
+            await ExecuteNonQueryAsync(
+                connection,
+                """
+                CREATE TABLE IF NOT EXISTS Boxes (
+                    Id TEXT PRIMARY KEY,
+                    Name TEXT NOT NULL,
+                    Type INTEGER NOT NULL,
+                    StoragePath TEXT NULL,
+                    SortOrder INTEGER NOT NULL,
+                    CreatedAt TEXT NOT NULL,
+                    UpdatedAt TEXT NOT NULL
+                );
 
-            CREATE TABLE IF NOT EXISTS AppSettings (
-                Key TEXT PRIMARY KEY,
-                Value TEXT NOT NULL
-            );
+                CREATE TABLE IF NOT EXISTS Items (
+                    Id TEXT PRIMARY KEY,
+                    BoxId TEXT NOT NULL,
+                    DisplayName TEXT NOT NULL,
+                    ItemKind INTEGER NOT NULL,
+                    SourcePath TEXT NULL,
+                    StoredPath TEXT NULL,
+                    SortOrder INTEGER NOT NULL,
+                    GridColumn INTEGER NULL,
+                    GridRow INTEGER NULL,
+                    CreatedAt TEXT NOT NULL,
+                    UpdatedAt TEXT NOT NULL,
+                    FOREIGN KEY(BoxId) REFERENCES Boxes(Id) ON DELETE CASCADE
+                );
 
-            CREATE INDEX IF NOT EXISTS IX_Items_BoxId ON Items(BoxId);
-            CREATE INDEX IF NOT EXISTS IX_Items_DisplayName ON Items(DisplayName);
-            """;
+                CREATE TABLE IF NOT EXISTS AppSettings (
+                    Key TEXT PRIMARY KEY,
+                    Value TEXT NOT NULL
+                );
 
-        await command.ExecuteNonQueryAsync(cancellationToken);
-        await EnsureColumnAsync(connection, "Items", "GridColumn", "INTEGER NULL", cancellationToken);
-        await EnsureColumnAsync(connection, "Items", "GridRow", "INTEGER NULL", cancellationToken);
+                CREATE INDEX IF NOT EXISTS IX_Items_BoxId ON Items(BoxId);
+                CREATE INDEX IF NOT EXISTS IX_Items_DisplayName ON Items(DisplayName);
+                """,
+                cancellationToken);
+
+            await EnsureColumnAsync(connection, "Items", "GridColumn", "INTEGER NULL", cancellationToken);
+            await EnsureColumnAsync(connection, "Items", "GridRow", "INTEGER NULL", cancellationToken);
+        }
+        catch (Exception exception) when (IsDatabaseAccessFailure(exception))
+        {
+            throw CreateDatabaseAccessException(databaseDirectory, exception);
+        }
     }
 
     public async Task<IReadOnlyList<Box>> GetBoxesAsync(CancellationToken cancellationToken = default)
@@ -397,15 +411,62 @@ public sealed class DrawerRepository
         return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken));
     }
 
+    /// <summary>
+    /// SQLite C 结果码 SQLITE_CANTOPEN。
+    /// </summary>
+    private const int SqliteErrorUnableToOpen = 14;
+
     private SqliteConnection CreateConnection()
     {
         var builder = new SqliteConnectionStringBuilder
         {
             DataSource = _databasePath,
-            ForeignKeys = true
+            ForeignKeys = true,
+            Mode = SqliteOpenMode.ReadWriteCreate,
+            // 避免连接池复用导致旁路文件句柄残留，便于排查目录权限问题。
+            Pooling = false
         };
 
         return new SqliteConnection(builder.ToString());
+    }
+
+    private InvalidOperationException CreateDatabaseAccessException(string databaseDirectory, Exception exception)
+    {
+        return new InvalidOperationException(
+            "无法打开或写入 SQLite 数据库。"
+            + Environment.NewLine
+            + "数据库: "
+            + _databasePath
+            + Environment.NewLine
+            + "目录: "
+            + databaseDirectory
+            + Environment.NewLine
+            + "请确认该目录可写，或设置环境变量 "
+            + AppPaths.DataDirectoryEnvironmentVariableName
+            + " 指向可写路径。",
+            exception);
+    }
+
+    private static bool IsDatabaseAccessFailure(Exception exception)
+    {
+        if (exception is SqliteException sqliteException
+            && sqliteException.SqliteErrorCode == SqliteErrorUnableToOpen)
+        {
+            return true;
+        }
+
+        // 目录创建失败、只读卷、路径冲突等 IO 问题同样应给出可操作的数据目录提示。
+        return exception is IOException or UnauthorizedAccessException;
+    }
+
+    private static async Task ExecuteNonQueryAsync(
+        SqliteConnection connection,
+        string commandText,
+        CancellationToken cancellationToken)
+    {
+        var command = connection.CreateCommand();
+        command.CommandText = commandText;
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
     private static async Task EnsureColumnAsync(

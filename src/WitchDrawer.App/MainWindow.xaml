@@ -615,7 +615,7 @@
                                                         </Border.Effect>
                                                         <StackPanel MinWidth="200">
                                                             <TextBlock Text="确定要删除该收纳盒吗？" FontWeight="SemiBold" FontSize="13" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,6"/>
-                                                            <TextBlock Text="收纳盒和内部的文件将被移入回收站。" FontSize="11.5" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,16" TextWrapping="Wrap"/>
+                                                            <TextBlock Text="收纳盒内的文件将恢复到原来的位置；如有重名会自动加后缀。" FontSize="11.5" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,16" TextWrapping="Wrap"/>
                                                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                                                 <Button Content="取消" Click="OnCancelDeleteBoxClicked" Style="{StaticResource GhostButtonStyle}" Margin="0,0,8,0" Padding="12,6"/>
                                                                 <Button Content="删除" Click="OnConfirmDeleteBoxClicked" Style="{StaticResource DangerButtonStyle}" Padding="16,6"/>

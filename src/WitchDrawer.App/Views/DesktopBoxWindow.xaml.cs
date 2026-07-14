@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Threading;
 using WitchDrawer.App.Infrastructure;
 using WitchDrawer.App.ViewModels;
 
@@ -58,8 +59,10 @@ public partial class DesktopBoxWindow : Window
     {
         DataContext = viewModel;
         InitializeComponent();
+        SourceInitialized += OnSourceInitialized;
         Loaded += OnLoaded;
         AppThemeManager.ThemeChanged += OnThemeChanged;
+        Activated += OnWindowActivated;
         Deactivated += OnWindowDeactivated;
     }
 
@@ -74,6 +77,12 @@ public partial class DesktopBoxWindow : Window
         }
 
         SetWindowPos(helper.Handle, HwndBottom, 0, 0, 0, 0, SwpNoMove | SwpNoSize | SwpNoActivate);
+    }
+
+    public void QueueSendToBottom()
+    {
+        SendToBottom();
+        Dispatcher.BeginInvoke(new Action(SendToBottom), DispatcherPriority.ApplicationIdle);
     }
 
     private ListBox ActiveItemsList => ViewModel.IsMappingListMode ? FileList : IconList;
@@ -103,10 +112,17 @@ public partial class DesktopBoxWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        SourceInitialized -= OnSourceInitialized;
         Loaded -= OnLoaded;
         AppThemeManager.ThemeChanged -= OnThemeChanged;
+        Activated -= OnWindowActivated;
         Deactivated -= OnWindowDeactivated;
         base.OnClosed(e);
+    }
+
+    private void OnSourceInitialized(object? sender, EventArgs e)
+    {
+        QueueSendToBottom();
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -114,6 +130,7 @@ public partial class DesktopBoxWindow : Window
         AppThemeManager.ApplyToWindow(this);
         WindowMotion.PopIn(this, 0.97, 140);
         ActiveItemsList.Focus();
+        QueueSendToBottom();
     }
 
     private void OnThemeChanged(object? sender, AppTheme theme)
@@ -121,12 +138,17 @@ public partial class DesktopBoxWindow : Window
         AppThemeManager.ApplyToWindow(this);
     }
 
+    private void OnWindowActivated(object? sender, EventArgs e)
+    {
+        QueueSendToBottom();
+    }
+
     private void OnWindowDeactivated(object? sender, EventArgs e)
     {
         IconList.SelectedItem = null;
         FileList.SelectedItem = null;
         _keyboardDeleteTarget = null;
-        SendToBottom();
+        QueueSendToBottom();
     }
 
     private void OnCloseClick(object sender, RoutedEventArgs e)
@@ -285,7 +307,7 @@ public partial class DesktopBoxWindow : Window
             try
             {
                 DragMove();
-                SendToBottom();
+                QueueSendToBottom();
                 if (_positionChangedCallback is not null)
                 {
                     _ = _positionChangedCallback(ViewModel.BoxId);
@@ -387,6 +409,7 @@ public partial class DesktopBoxWindow : Window
         Activate();
         itemList.Focus();
         Keyboard.Focus(itemList);
+        QueueSendToBottom();
         _dragStartPoint = e.GetPosition(itemList);
         _dragStartItem = null;
 
@@ -491,6 +514,7 @@ public partial class DesktopBoxWindow : Window
             drawerItem.IsDragSource = false;
             ViewModel.HideDragPreview();
             dragSourceList.Focus();
+            QueueSendToBottom();
         }
     }
 

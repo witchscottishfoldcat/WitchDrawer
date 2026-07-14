@@ -9,7 +9,7 @@
 ## Layers
 - `WitchDrawer.App`: WPF shell, main drawer, quick panel, drag/drop, command binding, and hotkey message handling.
 - `WitchDrawer.Core`: `Box`, `DrawerItem`, SQLite repository, import/delete/open orchestration, path validation, and file-name conflict handling.
-- `WitchDrawer.Native`: Shell open, recycle bin integration, and `RegisterHotKey`/`UnregisterHotKey` wrappers.
+- `WitchDrawer.Native`: Shell open and `RegisterHotKey`/`UnregisterHotKey` wrappers.
 
 Core defines abstractions for native operations. Native implements them. App composes the concrete services.
 
@@ -22,7 +22,9 @@ Core defines abstractions for native operations. Native implements them. App com
 ## File Safety
 - Destination paths are normalized and verified to stay inside the target box storage root.
 - Normal-box name conflicts use `name (1).ext`, `name (2).ext`, and so on.
-- Delete uses `IFileTrash`; the Windows implementation sends files or directories to the recycle bin.
+- Delete restores stored items to their original `SourcePath`; if that directory is missing, files fall back to the desktop. Name conflicts use `name (1).ext`, `name (2).ext`, and so on.
+- File moves use same-volume rename when possible and fall back to copy-then-delete across volumes.
+- Deleting a storage box restores items one-by-one and only removes the box when every restore succeeds.
 - Mapping items are removed from SQLite only; their source files are not changed.
 
 ## Performance Budget

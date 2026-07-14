@@ -8,7 +8,7 @@
 ## Architecture Boundaries
 - `WitchDrawer.App` owns WPF windows, view models, drag/drop, and hotkey wiring.
 - `WitchDrawer.Core` owns models, SQLite persistence, file import rules, search, and safety checks.
-- `WitchDrawer.Native` owns Windows integrations such as Shell open, recycle bin, and global hotkeys.
+- `WitchDrawer.Native` owns Windows integrations such as Shell open and global hotkeys.
 - All file mutations must flow through Core services. UI code must not directly move, delete, or rename user files.
 
 ## Performance Rules
@@ -20,7 +20,8 @@
 ## File Safety
 - Normal boxes move files into `%LocalAppData%\WitchDrawer\Boxes\{BoxId}` only after validating the destination path.
 - Mapping boxes never move, copy, or shortcut source files; they store absolute references only.
-- Delete must use the recycle bin abstraction by default. Do not permanently delete user files in MVP flows.
+- Delete restores stored items to their original locations by default; if the original directory is missing, restore falls back to the desktop. Mapping boxes only remove references.
+- File moves must support cross-volume paths (rename on same volume, copy-then-delete otherwise).
 - Name conflicts must be resolved by suffixing ` (1)`, ` (2)`, etc.
 
 ## Tests

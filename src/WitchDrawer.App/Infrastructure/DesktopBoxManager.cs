@@ -1,3 +1,4 @@
+using System.Threading;
 using System.Windows;
 using WitchDrawer.App.ViewModels;
 using WitchDrawer.App.Views;
@@ -14,7 +15,6 @@ public sealed class DesktopBoxManager
 
     private readonly DrawerService _drawerService;
     private readonly IFileLauncher _launcher;
-    private readonly IFileTrash _trash;
     private readonly IAppLogger _logger;
     private readonly DesktopBoxLayoutSettings _layoutSettings;
     private readonly Dictionary<Guid, DesktopBoxWindow> _windows = [];
@@ -26,18 +26,19 @@ public sealed class DesktopBoxManager
     public DesktopBoxManager(
         DrawerService drawerService,
         IFileLauncher launcher,
-        IFileTrash trash,
         IAppLogger logger,
         DesktopBoxLayoutSettings layoutSettings)
     {
         _drawerService = drawerService;
         _launcher = launcher;
-        _trash = trash;
         _logger = logger;
         _layoutSettings = layoutSettings;
     }
 
     public event EventHandler? ItemsChanged;
+
+    private int _refreshVersion;
+    private readonly SemaphoreSlim _refreshGate = new(1, 1);
 
     public async Task RefreshAsync()
     {
@@ -46,55 +47,110 @@ public sealed class DesktopBoxManager
             return;
         }
 
-        var boxes = await _drawerService.GetBoxesAsync();
-        var boxIds = boxes.Select(box => box.Id).ToHashSet();
-
-        foreach (var removedId in _windows.Keys.Where(id => !boxIds.Contains(id)).ToArray())
+        var version = Interlocked.Increment(ref _refreshVersion);
+        await _refreshGate.WaitAsync();
+        try
         {
-            var win = _windows[removedId];
-            win.LocationChanged -= OnWindowLocationChanged;
-            win.PreviewMouseLeftButtonUp -= OnWindowMouseUp;
-            win.ForceClose();
-            _windows.Remove(removedId);
+            if (_closing || version != Volatile.Read(ref _refreshVersion))
+            {
+                return;
+            }
+
+            var boxes = await _drawerService.GetBoxesAsync();
+            if (_closing || version != Volatile.Read(ref _refreshVersion))
+            {
+                return;
+            }
+
+            var boxIds = boxes.Select(box => box.Id).ToHashSet();
+
+            foreach (var removedId in _windows.Keys.Where(id => !boxIds.Contains(id)).ToArray())
+            {
+                var win = _windows[removedId];
+                win.LocationChanged -= OnWindowLocationChanged;
+                win.PreviewMouseLeftButtonUp -= OnWindowMouseUp;
+                win.ForceClose();
+                _windows.Remove(removedId);
+            }
+
+            for (var index = 0; index < boxes.Count; index++)
+            {
+                if (_closing || version != Volatile.Read(ref _refreshVersion))
+                {
+                    return;
+                }
+
+                var box = boxes[index];
+                if (!_windows.TryGetValue(box.Id, out var window))
+                {
+                    var viewModel = new DesktopBoxViewModel(box, _drawerService, _launcher, _logger, _layoutSettings);
+                    viewModel.ItemsChanged += (_, _) => ItemsChanged?.Invoke(this, EventArgs.Empty);
+
+                    window = new DesktopBoxWindow(viewModel);
+                    await PlaceWindowAsync(window, box.Id, index);
+                    _windows.Add(box.Id, window);
+
+                    window.LocationChanged += OnWindowLocationChanged;
+                    window.PreviewMouseLeftButtonUp += OnWindowMouseUp;
+                    window.SetPositionChangedCallback(async (id) =>
+                    {
+                        _isAdjustingPosition = true;
+                        try
+                        {
+                            PerformSnappingAndAlignment(window, applySnap: true);
+                        }
+                        finally
+                        {
+                            _isAdjustingPosition = false;
+                        }
+                        HideGuides();
+                        await SavePositionAsync(id);
+                    });
+
+                    window.Show();
+                    window.QueueSendToBottom();
+                }
+                else
+                {
+                    window.ViewModel.UpdateBox(box);
+                }
+
+                await window.ViewModel.LoadAsync();
+                window.QueueSendToBottom();
+            }
+        }
+        finally
+        {
+            _refreshGate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Reloads item lists for existing desktop windows without recreating them.
+    /// </summary>
+    public async Task RefreshItemsAsync()
+    {
+        if (_closing)
+        {
+            return;
         }
 
-        for (var index = 0; index < boxes.Count; index++)
+        await _refreshGate.WaitAsync();
+        try
         {
-            var box = boxes[index];
-            if (!_windows.TryGetValue(box.Id, out var window))
+            if (_closing)
             {
-                var viewModel = new DesktopBoxViewModel(box, _drawerService, _launcher, _trash, _logger, _layoutSettings);
-                viewModel.ItemsChanged += (_, _) => ItemsChanged?.Invoke(this, EventArgs.Empty);
-
-                window = new DesktopBoxWindow(viewModel);
-                await PlaceWindowAsync(window, box.Id, index);
-                _windows.Add(box.Id, window);
-
-                window.LocationChanged += OnWindowLocationChanged;
-                window.PreviewMouseLeftButtonUp += OnWindowMouseUp;
-                window.SetPositionChangedCallback(async (id) =>
-                {
-                    _isAdjustingPosition = true;
-                    try
-                    {
-                        PerformSnappingAndAlignment(window, applySnap: true);
-                    }
-                    finally
-                    {
-                        _isAdjustingPosition = false;
-                    }
-                    HideGuides();
-                    await SavePositionAsync(id);
-                });
-
-                window.Show();
-            }
-            else
-            {
-                window.ViewModel.UpdateBox(box);
+                return;
             }
 
-            await window.ViewModel.LoadAsync();
+            foreach (var window in _windows.Values.ToArray())
+            {
+                await window.ViewModel.LoadAsync();
+            }
+        }
+        finally
+        {
+            _refreshGate.Release();
         }
     }
 

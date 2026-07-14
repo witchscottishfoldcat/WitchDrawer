@@ -44,25 +44,27 @@ public partial class App : Application
 
         try
         {
+            // ForCurrentUser 会创建目录并校验可写性（SQLite WAL 需要同目录旁路文件）。
             var paths = AppPaths.ForCurrentUser();
-            paths.EnsureCreated();
 
             var logger = new FileAppLogger(paths.LogsDirectory);
             var repository = new DrawerRepository(paths.DatabasePath);
             var drawerService = new DrawerService(paths, repository);
             var launcher = new ShellFileLauncher();
-            var trash = new FileSystemRecycleBin();
             var desktopBoxLayoutSettings = new DesktopBoxLayoutSettings();
             var updateService = new UpdateService(logger);
+
+            logger.Info("Data directory: " + paths.RootDirectory);
+            logger.Info("Database path: " + paths.DatabasePath);
 
             await drawerService.InitializeAsync();
             AppThemeManager.Apply(await LoadSavedThemeAsync(drawerService));
 
             var quickPanelViewModel = new QuickPanelViewModel(drawerService, launcher, logger);
             var quickPanel = new QuickPanelWindow(quickPanelViewModel);
-            var mainViewModel = new MainViewModel(drawerService, launcher, trash, logger, quickPanelViewModel, desktopBoxLayoutSettings, updateService);
+            var mainViewModel = new MainViewModel(drawerService, launcher, logger, quickPanelViewModel, desktopBoxLayoutSettings, updateService);
             desktopBoxLayoutSettings.SetPresetChangedCallback(mainViewModel.SaveLayoutPresetAsync);
-            _desktopBoxManager = new DesktopBoxManager(drawerService, launcher, trash, logger, desktopBoxLayoutSettings);
+            _desktopBoxManager = new DesktopBoxManager(drawerService, launcher, logger, desktopBoxLayoutSettings);
             _mainWindow = new MainWindow(mainViewModel, quickPanel, logger);
             StartSingleInstanceServer(logger);
 
@@ -70,13 +72,12 @@ public partial class App : Application
             mainViewModel.ItemsChanged += async (_, _) =>
             {
                 await quickPanelViewModel.LoadAsync();
-                await _desktopBoxManager.RefreshAsync();
+                await _desktopBoxManager.RefreshItemsAsync();
             };
             _desktopBoxManager.ItemsChanged += async (_, _) =>
             {
-                await _desktopBoxManager.RefreshAsync();
-                await mainViewModel.LoadAsync();
-                await quickPanelViewModel.LoadAsync();
+                // Desktop boxes already mutated their own UI; only sync main/quick panel.
+                await mainViewModel.ReloadItemsFromDesktopAsync();
             };
             _mainWindow.Closed += async (_, _) => await _desktopBoxManager.CloseAllAsync();
 

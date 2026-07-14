@@ -1,5 +1,4 @@
 using WitchDrawer.Core;
-using WitchDrawer.Core.Abstractions;
 using WitchDrawer.Core.Models;
 using WitchDrawer.Core.Services;
 using WitchDrawer.Core.Storage;
@@ -17,6 +16,81 @@ public sealed class DrawerServiceTests
 
         Assert.Contains(boxes, box => box.Type == BoxType.Normal && box.Name == "普通收纳盒");
         Assert.Contains(boxes, box => box.Type == BoxType.Mapping && box.Name == "映射收纳盒");
+    }
+
+    [Fact]
+    public void EnsureCreatedAndWritable_SucceedsOnWritableDirectory()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "WitchDrawer.Tests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            var paths = new AppPaths(root);
+            paths.EnsureCreatedAndWritable();
+
+            Assert.True(Directory.Exists(paths.RootDirectory));
+            Assert.True(Directory.Exists(paths.BoxesDirectory));
+            Assert.True(Directory.Exists(paths.LogsDirectory));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void ForCurrentUser_UsesEnvironmentOverrideWhenConfigured()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "WitchDrawer.Tests", Guid.NewGuid().ToString("N"));
+        var previous = Environment.GetEnvironmentVariable(AppPaths.DataDirectoryEnvironmentVariableName);
+        try
+        {
+            Environment.SetEnvironmentVariable(AppPaths.DataDirectoryEnvironmentVariableName, root);
+
+            var paths = AppPaths.ForCurrentUser();
+
+            Assert.Equal(Path.GetFullPath(root), paths.RootDirectory);
+            Assert.True(Directory.Exists(paths.RootDirectory));
+            Assert.Equal(Path.Combine(paths.RootDirectory, AppPaths.DatabaseFileName), paths.DatabasePath);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(AppPaths.DataDirectoryEnvironmentVariableName, previous);
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task InitializeAsync_WhenDatabaseDirectoryIsNotWritable_ThrowsWithPathContext()
+    {
+        // 将“目录”做成文件，使 CreateDirectory / SQLite 打开必然失败。
+        var root = Path.Combine(Path.GetTempPath(), "WitchDrawer.Tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.GetDirectoryName(root)!);
+        File.WriteAllText(root, "not-a-directory");
+        var blockedDatabasePath = Path.Combine(root, AppPaths.DatabaseFileName);
+
+        try
+        {
+            var repository = new DrawerRepository(blockedDatabasePath);
+
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+                () => repository.InitializeAsync());
+
+            Assert.Contains(AppPaths.DataDirectoryEnvironmentVariableName, exception.Message, StringComparison.Ordinal);
+            Assert.Contains(blockedDatabasePath, exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            if (File.Exists(root))
+            {
+                File.Delete(root);
+            }
+        }
     }
 
     [Fact]
@@ -101,25 +175,20 @@ public sealed class DrawerServiceTests
     }
 
     [Fact]
-    public async Task DeleteBoxAsync_PixelBoxUsesTrashAndRemovesItems()
+    public async Task DeleteBoxAsync_PixelBoxRestoresItemsToOriginalLocationsAndRemovesItems()
     {
         using var workspace = await TestWorkspace.CreateAsync();
         var source = workspace.CreateSourceFile("source-p", "boxedpixel.txt", "hello");
         var pixelBox = await workspace.Service.CreateBoxAsync("像素收纳盒 1", BoxType.Pixel);
-        await workspace.Service.ImportPathAsync(pixelBox.Id, source);
-        var trash = new RecordingTrash();
+        var item = await workspace.Service.ImportPathAsync(pixelBox.Id, source);
+        var storedPath = item.StoredPath!;
 
-        await workspace.Service.DeleteBoxAsync(pixelBox.Id, trash);
+        await workspace.Service.DeleteBoxAsync(pixelBox.Id);
         var boxes = await workspace.Service.GetBoxesAsync();
         var remainingItems = await workspace.Repository.GetItemsAsync(pixelBox.Id);
 
-        // Deleting a box restores files to the user's desktop instead of recycling them.
-        Assert.Empty(trash.Paths);
-        var desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-        var restoredFile = Path.Combine(desktopPath, "boxedpixel.txt");
-        Assert.True(File.Exists(restoredFile), "Pixel box file should be restored to desktop.");
-        File.Delete(restoredFile);
-
+        Assert.True(File.Exists(source));
+        Assert.False(File.Exists(storedPath));
         Assert.DoesNotContain(boxes, box => box.Id == pixelBox.Id);
         Assert.Empty(remainingItems);
     }
@@ -336,44 +405,150 @@ public sealed class DrawerServiceTests
     }
 
     [Fact]
-    public async Task DeleteItemAsync_NormalBoxUsesTrashAbstraction()
+    public async Task DeleteItemAsync_NormalBoxRestoresItemToOriginalLocationAndRemovesItem()
     {
         using var workspace = await TestWorkspace.CreateAsync();
         var source = workspace.CreateSourceFile("source-a", "delete-me.txt", "hello");
         var normalBox = await workspace.GetBoxAsync(BoxType.Normal);
         var item = await workspace.Service.ImportPathAsync(normalBox.Id, source);
-        var trash = new RecordingTrash();
+        var storedPath = item.StoredPath!;
 
-        await workspace.Service.DeleteItemAsync(item.Id, trash);
+        var result = await workspace.Service.DeleteItemAsync(item.Id);
         var remainingItems = await workspace.Repository.GetItemsAsync(normalBox.Id);
 
-        Assert.Equal(item.StoredPath, Assert.Single(trash.Paths));
-        Assert.True(File.Exists(item.StoredPath));
+        Assert.True(result.WasStoredItem);
+        Assert.True(result.RestoredToOriginal);
+        Assert.False(result.RestoredToDesktop);
+        Assert.Equal(source, result.RestoredPath);
+        Assert.True(File.Exists(source));
+        Assert.Equal("hello", File.ReadAllText(source));
+        Assert.False(File.Exists(storedPath));
         Assert.Empty(remainingItems);
     }
 
     [Fact]
-    public async Task DeleteBoxAsync_NormalBoxUsesTrashAndRemovesItems()
+    public async Task DeleteItemAsync_NormalBoxAddsSuffixWhenOriginalPathAlreadyExists()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var source = workspace.CreateSourceFile("source-a", "conflict.txt", "stored");
+        var normalBox = await workspace.GetBoxAsync(BoxType.Normal);
+        var item = await workspace.Service.ImportPathAsync(normalBox.Id, source);
+        var storedPath = item.StoredPath!;
+        File.WriteAllText(source, "existing");
+
+        var result = await workspace.Service.DeleteItemAsync(item.Id);
+        var restoredPath = Path.Combine(Path.GetDirectoryName(source)!, "conflict (1).txt");
+
+        Assert.True(result.RestoredToOriginal);
+        Assert.Equal(restoredPath, result.RestoredPath);
+        Assert.Equal("existing", File.ReadAllText(source));
+        Assert.True(File.Exists(restoredPath));
+        Assert.Equal("stored", File.ReadAllText(restoredPath));
+        Assert.False(File.Exists(storedPath));
+        Assert.Null(await workspace.Repository.GetItemAsync(item.Id));
+    }
+
+    [Fact]
+    public async Task DeleteItemAsync_FallsBackToDesktopWhenOriginalDirectoryMissing()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var source = workspace.CreateSourceFile("source-missing", "orphan.txt", "hello");
+        var sourceDirectory = Path.GetDirectoryName(source)!;
+        var normalBox = await workspace.GetBoxAsync(BoxType.Normal);
+        var item = await workspace.Service.ImportPathAsync(normalBox.Id, source);
+        var storedPath = item.StoredPath!;
+        Directory.Delete(sourceDirectory, recursive: true);
+
+        var result = await workspace.Service.DeleteItemAsync(item.Id);
+
+        try
+        {
+            Assert.True(result.WasStoredItem);
+            Assert.False(result.RestoredToOriginal);
+            Assert.True(result.RestoredToDesktop);
+            Assert.False(string.IsNullOrWhiteSpace(result.RestoredPath));
+            Assert.True(File.Exists(result.RestoredPath));
+            Assert.Equal("hello", File.ReadAllText(result.RestoredPath!));
+            Assert.StartsWith(
+                Path.GetFullPath(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)),
+                Path.GetFullPath(result.RestoredPath!),
+                StringComparison.OrdinalIgnoreCase);
+            Assert.False(File.Exists(storedPath));
+            Assert.Null(await workspace.Repository.GetItemAsync(item.Id));
+        }
+        finally
+        {
+            if (!string.IsNullOrWhiteSpace(result.RestoredPath) && File.Exists(result.RestoredPath))
+            {
+                File.Delete(result.RestoredPath);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task DeleteItemAsync_MappingBoxOnlyRemovesReference()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var source = workspace.CreateSourceFile("source-a", "reference.txt", "hello");
+        var mappingBox = await workspace.GetBoxAsync(BoxType.Mapping);
+        var item = await workspace.Service.ImportPathAsync(mappingBox.Id, source);
+
+        var result = await workspace.Service.DeleteItemAsync(item.Id);
+
+        Assert.False(result.WasStoredItem);
+        Assert.True(File.Exists(source));
+        Assert.Null(await workspace.Repository.GetItemAsync(item.Id));
+        Assert.Contains("引用", result.StatusMessage);
+    }
+
+    [Fact]
+    public async Task DeleteBoxAsync_NormalBoxRestoresItemsToOriginalLocationsAndRemovesItems()
     {
         using var workspace = await TestWorkspace.CreateAsync();
         var source = workspace.CreateSourceFile("source-a", "boxed.txt", "hello");
         var normalBox = await workspace.GetBoxAsync(BoxType.Normal);
-        await workspace.Service.ImportPathAsync(normalBox.Id, source);
-        var trash = new RecordingTrash();
+        var item = await workspace.Service.ImportPathAsync(normalBox.Id, source);
+        var storedPath = item.StoredPath!;
 
-        await workspace.Service.DeleteBoxAsync(normalBox.Id, trash);
+        var result = await workspace.Service.DeleteBoxAsync(normalBox.Id);
         var boxes = await workspace.Service.GetBoxesAsync();
         var remainingItems = await workspace.Repository.GetItemsAsync(normalBox.Id);
 
-        // Deleting a box restores files to the user's desktop instead of recycling them.
-        Assert.Empty(trash.Paths);
-        var desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-        var restoredFile = Path.Combine(desktopPath, "boxed.txt");
-        Assert.True(File.Exists(restoredFile), "Normal box file should be restored to desktop.");
-        File.Delete(restoredFile);
-
+        Assert.True(result.BoxRemoved);
+        Assert.Equal(1, result.RestoredCount);
+        Assert.Equal(0, result.FailedCount);
+        Assert.True(File.Exists(source));
+        Assert.Equal("hello", File.ReadAllText(source));
+        Assert.False(File.Exists(storedPath));
         Assert.DoesNotContain(boxes, box => box.Id == normalBox.Id);
         Assert.Empty(remainingItems);
+    }
+
+    [Fact]
+    public async Task DeleteBoxAsync_KeepsBoxWhenAnyRestoreFails()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var keepSource = workspace.CreateSourceFile("source-keep", "keep.txt", "keep");
+        var failSource = workspace.CreateSourceFile("source-fail", "fail.txt", "fail");
+        var normalBox = await workspace.GetBoxAsync(BoxType.Normal);
+        var keepItem = await workspace.Service.ImportPathAsync(normalBox.Id, keepSource);
+        var failItem = await workspace.Service.ImportPathAsync(normalBox.Id, failSource);
+
+        // Remove the stored file so restore throws FileNotFoundException for this item.
+        File.Delete(failItem.StoredPath!);
+
+        var result = await workspace.Service.DeleteBoxAsync(normalBox.Id);
+        var boxes = await workspace.Service.GetBoxesAsync();
+        var remainingItems = await workspace.Repository.GetItemsAsync(normalBox.Id);
+
+        Assert.False(result.BoxRemoved);
+        Assert.Equal(1, result.RestoredCount);
+        Assert.Equal(1, result.FailedCount);
+        Assert.Contains(boxes, box => box.Id == normalBox.Id);
+        Assert.True(File.Exists(keepSource));
+        Assert.False(File.Exists(keepItem.StoredPath));
+        Assert.Single(remainingItems);
+        Assert.Equal(failItem.Id, remainingItems[0].Id);
     }
 
     [Fact]
@@ -383,27 +558,40 @@ public sealed class DrawerServiceTests
         var source = workspace.CreateSourceFile("source-a", "reference.txt", "hello");
         var mappingBox = await workspace.GetBoxAsync(BoxType.Mapping);
         await workspace.Service.ImportPathAsync(mappingBox.Id, source);
-        var trash = new RecordingTrash();
 
-        await workspace.Service.DeleteBoxAsync(mappingBox.Id, trash);
+        var result = await workspace.Service.DeleteBoxAsync(mappingBox.Id);
         var boxes = await workspace.Service.GetBoxesAsync();
         var remainingItems = await workspace.Repository.GetItemsAsync(mappingBox.Id);
 
-        Assert.Empty(trash.Paths);
+        Assert.True(result.BoxRemoved);
         Assert.True(File.Exists(source));
         Assert.DoesNotContain(boxes, box => box.Id == mappingBox.Id);
         Assert.Empty(remainingItems);
     }
 
-    private sealed class RecordingTrash : IFileTrash
+    [Fact]
+    public async Task RenameBoxAsync_RejectsEmptyName()
     {
-        public List<string> Paths { get; } = [];
+        using var workspace = await TestWorkspace.CreateAsync();
+        var normalBox = await workspace.GetBoxAsync(BoxType.Normal);
 
-        public Task MoveToRecycleBinAsync(string path, CancellationToken cancellationToken = default)
-        {
-            Paths.Add(path);
-            return Task.CompletedTask;
-        }
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => workspace.Service.RenameBoxAsync(normalBox.Id, "   "));
+    }
+
+    [Fact]
+    public async Task ImportPathAsync_DirectoryMovesIntoStorage()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var sourceDir = workspace.CreateSourceDirectory("folder-a", "nested.txt", "payload");
+        var normalBox = await workspace.GetBoxAsync(BoxType.Normal);
+
+        var item = await workspace.Service.ImportPathAsync(normalBox.Id, sourceDir);
+
+        Assert.False(Directory.Exists(sourceDir));
+        Assert.NotNull(item.StoredPath);
+        Assert.True(Directory.Exists(item.StoredPath));
+        Assert.True(File.Exists(Path.Combine(item.StoredPath!, "nested.txt")));
     }
 
     private sealed class TestWorkspace : IDisposable
@@ -443,6 +631,14 @@ public sealed class DrawerServiceTests
             var path = Path.Combine(directory, fileName);
             File.WriteAllText(path, content);
             return path;
+        }
+
+        public string CreateSourceDirectory(string folderName, string nestedFileName, string content)
+        {
+            var directory = Path.Combine(Root, "sources", folderName);
+            Directory.CreateDirectory(directory);
+            File.WriteAllText(Path.Combine(directory, nestedFileName), content);
+            return directory;
         }
 
         public async Task<Box> GetBoxAsync(BoxType type)

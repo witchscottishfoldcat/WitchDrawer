@@ -5,7 +5,7 @@
 - Implement mapping boxes: absolute-path references without moving files.
 - Implement quick panel: `Ctrl+Alt+W`, all indexed items, search, and Shell open.
 - Persist boxes and items in SQLite.
-- Keep deletes routed through the recycle bin abstraction.
+- Delete restores stored items to their original locations (desktop fallback if missing); mapping boxes only remove references.
 
 ## Next Milestone
 - Target boxes bound to existing folders with two-way file-system sync.
