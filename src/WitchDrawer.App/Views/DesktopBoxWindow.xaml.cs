@@ -64,6 +64,10 @@ public partial class DesktopBoxWindow : Window
         AppThemeManager.ThemeChanged += OnThemeChanged;
         Activated += OnWindowActivated;
         Deactivated += OnWindowDeactivated;
+        // Desktop boxes often stay non-activated (ShowActivated=false + HWND_BOTTOM/NOACTIVATE).
+        // Window.Deactivated therefore never runs after an external drop selection; clear when
+        // the whole app loses foreground so a desktop click removes the selected-item chrome.
+        Application.Current.Deactivated += OnApplicationDeactivated;
     }
 
     public DesktopBoxViewModel ViewModel => (DesktopBoxViewModel)DataContext;
@@ -117,6 +121,11 @@ public partial class DesktopBoxWindow : Window
         AppThemeManager.ThemeChanged -= OnThemeChanged;
         Activated -= OnWindowActivated;
         Deactivated -= OnWindowDeactivated;
+        if (Application.Current is not null)
+        {
+            Application.Current.Deactivated -= OnApplicationDeactivated;
+        }
+
         base.OnClosed(e);
     }
 
@@ -145,10 +154,20 @@ public partial class DesktopBoxWindow : Window
 
     private void OnWindowDeactivated(object? sender, EventArgs e)
     {
+        ClearItemSelection();
+        QueueSendToBottom();
+    }
+
+    private void OnApplicationDeactivated(object? sender, EventArgs e)
+    {
+        ClearItemSelection();
+    }
+
+    private void ClearItemSelection()
+    {
         IconList.SelectedItem = null;
         FileList.SelectedItem = null;
         _keyboardDeleteTarget = null;
-        QueueSendToBottom();
     }
 
     private void OnCloseClick(object sender, RoutedEventArgs e)
@@ -249,17 +268,27 @@ public partial class DesktopBoxWindow : Window
                 if (importedItem is not null)
                 {
                     importedItem.ReloadIconIfNeeded();
-                    ActiveItemsList.SelectedItem = importedItem;
-                    _keyboardDeleteTarget = importedItem;
+                    // Only keep keyboard selection while this box actually has focus.
+                    // External Explorer drops often leave the window non-activated; a sticky
+                    // SelectedItem then cannot be cleared by clicking the desktop.
+                    if (IsActive)
+                    {
+                        ActiveItemsList.SelectedItem = importedItem;
+                        _keyboardDeleteTarget = importedItem;
+                        ActiveItemsList.Focus();
+                    }
+                    else
+                    {
+                        ClearItemSelection();
+                    }
                 }
-
-                ActiveItemsList.Focus();
             }
         }
         finally
         {
             ViewModel.HideDragPreview();
             ViewModel.IsDragOver = false;
+            ResetDragCursor();
         }
     }
 
@@ -298,9 +327,7 @@ public partial class DesktopBoxWindow : Window
             return;
         }
 
-        IconList.SelectedItem = null;
-        FileList.SelectedItem = null;
-        _keyboardDeleteTarget = null;
+        ClearItemSelection();
 
         if (e.ButtonState == MouseButtonState.Pressed)
         {
@@ -471,6 +498,7 @@ public partial class DesktopBoxWindow : Window
             else
             {
                 args.UseDefaultCursors = true;
+                Mouse.SetCursor(null);
             }
         };
 
@@ -513,9 +541,17 @@ public partial class DesktopBoxWindow : Window
             dragSourceList.GiveFeedback -= giveFeedback;
             drawerItem.IsDragSource = false;
             ViewModel.HideDragPreview();
+            ResetDragCursor();
             dragSourceList.Focus();
             QueueSendToBottom();
         }
+    }
+
+    private static void ResetDragCursor()
+    {
+        // GiveFeedback may leave a custom Hand cursor after DoDragDrop returns.
+        Mouse.OverrideCursor = null;
+        Mouse.SetCursor(null);
     }
 
     private static async Task<bool> WaitForInternalDropAsync(DesktopBoxDragPayload payload)
