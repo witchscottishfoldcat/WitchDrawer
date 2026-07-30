@@ -15,6 +15,12 @@ WitchDrawer 是一款基于原生 WPF 构建的轻量级 Windows 桌面文件收
 
 English: WitchDrawer is a lightweight Windows desktop file drawer built with native WPF. It is designed for desktop beautification and daily file staging.
 
+## 效果展示
+
+[![WitchDrawer 桌面收纳效果展示](docs/images/witchdrawer-desktop-showcase.png)](https://www.bilibili.com/video/BV1zx3c6eEX8/)
+
+▶ [在哔哩哔哩观看 WitchDrawer 视频演示](https://www.bilibili.com/video/BV1zx3c6eEX8/)
+
 ## 功能特性
 
 - **普通收纳盒** — 将拖入的文件或文件夹移入 WitchDrawer 的应用数据存储目录
