@@ -108,7 +108,7 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
 
     public string CurrentSizeLabel => _currentPreset switch
     {
-        "3x3" => "超大",
+        "3x3" => "超",
         "4x4" => "大",
         "5x5" => "中",
         _ => "小"

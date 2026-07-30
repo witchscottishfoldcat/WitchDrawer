@@ -736,7 +736,8 @@
                                                     <TextBlock Text="{Binding SelectedBox.LayoutSettings.CurrentSizeLabel, TargetNullValue=小}"
                                                                Foreground="{DynamicResource AccentBrush}"
                                                                FontSize="10"
-                                                               FontWeight="SemiBold" />
+                                                               FontWeight="SemiBold"
+                                                               HorizontalAlignment="Center" />
                                                 </Border>
                                             </StackPanel>
 

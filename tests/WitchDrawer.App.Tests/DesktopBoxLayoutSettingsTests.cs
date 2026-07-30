@@ -17,7 +17,7 @@ public sealed class DesktopBoxLayoutSettingsTests
         firstBox.ApplyPresetCommand.Execute("3x3");
 
         Assert.True(firstBox.IsExtraLargePreset);
-        Assert.Equal("超大", firstBox.CurrentSizeLabel);
+        Assert.Equal("超", firstBox.CurrentSizeLabel);
         Assert.True(secondBox.IsSmallPreset);
         Assert.Equal("小", secondBox.CurrentSizeLabel);
     }
