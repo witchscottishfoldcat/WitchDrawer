@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using WitchDrawer.App.Infrastructure;
 using WitchDrawer.App.ViewModels;
 using WitchDrawer.App.Views;
@@ -33,7 +34,8 @@ public partial class MainWindow : Window
     private Point? _boxDragStart;
     private BoxViewModel? _boxDragSource;
     private ListBoxItem? _boxDropTarget;
-
+    private bool _isBoxVisualStylePageOpen;
+    private bool _isBoxVisualStyleTransitioning;
     public event EventHandler? WindowHidden;
     public event EventHandler? WindowClosing;
     public event EventHandler? DesktopShellRestarted;
@@ -473,6 +475,27 @@ public partial class MainWindow : Window
         if (sender is ListBox listBox && listBox.SelectedItem is not null)
         {
             listBox.ScrollIntoView(listBox.SelectedItem);
+            ShowPrimaryBoxControls();
+            ShowSelectedBoxOverview();
+        }
+    }
+
+    private void OnBoxesPreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is not DependencyObject source
+            || ItemsControl.ContainerFromElement(BoxesList, source) is not ListBoxItem)
+        {
+            return;
+        }
+
+        ShowSelectedBoxOverview();
+    }
+
+    private void ShowSelectedBoxOverview()
+    {
+        if (ViewModel.ShowDashboardCommand.CanExecute(null))
+        {
+            ViewModel.ShowDashboardCommand.Execute(null);
         }
     }
 
@@ -642,10 +665,95 @@ public partial class MainWindow : Window
         await ViewModel.CreateMappingBoxCommand.ExecuteAsync(null);
     }
 
-    private async void OnCreatePixelBoxClicked(object sender, RoutedEventArgs e)
+    private void OnOpenBoxVisualStylePage(object sender, RoutedEventArgs e)
     {
-        CreateBoxPopup.IsOpen = false;
-        await ViewModel.CreatePixelBoxCommand.ExecuteAsync(null);
+        if (_isBoxVisualStylePageOpen
+            || _isBoxVisualStyleTransitioning
+            || ViewModel.SelectedBox?.CanSelectVisualStyle != true)
+        {
+            return;
+        }
+
+        _isBoxVisualStylePageOpen = true;
+        BoxControlsPrimaryPanel.IsHitTestVisible = false;
+        BoxVisualStyleSecondaryPanel.IsHitTestVisible = true;
+        VisualStateManager.GoToElementState(
+            BoxControlsPageHost,
+            "VisualStyleSelectionState",
+            useTransitions: true);
+    }
+
+    private void OnCloseBoxVisualStylePage(object sender, RoutedEventArgs e)
+    {
+        ShowPrimaryBoxControls();
+    }
+
+    private async void OnBoxVisualStyleSelected(object sender, RoutedEventArgs e)
+    {
+        if (_isBoxVisualStyleTransitioning
+            || sender is not Button
+            {
+                DataContext: BoxVisualStyleOption option,
+                RenderTransform: ScaleTransform scaleTransform
+            })
+        {
+            return;
+        }
+
+        _isBoxVisualStyleTransitioning = true;
+        BoxVisualStyleSecondaryPanel.IsHitTestVisible = false;
+        try
+        {
+            AnimateVisualStyleSelection(scaleTransform);
+            await Task.Delay(170);
+            await ViewModel.SetSelectedBoxVisualStyleCommand.ExecuteAsync(option);
+            await Task.Delay(40);
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to complete box visual style selection animation.");
+        }
+        finally
+        {
+            ShowPrimaryBoxControls();
+            _isBoxVisualStyleTransitioning = false;
+        }
+    }
+
+    private void ShowPrimaryBoxControls()
+    {
+        if (!_isBoxVisualStylePageOpen && !_isBoxVisualStyleTransitioning)
+        {
+            return;
+        }
+
+        _isBoxVisualStylePageOpen = false;
+        BoxVisualStyleSecondaryPanel.IsHitTestVisible = false;
+        BoxControlsPrimaryPanel.IsHitTestVisible = true;
+        VisualStateManager.GoToElementState(
+            BoxControlsPageHost,
+            "PrimaryControlsState",
+            useTransitions: true);
+    }
+
+    private static void AnimateVisualStyleSelection(ScaleTransform scaleTransform)
+    {
+        var easing = new BackEase
+        {
+            Amplitude = 0.3,
+            EasingMode = EasingMode.EaseOut
+        };
+        var pulse = new DoubleAnimation(
+            fromValue: 1,
+            toValue: 1.07,
+            duration: TimeSpan.FromMilliseconds(85))
+        {
+            AutoReverse = true,
+            EasingFunction = easing
+        };
+
+        scaleTransform.BeginAnimation(ScaleTransform.ScaleXProperty, pulse);
+        scaleTransform.BeginAnimation(ScaleTransform.ScaleYProperty, pulse.Clone());
     }
 
     private async void OnCreateTodoBoxClicked(object sender, RoutedEventArgs e)

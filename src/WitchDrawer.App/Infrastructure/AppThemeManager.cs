@@ -46,6 +46,7 @@ public static class AppThemeManager
 
         if (theme == AppTheme.Glass)
         {
+            SetColor("ControlCenterSurfaceBrush", "#F20D0D16"); // Stable dark control-center surface
             SetColor("AppBackgroundBrush", "#E60D0D16"); // Deep obsidian dark translucent
             SetColor("PanelBrush", "#CC1A1A24");         // Dark card/panel background
             SetColor("PanelAltBrush", "#9914141E");      // Deep sidebar/control background
@@ -68,6 +69,7 @@ public static class AppThemeManager
         }
         else if (theme == AppTheme.Crystal)
         {
+            SetColor("ControlCenterSurfaceBrush", "#EDF3F8FC"); // Quiet readable surface over wallpapers
             SetColor("AppBackgroundBrush", "#B8F3F8FC");  // Readable crystal veil over wallpapers
             SetColor("PanelBrush", "#B8FFFFFF");          // Stable content surface
             SetColor("PanelAltBrush", "#94F7FAFC");       // Distinct but lightweight sidebar
@@ -90,6 +92,7 @@ public static class AppThemeManager
         }
         else
         {
+            SetColor("ControlCenterSurfaceBrush", "#FFF5F8FC"); // Native cool-white workspace
             SetColor("AppBackgroundBrush", "#F3F4F6");    // Clean soft light background
             SetColor("PanelBrush", "#FFFFFF");            // White card/panel background
             SetColor("PanelAltBrush", "#F9FAFB");         // Light gray sidebar background

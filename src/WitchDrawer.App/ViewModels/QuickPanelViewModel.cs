@@ -16,17 +16,23 @@ public sealed class QuickPanelViewModel : ObservableObject
     private readonly DrawerService _drawerService;
     private readonly IFileLauncher _launcher;
     private readonly IAppLogger _logger;
+    private readonly BoxVisualStyleStore _boxVisualStyleStore;
     private List<DrawerItemViewModel> _allItems = [];
     private string _searchText = string.Empty;
     private double _iconDpiScaleX = 1;
     private double _iconDpiScaleY = 1;
     private string _statusText = "快速面板";
 
-    public QuickPanelViewModel(DrawerService drawerService, IFileLauncher launcher, IAppLogger logger)
+    public QuickPanelViewModel(
+        DrawerService drawerService,
+        IFileLauncher launcher,
+        IAppLogger logger,
+        BoxVisualStyleStore boxVisualStyleStore)
     {
         _drawerService = drawerService;
         _launcher = launcher;
         _logger = logger;
+        _boxVisualStyleStore = boxVisualStyleStore;
         OpenItemCommand = new AsyncRelayCommand<DrawerItemViewModel?>(OpenItemAsync);
     }
 
@@ -69,13 +75,20 @@ public sealed class QuickPanelViewModel : ObservableObject
         {
             var boxes = await _drawerService.GetBoxesAsync();
             var boxesById = boxes.ToDictionary(box => box.Id);
+            var boxStyles = await Task.WhenAll(
+                boxes.Select(async box =>
+                    (box.Id, Style: await _boxVisualStyleStore.LoadAsync(box))));
+            var stylesByBoxId = boxStyles.ToDictionary(entry => entry.Id, entry => entry.Style);
             var items = await _drawerService.GetAllItemsAsync();
 
             _allItems = items
                 .Select(item =>
                 {
                     boxesById.TryGetValue(item.BoxId, out var box);
-                    var isPixelated = box?.Type == BoxType.Pixel;
+                    var isPixelated = stylesByBoxId.TryGetValue(
+                        item.BoxId,
+                        out var visualStyle)
+                        && visualStyle == BoxVisualStyle.Pixel;
                     return new DrawerItemViewModel(
                         item,
                         box?.Name ?? string.Empty,

@@ -2,7 +2,9 @@ using System.Collections.ObjectModel;
 using System.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
 using WitchDrawer.App.Infrastructure;
+using WitchDrawer.App.Messages;
 using WitchDrawer.Core.Abstractions;
 using WitchDrawer.Core.Logging;
 using WitchDrawer.Core.Models;
@@ -23,6 +25,8 @@ public sealed class MainViewModel : ObservableObject
     private readonly IAppLogger _logger;
     private readonly QuickPanelViewModel _quickPanelViewModel;
     private readonly UpdateService _updateService;
+    private readonly BoxVisualStyleStore _boxVisualStyleStore;
+    private readonly BoxPositionLockStateStore _boxPositionLockStateStore;
     private BoxViewModel? _selectedBox;
     private CancellationTokenSource? _itemsLoadCts;
     private int _itemsLoadVersion;
@@ -47,7 +51,9 @@ public sealed class MainViewModel : ObservableObject
         IFileLauncher launcher,
         IAppLogger logger,
         QuickPanelViewModel quickPanelViewModel,
-        UpdateService updateService)
+        UpdateService updateService,
+        BoxVisualStyleStore boxVisualStyleStore,
+        BoxPositionLockStateStore boxPositionLockStateStore)
     {
         _drawerService = drawerService;
         _todoService = todoService;
@@ -55,11 +61,25 @@ public sealed class MainViewModel : ObservableObject
         _logger = logger;
         _quickPanelViewModel = quickPanelViewModel;
         _updateService = updateService;
+        _boxVisualStyleStore = boxVisualStyleStore;
+        _boxPositionLockStateStore = boxPositionLockStateStore;
 
         LoadCommand = new AsyncRelayCommand(LoadAsync);
-        CreateNormalBoxCommand = new AsyncRelayCommand(() => CreateBoxAsync(BoxType.Normal));
+        CreateNormalBoxCommand = new AsyncRelayCommand(
+            () => CreateBoxAsync(BoxType.Normal, BoxVisualStyle.Modern));
         CreateMappingBoxCommand = new AsyncRelayCommand(() => CreateBoxAsync(BoxType.Mapping));
-        CreatePixelBoxCommand = new AsyncRelayCommand(() => CreateBoxAsync(BoxType.Pixel));
+        CreatePixelBoxCommand = new AsyncRelayCommand(
+            () => CreateBoxAsync(BoxType.Normal, BoxVisualStyle.Pixel));
+        CreateStyledNormalBoxCommand =
+            new AsyncRelayCommand<BoxVisualStyleOption?>(CreateStyledNormalBoxAsync);
+        SetSelectedBoxVisualStyleCommand =
+            new AsyncRelayCommand<BoxVisualStyleOption?>(
+                SetSelectedBoxVisualStyleAsync,
+                option => option is not null && SelectedBox?.CanSelectVisualStyle == true);
+        ToggleSelectedBoxPositionLockCommand =
+            new AsyncRelayCommand(
+                ToggleSelectedBoxPositionLockAsync,
+                () => SelectedBox is not null);
         CreateTodoBoxCommand = new AsyncRelayCommand(() => CreateBoxAsync(BoxType.Todo));
         DeleteSelectedBoxCommand = new AsyncRelayCommand(DeleteSelectedBoxAsync, () => SelectedBox is not null);
         RenameSelectedBoxCommand = new AsyncRelayCommand<string?>(RenameSelectedBoxAsync, _ => SelectedBox is not null);
@@ -105,6 +125,9 @@ public sealed class MainViewModel : ObservableObject
 
     public ObservableCollection<ArchivedTodoItemViewModel> ArchivedTodos { get; } = [];
 
+    public IReadOnlyList<BoxVisualStyleOption> BoxVisualStyleOptions =>
+        BoxVisualStyleCatalog.Options;
+
     public void UpdateIconDisplayMetrics(double dpiScaleX, double dpiScaleY)
     {
         _iconDpiScaleX = NormalizeDpiScale(dpiScaleX);
@@ -123,6 +146,12 @@ public sealed class MainViewModel : ObservableObject
     public IAsyncRelayCommand CreateMappingBoxCommand { get; }
 
     public IAsyncRelayCommand CreatePixelBoxCommand { get; }
+
+    public IAsyncRelayCommand<BoxVisualStyleOption?> CreateStyledNormalBoxCommand { get; }
+
+    public IAsyncRelayCommand<BoxVisualStyleOption?> SetSelectedBoxVisualStyleCommand { get; }
+
+    public IAsyncRelayCommand ToggleSelectedBoxPositionLockCommand { get; }
 
     public IAsyncRelayCommand CreateTodoBoxCommand { get; }
 
@@ -269,11 +298,16 @@ public sealed class MainViewModel : ObservableObject
         {
             var existingSelection = SelectedBox?.Id;
             var boxes = await _drawerService.GetBoxesAsync();
+            var presentedBoxes = await LoadBoxPresentationAsync(boxes);
 
             Boxes.Clear();
-            foreach (var box in boxes)
+            foreach (var (box, visualStyle, isPositionLocked) in presentedBoxes)
             {
-                Boxes.Add(new BoxViewModel(box, _drawerService));
+                Boxes.Add(new BoxViewModel(
+                    box,
+                    _drawerService,
+                    visualStyle,
+                    isPositionLocked));
             }
 
             await SelectBoxAsync(Boxes.FirstOrDefault(box => box.Id == existingSelection) ?? Boxes.FirstOrDefault());
@@ -390,7 +424,16 @@ public sealed class MainViewModel : ObservableObject
         });
     }
 
-    private async Task CreateBoxAsync(BoxType type)
+    private Task CreateStyledNormalBoxAsync(BoxVisualStyleOption? option)
+    {
+        return option is null
+            ? Task.CompletedTask
+            : CreateBoxAsync(BoxType.Normal, option.Style);
+    }
+
+    private async Task CreateBoxAsync(
+        BoxType type,
+        BoxVisualStyle? visualStyle = null)
     {
         await RunBusyAsync(async () =>
         {
@@ -402,14 +445,112 @@ public sealed class MainViewModel : ObservableObject
                 BoxType.Todo => "待办收纳盒",
                 _ => "收纳盒"
             };
-            var name = $"{prefix} {Boxes.Count(box => box.Type == type) + 1}";
+            var matchingBoxCount = type == BoxType.Normal
+                ? Boxes.Count(box => box.Type is BoxType.Normal or BoxType.Pixel)
+                : Boxes.Count(box => box.Type == type);
+            var name = $"{prefix} {matchingBoxCount + 1}";
             var box = await _drawerService.CreateBoxAsync(name, type);
-            var viewModel = new BoxViewModel(box, _drawerService);
+            var effectiveStyle = visualStyle ?? BoxVisualStyle.Modern;
+            if (type == BoxType.Normal)
+            {
+                try
+                {
+                    await _boxVisualStyleStore.SaveAsync(box.Id, effectiveStyle);
+                }
+                catch
+                {
+                    await CompensateFailedStyledBoxCreationAsync(box.Id);
+                    throw;
+                }
+            }
+
+            var viewModel = new BoxViewModel(
+                box,
+                _drawerService,
+                effectiveStyle,
+                isPositionLocked: false);
             Boxes.Add(viewModel);
             await SelectBoxAsync(viewModel);
             StatusText = $"已创建 {name}，桌面收纳栏已生成";
             BoxesChanged?.Invoke(this, EventArgs.Empty);
         });
+    }
+
+    private async Task SetSelectedBoxVisualStyleAsync(BoxVisualStyleOption? option)
+    {
+        var selectedBox = SelectedBox;
+        if (option is null || selectedBox?.CanSelectVisualStyle != true)
+        {
+            return;
+        }
+
+        await RunBusyAsync(async () =>
+        {
+            await _boxVisualStyleStore.SaveAsync(selectedBox.Id, option.Style);
+            selectedBox.ApplyVisualStyle(option.Style);
+            await LoadItemsForSelectedBoxAsync(selectedBox);
+            await _quickPanelViewModel.LoadAsync();
+            StatusText = $"已将“{selectedBox.Name}”切换为{option.Name}";
+            BoxesChanged?.Invoke(this, EventArgs.Empty);
+        });
+    }
+
+    private async Task ToggleSelectedBoxPositionLockAsync()
+    {
+        var selectedBox = SelectedBox;
+        if (selectedBox is null)
+        {
+            return;
+        }
+
+        await RunBusyAsync(async () =>
+        {
+            var isPositionLocked = !selectedBox.IsPositionLocked;
+            await _boxPositionLockStateStore.SaveAsync(
+                selectedBox.Id,
+                isPositionLocked);
+            selectedBox.ApplyPositionLockState(isPositionLocked);
+            WeakReferenceMessenger.Default.Send(
+                new BoxPositionLockStateChangedMessage(
+                    selectedBox.Id,
+                    isPositionLocked));
+            StatusText = isPositionLocked
+                ? $"已锁定“{selectedBox.Name}”的桌面位置"
+                : $"已解锁“{selectedBox.Name}”的桌面位置";
+        });
+    }
+
+    private async Task CompensateFailedStyledBoxCreationAsync(Guid boxId)
+    {
+        try
+        {
+            await _drawerService.DeleteBoxAsync(boxId);
+            _logger.Info(
+                $"Removed empty box {boxId:N} after visual style persistence failed.");
+        }
+        catch (Exception compensationException)
+        {
+            _logger.Error(
+                compensationException,
+                $"Failed to remove empty box {boxId:N} after visual style persistence failed.");
+        }
+    }
+
+    private async Task<(Box Box, BoxVisualStyle VisualStyle, bool IsPositionLocked)[]> LoadBoxPresentationAsync(
+        IReadOnlyList<Box> boxes)
+    {
+        return await Task.WhenAll(
+            boxes.Select(async box =>
+            {
+                var visualStyleTask = _boxVisualStyleStore.LoadAsync(box);
+                var positionLockStateTask =
+                    _boxPositionLockStateStore.LoadAsync(box.Id);
+                await Task.WhenAll(visualStyleTask, positionLockStateTask);
+                return (
+                    box,
+                    await visualStyleTask,
+                    await positionLockStateTask);
+            }));
     }
 
     private async Task DeleteSelectedBoxAsync()
@@ -425,10 +566,15 @@ public sealed class MainViewModel : ObservableObject
             var result = await _drawerService.DeleteBoxAsync(selectedBox.Id);
 
             var boxes = await _drawerService.GetBoxesAsync();
+            var presentedBoxes = await LoadBoxPresentationAsync(boxes);
             Boxes.Clear();
-            foreach (var box in boxes)
+            foreach (var (box, visualStyle, isPositionLocked) in presentedBoxes)
             {
-                Boxes.Add(new BoxViewModel(box, _drawerService));
+                Boxes.Add(new BoxViewModel(
+                    box,
+                    _drawerService,
+                    visualStyle,
+                    isPositionLocked));
             }
 
             await SelectBoxAsync(
@@ -456,10 +602,15 @@ public sealed class MainViewModel : ObservableObject
             await _drawerService.RenameBoxAsync(selectedBox.Id, newName);
 
             var boxes = await _drawerService.GetBoxesAsync();
+            var presentedBoxes = await LoadBoxPresentationAsync(boxes);
             Boxes.Clear();
-            foreach (var box in boxes)
+            foreach (var (box, visualStyle, isPositionLocked) in presentedBoxes)
             {
-                Boxes.Add(new BoxViewModel(box, _drawerService));
+                Boxes.Add(new BoxViewModel(
+                    box,
+                    _drawerService,
+                    visualStyle,
+                    isPositionLocked));
             }
 
             await SelectBoxAsync(Boxes.FirstOrDefault(b => b.Id == selectedBox.Id) ?? Boxes.FirstOrDefault());
@@ -481,6 +632,8 @@ public sealed class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectedBox));
         DeleteSelectedBoxCommand.NotifyCanExecuteChanged();
         RenameSelectedBoxCommand.NotifyCanExecuteChanged();
+        SetSelectedBoxVisualStyleCommand.NotifyCanExecuteChanged();
+        ToggleSelectedBoxPositionLockCommand.NotifyCanExecuteChanged();
         return true;
     }
 
@@ -543,7 +696,7 @@ public sealed class MainViewModel : ObservableObject
                 return;
             }
 
-            var isPixelated = selectedBox.Type == BoxType.Pixel;
+            var isPixelated = selectedBox.IsPixelStyle;
             Items.Clear();
             foreach (var item in items)
             {

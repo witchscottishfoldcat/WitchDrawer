@@ -28,6 +28,7 @@ public partial class DesktopBoxWindow : Window
     private bool _isMappingViewTransitioning;
     private bool _restoreAfterMinimizeQueued;
     private bool _desktopIsForeground;
+    private bool _isPositionLocked;
     private HwndSource? _source;
     private DesktopToolWindow? _nativeWindow;
 
@@ -92,6 +93,11 @@ public partial class DesktopBoxWindow : Window
     {
         SendToBottom();
         Dispatcher.BeginInvoke(new Action(SendToBottom), DispatcherPriority.ApplicationIdle);
+    }
+
+    public void SetPositionLocked(bool isPositionLocked)
+    {
+        _isPositionLocked = isPositionLocked;
     }
 
     public nint NativeHandle => _nativeWindow?.Handle ?? nint.Zero;
@@ -591,6 +597,11 @@ public partial class DesktopBoxWindow : Window
         }
 
         ClearItemSelection();
+
+        if (_isPositionLocked)
+        {
+            return;
+        }
 
         if (e.ButtonState == MouseButtonState.Pressed)
         {

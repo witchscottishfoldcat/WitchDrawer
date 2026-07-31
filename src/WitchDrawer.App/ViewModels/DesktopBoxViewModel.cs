@@ -24,6 +24,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private readonly IAppLogger _logger;
     private readonly DesktopBoxLayoutSettings _layoutSettings;
     private Box _box;
+    private BoxVisualStyle _visualStyle;
     private bool _isBusy;
     private double _gridCanvasWidth;
     private double _gridCanvasHeight;
@@ -45,9 +46,11 @@ public sealed class DesktopBoxViewModel : ObservableObject
         TodoService todoService,
         IFileLauncher launcher,
         IAppLogger logger,
+        BoxVisualStyle visualStyle,
         DesktopBoxLayoutSettings? layoutSettings = null)
     {
         _box = box;
+        _visualStyle = visualStyle;
         _drawerService = drawerService;
         _todoService = todoService;
         _launcher = launcher;
@@ -100,6 +103,10 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     public BoxType Type => _box.Type;
 
+    public BoxVisualStyle VisualStyle => _visualStyle;
+
+    public bool IsPixelStyle => VisualStyle == BoxVisualStyle.Pixel;
+
     public bool IsMappingBox => Type == BoxType.Mapping;
 
     public bool IsTodoBox => Type == BoxType.Todo;
@@ -110,18 +117,16 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     public string TypeLabel => _box.Type switch
     {
-        BoxType.Normal => "普通",
+        BoxType.Normal or BoxType.Pixel => "普通",
         BoxType.Mapping => "映射",
-        BoxType.Pixel => "像素",
         BoxType.Todo => "待办",
         _ => "未知"
     };
 
     public string Description => _box.Type switch
     {
-        BoxType.Normal => "移动收纳",
+        BoxType.Normal or BoxType.Pixel => "移动收纳",
         BoxType.Mapping => "路径映射",
-        BoxType.Pixel => "像素收纳",
         BoxType.Todo => "桌面待办",
         _ => string.Empty
     };
@@ -200,11 +205,14 @@ public sealed class DesktopBoxViewModel : ObservableObject
         private set => SetProperty(ref _statusText, value);
     }
 
-    public void UpdateBox(Box box)
+    public void UpdateBox(Box box, BoxVisualStyle visualStyle)
     {
         _box = box;
+        _visualStyle = visualStyle;
         OnPropertyChanged(nameof(Name));
         OnPropertyChanged(nameof(Type));
+        OnPropertyChanged(nameof(VisualStyle));
+        OnPropertyChanged(nameof(IsPixelStyle));
         OnPropertyChanged(nameof(IsMappingBox));
         OnPropertyChanged(nameof(IsTodoBox));
         OnPropertyChanged(nameof(IsMappingListMode));
@@ -335,7 +343,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
             // before the window is created so boxes can use different icon sizes.
 
             var items = await _drawerService.GetItemsAsync(BoxId);
-            var isPixelated = Type == BoxType.Pixel;
+            var isPixelated = IsPixelStyle;
             var positions = ResolveItemPositions(items);
 
             var existingIds = new HashSet<Guid>();
@@ -836,7 +844,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     private void UpdateItemIconSizes()
     {
-        var iconPixelSize = GetIconPixelSize(Type == BoxType.Pixel);
+        var iconPixelSize = GetIconPixelSize(IsPixelStyle);
         foreach (var item in Items)
         {
             item.RequestIconSize(iconPixelSize);

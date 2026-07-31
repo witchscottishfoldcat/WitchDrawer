@@ -20,6 +20,8 @@ public sealed class DesktopBoxManager
     private readonly TodoService _todoService;
     private readonly IFileLauncher _launcher;
     private readonly IAppLogger _logger;
+    private readonly BoxVisualStyleStore _boxVisualStyleStore;
+    private readonly BoxPositionLockStateStore _boxPositionLockStateStore;
     private readonly Dictionary<Guid, DesktopBoxWindow> _windows = [];
     private readonly ForegroundWindowMonitor _foregroundWindowMonitor;
     private bool _closing;
@@ -33,12 +35,16 @@ public sealed class DesktopBoxManager
         DrawerService drawerService,
         TodoService todoService,
         IFileLauncher launcher,
-        IAppLogger logger)
+        IAppLogger logger,
+        BoxVisualStyleStore boxVisualStyleStore,
+        BoxPositionLockStateStore boxPositionLockStateStore)
     {
         _drawerService = drawerService;
         _todoService = todoService;
         _launcher = launcher;
         _logger = logger;
+        _boxVisualStyleStore = boxVisualStyleStore;
+        _boxPositionLockStateStore = boxPositionLockStateStore;
         _foregroundWindowMonitor = new ForegroundWindowMonitor();
         _foregroundWindowMonitor.ForegroundWindowChanged += OnForegroundWindowChanged;
         _desktopIsForeground = ForegroundWindowMonitor.IsDesktopWindow(
@@ -51,6 +57,9 @@ public sealed class DesktopBoxManager
         WeakReferenceMessenger.Default.Register<DesktopBoxManager, BoxLayoutPresetChangedMessage>(
             this,
             static (recipient, message) => recipient.ApplyBoxLayoutPreset(message));
+        WeakReferenceMessenger.Default.Register<DesktopBoxManager, BoxPositionLockStateChangedMessage>(
+            this,
+            static (recipient, message) => recipient.ApplyBoxPositionLockState(message));
     }
 
     public event EventHandler? ItemsChanged;
@@ -99,6 +108,9 @@ public sealed class DesktopBoxManager
                 }
 
                 var box = boxes[index];
+                var visualStyle = await _boxVisualStyleStore.LoadAsync(box);
+                var isPositionLocked =
+                    await _boxPositionLockStateStore.LoadAsync(box.Id);
                 if (!_windows.TryGetValue(box.Id, out var window))
                 {
                     var layoutSettings = new DesktopBoxLayoutSettings();
@@ -112,6 +124,7 @@ public sealed class DesktopBoxManager
                         _todoService,
                         _launcher,
                         _logger,
+                        visualStyle,
                         layoutSettings);
                     viewModel.ItemsChanged += (_, _) => ItemsChanged?.Invoke(this, EventArgs.Empty);
 
@@ -137,12 +150,14 @@ public sealed class DesktopBoxManager
                     });
 
                     window.Show();
+                    window.SetPositionLocked(isPositionLocked);
                     window.SetDesktopForeground(_desktopIsForeground);
                     window.QueueSendToBottom();
                 }
                 else
                 {
-                    window.ViewModel.UpdateBox(box);
+                    window.ViewModel.UpdateBox(box, visualStyle);
+                    window.SetPositionLocked(isPositionLocked);
                 }
 
                 await window.ViewModel.LoadAsync();
@@ -405,6 +420,20 @@ public sealed class DesktopBoxManager
         }
 
         window.ViewModel.LayoutSettings.ApplyPresetWithoutCallback(message.Preset);
+    }
+
+    private void ApplyBoxPositionLockState(
+        BoxPositionLockStateChangedMessage message)
+    {
+        if (!_windows.TryGetValue(message.BoxId, out var window))
+        {
+            return;
+        }
+
+        window.SetPositionLocked(message.IsPositionLocked);
+        _logger.Info(
+            $"Applied position lock state {message.IsPositionLocked} "
+            + $"to desktop box {message.BoxId:N}.");
     }
 
     private async Task PlaceWindowAsync(Window window, Guid boxId, int fallbackIndex)

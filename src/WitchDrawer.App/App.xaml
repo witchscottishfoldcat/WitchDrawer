@@ -7,6 +7,7 @@
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <infra:InverseBooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" />
         <infra:NonEmptyToVisibilityConverter x:Key="NonEmptyToVisibilityConverter" />
+        <infra:BoxVisualStyleEqualityConverter x:Key="BoxVisualStyleEqualityConverter" />
 
         <Color x:Key="AppBackgroundColor">#F4F6F8</Color>
         <Color x:Key="PanelColor">#FFFFFF</Color>
@@ -36,6 +37,7 @@
         <SolidColorBrush x:Key="CardShadowBrush" Color="#121D1D1F" />
         <SolidColorBrush x:Key="DropZoneBrush" Color="#FAFAFC" />
         <SolidColorBrush x:Key="WindowOverlayBrush" Color="#00FFFFFF" />
+        <SolidColorBrush x:Key="ControlCenterSurfaceBrush" Color="#F5F8FC" />
 
         <Style TargetType="{x:Type Button}">
             <Setter Property="Background" Value="{DynamicResource PanelBrush}" />
@@ -168,6 +170,79 @@
                             <Trigger Property="Orientation" Value="Horizontal">
                                 <Setter Property="Width" Value="Auto" />
                                 <Setter Property="Height" Value="8" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DrawerScrollBarStyle" TargetType="{x:Type ScrollBar}">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Width" Value="12" />
+            <Setter Property="MinWidth" Value="12" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ScrollBar}">
+                        <Grid Width="{TemplateBinding Width}"
+                              Background="Transparent">
+                            <Border x:Name="TrackRail"
+                                    Width="6"
+                                    Margin="0,5"
+                                    HorizontalAlignment="Center"
+                                    Background="{DynamicResource BorderBrushSoft}"
+                                    CornerRadius="3"
+                                    Opacity="0.52" />
+                            <Track x:Name="PART_Track"
+                                   Margin="0,5"
+                                   IsDirectionReversed="True"
+                                   Focusable="False">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Command="{x:Static ScrollBar.PageUpCommand}"
+                                                  Focusable="False"
+                                                  Opacity="0" />
+                                </Track.DecreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb MinHeight="34"
+                                           Cursor="Hand"
+                                           Focusable="False">
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="{x:Type Thumb}">
+                                                <Grid Width="12">
+                                                    <Border x:Name="ThumbSurface"
+                                                            Width="6"
+                                                            HorizontalAlignment="Center"
+                                                            Background="{DynamicResource AccentBrush}"
+                                                            CornerRadius="3"
+                                                            Opacity="0.62" />
+                                                </Grid>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="ThumbSurface" Property="Width" Value="8" />
+                                                        <Setter TargetName="ThumbSurface" Property="CornerRadius" Value="4" />
+                                                        <Setter TargetName="ThumbSurface" Property="Opacity" Value="0.86" />
+                                                    </Trigger>
+                                                    <Trigger Property="IsDragging" Value="True">
+                                                        <Setter TargetName="ThumbSurface" Property="Width" Value="8" />
+                                                        <Setter TargetName="ThumbSurface" Property="CornerRadius" Value="4" />
+                                                        <Setter TargetName="ThumbSurface" Property="Opacity" Value="1" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Command="{x:Static ScrollBar.PageDownCommand}"
+                                                  Focusable="False"
+                                                  Opacity="0" />
+                                </Track.IncreaseRepeatButton>
+                            </Track>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="TrackRail" Property="Opacity" Value="0.72" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>

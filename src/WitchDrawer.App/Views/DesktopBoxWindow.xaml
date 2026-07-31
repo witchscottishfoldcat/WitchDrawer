@@ -181,7 +181,7 @@
                     <DataTrigger Binding="{Binding IsDragOver}" Value="True">
                         <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                     </DataTrigger>
-                    <DataTrigger Binding="{Binding Type}" Value="Pixel">
+                    <DataTrigger Binding="{Binding IsPixelStyle}" Value="True">
                         <Setter Property="CornerRadius" Value="14" />
                         <Setter Property="TextElement.FontFamily" Value="Consolas, Courier New, 微软雅黑" />
                     </DataTrigger>
@@ -205,7 +205,7 @@
                         <Setter Property="Fill" Value="Transparent" />
                         <Setter Property="Visibility" Value="Collapsed" />
                         <Style.Triggers>
-                            <DataTrigger Binding="{Binding Type}" Value="Pixel">
+                            <DataTrigger Binding="{Binding IsPixelStyle}" Value="True">
                                 <Setter Property="Fill" Value="{StaticResource DotGridBrush}" />
                                 <Setter Property="Visibility" Value="Visible" />
                             </DataTrigger>
@@ -434,7 +434,7 @@
                                             <Style TargetType="Border">
                                                 <Setter Property="CornerRadius" Value="{Binding DataContext.LayoutSettings.ItemCornerRadius, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" />
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding DataContext.Type, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" Value="Pixel">
+                                                    <DataTrigger Binding="{Binding DataContext.IsPixelStyle, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" Value="True">
                                                         <Setter Property="CornerRadius" Value="6" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
@@ -451,6 +451,7 @@
                                             <MultiDataTrigger.Conditions>
                                                 <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
                                                 <Condition Binding="{Binding DataContext.Type, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" Value="Normal" />
+                                                <Condition Binding="{Binding DataContext.IsPixelStyle, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" Value="False" />
                                             </MultiDataTrigger.Conditions>
                                             <Setter TargetName="Root" Property="Background" Value="{DynamicResource HoverBrush}" />
                                             <MultiDataTrigger.EnterActions>
@@ -500,7 +501,7 @@
                                         <MultiDataTrigger>
                                             <MultiDataTrigger.Conditions>
                                                 <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
-                                                <Condition Binding="{Binding DataContext.Type, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" Value="Pixel" />
+                                                <Condition Binding="{Binding DataContext.IsPixelStyle, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" Value="True" />
                                             </MultiDataTrigger.Conditions>
                                             <Setter TargetName="Root" Property="Background" Value="{DynamicResource HoverBrush}" />
                                         </MultiDataTrigger>
@@ -556,7 +557,7 @@
                             </Border>
                         </Grid>
                         <DataTemplate.Triggers>
-                            <DataTrigger Binding="{Binding DataContext.Type, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" Value="Pixel">
+                            <DataTrigger Binding="{Binding DataContext.IsPixelStyle, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" Value="True">
                                 <Setter TargetName="IconBorder" Property="CornerRadius" Value="4" />
                                 <Setter TargetName="IconImage" Property="RenderOptions.BitmapScalingMode" Value="NearestNeighbor" />
                             </DataTrigger>
@@ -915,7 +916,7 @@
                             <Setter Property="RadiusX" Value="{Binding LayoutSettings.ItemCornerRadius.TopLeft}" />
                             <Setter Property="RadiusY" Value="{Binding LayoutSettings.ItemCornerRadius.TopLeft}" />
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding Type}" Value="Pixel">
+                                <DataTrigger Binding="{Binding IsPixelStyle}" Value="True">
                                     <Setter Property="RadiusX" Value="6" />
                                     <Setter Property="RadiusY" Value="6" />
                                 </DataTrigger>
@@ -955,7 +956,7 @@
                                 <Setter Property="RadiusX" Value="16" />
                                 <Setter Property="RadiusY" Value="16" />
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding Type}" Value="Pixel">
+                                    <DataTrigger Binding="{Binding IsPixelStyle}" Value="True">
                                         <Setter Property="RadiusX" Value="6" />
                                         <Setter Property="RadiusY" Value="6" />
                                     </DataTrigger>
