@@ -1,0 +1,467 @@
+<UserControl x:Class="WitchDrawer.App.Views.TodoBoxDetailView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             MinHeight="300"
+             UseLayoutRounding="True"
+             SnapsToDevicePixels="True">
+    <UserControl.Resources>
+        <Style x:Key="TodoSummaryCardStyle" TargetType="{x:Type Border}">
+            <Setter Property="Background" Value="{DynamicResource PanelBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushSoft}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="13,9" />
+        </Style>
+
+        <Style x:Key="TodoRowContainerStyle" TargetType="{x:Type ListBoxItem}">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ListBoxItem}">
+                        <Border x:Name="RowSurface"
+                                MinHeight="45"
+                                Padding="10,7"
+                                Background="Transparent"
+                                BorderBrush="Transparent"
+                                BorderThickness="1"
+                                CornerRadius="10">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="RowSurface"
+                                        Property="Background"
+                                        Value="{DynamicResource HoverBrush}" />
+                                <Setter TargetName="RowSurface"
+                                        Property="BorderBrush"
+                                        Value="{DynamicResource BorderBrushSoft}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="RowSurface"
+                                        Property="Background"
+                                        Value="{DynamicResource AccentSoftBrush}" />
+                                <Setter TargetName="RowSurface"
+                                        Property="BorderBrush"
+                                        Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="TodoCompletionButtonStyle" TargetType="{x:Type Button}">
+            <Setter Property="Width" Value="25" />
+            <Setter Property="Height" Value="25" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Grid>
+                            <Ellipse x:Name="CompletionRing"
+                                     Fill="Transparent"
+                                     Stroke="{DynamicResource BorderBrushSoft}"
+                                     StrokeThickness="1.5" />
+                            <Path x:Name="CompletionCheck"
+                                  Data="M 4,9 L 8,13 L 16,5"
+                                  Width="12"
+                                  Height="9"
+                                  Stroke="White"
+                                  StrokeThickness="2"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  StrokeLineJoin="Round"
+                                  Stretch="Uniform"
+                                  Visibility="Collapsed" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="CompletionRing"
+                                        Property="Stroke"
+                                        Value="{DynamicResource AccentBrush}" />
+                                <Setter TargetName="CompletionRing"
+                                        Property="Fill"
+                                        Value="{DynamicResource AccentSoftBrush}" />
+                            </Trigger>
+                            <DataTrigger Binding="{Binding IsCompleted}" Value="True">
+                                <Setter TargetName="CompletionRing"
+                                        Property="Fill"
+                                        Value="{DynamicResource AccentBrush}" />
+                                <Setter TargetName="CompletionRing"
+                                        Property="Stroke"
+                                        Value="{DynamicResource AccentBrush}" />
+                                <Setter TargetName="CompletionCheck"
+                                        Property="Visibility"
+                                        Value="Visible" />
+                            </DataTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <DataTemplate x:Key="TodoDetailItemTemplate">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Button Command="{Binding DataContext.ToggleTodoCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                        CommandParameter="{Binding}"
+                        Style="{StaticResource TodoCompletionButtonStyle}"
+                        Margin="0,0,10,0"
+                        VerticalAlignment="Center"
+                        ToolTip="切换完成状态" />
+
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Title}"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               FontSize="12.5"
+                               FontWeight="SemiBold"
+                               TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="{x:Type TextBlock}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsCompleted}" Value="True">
+                                        <Setter Property="TextDecorations" Value="Strikethrough" />
+                                        <Setter Property="Opacity" Value="0.5" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock Text="{Binding TimeLabel}"
+                               Margin="0,2,0,0"
+                               Foreground="{DynamicResource TextMutedBrush}"
+                               FontSize="9.5" />
+                </StackPanel>
+
+                <Button Grid.Column="2"
+                        Command="{Binding DataContext.DeleteTodoCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                        CommandParameter="{Binding}"
+                        Width="28"
+                        Height="28"
+                        Margin="8,0,0,0"
+                        Padding="0"
+                        Style="{StaticResource GhostButtonStyle}"
+                        Foreground="{DynamicResource TextMutedBrush}"
+                        ToolTip="删除这项待办">
+                    <TextBlock Text="&#xE74D;"
+                               FontFamily="Segoe Fluent Icons"
+                               FontSize="12"
+                               Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                </Button>
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0" Margin="0,0,0,9">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.08*" />
+                <ColumnDefinition Width="1.08*" />
+                <ColumnDefinition Width="1.5*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0"
+                    Margin="0,0,7,0"
+                    Style="{StaticResource TodoSummaryCardStyle}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Width="30"
+                            Height="30"
+                            CornerRadius="9"
+                            Background="{DynamicResource AccentSoftBrush}">
+                        <TextBlock Text="&#xE8FD;"
+                                   FontFamily="Segoe Fluent Icons"
+                                   FontSize="14"
+                                   Foreground="{DynamicResource AccentBrush}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="9,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="待完成"
+                                   Foreground="{DynamicResource TextMutedBrush}"
+                                   FontSize="10" />
+                        <TextBlock Text="{Binding RemainingCount}"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   FontSize="18"
+                                   FontWeight="SemiBold" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="1"
+                    Margin="0,0,7,0"
+                    Style="{StaticResource TodoSummaryCardStyle}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Width="30"
+                            Height="30"
+                            CornerRadius="9"
+                            Background="{DynamicResource GlassInnerBrush}">
+                        <TextBlock Text="&#xE73E;"
+                                   FontFamily="Segoe Fluent Icons"
+                                   FontSize="14"
+                                   Foreground="{DynamicResource TextMutedBrush}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="9,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="已完成"
+                                   Foreground="{DynamicResource TextMutedBrush}"
+                                   FontSize="10" />
+                        <TextBlock Text="{Binding CompletedCount}"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   FontSize="18"
+                                   FontWeight="SemiBold" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="2"
+                    Style="{StaticResource TodoSummaryCardStyle}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="今日进度"
+                                   Foreground="{DynamicResource TextMutedBrush}"
+                                   FontSize="10" />
+                        <ProgressBar Height="5"
+                                     Margin="0,7,12,0"
+                                     Minimum="0"
+                                     Maximum="100"
+                                     Value="{Binding CompletionPercentage, Mode=OneWay}"
+                                     Foreground="{DynamicResource AccentBrush}"
+                                     Background="{DynamicResource PanelAltBrush}"
+                                     BorderThickness="0" />
+                    </StackPanel>
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding CompletionPercentage, StringFormat={}{0}%}"
+                               Foreground="{DynamicResource AccentBrush}"
+                               FontSize="18"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center" />
+                </Grid>
+            </Border>
+        </Grid>
+
+        <Border Grid.Row="1"
+                Margin="0,0,0,9"
+                Padding="8"
+                Background="{DynamicResource PanelBrush}"
+                BorderBrush="{DynamicResource BorderBrushSoft}"
+                BorderThickness="1"
+                CornerRadius="12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Border Width="34"
+                        Height="34"
+                        CornerRadius="9"
+                        Background="{DynamicResource AccentSoftBrush}">
+                    <TextBlock Text="+"
+                               Foreground="{DynamicResource AccentBrush}"
+                               FontSize="20"
+                               FontWeight="Medium"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center" />
+                </Border>
+
+                <Grid Grid.Column="1" Margin="9,0">
+                    <TextBox Text="{Binding NewTodoTitle, UpdateSourceTrigger=PropertyChanged}"
+                             MaxLength="200"
+                             Height="34"
+                             Padding="9,0"
+                             VerticalContentAlignment="Center"
+                             Foreground="{DynamicResource TextPrimaryBrush}"
+                             Background="{DynamicResource PanelAltBrush}"
+                             BorderBrush="{DynamicResource BorderBrushSoft}"
+                             BorderThickness="1"
+                             FontSize="12"
+                             ToolTip="输入任务，按 Enter 添加" />
+                    <TextBlock Text="写下一件要做的事…"
+                               Margin="10,0,0,0"
+                               Foreground="{DynamicResource TextMutedBrush}"
+                               FontSize="11.5"
+                               VerticalAlignment="Center"
+                               IsHitTestVisible="False">
+                        <TextBlock.Style>
+                            <Style TargetType="{x:Type TextBlock}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding NewTodoTitle}" Value="">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Grid>
+
+                <Button Grid.Column="2"
+                        Content="添加任务"
+                        Command="{Binding AddTodoCommand}"
+                        IsDefault="True"
+                        Height="34"
+                        Padding="16,0"
+                        Style="{StaticResource PrimaryButtonStyle}" />
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="2"
+                Padding="12"
+                Background="{DynamicResource PanelBrush}"
+                BorderBrush="{DynamicResource BorderBrushSoft}"
+                BorderThickness="1"
+                CornerRadius="12">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0" Margin="2,0,2,9">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border Width="16"
+                                Height="3"
+                                Margin="0,0,7,0"
+                                CornerRadius="2"
+                                Background="{DynamicResource AccentBrush}" />
+                        <TextBlock Text="今日清单"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   FontSize="13"
+                                   FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding StatusText, StringFormat=  ·  {0}}"
+                                   Foreground="{DynamicResource TextMutedBrush}"
+                                   FontSize="10.5"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                    <Border Grid.Column="1"
+                            Padding="8,3"
+                            Background="{DynamicResource AccentSoftBrush}"
+                            CornerRadius="8">
+                        <TextBlock Text="{Binding TotalCount, StringFormat={}{0} 项}"
+                                   Foreground="{DynamicResource AccentBrush}"
+                                   FontSize="10.5"
+                                   FontWeight="SemiBold" />
+                    </Border>
+                </Grid>
+
+                <Grid Grid.Row="1">
+                    <StackPanel HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Visibility="{Binding HasActiveTodos, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                        <Border Width="46"
+                                Height="46"
+                                CornerRadius="14"
+                                Background="{DynamicResource AccentSoftBrush}">
+                            <TextBlock Text="&#xE73E;"
+                                       FontFamily="Segoe Fluent Icons"
+                                       FontSize="20"
+                                       Foreground="{DynamicResource AccentBrush}"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                        </Border>
+                        <TextBlock Text="今天没有待完成事项"
+                                   Margin="0,9,0,0"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   FontSize="13"
+                                   FontWeight="SemiBold" />
+                        <TextBlock Text="在上方写下一件要做的小事"
+                                   Margin="0,3,0,0"
+                                   Foreground="{DynamicResource TextMutedBrush}"
+                                   FontSize="10.5" />
+                    </StackPanel>
+
+                    <ListBox ItemsSource="{Binding ActiveTodos}"
+                             ItemTemplate="{StaticResource TodoDetailItemTemplate}"
+                             ItemContainerStyle="{StaticResource TodoRowContainerStyle}"
+                             ScrollViewer.CanContentScroll="True"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                             VirtualizingPanel.IsVirtualizing="True"
+                             VirtualizingPanel.VirtualizationMode="Recycling"
+                             Visibility="{Binding HasActiveTodos, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                </Grid>
+
+                <Grid Grid.Row="2"
+                      Margin="2,8,2,5"
+                      Visibility="{Binding HasCompletedTodos, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="已完成"
+                                   Foreground="{DynamicResource TextMutedBrush}"
+                                   FontSize="10.5"
+                                   FontWeight="SemiBold" />
+                        <Border Margin="6,0,0,0"
+                                Padding="6,2"
+                                Background="{DynamicResource PanelAltBrush}"
+                                CornerRadius="6">
+                            <TextBlock Text="{Binding CompletedCount}"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       FontSize="9.5"
+                                       FontWeight="SemiBold" />
+                        </Border>
+                    </StackPanel>
+                    <Button Grid.Column="1"
+                            Content="归档已完成"
+                            Command="{Binding ArchiveCompletedCommand}"
+                            Height="26"
+                            Padding="10,0"
+                            Style="{StaticResource GhostButtonStyle}"
+                            Foreground="{DynamicResource TextMutedBrush}"
+                            FontSize="10.5" />
+                </Grid>
+
+                <ListBox Grid.Row="3"
+                         MaxHeight="94"
+                         ItemsSource="{Binding CompletedTodos}"
+                         ItemTemplate="{StaticResource TodoDetailItemTemplate}"
+                         ItemContainerStyle="{StaticResource TodoRowContainerStyle}"
+                         ScrollViewer.CanContentScroll="True"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         VirtualizingPanel.IsVirtualizing="True"
+                         VirtualizingPanel.VirtualizationMode="Recycling"
+                         Visibility="{Binding HasCompletedTodos, Converter={StaticResource BooleanToVisibilityConverter}}" />
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

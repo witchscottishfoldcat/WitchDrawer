@@ -429,6 +429,13 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (!ViewModel.CanImportFiles)
+        {
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
         e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Move : DragDropEffects.None;
         e.Handled = true;
     }
@@ -443,6 +450,12 @@ public partial class MainWindow : Window
 
         if (!e.Data.GetDataPresent(DataFormats.FileDrop))
         {
+            return;
+        }
+
+        if (!ViewModel.CanImportFiles)
+        {
+            e.Handled = true;
             return;
         }
 

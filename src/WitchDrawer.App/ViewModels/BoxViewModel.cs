@@ -51,6 +51,8 @@ public sealed class BoxViewModel : ObservableObject
 
     public BoxType Type => Model.Type;
 
+    public bool IsTodoBox => Type == BoxType.Todo;
+
     public BoxVisualStyle VisualStyle => _visualStyle;
 
     public bool IsPixelStyle => VisualStyle == BoxVisualStyle.Pixel;

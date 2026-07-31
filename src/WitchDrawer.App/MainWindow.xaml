@@ -1,6 +1,7 @@
 <Window x:Class="WitchDrawer.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:WitchDrawer.App.Views"
         Title="WitchDrawer"
         Icon="/Assets/app.png"
         Width="920"
@@ -775,7 +776,8 @@
                                         BorderBrush="{DynamicResource BorderBrushSoft}"
                                         BorderThickness="1"
                                         CornerRadius="8"
-                                        Padding="9,5">
+                                        Padding="9,5"
+                                        Visibility="{Binding IsSelectedTodoBox, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
                                     <StackPanel Orientation="Horizontal">
                                         <Path Data="M 2,1 L 9,1 L 13,5 L 13,14 L 2,14 Z M 9,1 L 9,5 L 13,5" 
                                               Stroke="{DynamicResource TextMutedBrush}" StrokeThickness="1.2" Width="11" Height="12" VerticalAlignment="Center" Margin="0,0,6,0" />
@@ -783,10 +785,39 @@
                                                    Foreground="{DynamicResource TextMutedBrush}" FontSize="11" FontWeight="SemiBold" />
                                     </StackPanel>
                                 </Border>
+                                <Border Background="{DynamicResource PanelBrush}"
+                                        BorderBrush="{DynamicResource BorderBrushSoft}"
+                                        BorderThickness="1"
+                                        CornerRadius="8"
+                                        Padding="9,5"
+                                        Visibility="{Binding IsSelectedTodoBox, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE8FD;"
+                                                   FontFamily="Segoe Fluent Icons"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                   FontSize="11"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,6,0" />
+                                        <TextBlock Text="{Binding TodoBoxDetail.RemainingCount, StringFormat=剩余 {0} 项}"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                   FontSize="11"
+                                                   FontWeight="SemiBold" />
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
                         </Grid>
 
                         <Grid Grid.Row="1" VerticalAlignment="Stretch">
+                            <Grid.Style>
+                                <Style TargetType="{x:Type Grid}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsSelectedTodoBox}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Grid.Style>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
@@ -1544,6 +1575,12 @@
                                 </Grid>
                             </Border>
                          </Grid>
+
+                        <views:TodoBoxDetailView Grid.Row="1"
+                                                 DataContext="{Binding TodoBoxDetail}"
+                                                 Visibility="{Binding DataContext.IsSelectedTodoBox,
+                                                                      RelativeSource={RelativeSource AncestorType={x:Type Window}},
+                                                                      Converter={StaticResource BooleanToVisibilityConverter}}" />
                      </Grid>
 
                     <!-- Todo Archive Page -->

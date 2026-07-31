@@ -63,6 +63,8 @@ public sealed class MainViewModel : ObservableObject
         _updateService = updateService;
         _boxVisualStyleStore = boxVisualStyleStore;
         _boxPositionLockStateStore = boxPositionLockStateStore;
+        TodoBoxDetail = new TodoBoxDetailViewModel(todoService, logger);
+        TodoBoxDetail.ItemsChanged += OnTodoBoxDetailItemsChanged;
 
         LoadCommand = new AsyncRelayCommand(LoadAsync);
         CreateNormalBoxCommand = new AsyncRelayCommand(
@@ -124,6 +126,8 @@ public sealed class MainViewModel : ObservableObject
     public ObservableCollection<DrawerItemViewModel> Items { get; } = [];
 
     public ObservableCollection<ArchivedTodoItemViewModel> ArchivedTodos { get; } = [];
+
+    public TodoBoxDetailViewModel TodoBoxDetail { get; }
 
     public IReadOnlyList<BoxVisualStyleOption> BoxVisualStyleOptions =>
         BoxVisualStyleCatalog.Options;
@@ -196,6 +200,10 @@ public sealed class MainViewModel : ObservableObject
             }
         }
     }
+
+    public bool IsSelectedTodoBox => SelectedBox?.IsTodoBox == true;
+
+    public bool CanImportFiles => SelectedBox is { IsTodoBox: false };
 
     public bool IsBusy
     {
@@ -399,6 +407,12 @@ public sealed class MainViewModel : ObservableObject
         if (selectedBox is null)
         {
             StatusText = "请先选择一个收纳盒";
+            return;
+        }
+
+        if (selectedBox.IsTodoBox)
+        {
+            StatusText = "待办收纳盒请使用任务输入框添加事项";
             return;
         }
 
@@ -630,6 +644,8 @@ public sealed class MainViewModel : ObservableObject
 
         _selectedBox = value;
         OnPropertyChanged(nameof(SelectedBox));
+        OnPropertyChanged(nameof(IsSelectedTodoBox));
+        OnPropertyChanged(nameof(CanImportFiles));
         DeleteSelectedBoxCommand.NotifyCanExecuteChanged();
         RenameSelectedBoxCommand.NotifyCanExecuteChanged();
         SetSelectedBoxVisualStyleCommand.NotifyCanExecuteChanged();
@@ -676,6 +692,18 @@ public sealed class MainViewModel : ObservableObject
         int version,
         CancellationToken cancellationToken)
     {
+        if (selectedBox?.IsTodoBox == true)
+        {
+            if (IsCurrentItemsLoad(selectedBox, version))
+            {
+                Items.Clear();
+            }
+
+            await TodoBoxDetail.LoadAsync(selectedBox.Id);
+            return;
+        }
+
+        await TodoBoxDetail.LoadAsync(null);
         if (selectedBox is null)
         {
             if (IsCurrentItemsLoad(null, version))
@@ -788,6 +816,11 @@ public sealed class MainViewModel : ObservableObject
         {
             await _todoService.RestoreArchivedAsync(todo.Id);
             await LoadArchivedTodosAsync();
+            if (SelectedBox?.Id == todo.Model.BoxId)
+            {
+                await TodoBoxDetail.LoadAsync(todo.Model.BoxId);
+            }
+
             StatusText = $"已将“{todo.Title}”恢复到 {todo.BoxName}";
             ItemsChanged?.Invoke(this, EventArgs.Empty);
         });
@@ -827,6 +860,12 @@ public sealed class MainViewModel : ObservableObject
             _logger.Error(exception, "Failed to load archived todos.");
             StatusText = exception.Message;
         }
+    }
+
+    private void OnTodoBoxDetailItemsChanged(object? sender, EventArgs e)
+    {
+        StatusText = TodoBoxDetail.StatusText;
+        ItemsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private async Task ApplyThemeAsync(AppTheme theme)
