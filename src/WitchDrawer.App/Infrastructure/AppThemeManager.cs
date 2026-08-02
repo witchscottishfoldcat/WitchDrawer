@@ -54,6 +54,8 @@ public static class AppThemeManager
             SetColor("TextPrimaryBrush", "#F3F4F6");     // High contrast silver-white text
             SetColor("TextMutedBrush", "#9CA3AF");       // Muted silver text
             SetColor("AccentBrush", "#3B82F6");          // Clear blue accent
+            SetColor("AccentHoverBrush", "#2B6FE0");     // Deeper accent on hover (opaque)
+            SetColor("AccentPressedBrush", "#1F5CC9");   // Deepest accent on press (opaque)
             SetColor("AccentSoftBrush", "#333B82F6");     // Translucent selection highlight
             SetColor("GlassSurfaceBrush", "#B3121218");  // Floating desktop box surface
             SetColor("GlassInnerBrush", "#1AFFFFFF");     // File icon container backplate
@@ -77,6 +79,8 @@ public static class AppThemeManager
             SetColor("TextPrimaryBrush", "#111827");      // Dark slate text
             SetColor("TextMutedBrush", "#4B5563");        // Muted slate text
             SetColor("AccentBrush", "#0EA5E9");           // Clear Sky Blue
+            SetColor("AccentHoverBrush", "#0B8AC7");     // Deeper sky blue on hover (opaque)
+            SetColor("AccentPressedBrush", "#0977AE");   // Deepest sky blue on press (opaque)
             SetColor("AccentSoftBrush", "#400EA5E9");     // Translucent Sky Blue tint
             SetColor("GlassSurfaceBrush", "#A6FFFFFF");   // Readable floating surface
             SetColor("GlassInnerBrush", "#73FFFFFF");     // Quiet inner glass
@@ -100,6 +104,8 @@ public static class AppThemeManager
             SetColor("TextPrimaryBrush", "#111827");      // Slate primary text
             SetColor("TextMutedBrush", "#6B7280");        // Slate muted text
             SetColor("AccentBrush", "#007AFF");           // Clean system blue
+            SetColor("AccentHoverBrush", "#0066D6");     // Deeper system blue on hover (opaque)
+            SetColor("AccentPressedBrush", "#0052B3");   // Deepest system blue on press (opaque)
             SetColor("AccentSoftBrush", "#EAF3FF");        // Soft blue tint
             SetColor("GlassSurfaceBrush", "#FBFBFD");     // Light floating box surface
             SetColor("GlassInnerBrush", "#F3F4F6");       // Light icon container backplate
