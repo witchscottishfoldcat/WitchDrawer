@@ -729,6 +729,23 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnOpenDrawerSortMenu(object sender, RoutedEventArgs e)
+    {
+        DrawerSortPopup.IsOpen = true;
+        e.Handled = true;
+    }
+
+    private void OnDrawerSortOptionClicked(object sender, RoutedEventArgs e)
+    {
+        DrawerSortPopup.IsOpen = false;
+    }
+
+    private async void OnCreateDrawerBoxClicked(object sender, RoutedEventArgs e)
+    {
+        CreateBoxPopup.IsOpen = false;
+        await ViewModel.CreateDrawerBoxCommand.ExecuteAsync(null);
+    }
+
     private void TryAnimateVisualStyleSelection(Button button)
     {
         try

@@ -60,6 +60,12 @@ public sealed class DesktopBoxManager
         WeakReferenceMessenger.Default.Register<DesktopBoxManager, BoxPositionLockStateChangedMessage>(
             this,
             static (recipient, message) => recipient.ApplyBoxPositionLockState(message));
+        WeakReferenceMessenger.Default.Register<DesktopBoxManager, BoxTitleVisibilityChangedMessage>(
+            this,
+            static (recipient, message) => recipient.ApplyTitleVisibility(message));
+        WeakReferenceMessenger.Default.Register<DesktopBoxManager, DrawerSortModeChangedMessage>(
+            this,
+            static (recipient, message) => recipient.ApplyDrawerSortMode(message));
     }
 
     public event EventHandler? ItemsChanged;
@@ -113,7 +119,8 @@ public sealed class DesktopBoxManager
                     await _boxPositionLockStateStore.LoadAsync(box.Id);
                 if (!_windows.TryGetValue(box.Id, out var window))
                 {
-                    var layoutSettings = new DesktopBoxLayoutSettings();
+                    var layoutSettings = new DesktopBoxLayoutSettings(
+                        box.Type == WitchDrawer.Core.Models.BoxType.Drawer);
                     var savedPreset = await _drawerService.GetSettingAsync(
                         BoxViewModel.GetLayoutPresetSettingKey(box.Id));
                     layoutSettings.ApplyPresetWithoutCallback(savedPreset);
@@ -126,6 +133,9 @@ public sealed class DesktopBoxManager
                         _logger,
                         visualStyle,
                         layoutSettings);
+                    await viewModel.LoadDrawerCoverSizeAsync();
+                    await viewModel.LoadTitleVisibilityAsync();
+                    await viewModel.LoadDrawerSortModeAsync();
                     viewModel.ItemsChanged += (_, _) => ItemsChanged?.Invoke(this, EventArgs.Empty);
 
                     window = new DesktopBoxWindow(viewModel);
@@ -434,6 +444,23 @@ public sealed class DesktopBoxManager
         _logger.Info(
             $"Applied position lock state {message.IsPositionLocked} "
             + $"to desktop box {message.BoxId:N}.");
+    }
+
+    private void ApplyTitleVisibility(
+        BoxTitleVisibilityChangedMessage message)
+    {
+        if (_windows.TryGetValue(message.BoxId, out var window))
+        {
+            window.ViewModel.ApplyTitleVisibility(message.IsVisible);
+        }
+    }
+
+    private void ApplyDrawerSortMode(DrawerSortModeChangedMessage message)
+    {
+        if (_windows.TryGetValue(message.BoxId, out var window))
+        {
+            window.ViewModel.ApplyDrawerSortMode(message.SortMode);
+        }
     }
 
     private async Task PlaceWindowAsync(Window window, Guid boxId, int fallbackIndex)

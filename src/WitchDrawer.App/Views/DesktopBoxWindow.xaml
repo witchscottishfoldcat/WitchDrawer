@@ -1,6 +1,7 @@
 <Window x:Class="WitchDrawer.App.Views.DesktopBoxWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:WitchDrawer.App.Controls"
         Title="{Binding Name}"
         Icon="/Assets/app.png"
         SizeToContent="WidthAndHeight"
@@ -27,6 +28,10 @@
                 <DataTrigger Binding="{Binding IsMappingListMode}" Value="True">
                     <Setter Property="MinWidth" Value="150" />
                     <Setter Property="MinHeight" Value="86" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsDrawerCollapsed}" Value="True">
+                    <Setter Property="MinWidth" Value="0" />
+                    <Setter Property="MinHeight" Value="0" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -149,6 +154,44 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <Style x:Key="DrawerTileButtonStyle" TargetType="{x:Type Button}">
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin"
+                    Value="{Binding DataContext.LayoutSettings.DrawerHoverMargin, RelativeSource={RelativeSource AncestorType=Window}}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="DrawerButtonRoot"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="{Binding DataContext.LayoutSettings.ItemCornerRadius, RelativeSource={RelativeSource AncestorType=Window}}"
+                                RenderTransformOrigin="0.5,0.5">
+                            <Border.RenderTransform>
+                                <ScaleTransform x:Name="DrawerButtonScale" />
+                            </Border.RenderTransform>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="DrawerButtonRoot" Property="Background" Value="{DynamicResource HoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="DrawerButtonRoot" Property="Opacity" Value="0.72" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Border x:Name="WindowBorder">
@@ -175,19 +218,35 @@
                     <DataTrigger Binding="{Binding IsMappingListMode}" Value="True">
                         <Setter Property="Margin" Value="{Binding LayoutSettings.MappingListWindowMargin}" />
                     </DataTrigger>
+                    <DataTrigger Binding="{Binding IsDrawerCollapsed}" Value="True">
+                        <Setter Property="CornerRadius" Value="24" />
+                    </DataTrigger>
                 </Style.Triggers>
             </Style>
         </Border.Style>
         
         <Grid MouseLeftButtonDown="OnSurfaceMouseLeftButtonDown">
             <Grid.RowDefinitions>
-                <RowDefinition Height="24" />
+                <RowDefinition>
+                    <RowDefinition.Style>
+                        <Style TargetType="{x:Type RowDefinition}">
+                            <Setter Property="Height" Value="24" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsHeaderVisible}" Value="False">
+                                    <Setter Property="Height" Value="0" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </RowDefinition.Style>
+                </RowDefinition>
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
             <!-- 顶部标题栏与 macOS 关闭小红点 -->
             <!-- 三列布局：左侧名称 / 右侧视图切换 / 关闭按钮。 -->
-            <Grid Grid.Row="0" Background="Transparent">
+            <Grid Grid.Row="0"
+                  Background="Transparent"
+                  Visibility="{Binding IsHeaderVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
@@ -196,6 +255,7 @@
 
                 <TextBlock Grid.Column="0"
                            Text="{Binding Name}"
+                           Visibility="{Binding IsTitleVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
                            FontSize="12"
                            FontWeight="SemiBold"
                            VerticalAlignment="Center"
@@ -271,6 +331,38 @@
                               Stretch="Uniform" />
                     </Button>
                 </StackPanel>
+
+                <Button Grid.Column="1"
+                        Width="24"
+                        Height="18"
+                        MinWidth="0"
+                        MinHeight="0"
+                        Margin="0,0,8,0"
+                        Padding="0"
+                        Click="OnCollapseDrawerClick"
+                        ToolTip="收起抽屉"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Cursor="Hand">
+                    <Button.Style>
+                        <Style TargetType="{x:Type Button}" BasedOn="{StaticResource MappingModeButtonStyle}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsDrawerExpanded}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                    <Path Data="M 2,6 L 7,11 L 12,6"
+                          Stroke="{DynamicResource TextMutedBrush}"
+                          StrokeThickness="1.6"
+                          StrokeStartLineCap="Round"
+                          StrokeEndLineCap="Round"
+                          Width="12"
+                          Height="9"
+                          Stretch="Uniform" />
+                </Button>
 
                 <!-- 关闭小按钮 (悬浮变亮红，自带微过渡，像素模式下自动方块化) -->
                 <Button Grid.Column="2"
@@ -368,6 +460,9 @@
                                 <Setter Property="Visibility" Value="Collapsed" />
                             </DataTrigger>
                             <DataTrigger Binding="{Binding IsTodoBox}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsDrawerCollapsed}" Value="True">
                                 <Setter Property="Visibility" Value="Collapsed" />
                             </DataTrigger>
                         </Style.Triggers>
@@ -859,6 +954,275 @@
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
+                </Grid>
+            </Grid>
+
+            <Popup x:Name="DrawerSecondaryPopup"
+                   Placement="Center"
+                   AllowsTransparency="True"
+                   StaysOpen="False"
+                   Opened="OnDrawerSecondaryPopupOpened">
+                <Border x:Name="DrawerSecondaryPopupRoot"
+                        Width="{Binding DrawerSecondaryPanelWidth}"
+                        Height="{Binding DrawerSecondaryPanelHeight}"
+                        Opacity="0"
+                        Background="Transparent"
+                        BorderBrush="{DynamicResource GlassStrokeBrush}"
+                        BorderThickness="1"
+                        CornerRadius="24"
+                        RenderTransformOrigin="0.5,0.5">
+                    <Border.CacheMode>
+                        <BitmapCache EnableClearType="True" />
+                    </Border.CacheMode>
+                    <Border.RenderTransform>
+                        <ScaleTransform x:Name="DrawerSecondaryPopupScale"
+                                        ScaleX="0.12"
+                                        ScaleY="0.12" />
+                    </Border.RenderTransform>
+                    <Grid>
+                        <Border x:Name="DrawerSecondaryBackdrop"
+                                CornerRadius="23" />
+                        <Border Background="{DynamicResource DrawerSecondarySurfaceBrush}"
+                                CornerRadius="23" />
+                        <Border Margin="1"
+                                BorderBrush="#4DFFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="22"
+                                IsHitTestVisible="False">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#22FFFFFF" Offset="0" />
+                                    <GradientStop Color="#04FFFFFF" Offset="0.52" />
+                                    <GradientStop Color="#100EA5E9" Offset="1" />
+                                </LinearGradientBrush>
+                            </Border.Background>
+                        </Border>
+                    <ScrollViewer Margin="10"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  HorizontalContentAlignment="Stretch"
+                                  VerticalContentAlignment="Center">
+                        <ScrollViewer.Style>
+                            <Style TargetType="{x:Type ScrollViewer}">
+                                <Setter Property="VerticalScrollBarVisibility" Value="Disabled" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding DrawerSecondaryHasScrollableOverflow}"
+                                                 Value="True">
+                                        <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ScrollViewer.Style>
+                            <ItemsControl ItemsSource="{Binding DrawerSecondaryItems}"
+                                          HorizontalAlignment="Stretch"
+                                          HorizontalContentAlignment="Stretch"
+                                          VerticalAlignment="Center">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <controls:CenteredUniformPanel Columns="{Binding DataContext.DrawerSecondaryColumns, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemContainerStyle>
+                                    <Style TargetType="{x:Type ContentPresenter}">
+                                        <Setter Property="Margin" Value="2" />
+                                    </Style>
+                                </ItemsControl.ItemContainerStyle>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Style="{StaticResource DrawerTileButtonStyle}"
+                                                Margin="0"
+                                                ToolTip="{Binding PathLabel}"
+                                                Click="OnDrawerSecondaryItemClick"
+                                                PreviewMouseLeftButtonDown="OnDrawerSecondaryIconPreviewMouseLeftButtonDown"
+                                                MouseMove="OnDrawerSecondaryIconMouseMove">
+                                            <Border Width="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
+                                                    Height="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
+                                                    CornerRadius="{Binding DataContext.LayoutSettings.IconCornerRadius, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
+                                                    Background="{DynamicResource GlassInnerBrush}"
+                                                    BorderBrush="{DynamicResource GlassStrokeBrush}"
+                                                    BorderThickness="1">
+                                                <Grid>
+                                                    <Image Width="{Binding DataContext.LayoutSettings.DrawerPrimaryIconSize, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
+                                                           Height="{Binding DataContext.LayoutSettings.DrawerPrimaryIconSize, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
+                                                           Source="{Binding IconImage}"
+                                                           Stretch="Uniform"
+                                                           RenderOptions.BitmapScalingMode="HighQuality"
+                                                           Visibility="{Binding HasIcon, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                    <TextBlock Text="{Binding FallbackIconText}"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center"
+                                                               FontSize="{Binding DataContext.LayoutSettings.FallbackIconFontSize, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
+                                                               FontWeight="Bold"
+                                                               Foreground="{DynamicResource AccentBrush}"
+                                                               Visibility="{Binding HasIcon, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                                                </Grid>
+                                            </Border>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                    </ScrollViewer>
+                    </Grid>
+                </Border>
+            </Popup>
+
+            <Grid Grid.Row="1"
+                  Panel.ZIndex="5"
+                  Background="Transparent"
+                  Width="{Binding DrawerCoverWidth}"
+                  Height="{Binding DrawerContentHeight}"
+                  PreviewMouseLeftButtonDown="OnDrawerSurfacePreviewMouseLeftButtonDown"
+                  Visibility="{Binding IsDrawerCollapsed, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Thumb Cursor="SizeAll"
+                       DragDelta="OnDrawerMoveDelta"
+                       DragCompleted="OnDrawerMoveCompleted">
+                    <Thumb.Template>
+                        <ControlTemplate TargetType="{x:Type Thumb}">
+                            <Border Background="Transparent" />
+                        </ControlTemplate>
+                    </Thumb.Template>
+                </Thumb>
+                <Grid>
+                    <Grid.Style>
+                        <Style TargetType="{x:Type Grid}">
+                            <Setter Property="Margin"
+                                    Value="{Binding LayoutSettings.DrawerSurfacePadding}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsTitleVisible}" Value="True">
+                                    <Setter Property="Margin" Value="10,3,10,10" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                    <ItemsControl ItemsSource="{Binding DrawerCoverTiles}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Columns="{Binding DataContext.DrawerCoverColumns, RelativeSource={RelativeSource AncestorType=Window}}"
+                                             Rows="{Binding DataContext.DrawerCoverRows, RelativeSource={RelativeSource AncestorType=Window}}" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid>
+                                    <Button Style="{StaticResource DrawerTileButtonStyle}"
+                                            Click="OnDrawerDirectItemClick"
+                                            PreviewMouseLeftButtonDown="OnDrawerIconPreviewMouseLeftButtonDown"
+                                            MouseMove="OnDrawerIconMouseMove"
+                                            ToolTip="{Binding Item.PathLabel}"
+                                            Visibility="{Binding HasItem, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <Border Width="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                Height="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CornerRadius="{Binding DataContext.LayoutSettings.IconCornerRadius, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                Background="{DynamicResource GlassInnerBrush}"
+                                                BorderBrush="{DynamicResource GlassStrokeBrush}"
+                                                BorderThickness="1">
+                                            <Grid DataContext="{Binding Item}">
+                                                <Image Width="{Binding DataContext.LayoutSettings.DrawerPrimaryIconSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                       Height="{Binding DataContext.LayoutSettings.DrawerPrimaryIconSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                       Source="{Binding IconImage}"
+                                                       Stretch="Uniform"
+                                                       RenderOptions.BitmapScalingMode="HighQuality"
+                                                       Visibility="{Binding HasIcon, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                <TextBlock Text="{Binding FallbackIconText}"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           FontSize="{Binding DataContext.LayoutSettings.FallbackIconFontSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                           FontWeight="Bold"
+                                                           Foreground="{DynamicResource AccentBrush}"
+                                                           Visibility="{Binding HasIcon, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                                            </Grid>
+                                        </Border>
+                                    </Button>
+
+                                    <Button Style="{StaticResource DrawerTileButtonStyle}"
+                                            Click="OnExpandDrawerClick"
+                                            ToolTip="展开抽屉"
+                                            Visibility="{Binding IsExpandTile, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <Border Padding="{Binding DataContext.LayoutSettings.DrawerPreviewGap, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                Width="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                Height="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CornerRadius="{Binding DataContext.LayoutSettings.IconCornerRadius, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                Background="{DynamicResource GlassInnerBrush}"
+                                                BorderBrush="{DynamicResource GlassStrokeBrush}"
+                                                BorderThickness="1">
+                                            <Grid>
+                                                <ItemsControl ItemsSource="{Binding DataContext.DrawerPreviewItems, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                              HorizontalAlignment="Center"
+                                                              VerticalAlignment="Center">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <UniformGrid Columns="2" Rows="2" />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemContainerStyle>
+                                                        <Style TargetType="{x:Type ContentPresenter}">
+                                                            <Setter Property="Margin" Value="{Binding DataContext.LayoutSettings.DrawerPreviewGap, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                                        </Style>
+                                                    </ItemsControl.ItemContainerStyle>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border Width="{Binding DataContext.LayoutSettings.DrawerPreviewIconFrameSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                    Height="{Binding DataContext.LayoutSettings.DrawerPreviewIconFrameSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                    CornerRadius="4"
+                                                                    Background="{DynamicResource GlassSurfaceBrush}">
+                                                                <Grid>
+                                                                    <Image Width="{Binding DataContext.LayoutSettings.DrawerPreviewIconSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                           Height="{Binding DataContext.LayoutSettings.DrawerPreviewIconSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                           Source="{Binding IconImage}"
+                                                                           Stretch="Uniform"
+                                                                           RenderOptions.BitmapScalingMode="HighQuality"
+                                                                           Visibility="{Binding HasIcon, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                                    <TextBlock Text="{Binding FallbackIconText}"
+                                                                               HorizontalAlignment="Center"
+                                                                               VerticalAlignment="Center"
+                                                                               FontSize="7"
+                                                                               FontWeight="Bold"
+                                                                               Foreground="{DynamicResource AccentBrush}"
+                                                                               Visibility="{Binding HasIcon, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                                                                </Grid>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </Grid>
+                                        </Border>
+                                    </Button>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock
+                               Text="拖入文件"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               FontSize="11"
+                               Foreground="{DynamicResource TextMutedBrush}"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding IsEmpty, Converter={StaticResource BooleanToVisibilityConverter}}" />
+
+                    <Thumb
+                           Width="20"
+                           Height="20"
+                           HorizontalAlignment="Right"
+                           VerticalAlignment="Bottom"
+                           Margin="0,0,-8,-8"
+                           Cursor="SizeNWSE"
+                           Opacity="0.42"
+                           DragStarted="OnDrawerResizeStarted"
+                           DragDelta="OnDrawerResizeDelta"
+                           DragCompleted="OnDrawerResizeCompleted">
+                        <Thumb.Template>
+                            <ControlTemplate TargetType="{x:Type Thumb}">
+                                <Grid Background="Transparent">
+                                    <Path Data="M 5,15 L 15,5 M 10,15 L 15,10"
+                                          Stroke="{DynamicResource TextMutedBrush}"
+                                          StrokeThickness="1.4"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round" />
+                                </Grid>
+                            </ControlTemplate>
+                        </Thumb.Template>
+                    </Thumb>
                 </Grid>
             </Grid>
 

@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:views="clr-namespace:WitchDrawer.App.Views"
+        xmlns:viewModels="clr-namespace:WitchDrawer.App.ViewModels"
         Title="WitchDrawer"
         Icon="/Assets/app.png"
         Width="920"
@@ -376,6 +377,14 @@
                                                           StrokeThickness="1.35"
                                                           Width="14"
                                                           Height="14"
+                                                           Stretch="Uniform"
+                                                           Visibility="Collapsed" />
+                                                    <Path x:Name="DrawerBoxIcon"
+                                                          Data="M 2,3 L 16,3 L 16,15 L 2,15 Z M 5,6 L 8,6 L 8,9 L 5,9 Z M 10,6 L 13,6 L 13,9 L 10,9 Z M 5,11 L 8,11 L 8,14 L 5,14 Z M 10,11 L 13,11 L 13,14 L 10,14 Z"
+                                                          Stroke="{DynamicResource AccentBrush}"
+                                                          StrokeThickness="1.2"
+                                                          Width="14"
+                                                          Height="14"
                                                           Stretch="Uniform"
                                                           Visibility="Collapsed" />
                                                 </Grid>
@@ -402,6 +411,10 @@
                                                 <Setter TargetName="NormalBoxIcon" Property="Visibility" Value="Collapsed" />
                                                 <Setter TargetName="TodoBoxIcon" Property="Visibility" Value="Visible" />
                                             </DataTrigger>
+                                            <DataTrigger Binding="{Binding Type}" Value="Drawer">
+                                                <Setter TargetName="NormalBoxIcon" Property="Visibility" Value="Collapsed" />
+                                                <Setter TargetName="DrawerBoxIcon" Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
                                         </DataTemplate.Triggers>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
@@ -411,11 +424,11 @@
                             <Button x:Name="BtnCreateBox"
                                     Style="{StaticResource PrimaryButtonStyle}"
                                     Click="OnCreateBoxClicked"
-                                    AutomationProperties.Name="新建收纳盒"
+                                    AutomationProperties.Name="新建"
                                     MinHeight="36">
                                 <StackPanel Orientation="Horizontal">
                                     <Path Data="M 0,4 L 8,4 M 4,0 L 4,8" Stroke="White" StrokeThickness="1.5" Width="8" Height="8" VerticalAlignment="Center" Margin="0,0,8,0" SnapsToDevicePixels="True" />
-                                    <TextBlock Text="新建收纳盒" VerticalAlignment="Center" FontSize="12.5" />
+                                    <TextBlock Text="新建" VerticalAlignment="Center" FontSize="12.5" />
                                 </StackPanel>
                             </Button>
 
@@ -437,30 +450,13 @@
                                         <DropShadowEffect BlurRadius="16" ShadowDepth="4" Opacity="0.12" Direction="270" />
                                     </Border.Effect>
                                     <StackPanel MinWidth="224">
-                                        <Button Style="{StaticResource GhostButtonStyle}"
+                                        <Button Content="普通收纳盒"
                                                 Click="OnCreateNormalBoxClicked"
+                                                Style="{StaticResource GhostButtonStyle}"
                                                 Margin="0,0,0,4"
-                                                Padding="12,10"
-                                                HorizontalContentAlignment="Stretch">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Text="&#xE8B7;"
-                                                           FontFamily="Segoe Fluent Icons"
-                                                           FontSize="14"
-                                                           Foreground="{DynamicResource AccentBrush}"
-                                                           VerticalAlignment="Center" />
-                                                <TextBlock Grid.Column="1"
-                                                           Text="普通收纳盒"
-                                                           Margin="9,0,0,0"
-                                                           Foreground="{DynamicResource TextPrimaryBrush}"
-                                                           FontWeight="SemiBold"
-                                                           VerticalAlignment="Center" />
-                                            </Grid>
-                                        </Button>
+                                                Padding="12,10" />
                                         <Button Content="映射收纳盒" Click="OnCreateMappingBoxClicked" Style="{StaticResource GhostButtonStyle}" Margin="0,0,0,4" Padding="12,10" />
+                                        <Button Content="抽屉收纳盒" Click="OnCreateDrawerBoxClicked" Style="{StaticResource GhostButtonStyle}" Margin="0,0,0,4" Padding="12,10" />
                                         <Button Content="待办收纳盒" Click="OnCreateTodoBoxClicked" Style="{StaticResource GhostButtonStyle}" Padding="12,10" />
                                     </StackPanel>
                                 </Border>
@@ -755,10 +751,168 @@
                                             </Border>
                                         </Popup>
                                     </Grid>
+
+                                    <Button Width="34"
+                                            Height="34"
+                                            MinWidth="34"
+                                            MinHeight="34"
+                                            Margin="8,0,0,0"
+                                            Padding="0"
+                                            Command="{Binding SelectedBox.ToggleTitleVisibilityCommand}"
+                                            ToolTip="{Binding SelectedBox.TitleVisibilityToolTip}"
+                                            AutomationProperties.Name="{Binding SelectedBox.TitleVisibilityAutomationName}"
+                                            Style="{StaticResource GhostButtonStyle}">
+                                        <Grid Width="18" Height="14">
+                                            <Path Data="M 1,7 C 3.6,3.3 6.2,2 9,2 C 11.8,2 14.4,3.3 17,7 C 14.4,10.7 11.8,12 9,12 C 6.2,12 3.6,10.7 1,7 Z"
+                                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                  StrokeThickness="1.35"
+                                                  StrokeStartLineCap="Round"
+                                                  StrokeEndLineCap="Round"
+                                                  Stretch="Fill" />
+                                            <Ellipse Width="4"
+                                                     Height="4"
+                                                     Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                     StrokeThickness="1.3"
+                                                     HorizontalAlignment="Center"
+                                                     VerticalAlignment="Center" />
+                                            <Path Data="M 2,1 L 16,13"
+                                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                  StrokeThickness="1.6"
+                                                  StrokeStartLineCap="Round"
+                                                  StrokeEndLineCap="Round"
+                                                  Visibility="{Binding SelectedBox.IsTitleVisible, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                                        </Grid>
+                                    </Button>
                                 </StackPanel>
                             </StackPanel>
 
                             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Grid Margin="0,0,8,0"
+                                      Visibility="{Binding SelectedBox.IsDrawerBox, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <Button x:Name="DrawerSortMenuButton"
+                                            Click="OnOpenDrawerSortMenu"
+                                            Style="{StaticResource GhostButtonStyle}"
+                                            Padding="9,5"
+                                            ToolTip="选择抽屉图标排序方式">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#xE8CB;"
+                                                       FontFamily="Segoe Fluent Icons"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,6,0" />
+                                            <TextBlock Text="排序"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"
+                                                       VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding SelectedBox.DrawerSortModeLabel, StringFormat= · {0}}"
+                                                       Foreground="{DynamicResource AccentBrush}"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"
+                                                       VerticalAlignment="Center" />
+                                            <TextBlock Text="&#xE70D;"
+                                                       FontFamily="Segoe Fluent Icons"
+                                                       FontSize="8"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="6,0,0,0" />
+                                        </StackPanel>
+                                    </Button>
+
+                                    <Popup x:Name="DrawerSortPopup"
+                                           PlacementTarget="{Binding ElementName=DrawerSortMenuButton}"
+                                           Placement="Bottom"
+                                           VerticalOffset="5"
+                                           AllowsTransparency="True"
+                                           StaysOpen="False"
+                                           PopupAnimation="Fade">
+                                        <Border Margin="12"
+                                                Padding="5"
+                                                MinWidth="156"
+                                                Background="{DynamicResource PanelBrush}"
+                                                BorderBrush="{DynamicResource BorderBrushSoft}"
+                                                BorderThickness="1"
+                                                CornerRadius="12">
+                                            <Border.Effect>
+                                                <DropShadowEffect BlurRadius="14"
+                                                                  ShadowDepth="3"
+                                                                  Opacity="0.12"
+                                                                  Direction="270" />
+                                            </Border.Effect>
+                                            <StackPanel>
+                                                <Button Command="{Binding SelectedBox.ApplyDrawerSortModeCommand}"
+                                                        CommandParameter="{x:Static viewModels:DrawerItemSortMode.Name}"
+                                                        Click="OnDrawerSortOptionClicked"
+                                                        Style="{StaticResource GhostButtonStyle}"
+                                                        Padding="10,8">
+                                                    <Grid Width="128">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="18" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="&#xE73E;"
+                                                                   FontFamily="Segoe Fluent Icons"
+                                                                   Foreground="{DynamicResource AccentBrush}"
+                                                                   Visibility="{Binding SelectedBox.IsDrawerSortByName, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                        <TextBlock Grid.Column="1" Text="名称" />
+                                                    </Grid>
+                                                </Button>
+                                                <Button Command="{Binding SelectedBox.ApplyDrawerSortModeCommand}"
+                                                        CommandParameter="{x:Static viewModels:DrawerItemSortMode.Size}"
+                                                        Click="OnDrawerSortOptionClicked"
+                                                        Style="{StaticResource GhostButtonStyle}"
+                                                        Padding="10,8">
+                                                    <Grid Width="128">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="18" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="&#xE73E;"
+                                                                   FontFamily="Segoe Fluent Icons"
+                                                                   Foreground="{DynamicResource AccentBrush}"
+                                                                   Visibility="{Binding SelectedBox.IsDrawerSortBySize, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                        <TextBlock Grid.Column="1" Text="大小" />
+                                                    </Grid>
+                                                </Button>
+                                                <Button Command="{Binding SelectedBox.ApplyDrawerSortModeCommand}"
+                                                        CommandParameter="{x:Static viewModels:DrawerItemSortMode.ItemType}"
+                                                        Click="OnDrawerSortOptionClicked"
+                                                        Style="{StaticResource GhostButtonStyle}"
+                                                        Padding="10,8">
+                                                    <Grid Width="128">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="18" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="&#xE73E;"
+                                                                   FontFamily="Segoe Fluent Icons"
+                                                                   Foreground="{DynamicResource AccentBrush}"
+                                                                   Visibility="{Binding SelectedBox.IsDrawerSortByItemType, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                        <TextBlock Grid.Column="1" Text="项目类型" />
+                                                    </Grid>
+                                                </Button>
+                                                <Button Command="{Binding SelectedBox.ApplyDrawerSortModeCommand}"
+                                                        CommandParameter="{x:Static viewModels:DrawerItemSortMode.ModifiedDate}"
+                                                        Click="OnDrawerSortOptionClicked"
+                                                        Style="{StaticResource GhostButtonStyle}"
+                                                        Padding="10,8">
+                                                    <Grid Width="128">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="18" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="&#xE73E;"
+                                                                   FontFamily="Segoe Fluent Icons"
+                                                                   Foreground="{DynamicResource AccentBrush}"
+                                                                   Visibility="{Binding SelectedBox.IsDrawerSortByModifiedDate, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                        <TextBlock Grid.Column="1" Text="修改日期" />
+                                                    </Grid>
+                                                </Button>
+                                            </StackPanel>
+                                        </Border>
+                                    </Popup>
+                                </Grid>
                                 <Border Background="{DynamicResource AccentSoftBrush}"
                                         BorderBrush="Transparent"
                                         BorderThickness="1"
@@ -928,7 +1082,6 @@
                                         </VisualStateManager.VisualStateGroups>
 
                                         <Grid x:Name="BoxControlsPrimaryPanel"
-                                              Height="34"
                                               VerticalAlignment="Center">
                                             <Grid.RenderTransform>
                                                 <TranslateTransform x:Name="BoxControlsPrimaryTransform" />
@@ -965,6 +1118,10 @@
                                                     </Style.Triggers>
                                                 </Style>
                                             </Grid.Resources>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="34" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="132" />
                                                 <ColumnDefinition Width="178" />
@@ -1014,10 +1171,40 @@
                                                         Click="OnOpenBoxVisualStylePage" />
                                             </Grid>
 
-                                            <Grid Grid.Column="2"
+                                            <Grid Grid.Column="1"
+                                                  Height="34"
+                                                  Margin="8,0,12,0"
+                                                  VerticalAlignment="Center"
+                                                  Visibility="Collapsed">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="抽屉名称"
+                                                           Style="{StaticResource BoxControlLabelStyle}" />
+                                                <Button Grid.Column="1"
+                                                        Margin="8,0,0,0"
+                                                        Content="{Binding SelectedBox.TitleVisibilityAutomationName}"
+                                                        Command="{Binding SelectedBox.ToggleTitleVisibilityCommand}"
+                                                        Style="{StaticResource VisualStylePickerButtonStyle}"
+                                                        ToolTip="显示或隐藏桌面抽屉名称" />
+                                            </Grid>
+
+                                            <Grid
                                                   Height="34"
                                                   Margin="8,0,0,0"
                                                   VerticalAlignment="Center">
+                                                <Grid.Style>
+                                                    <Style TargetType="{x:Type Grid}">
+                                                        <Setter Property="Grid.Column" Value="2" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding SelectedBox.IsDrawerBox}" Value="True">
+                                                                <Setter Property="Grid.Column" Value="1" />
+                                                                <Setter Property="Grid.ColumnSpan" Value="2" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Grid.Style>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto" />
                                                     <ColumnDefinition Width="*" />
@@ -1117,9 +1304,107 @@
                                                         Command="{Binding SelectedBox.LayoutSettings.ApplyPresetCommand}"
                                                         CommandParameter="6x6" />
                                                 </UniformGrid>
+                                                 </Border>
+                                             </Grid>
+
+                                            <Grid Grid.Row="1"
+                                                  Grid.ColumnSpan="3"
+                                                  Height="34"
+                                                  Margin="0,6,0,0"
+                                                  Visibility="Collapsed">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="排序"
+                                                           Margin="0,0,10,0"
+                                                           Style="{StaticResource BoxControlLabelStyle}" />
+                                                <Border Grid.Column="1"
+                                                        Padding="2"
+                                                        Background="{DynamicResource PanelAltBrush}"
+                                                        BorderBrush="{DynamicResource BorderBrushSoft}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="10">
+                                                    <UniformGrid Columns="4" Rows="1">
+                                                        <UniformGrid.Resources>
+                                                            <Style x:Key="DrawerSortChoiceButtonStyle"
+                                                                   TargetType="{x:Type Button}"
+                                                                   BasedOn="{StaticResource GhostButtonStyle}">
+                                                                <Setter Property="MinHeight" Value="28" />
+                                                                <Setter Property="Padding" Value="10,4" />
+                                                                <Setter Property="Background" Value="Transparent" />
+                                                                <Setter Property="BorderBrush" Value="Transparent" />
+                                                                <Setter Property="BorderThickness" Value="0" />
+                                                                <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+                                                                <Setter Property="FontSize" Value="10.5" />
+                                                                <Setter Property="FontWeight" Value="Medium" />
+                                                            </Style>
+                                                            <Style x:Key="DrawerSortByNameButtonStyle"
+                                                                   TargetType="{x:Type Button}"
+                                                                   BasedOn="{StaticResource DrawerSortChoiceButtonStyle}">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding SelectedBox.IsDrawerSortByName}" Value="True">
+                                                                        <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                                                                        <Setter Property="Foreground" Value="White" />
+                                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                            <Style x:Key="DrawerSortBySizeButtonStyle"
+                                                                   TargetType="{x:Type Button}"
+                                                                   BasedOn="{StaticResource DrawerSortChoiceButtonStyle}">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding SelectedBox.IsDrawerSortBySize}" Value="True">
+                                                                        <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                                                                        <Setter Property="Foreground" Value="White" />
+                                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                            <Style x:Key="DrawerSortByTypeButtonStyle"
+                                                                   TargetType="{x:Type Button}"
+                                                                   BasedOn="{StaticResource DrawerSortChoiceButtonStyle}">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding SelectedBox.IsDrawerSortByItemType}" Value="True">
+                                                                        <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                                                                        <Setter Property="Foreground" Value="White" />
+                                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                            <Style x:Key="DrawerSortByDateButtonStyle"
+                                                                   TargetType="{x:Type Button}"
+                                                                   BasedOn="{StaticResource DrawerSortChoiceButtonStyle}">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding SelectedBox.IsDrawerSortByModifiedDate}" Value="True">
+                                                                        <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                                                                        <Setter Property="Foreground" Value="White" />
+                                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </UniformGrid.Resources>
+                                                        <Button Content="名称"
+                                                                Style="{StaticResource DrawerSortByNameButtonStyle}"
+                                                                Command="{Binding SelectedBox.ApplyDrawerSortModeCommand}"
+                                                                CommandParameter="{x:Static viewModels:DrawerItemSortMode.Name}" />
+                                                        <Button Content="大小"
+                                                                Style="{StaticResource DrawerSortBySizeButtonStyle}"
+                                                                Command="{Binding SelectedBox.ApplyDrawerSortModeCommand}"
+                                                                CommandParameter="{x:Static viewModels:DrawerItemSortMode.Size}" />
+                                                        <Button Content="项目类型"
+                                                                Style="{StaticResource DrawerSortByTypeButtonStyle}"
+                                                                Command="{Binding SelectedBox.ApplyDrawerSortModeCommand}"
+                                                                CommandParameter="{x:Static viewModels:DrawerItemSortMode.ItemType}" />
+                                                        <Button Content="修改日期"
+                                                                Style="{StaticResource DrawerSortByDateButtonStyle}"
+                                                                Command="{Binding SelectedBox.ApplyDrawerSortModeCommand}"
+                                                                CommandParameter="{x:Static viewModels:DrawerItemSortMode.ModifiedDate}" />
+                                                    </UniformGrid>
                                                 </Border>
                                             </Grid>
-                                        </Grid>
+
+                                         </Grid>
 
                                         <Grid x:Name="BoxVisualStyleSecondaryPanel"
                                               Opacity="0"

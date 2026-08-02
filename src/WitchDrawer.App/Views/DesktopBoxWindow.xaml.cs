@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -31,6 +32,11 @@ public partial class DesktopBoxWindow : Window
     private bool _isPositionLocked;
     private HwndSource? _source;
     private DesktopToolWindow? _nativeWindow;
+    private double _drawerResizeStartWidth;
+    private double _drawerResizeStartHeight;
+    private NativePoint _drawerResizeStartCursor;
+    private bool _suppressDrawerItemClick;
+    private bool _drawerPositionChanged;
 
     private sealed class DesktopBoxDragPayload(Guid dragId, Guid itemId, Guid sourceBoxId)
     {
@@ -128,6 +134,279 @@ public partial class DesktopBoxWindow : Window
     public void SetPositionChangedCallback(Func<Guid, Task> callback)
     {
         _positionChangedCallback = callback;
+    }
+
+    private async void OnExpandDrawerClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is UIElement placementTarget)
+        {
+            DrawerSecondaryPopup.PlacementTarget = placementTarget;
+        }
+
+        await ViewModel.ApplyDrawerItemSortAsync(ViewModel.DrawerItemSortMode);
+        DrawerSecondaryPopup.IsOpen = true;
+        ClearItemSelection();
+        e.Handled = true;
+    }
+
+    private void OnDrawerSecondaryPopupOpened(object? sender, EventArgs e)
+    {
+        Dispatcher.BeginInvoke(
+            DispatcherPriority.Loaded,
+            () =>
+            {
+                if (PresentationSource.FromVisual(DrawerSecondaryPopupRoot) is HwndSource popupSource)
+                {
+                    var backdrop = ScreenBackdropCapture.CaptureGaussianBlur(popupSource.Handle);
+                    DrawerSecondaryBackdrop.Background = backdrop is null
+                        ? Brushes.Transparent
+                        : new ImageBrush(backdrop) { Stretch = Stretch.Fill };
+                }
+
+                var initialScaleX = Math.Clamp(
+                    ViewModel.LayoutSettings.DrawerPrimaryIconFrameSize
+                        / Math.Max(1, DrawerSecondaryPopupRoot.ActualWidth),
+                    0.08,
+                    0.24);
+                var initialScaleY = Math.Clamp(
+                    ViewModel.LayoutSettings.DrawerPrimaryIconFrameSize
+                        / Math.Max(1, DrawerSecondaryPopupRoot.ActualHeight),
+                    0.08,
+                    0.32);
+                var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
+                var duration = TimeSpan.FromMilliseconds(190);
+                DrawerSecondaryPopupScale.BeginAnimation(
+                    ScaleTransform.ScaleXProperty,
+                    new DoubleAnimation(initialScaleX, 1, duration) { EasingFunction = easing });
+                DrawerSecondaryPopupScale.BeginAnimation(
+                    ScaleTransform.ScaleYProperty,
+                    new DoubleAnimation(initialScaleY, 1, duration) { EasingFunction = easing });
+                DrawerSecondaryPopupRoot.BeginAnimation(
+                    OpacityProperty,
+                    new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(145))
+                    {
+                        EasingFunction = easing
+                    });
+            });
+    }
+
+    private void OnCollapseDrawerClick(object sender, RoutedEventArgs e)
+    {
+        ViewModel.IsDrawerExpanded = false;
+        ClearItemSelection();
+        e.Handled = true;
+    }
+
+    private void OnDrawerResizeStarted(object sender, DragStartedEventArgs e)
+    {
+        _drawerResizeStartWidth = ViewModel.DrawerCoverWidth;
+        _drawerResizeStartHeight = ViewModel.DrawerCoverHeight;
+        GetCursorPos(out _drawerResizeStartCursor);
+        e.Handled = true;
+    }
+
+    private void OnDrawerResizeDelta(object sender, DragDeltaEventArgs e)
+    {
+        if (!GetCursorPos(out var currentCursor))
+        {
+            return;
+        }
+
+        var horizontalDelta = currentCursor.X - _drawerResizeStartCursor.X;
+        var verticalDelta = currentCursor.Y - _drawerResizeStartCursor.Y;
+        var dpi = VisualTreeHelper.GetDpi(this);
+        ViewModel.ResizeDrawerCover(
+            _drawerResizeStartWidth + (horizontalDelta / Math.Max(0.1, dpi.DpiScaleX)),
+            _drawerResizeStartHeight + (verticalDelta / Math.Max(0.1, dpi.DpiScaleY)));
+        e.Handled = true;
+    }
+
+    private async void OnDrawerResizeCompleted(object sender, DragCompletedEventArgs e)
+    {
+        try
+        {
+            await ViewModel.SaveDrawerCoverSizeAsync();
+        }
+        catch (Exception exception)
+        {
+            ViewModel.ResizeDrawerCover(
+                _drawerResizeStartWidth,
+                _drawerResizeStartHeight);
+            _ = exception;
+        }
+
+        e.Handled = true;
+    }
+
+    private void OnDrawerSurfacePreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (_isPositionLocked
+            || e.LeftButton != MouseButtonState.Pressed
+            || e.OriginalSource is not DependencyObject source
+            || FindVisualAncestor<Button>(source) is not null
+            || FindVisualAncestor<Thumb>(source) is not null)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        try
+        {
+            DragMove();
+            QueueSendToBottom();
+            if (_positionChangedCallback is not null)
+            {
+                _ = _positionChangedCallback(ViewModel.BoxId);
+            }
+        }
+        catch (InvalidOperationException)
+        {
+        }
+    }
+
+    private void OnDrawerMoveDelta(object sender, DragDeltaEventArgs e)
+    {
+        if (_isPositionLocked)
+        {
+            return;
+        }
+
+        Left += e.HorizontalChange;
+        Top += e.VerticalChange;
+        _drawerPositionChanged = true;
+        e.Handled = true;
+    }
+
+    private void OnDrawerMoveCompleted(object sender, DragCompletedEventArgs e)
+    {
+        if (!_drawerPositionChanged)
+        {
+            return;
+        }
+
+        _drawerPositionChanged = false;
+        QueueSendToBottom();
+        if (_positionChangedCallback is not null)
+        {
+            _ = _positionChangedCallback(ViewModel.BoxId);
+        }
+
+        e.Handled = true;
+    }
+
+    private void OnDrawerIconPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not Button { DataContext: DrawerCoverTileViewModel { Item: not null } tile })
+        {
+            return;
+        }
+
+        _suppressDrawerItemClick = false;
+        _dragStartPoint = e.GetPosition(this);
+        _dragStartItem = tile.Item;
+    }
+
+    private async void OnDrawerIconMouseMove(object sender, MouseEventArgs e)
+    {
+        if (_dragStartPoint is null || _dragStartItem is null)
+        {
+            return;
+        }
+
+        if (e.LeftButton != MouseButtonState.Pressed)
+        {
+            ClearPendingIconDrag();
+            return;
+        }
+
+        var current = e.GetPosition(this);
+        if (Math.Abs(current.X - _dragStartPoint.Value.X) < SystemParameters.MinimumHorizontalDragDistance
+            && Math.Abs(current.Y - _dragStartPoint.Value.Y) < SystemParameters.MinimumVerticalDragDistance)
+        {
+            return;
+        }
+
+        var drawerItem = _dragStartItem;
+        ClearPendingIconDrag();
+        if (!_itemDragGate.TryEnter())
+        {
+            return;
+        }
+
+        _suppressDrawerItemClick = true;
+        try
+        {
+            await RunItemDragAsync(drawerItem, sender as UIElement ?? IconList);
+        }
+        finally
+        {
+            _itemDragGate.Exit();
+        }
+    }
+
+    private async void OnDrawerDirectItemClick(object sender, RoutedEventArgs e)
+    {
+        if (_suppressDrawerItemClick)
+        {
+            _suppressDrawerItemClick = false;
+            e.Handled = true;
+            return;
+        }
+
+        if (sender is Button { DataContext: DrawerCoverTileViewModel { Item: not null } tile })
+        {
+            await ViewModel.OpenItemCommand.ExecuteAsync(tile.Item);
+            e.Handled = true;
+        }
+    }
+
+    private void OnDrawerSecondaryIconPreviewMouseLeftButtonDown(
+        object sender,
+        MouseButtonEventArgs e)
+    {
+        if (sender is not Button { DataContext: DrawerItemViewModel item })
+        {
+            return;
+        }
+
+        _suppressDrawerItemClick = false;
+        _dragStartPoint = e.GetPosition(this);
+        _dragStartItem = item;
+    }
+
+    private void OnDrawerSecondaryIconMouseMove(object sender, MouseEventArgs e)
+    {
+        OnDrawerIconMouseMove(sender, e);
+    }
+
+    private async void OnDrawerSecondaryItemClick(object sender, RoutedEventArgs e)
+    {
+        if (_suppressDrawerItemClick)
+        {
+            _suppressDrawerItemClick = false;
+            e.Handled = true;
+            return;
+        }
+
+        if (sender is Button { DataContext: DrawerItemViewModel item })
+        {
+            await ViewModel.OpenItemCommand.ExecuteAsync(item);
+            e.Handled = true;
+        }
+    }
+
+    private static T? FindVisualAncestor<T>(DependencyObject source)
+        where T : DependencyObject
+    {
+        for (var current = source; current is not null; current = VisualTreeHelper.GetParent(current))
+        {
+            if (current is T typed)
+            {
+                return typed;
+            }
+        }
+
+        return null;
     }
 
     public void ForceClose()
@@ -758,23 +1037,19 @@ public partial class DesktopBoxWindow : Window
     //   - dropped on the same box  -> rearrange
     //   - dropped on another box   -> move into that box
     //   - dropped outside the app  -> move out to the desktop
-    private async Task RunItemDragAsync(DrawerItemViewModel drawerItem, ListBox dragSourceList)
+    private async Task RunItemDragAsync(DrawerItemViewModel drawerItem, UIElement dragSource)
     {
         var payload = DesktopBoxDragPayload.Create(drawerItem.Id, ViewModel.BoxId);
         var data = new DataObject();
         data.SetData(InternalDrawerItemDragFormat, payload, autoConvert: false);
         var canExportPath = PathExists(drawerItem.PathLabel);
 
-        var endedByMouseDrop = false;
+        var dragWasCanceled = false;
         QueryContinueDragEventHandler queryContinueDrag = (_, args) =>
         {
-            // We only need to know whether the gesture ended by releasing the (left) mouse
-            // button rather than by Esc. Reading KeyStates is reliable regardless of the
-            // default handler's ordering.
-            if (!args.EscapePressed
-                && (args.KeyStates & DragDropKeyStates.LeftMouseButton) == 0)
+            if (args.EscapePressed)
             {
-                endedByMouseDrop = true;
+                dragWasCanceled = true;
             }
         };
 
@@ -798,11 +1073,11 @@ public partial class DesktopBoxWindow : Window
         };
 
         drawerItem.IsDragSource = true;
-        dragSourceList.QueryContinueDrag += queryContinueDrag;
-        dragSourceList.GiveFeedback += giveFeedback;
+        dragSource.QueryContinueDrag += queryContinueDrag;
+        dragSource.GiveFeedback += giveFeedback;
         try
         {
-            DragDrop.DoDragDrop(dragSourceList, data, DragDropEffects.Move);
+            DragDrop.DoDragDrop(dragSource, data, DragDropEffects.Move);
             var internalDropSucceeded = payload.WasDroppedInsideWitchDrawer
                 || ConsumeDroppedInsideWitchDrawer(payload);
             var cursorOverApp = IsCursorOverWitchDrawerWindow();
@@ -819,7 +1094,11 @@ public partial class DesktopBoxWindow : Window
                     _keyboardDeleteTarget = null;
                 }
             }
-            else if (endedByMouseDrop && canExportPath && !cursorOverApp)
+            else if (ShouldExportItemAfterDrag(
+                         dragWasCanceled,
+                         canExportPath,
+                         cursorOverApp,
+                         internalDropSucceeded))
             {
                 // Released outside every WitchDrawer window → move the file to the desktop.
                 var exported = await ViewModel.ExportItemToDesktopAsync(drawerItem);
@@ -832,8 +1111,8 @@ public partial class DesktopBoxWindow : Window
         }
         finally
         {
-            dragSourceList.QueryContinueDrag -= queryContinueDrag;
-            dragSourceList.GiveFeedback -= giveFeedback;
+            dragSource.QueryContinueDrag -= queryContinueDrag;
+            dragSource.GiveFeedback -= giveFeedback;
             drawerItem.IsDragSource = false;
             ResetAllDragVisualStates();
             ResetDragCursor();
@@ -841,9 +1120,21 @@ public partial class DesktopBoxWindow : Window
             {
                 Mouse.Capture(null);
             }
-            dragSourceList.Focus();
+            dragSource.Focus();
             QueueSendToBottom();
         }
+    }
+
+    internal static bool ShouldExportItemAfterDrag(
+        bool dragWasCanceled,
+        bool canExportPath,
+        bool cursorOverApp,
+        bool internalDropSucceeded)
+    {
+        return !dragWasCanceled
+            && canExportPath
+            && !cursorOverApp
+            && !internalDropSucceeded;
     }
 
     private void ResetDragVisualState()

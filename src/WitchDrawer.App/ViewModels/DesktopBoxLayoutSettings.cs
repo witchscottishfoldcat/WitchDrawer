@@ -6,6 +6,8 @@ namespace WitchDrawer.App.ViewModels;
 public sealed partial class DesktopBoxLayoutSettings : ObservableObject
 {
     public const string DefaultPreset = "6x6";
+    public const string DefaultDrawerPreset = "4x4";
+    public const double DrawerSurfaceInset = 10;
 
     private double _iconSize = 20;
     private double _iconFrameSize = 30;
@@ -20,6 +22,7 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
     private CornerRadius _iconCornerRadius = new CornerRadius(6);
     private int _columns = 5;
     private string _currentPreset = DefaultPreset;
+    private readonly bool _isDrawerMode;
     private Func<string, Task>? _presetChangedCallback;
 
     public double IconSize
@@ -106,6 +109,8 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
 
     public string CurrentPreset => _currentPreset;
 
+    public bool IsDrawerMode => _isDrawerMode;
+
     public string CurrentSizeLabel => _currentPreset switch
     {
         "3x3" => "超",
@@ -123,6 +128,46 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
     public bool IsSmallPreset => _currentPreset == DefaultPreset;
 
     public bool IsCompactPreset => _currentPreset == "6x6";
+
+    public double DrawerCoverCellSize => ItemSlotWidth;
+
+    public double DrawerPrimaryIconFrameSize => IconFrameSize;
+
+    public double DrawerPrimaryIconSize => IconSize;
+
+    public double DrawerPreviewIconFrameSize => _currentPreset switch
+    {
+        "3x3" => 26,
+        "4x4" => 19,
+        "5x5" => 15,
+        _ => 12
+    };
+
+    public double DrawerPreviewIconSize => _currentPreset switch
+    {
+        "3x3" => 22,
+        "4x4" => 16,
+        "5x5" => 12,
+        _ => 10
+    };
+
+    public double DrawerPreviewGap => _currentPreset switch
+    {
+        "3x3" => 1,
+        "4x4" => 1,
+        "5x5" => 0.75,
+        _ => 0.5
+    };
+
+    public double DrawerSurfacePadding => DrawerSurfaceInset;
+
+    public Thickness DrawerHoverMargin => _currentPreset switch
+    {
+        "3x3" => new Thickness(5),
+        "4x4" => new Thickness(2.5),
+        "5x5" => new Thickness(2),
+        _ => new Thickness(1.5)
+    };
 
     // Mapping list mode uses the small preset as its visual baseline. Each larger
     // step grows by 15% so switching sizes does not make the horizontal box jump.
@@ -200,8 +245,10 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
 
     public Thickness MappingListWindowMargin => new(Math.Round(4 * MappingListScale, 1));
 
-    public DesktopBoxLayoutSettings()
+    public DesktopBoxLayoutSettings(bool isDrawerMode = false)
     {
+        _isDrawerMode = isDrawerMode;
+        _currentPreset = isDrawerMode ? DefaultDrawerPreset : DefaultPreset;
         UpdateDimensions();
     }
 
@@ -231,13 +278,14 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
 
     private bool ApplyPresetCore(string? preset)
     {
-        if (preset is not ("3x3" or "4x4" or "5x5" or "6x6")
+        var isValidPreset = preset is "3x3" or "4x4" or "5x5" or "6x6";
+        if (!isValidPreset
             || string.Equals(_currentPreset, preset, StringComparison.Ordinal))
         {
             return false;
         }
 
-        _currentPreset = preset;
+        _currentPreset = preset!;
         UpdateDimensions();
         OnPropertyChanged(nameof(CurrentPreset));
         OnPropertyChanged(nameof(CurrentSizeLabel));
@@ -246,6 +294,14 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
         OnPropertyChanged(nameof(IsMediumPreset));
         OnPropertyChanged(nameof(IsSmallPreset));
         OnPropertyChanged(nameof(IsCompactPreset));
+        OnPropertyChanged(nameof(DrawerCoverCellSize));
+        OnPropertyChanged(nameof(DrawerPrimaryIconFrameSize));
+        OnPropertyChanged(nameof(DrawerPrimaryIconSize));
+        OnPropertyChanged(nameof(DrawerPreviewIconFrameSize));
+        OnPropertyChanged(nameof(DrawerPreviewIconSize));
+        OnPropertyChanged(nameof(DrawerPreviewGap));
+        OnPropertyChanged(nameof(DrawerSurfacePadding));
+        OnPropertyChanged(nameof(DrawerHoverMargin));
         OnPropertyChanged(nameof(MappingListWidth));
         OnPropertyChanged(nameof(MappingListRowHeight));
         OnPropertyChanged(nameof(MappingListMinHeight));

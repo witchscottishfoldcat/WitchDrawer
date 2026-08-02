@@ -20,6 +20,7 @@ public static class AppThemeManager
             ["AccentBrush"] = "#0EA5E9",
             ["AccentSoftBrush"] = "#330EA5E9",
             ["GlassSurfaceBrush"] = "#4DFFFFFF",
+            ["DrawerSecondarySurfaceBrush"] = "#5CF4FAFF",
             ["GlassInnerBrush"] = "#26FFFFFF",
             ["GlassStrokeBrush"] = "#66FFFFFF",
             ["PositiveBrush"] = "#10B981",
@@ -56,6 +57,7 @@ public static class AppThemeManager
             SetColor("AccentBrush", "#3B82F6");          // Clear blue accent
             SetColor("AccentSoftBrush", "#333B82F6");     // Translucent selection highlight
             SetColor("GlassSurfaceBrush", "#B3121218");  // Floating desktop box surface
+            SetColor("DrawerSecondarySurfaceBrush", "#8C121218");
             SetColor("GlassInnerBrush", "#1AFFFFFF");     // File icon container backplate
             SetColor("GlassStrokeBrush", "#26FFFFFF");    // Thin desktop box outline
             SetColor("PositiveBrush", "#10B981");         // Glowing emerald green
@@ -79,6 +81,7 @@ public static class AppThemeManager
             SetColor("AccentBrush", "#0EA5E9");           // Clear Sky Blue
             SetColor("AccentSoftBrush", "#400EA5E9");     // Translucent Sky Blue tint
             SetColor("GlassSurfaceBrush", "#A6FFFFFF");   // Readable floating surface
+            SetColor("DrawerSecondarySurfaceBrush", "#70F4FAFF");
             SetColor("GlassInnerBrush", "#73FFFFFF");     // Quiet inner glass
             SetColor("GlassStrokeBrush", "#A6FFFFFF");    // Pronounced crystal outline
             SetColor("PositiveBrush", "#10B981");         // Emerald green
@@ -102,6 +105,7 @@ public static class AppThemeManager
             SetColor("AccentBrush", "#007AFF");           // Clean system blue
             SetColor("AccentSoftBrush", "#EAF3FF");        // Soft blue tint
             SetColor("GlassSurfaceBrush", "#FBFBFD");     // Light floating box surface
+            SetColor("DrawerSecondarySurfaceBrush", "#F2FBFBFD");
             SetColor("GlassInnerBrush", "#F3F4F6");       // Light icon container backplate
             SetColor("GlassStrokeBrush", "#E5E7EB");      // Light box outline
             SetColor("PositiveBrush", "#10B981");         // Emerald green

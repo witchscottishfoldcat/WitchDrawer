@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -17,6 +18,14 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private const string MappingViewModeSettingPrefix = "MappingViewMode:";
     private const string MappingListViewMode = "List";
     private const string MappingGridViewMode = "Grid";
+    private const string DrawerCoverSizeSettingPrefix = "DrawerCoverSize:";
+    private const string TitleVisibilitySettingPrefix = "BoxTitleVisible:";
+    private const string LegacyDrawerTitleVisibilitySettingPrefix = "DrawerTitleVisible:";
+    private const string DrawerSortModeSettingPrefix = "DrawerSortMode:";
+    private const double DefaultDrawerCoverWidth = 180;
+    private const double DefaultDrawerCoverHeight = 112;
+    private const double MaximumDrawerCoverDimension = 720;
+    private const double DrawerTitleHeightCompensation = 9;
 
     private readonly DrawerService _drawerService;
     private readonly TodoService _todoService;
@@ -39,6 +48,13 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private string _newTodoTitle = string.Empty;
     private double _iconDpiScaleX = 1;
     private double _iconDpiScaleY = 1;
+    private bool _isDrawerExpanded;
+    private bool _isTitleVisible = true;
+    private double _drawerCoverWidth = DefaultDrawerCoverWidth;
+    private double _drawerCoverHeight = DefaultDrawerCoverHeight;
+    private int _drawerCoverColumns = 3;
+    private int _drawerCoverRows = 2;
+    private DrawerItemSortMode _drawerItemSortMode = DrawerItemSortMode.Name;
 
     public DesktopBoxViewModel(
         Box box,
@@ -55,7 +71,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
         _todoService = todoService;
         _launcher = launcher;
         _logger = logger;
-        _layoutSettings = layoutSettings ?? new DesktopBoxLayoutSettings();
+        _layoutSettings = layoutSettings ?? new DesktopBoxLayoutSettings(box.Type == BoxType.Drawer);
         _layoutSettings.PropertyChanged += OnLayoutSettingsChanged;
 
         OpenItemCommand = new AsyncRelayCommand<DrawerItemViewModel?>(OpenItemAsync);
@@ -76,6 +92,12 @@ public sealed class DesktopBoxViewModel : ObservableObject
     public event EventHandler? ItemsChanged;
 
     public ObservableCollection<DrawerItemViewModel> Items { get; } = [];
+
+    public ObservableCollection<DrawerItemViewModel> DrawerPreviewItems { get; } = [];
+
+    public ObservableCollection<DrawerCoverTileViewModel> DrawerCoverTiles { get; } = [];
+
+    public ObservableCollection<DrawerItemViewModel> DrawerSecondaryItems { get; } = [];
 
     public ObservableCollection<TodoItemViewModel> TodoItems { get; } = [];
 
@@ -111,6 +133,72 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     public bool IsTodoBox => Type == BoxType.Todo;
 
+    public bool IsDrawerBox => Type == BoxType.Drawer;
+
+    public bool IsDrawerExpanded
+    {
+        get => IsDrawerBox && _isDrawerExpanded;
+        set
+        {
+            if (SetProperty(ref _isDrawerExpanded, value))
+            {
+                OnPropertyChanged(nameof(IsDrawerCollapsed));
+                OnPropertyChanged(nameof(IsHeaderVisible));
+            }
+        }
+    }
+
+    public bool IsDrawerCollapsed => IsDrawerBox && !IsDrawerExpanded;
+
+    public bool IsTitleVisible => _isTitleVisible;
+
+    public bool IsHeaderVisible => !IsDrawerCollapsed || IsTitleVisible;
+
+    public double DrawerCoverWidth => _drawerCoverWidth;
+
+    public double DrawerCoverHeight => _drawerCoverHeight;
+
+    public double DrawerContentHeight => CalculateDrawerContentHeight(
+        DrawerCoverHeight,
+        IsTitleVisible);
+
+    public int DrawerCoverColumns => _drawerCoverColumns;
+
+    public int DrawerCoverRows => _drawerCoverRows;
+
+    public int DrawerCoverCapacity => DrawerCoverColumns * DrawerCoverRows;
+
+    public bool DrawerHasOverflow => Items.Count > DrawerCoverCapacity;
+
+    public int DrawerDirectItemCount => CalculateDrawerDirectItemCount(
+        Items.Count,
+        DrawerCoverCapacity);
+
+    public DrawerItemSortMode DrawerItemSortMode => _drawerItemSortMode;
+
+    public int DrawerSecondaryColumns => CalculateDrawerSecondaryColumns(
+        DrawerSecondaryItems.Count);
+
+    public int DrawerSecondaryRows => CalculateDrawerSecondaryRows(
+        DrawerSecondaryItems.Count,
+        DrawerSecondaryColumns);
+
+    public bool DrawerSecondaryHasScrollableOverflow => DrawerSecondaryRows > 5;
+
+    public double DrawerSecondaryPanelWidth => Math.Clamp(
+        (DrawerSecondaryColumns
+            * (LayoutSettings.DrawerPrimaryIconFrameSize + 8))
+        + 20,
+        110,
+        320);
+
+    public double DrawerSecondaryPanelHeight => Math.Clamp(
+        (Math.Min(5, DrawerSecondaryRows)
+            * (LayoutSettings.DrawerPrimaryIconFrameSize + 8))
+        + 20,
+        96,
+        320);
+
     public bool IsMappingListMode => IsMappingBox && _isMappingListMode;
 
     public bool IsGridMode => !IsMappingListMode;
@@ -120,6 +208,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
         BoxType.Normal or BoxType.Pixel => "普通",
         BoxType.Mapping => "映射",
         BoxType.Todo => "待办",
+        BoxType.Drawer => "抽屉",
         _ => "未知"
     };
 
@@ -128,6 +217,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
         BoxType.Normal or BoxType.Pixel => "移动收纳",
         BoxType.Mapping => "路径映射",
         BoxType.Todo => "桌面待办",
+        BoxType.Drawer => "点击展开",
         _ => string.Empty
     };
 
@@ -215,6 +305,12 @@ public sealed class DesktopBoxViewModel : ObservableObject
         OnPropertyChanged(nameof(IsPixelStyle));
         OnPropertyChanged(nameof(IsMappingBox));
         OnPropertyChanged(nameof(IsTodoBox));
+        OnPropertyChanged(nameof(IsDrawerBox));
+        OnPropertyChanged(nameof(IsDrawerExpanded));
+        OnPropertyChanged(nameof(IsDrawerCollapsed));
+        OnPropertyChanged(nameof(IsTitleVisible));
+        OnPropertyChanged(nameof(IsHeaderVisible));
+        OnPropertyChanged(nameof(DrawerContentHeight));
         OnPropertyChanged(nameof(IsMappingListMode));
         OnPropertyChanged(nameof(IsGridMode));
         OnPropertyChanged(nameof(TypeLabel));
@@ -389,6 +485,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
             OnPropertyChanged(nameof(ItemCountLabel));
             OnPropertyChanged(nameof(IsEmpty));
             OnPropertyChanged(nameof(ShowFileEmptyState));
+            RefreshDrawerPreview();
         }
         catch (Exception exception)
         {
@@ -831,6 +928,316 @@ public sealed class DesktopBoxViewModel : ObservableObject
         OnPropertyChanged(nameof(DragPreviewHeight));
     }
 
+    public void ResizeDrawerCover(double width, double height)
+    {
+        var normalized = NormalizeDrawerCoverSize(width, height, LayoutSettings.DrawerCoverCellSize);
+        var widthChanged = SetProperty(
+            ref _drawerCoverWidth,
+            normalized.Width,
+            nameof(DrawerCoverWidth));
+        var heightChanged = SetProperty(
+            ref _drawerCoverHeight,
+            normalized.Height,
+            nameof(DrawerCoverHeight));
+        var columnsChanged = SetProperty(
+            ref _drawerCoverColumns,
+            normalized.Columns,
+            nameof(DrawerCoverColumns));
+        var rowsChanged = SetProperty(
+            ref _drawerCoverRows,
+            normalized.Rows,
+            nameof(DrawerCoverRows));
+        if (!widthChanged && !heightChanged && !columnsChanged && !rowsChanged)
+        {
+            return;
+        }
+
+        OnPropertyChanged(nameof(DrawerCoverCapacity));
+        OnPropertyChanged(nameof(DrawerHasOverflow));
+        OnPropertyChanged(nameof(DrawerDirectItemCount));
+        OnPropertyChanged(nameof(DrawerContentHeight));
+        RefreshDrawerPreview();
+    }
+
+    public async Task LoadDrawerCoverSizeAsync()
+    {
+        if (!IsDrawerBox)
+        {
+            return;
+        }
+
+        var saved = await _drawerService.GetSettingAsync(GetDrawerCoverSizeSettingKey(BoxId));
+        if (TryParseDrawerCoverSize(saved, out var width, out var height))
+        {
+            ResizeDrawerCover(width, height);
+            return;
+        }
+
+        ResizeDrawerCover(DefaultDrawerCoverWidth, DefaultDrawerCoverHeight);
+    }
+
+    public async Task LoadTitleVisibilityAsync()
+    {
+        var saved = await _drawerService.GetSettingAsync(GetTitleVisibilitySettingKey(BoxId));
+        if (saved is null && IsDrawerBox)
+        {
+            saved = await _drawerService.GetSettingAsync(
+                GetLegacyDrawerTitleVisibilitySettingKey(BoxId));
+        }
+
+        ApplyTitleVisibility(!bool.TryParse(saved, out var isVisible) || isVisible);
+    }
+
+    public void ApplyTitleVisibility(bool isVisible)
+    {
+        if (!SetProperty(
+                ref _isTitleVisible,
+                isVisible,
+                nameof(IsTitleVisible)))
+        {
+            return;
+        }
+
+        OnPropertyChanged(nameof(IsHeaderVisible));
+        OnPropertyChanged(nameof(DrawerContentHeight));
+    }
+
+    public async Task LoadDrawerSortModeAsync()
+    {
+        if (!IsDrawerBox)
+        {
+            return;
+        }
+
+        var saved = await _drawerService.GetSettingAsync(GetDrawerSortModeSettingKey(BoxId));
+        ApplyDrawerSortMode(
+            Enum.TryParse<DrawerItemSortMode>(saved, ignoreCase: true, out var sortMode)
+                ? sortMode
+                : DrawerItemSortMode.Name);
+    }
+
+    public void ApplyDrawerSortMode(DrawerItemSortMode sortMode)
+    {
+        if (_drawerItemSortMode == sortMode)
+        {
+            return;
+        }
+
+        _drawerItemSortMode = sortMode;
+        OnPropertyChanged(nameof(DrawerItemSortMode));
+    }
+
+    public Task SaveDrawerCoverSizeAsync()
+    {
+        var value = string.Create(
+            CultureInfo.InvariantCulture,
+            $"{DrawerCoverWidth:0.##},{DrawerCoverHeight:0.##}");
+        return _drawerService.SetSettingAsync(GetDrawerCoverSizeSettingKey(BoxId), value);
+    }
+
+    internal static string GetDrawerCoverSizeSettingKey(Guid boxId) =>
+        $"{DrawerCoverSizeSettingPrefix}{boxId:N}";
+
+    internal static string GetTitleVisibilitySettingKey(Guid boxId) =>
+        $"{TitleVisibilitySettingPrefix}{boxId:N}";
+
+    internal static string GetLegacyDrawerTitleVisibilitySettingKey(Guid boxId) =>
+        $"{LegacyDrawerTitleVisibilitySettingPrefix}{boxId:N}";
+
+    internal static string GetDrawerSortModeSettingKey(Guid boxId) =>
+        $"{DrawerSortModeSettingPrefix}{boxId:N}";
+
+    internal static bool TryParseDrawerCoverSize(
+        string? value,
+        out double width,
+        out double height)
+    {
+        width = 0;
+        height = 0;
+        var parts = value?.Split(',', StringSplitOptions.TrimEntries);
+        return parts is { Length: 2 }
+            && double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out width)
+            && double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out height)
+            && double.IsFinite(width)
+            && double.IsFinite(height)
+            && width > 0
+            && height > 0;
+    }
+
+    internal static (double Width, double Height, int Columns, int Rows) NormalizeDrawerCoverSize(
+        double width,
+        double height,
+        double cellSize)
+    {
+        var normalizedCellSize = Math.Clamp(cellSize, 24, 120);
+        const double surfaceInsets = DesktopBoxLayoutSettings.DrawerSurfaceInset * 2;
+        var requestedWidth = double.IsFinite(width) ? width : DefaultDrawerCoverWidth;
+        var requestedHeight = double.IsFinite(height) ? height : DefaultDrawerCoverHeight;
+        var maximumCells = Math.Max(
+            2,
+            (int)Math.Floor((MaximumDrawerCoverDimension - surfaceInsets) / normalizedCellSize));
+        var columns = Math.Clamp(
+            (int)Math.Round(
+                Math.Max(1, requestedWidth - surfaceInsets) / normalizedCellSize,
+                MidpointRounding.AwayFromZero),
+            1,
+            maximumCells);
+        var rows = Math.Clamp(
+            (int)Math.Round(
+                Math.Max(1, requestedHeight - surfaceInsets) / normalizedCellSize,
+                MidpointRounding.AwayFromZero),
+            1,
+            maximumCells);
+        if (columns * rows < 2 || (columns == 1 && rows == 2))
+        {
+            // The minimum drawer is always the established horizontal "1 + four previews"
+            // shape. A 1x2 cover makes the primary and composite tiles stack vertically and
+            // visually turns the already-finished drawer into a different component.
+            columns = 2;
+            rows = 1;
+        }
+
+        return (
+            Math.Round((columns * normalizedCellSize) + surfaceInsets, 1),
+            Math.Round((rows * normalizedCellSize) + surfaceInsets, 1),
+            columns,
+            rows);
+    }
+
+    internal static int CalculateDrawerDirectItemCount(int itemCount, int capacity)
+    {
+        var normalizedItemCount = Math.Max(0, itemCount);
+        var normalizedCapacity = Math.Max(2, capacity);
+        return normalizedItemCount > normalizedCapacity
+            ? normalizedCapacity - 1
+            : Math.Min(normalizedItemCount, normalizedCapacity);
+    }
+
+    internal static double CalculateDrawerContentHeight(
+        double coverHeight,
+        bool isTitleVisible) => Math.Max(
+            1,
+            coverHeight - (isTitleVisible ? DrawerTitleHeightCompensation : 0));
+
+    public async Task ApplyDrawerItemSortAsync(DrawerItemSortMode sortMode)
+    {
+        var snapshot = Items.ToArray();
+        var sortedItems = await Task.Run(() => SortDrawerItems(snapshot, sortMode));
+
+        ApplyDrawerSortMode(sortMode);
+
+        DrawerSecondaryItems.Clear();
+        foreach (var item in sortedItems)
+        {
+            DrawerSecondaryItems.Add(item);
+        }
+
+        OnPropertyChanged(nameof(DrawerSecondaryColumns));
+        OnPropertyChanged(nameof(DrawerSecondaryRows));
+        OnPropertyChanged(nameof(DrawerSecondaryHasScrollableOverflow));
+        OnPropertyChanged(nameof(DrawerSecondaryPanelWidth));
+        OnPropertyChanged(nameof(DrawerSecondaryPanelHeight));
+    }
+
+    internal static IReadOnlyList<DrawerItemViewModel> SortDrawerItems(
+        IReadOnlyList<DrawerItemViewModel> items,
+        DrawerItemSortMode sortMode)
+    {
+        var entries = items.Select(CreateDrawerSortEntry).ToArray();
+        IOrderedEnumerable<DrawerSortEntry> ordered = sortMode switch
+        {
+            DrawerItemSortMode.Size => entries
+                .OrderBy(entry => entry.Size)
+                .ThenBy(entry => entry.Name, StringComparer.CurrentCultureIgnoreCase),
+            DrawerItemSortMode.ItemType => entries
+                .OrderBy(entry => entry.ItemType, StringComparer.CurrentCultureIgnoreCase)
+                .ThenBy(entry => entry.Name, StringComparer.CurrentCultureIgnoreCase),
+            DrawerItemSortMode.ModifiedDate => entries
+                .OrderByDescending(entry => entry.ModifiedDateUtc)
+                .ThenBy(entry => entry.Name, StringComparer.CurrentCultureIgnoreCase),
+            _ => entries.OrderBy(
+                entry => entry.Name,
+                StringComparer.CurrentCultureIgnoreCase)
+        };
+
+        return ordered.Select(entry => entry.Item).ToArray();
+    }
+
+    internal static int CalculateDrawerSecondaryColumns(int itemCount) => Math.Clamp(
+        (int)Math.Ceiling(Math.Sqrt(Math.Max(1, itemCount))),
+        2,
+        5);
+
+    internal static int CalculateDrawerSecondaryRows(int itemCount, int columns) =>
+        Math.Max(1, (int)Math.Ceiling(Math.Max(1, itemCount) / (double)Math.Max(1, columns)));
+
+    private static DrawerSortEntry CreateDrawerSortEntry(DrawerItemViewModel item)
+    {
+        var path = item.PathLabel;
+        try
+        {
+            if (item.Model.ItemKind == ItemKind.Directory)
+            {
+                return new DrawerSortEntry(
+                    item,
+                    item.DisplayName,
+                    "文件夹",
+                    -1,
+                    Directory.GetLastWriteTimeUtc(path));
+            }
+
+            var fileInfo = new FileInfo(path);
+            var itemType = Path.GetExtension(path);
+            if (string.IsNullOrWhiteSpace(itemType))
+            {
+                itemType = "文件";
+            }
+
+            return new DrawerSortEntry(
+                item,
+                item.DisplayName,
+                itemType,
+                fileInfo.Exists ? fileInfo.Length : long.MaxValue,
+                fileInfo.Exists ? fileInfo.LastWriteTimeUtc : DateTime.MinValue);
+        }
+        catch
+        {
+            return new DrawerSortEntry(
+                item,
+                item.DisplayName,
+                item.KindLabel,
+                long.MaxValue,
+                DateTime.MinValue);
+        }
+    }
+
+    private sealed record DrawerSortEntry(
+        DrawerItemViewModel Item,
+        string Name,
+        string ItemType,
+        long Size,
+        DateTime ModifiedDateUtc);
+
+    private void RefreshDrawerPreview()
+    {
+        DrawerCoverTiles.Clear();
+        DrawerPreviewItems.Clear();
+        var directItemCount = DrawerDirectItemCount;
+        for (var index = 0; index < directItemCount; index++)
+        {
+            DrawerCoverTiles.Add(DrawerCoverTileViewModel.ForItem(Items[index]));
+        }
+
+        if (DrawerHasOverflow)
+        {
+            DrawerCoverTiles.Add(DrawerCoverTileViewModel.Expand());
+            foreach (var item in Items.Skip(directItemCount).Take(4))
+            {
+                DrawerPreviewItems.Add(item);
+            }
+        }
+    }
+
     private void OnLayoutSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
         foreach (var item in Items)
@@ -840,6 +1247,20 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
         UpdateItemIconSizes();
         UpdateGridCanvasSize();
+        if (IsDrawerBox && e.PropertyName is nameof(DesktopBoxLayoutSettings.CurrentPreset))
+        {
+            ResizeDrawerCover(
+                (DrawerCoverColumns * LayoutSettings.DrawerCoverCellSize)
+                + (DesktopBoxLayoutSettings.DrawerSurfaceInset * 2),
+                (DrawerCoverRows * LayoutSettings.DrawerCoverCellSize)
+                + (DesktopBoxLayoutSettings.DrawerSurfaceInset * 2));
+            OnPropertyChanged(nameof(DrawerCoverCapacity));
+            OnPropertyChanged(nameof(DrawerHasOverflow));
+            OnPropertyChanged(nameof(DrawerDirectItemCount));
+            OnPropertyChanged(nameof(DrawerSecondaryPanelWidth));
+            OnPropertyChanged(nameof(DrawerSecondaryPanelHeight));
+            RefreshDrawerPreview();
+        }
     }
 
     private void UpdateItemIconSizes()
@@ -855,7 +1276,9 @@ public sealed class DesktopBoxViewModel : ObservableObject
     {
         var displaySizeDip = IsMappingListMode
             ? LayoutSettings.MappingListIconSize
-            : LayoutSettings.IconSize;
+            : IsDrawerBox
+                ? Math.Max(LayoutSettings.IconSize, LayoutSettings.DrawerPrimaryIconSize)
+                : LayoutSettings.IconSize;
 
         return DpiAwareIconSize.Calculate(
             displaySizeDip,

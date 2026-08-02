@@ -78,7 +78,9 @@ public sealed class DrawerService
 
         var id = Guid.NewGuid();
         var now = DateTimeOffset.UtcNow;
-        var storagePath = (type == BoxType.Normal || type == BoxType.Pixel) ? Path.Combine(_paths.BoxesDirectory, id.ToString("N")) : null;
+        var storagePath = type is BoxType.Normal or BoxType.Pixel or BoxType.Drawer
+            ? Path.Combine(_paths.BoxesDirectory, id.ToString("N"))
+            : null;
         if (storagePath is not null)
         {
             Directory.CreateDirectory(storagePath);

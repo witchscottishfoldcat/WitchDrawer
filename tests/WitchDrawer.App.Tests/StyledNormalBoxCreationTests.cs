@@ -55,6 +55,17 @@ public sealed class StyledNormalBoxCreationTests
             Assert.Equal(
                 BoxVisualStyle.Pixel,
                 await visualStyleStore.LoadAsync(createdBox));
+            var selectedBox = Assert.IsType<BoxViewModel>(viewModel.SelectedBox);
+            await selectedBox.LoadTitleVisibilityAsync();
+            Assert.True(selectedBox.IsTitleVisible);
+
+            await selectedBox.ToggleTitleVisibilityCommand.ExecuteAsync(null);
+
+            Assert.False(selectedBox.IsTitleVisible);
+            Assert.Equal(
+                bool.FalseString,
+                await drawerService.GetSettingAsync(
+                    BoxViewModel.GetTitleVisibilitySettingKey(createdBox.Id)));
         }
         finally
         {

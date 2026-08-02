@@ -83,6 +83,7 @@ public sealed class MainViewModel : ObservableObject
                 ToggleSelectedBoxPositionLockAsync,
                 () => SelectedBox is not null);
         CreateTodoBoxCommand = new AsyncRelayCommand(() => CreateBoxAsync(BoxType.Todo));
+        CreateDrawerBoxCommand = new AsyncRelayCommand(() => CreateBoxAsync(BoxType.Drawer));
         DeleteSelectedBoxCommand = new AsyncRelayCommand(DeleteSelectedBoxAsync, () => SelectedBox is not null);
         RenameSelectedBoxCommand = new AsyncRelayCommand<string?>(RenameSelectedBoxAsync, _ => SelectedBox is not null);
         OpenItemCommand = new AsyncRelayCommand<DrawerItemViewModel?>(OpenItemAsync);
@@ -158,6 +159,8 @@ public sealed class MainViewModel : ObservableObject
     public IAsyncRelayCommand ToggleSelectedBoxPositionLockCommand { get; }
 
     public IAsyncRelayCommand CreateTodoBoxCommand { get; }
+
+    public IAsyncRelayCommand CreateDrawerBoxCommand { get; }
 
     public IAsyncRelayCommand DeleteSelectedBoxCommand { get; }
 
@@ -457,6 +460,7 @@ public sealed class MainViewModel : ObservableObject
                 BoxType.Mapping => "映射收纳盒",
                 BoxType.Pixel => "像素收纳盒",
                 BoxType.Todo => "待办收纳盒",
+                BoxType.Drawer => "抽屉盒",
                 _ => "收纳盒"
             };
             var matchingBoxCount = type == BoxType.Normal
@@ -464,6 +468,12 @@ public sealed class MainViewModel : ObservableObject
                 : Boxes.Count(box => box.Type == type);
             var name = $"{prefix} {matchingBoxCount + 1}";
             var box = await _drawerService.CreateBoxAsync(name, type);
+            if (type == BoxType.Drawer)
+            {
+                await _drawerService.SetSettingAsync(
+                    BoxViewModel.GetLayoutPresetSettingKey(box.Id),
+                    DesktopBoxLayoutSettings.DefaultDrawerPreset);
+            }
             var effectiveStyle = visualStyle ?? BoxVisualStyle.Modern;
             if (type == BoxType.Normal)
             {
@@ -561,9 +571,9 @@ public sealed class MainViewModel : ObservableObject
                     _boxPositionLockStateStore.LoadAsync(box.Id);
                 await Task.WhenAll(visualStyleTask, positionLockStateTask);
                 return (
-                    box,
-                    await visualStyleTask,
-                    await positionLockStateTask);
+                    Box: box,
+                    VisualStyle: await visualStyleTask,
+                    IsPositionLocked: await positionLockStateTask);
             }));
     }
 

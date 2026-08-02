@@ -224,6 +224,32 @@ public sealed class DrawerServiceTests
     }
 
     [Fact]
+    public async Task DrawerBox_UsesStoredFileSafetyAndRestoresOnDelete()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var source = workspace.CreateSourceFile("drawer-source", "drawer-item.txt", "hello");
+        var drawerBox = await workspace.Service.CreateBoxAsync("抽屉盒 1", BoxType.Drawer);
+
+        var imported = await workspace.Service.ImportPathAsync(drawerBox.Id, source);
+
+        Assert.NotNull(drawerBox.StoragePath);
+        Assert.NotNull(imported.StoredPath);
+        Assert.False(File.Exists(source));
+        Assert.True(File.Exists(imported.StoredPath));
+        Assert.StartsWith(
+            Path.GetFullPath(workspace.Paths.BoxesDirectory),
+            Path.GetFullPath(imported.StoredPath!),
+            StringComparison.OrdinalIgnoreCase);
+
+        var result = await workspace.Service.DeleteBoxAsync(drawerBox.Id);
+
+        Assert.True(result.BoxRemoved);
+        Assert.Equal(1, result.RestoredCount);
+        Assert.True(File.Exists(source));
+        Assert.False(File.Exists(imported.StoredPath));
+    }
+
+    [Fact]
     public async Task ImportPathAsync_MappingBoxKeepsSourceFileInPlace()
     {
         using var workspace = await TestWorkspace.CreateAsync();
