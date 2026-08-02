@@ -32,19 +32,6 @@
         </Style>
     </Window.Style>
     <Window.Resources>
-        <!-- 精致现代点阵微网格背景 (取代难看的棋盘像素格子) -->
-        <DrawingBrush x:Key="DotGridBrush" TileMode="Tile" Viewport="0,0,18,18" ViewportUnits="Absolute">
-            <DrawingBrush.Drawing>
-                <DrawingGroup>
-                    <GeometryDrawing Brush="#1A888888">
-                        <GeometryDrawing.Geometry>
-                            <EllipseGeometry Center="9,9" RadiusX="1.2" RadiusY="1.2" />
-                        </GeometryDrawing.Geometry>
-                    </GeometryDrawing>
-                </DrawingGroup>
-            </DrawingBrush.Drawing>
-        </DrawingBrush>
-
         <!-- 虚线滚动跑马灯动画 -->
         <Storyboard x:Key="ScrollDashes" RepeatBehavior="Forever">
             <DoubleAnimation Storyboard.TargetName="DashRect"
@@ -197,22 +184,6 @@
                 <RowDefinition Height="24" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
-
-            <!-- 像素模式专用精致主题自适应微网格图层 -->
-            <Rectangle Grid.RowSpan="2" Panel.ZIndex="-1" IsHitTestVisible="False">
-                <Rectangle.Style>
-                    <Style TargetType="Rectangle">
-                        <Setter Property="Fill" Value="Transparent" />
-                        <Setter Property="Visibility" Value="Collapsed" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsPixelStyle}" Value="True">
-                                <Setter Property="Fill" Value="{StaticResource DotGridBrush}" />
-                                <Setter Property="Visibility" Value="Visible" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Rectangle.Style>
-            </Rectangle>
 
             <!-- 顶部标题栏与 macOS 关闭小红点 -->
             <!-- 三列布局：左侧名称 / 右侧视图切换 / 关闭按钮。 -->

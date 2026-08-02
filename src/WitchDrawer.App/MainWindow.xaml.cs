@@ -704,11 +704,7 @@ public partial class MainWindow : Window
     private async void OnBoxVisualStyleSelected(object sender, RoutedEventArgs e)
     {
         if (_isBoxVisualStyleTransitioning
-            || sender is not Button
-            {
-                DataContext: BoxVisualStyleOption option,
-                RenderTransform: ScaleTransform scaleTransform
-            })
+            || sender is not Button { DataContext: BoxVisualStyleOption option } button)
         {
             return;
         }
@@ -717,7 +713,7 @@ public partial class MainWindow : Window
         BoxVisualStyleSecondaryPanel.IsHitTestVisible = false;
         try
         {
-            AnimateVisualStyleSelection(scaleTransform);
+            TryAnimateVisualStyleSelection(button);
             await Task.Delay(170);
             await ViewModel.SetSelectedBoxVisualStyleCommand.ExecuteAsync(option);
             await Task.Delay(40);
@@ -731,6 +727,39 @@ public partial class MainWindow : Window
             ShowPrimaryBoxControls();
             _isBoxVisualStyleTransitioning = false;
         }
+    }
+
+    private void TryAnimateVisualStyleSelection(Button button)
+    {
+        try
+        {
+            var currentTransform = button.RenderTransform as ScaleTransform;
+            var scaleTransform = EnsureAnimatableScaleTransform(currentTransform);
+            if (!ReferenceEquals(scaleTransform, currentTransform))
+            {
+                button.RenderTransform = scaleTransform;
+            }
+
+            AnimateVisualStyleSelection(scaleTransform);
+        }
+        catch (Exception exception)
+        {
+            // The style change is functional behavior; its decorative pulse must
+            // never prevent the command from running.
+            _logger.Error(exception, "Failed to animate box visual style selection; continuing without animation.");
+        }
+    }
+
+    internal static ScaleTransform EnsureAnimatableScaleTransform(ScaleTransform? scaleTransform)
+    {
+        if (scaleTransform is null)
+        {
+            return new ScaleTransform(1, 1);
+        }
+
+        return scaleTransform.IsFrozen
+            ? scaleTransform.CloneCurrentValue()
+            : scaleTransform;
     }
 
     private void ShowPrimaryBoxControls()
