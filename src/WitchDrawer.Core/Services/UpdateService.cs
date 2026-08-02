@@ -36,6 +36,16 @@ public sealed class UpdateService
 
     public event Action<int>? DownloadProgressChanged;
 
+    public async Task CleanupLegacyUpdaterArtifactsAsync()
+    {
+        var appDirectory = Path.GetFullPath(AppContext.BaseDirectory);
+        var removedCount = await Task.Run(() => CleanupLegacyUpdaterArtifacts(appDirectory));
+        if (removedCount > 0)
+        {
+            _logger.Info($"Removed {removedCount} legacy updater artifact(s).");
+        }
+    }
+
     public async Task<UpdateCheckResult> CheckForUpdateAsync(Version currentVersion)
     {
         try
@@ -88,6 +98,9 @@ public sealed class UpdateService
         IProgress<int>? progress = null,
         string? expectedSha256 = null)
     {
+        string? tempRoot = null;
+        string? updaterPath = null;
+
         try
         {
             if (!IsAllowedDownloadUrl(downloadUrl))
@@ -96,14 +109,15 @@ public sealed class UpdateService
                 return false;
             }
 
-            var tempDir = Path.Combine(Path.GetTempPath(), "WitchDrawerUpdate");
-            if (Directory.Exists(tempDir))
-            {
-                Directory.Delete(tempDir, true);
-            }
-            Directory.CreateDirectory(tempDir);
+            var updateId = Guid.NewGuid().ToString("N");
+            tempRoot = Path.Combine(
+                Path.GetTempPath(),
+                "WitchDrawerUpdate",
+                updateId);
+            var payloadDir = Path.Combine(tempRoot, "payload");
+            Directory.CreateDirectory(payloadDir);
 
-            var zipPath = Path.Combine(tempDir, "update.zip");
+            var zipPath = Path.Combine(tempRoot, "update.zip");
             using (var response = await HttpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead))
             {
                 response.EnsureSuccessStatusCode();
@@ -136,7 +150,7 @@ public sealed class UpdateService
                 if (!string.Equals(actualHash, expectedSha256, StringComparison.OrdinalIgnoreCase))
                 {
                     _logger.Info($"Update hash mismatch. expected={expectedSha256} actual={actualHash}");
-                    TryDeleteDirectory(tempDir);
+                    TryDeleteDirectory(tempRoot);
                     return false;
                 }
             }
@@ -145,47 +159,156 @@ public sealed class UpdateService
                 _logger.Info("Update asset has no published SHA-256; continuing with URL allowlist only.");
             }
 
-            System.IO.Compression.ZipFile.ExtractToDirectory(zipPath, tempDir, overwriteFiles: true);
+            await Task.Run(() =>
+                System.IO.Compression.ZipFile.ExtractToDirectory(
+                    zipPath,
+                    payloadDir,
+                    overwriteFiles: true));
 
-            var appDir = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-                + Path.DirectorySeparatorChar;
-            var updaterPath = Path.Combine(tempDir, "updater.bat");
-
-            var batContent = $"""
-@echo off
-chcp 65001 >nul
-echo Updating WitchDrawer...
-timeout /t 2 /nobreak >nul
-
-taskkill /im "WitchDrawer.App.exe" /f >nul 2>&1
-timeout /t 1 /nobreak >nul
-
-xcopy "{tempDir}\*" "{appDir}" /e /y /i >nul 2>&1
-
-start "" "{appDir}WitchDrawer.App.exe"
-
-cd /d "%temp%"
-rmdir /s /q "{tempDir}" >nul 2>&1
-del "%~f0" >nul 2>&1
-""";
-
-            await File.WriteAllTextAsync(updaterPath, batContent, Encoding.ASCII);
-
-            Process.Start(new ProcessStartInfo
+            var appExecutablePath = Environment.ProcessPath;
+            if (string.IsNullOrWhiteSpace(appExecutablePath))
             {
-                FileName = updaterPath,
-                UseShellExecute = true,
-                WindowStyle = ProcessWindowStyle.Hidden,
-                CreateNoWindow = true
-            });
+                _logger.Info("Cannot apply update because the current executable path is unavailable.");
+                TryDeleteDirectory(tempRoot);
+                return false;
+            }
+
+            appExecutablePath = Path.GetFullPath(appExecutablePath);
+            var appDirectory = Path.GetDirectoryName(appExecutablePath);
+            var executableName = Path.GetFileName(appExecutablePath);
+            if (string.IsNullOrWhiteSpace(appDirectory)
+                || string.IsNullOrWhiteSpace(executableName)
+                || !Directory.Exists(appDirectory))
+            {
+                _logger.Info($"Cannot apply update because the application directory is invalid: {appDirectory}");
+                TryDeleteDirectory(tempRoot);
+                return false;
+            }
+
+            var payloadExecutablePath = Path.Combine(payloadDir, executableName);
+            if (!File.Exists(payloadExecutablePath))
+            {
+                _logger.Info($"Downloaded update does not contain {executableName}.");
+                TryDeleteDirectory(tempRoot);
+                return false;
+            }
+
+            // Keep the running batch outside the directory it removes. This avoids
+            // cmd.exe losing its current script/path while cleaning the update payload.
+            updaterPath = Path.Combine(Path.GetTempPath(), $"WitchDrawerUpdater-{updateId}.bat");
+            var updateLogPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "WitchDrawer",
+                "Logs",
+                "updater.log");
+            Directory.CreateDirectory(Path.GetDirectoryName(updateLogPath)!);
+            await File.WriteAllTextAsync(updaterPath, BuildUpdaterScript(), Encoding.ASCII);
+
+            var updaterProcess = Process.Start(CreateUpdaterStartInfo(
+                updaterPath,
+                tempRoot,
+                payloadDir,
+                appDirectory,
+                appExecutablePath,
+                executableName,
+                updateLogPath));
+            if (updaterProcess is null)
+            {
+                _logger.Info("Failed to start the update helper process.");
+                TryDeleteDirectory(tempRoot);
+                TryDeleteFile(updaterPath);
+                return false;
+            }
 
             return true;
         }
         catch (Exception exception)
         {
+            if (!string.IsNullOrWhiteSpace(tempRoot))
+            {
+                TryDeleteDirectory(tempRoot);
+            }
+            if (!string.IsNullOrWhiteSpace(updaterPath))
+            {
+                TryDeleteFile(updaterPath);
+            }
+
             _logger.Error(exception, "Failed to download and apply update.");
             return false;
         }
+    }
+
+    internal static string BuildUpdaterScript()
+    {
+        return """"
+@echo off
+setlocal
+>>"%WITCHDRAWER_UPDATE_LOG%" echo [%date% %time%] Update started.
+timeout /t 2 /nobreak >nul
+
+taskkill /im "%WITCHDRAWER_EXE_NAME%" /f >nul 2>&1
+timeout /t 1 /nobreak >nul
+
+xcopy "%WITCHDRAWER_PAYLOAD%\*" "%WITCHDRAWER_APP_DIR%" /e /y /i >>"%WITCHDRAWER_UPDATE_LOG%" 2>&1
+if errorlevel 1 goto update_failed
+
+del /q "%WITCHDRAWER_APP_DIR%\update.zip" "%WITCHDRAWER_APP_DIR%\updater.bat" >nul 2>&1
+
+start "" /b /d "%WITCHDRAWER_APP_DIR%" "%WITCHDRAWER_APP_EXE%" >nul 2>&1
+if errorlevel 1 goto update_failed
+
+>>"%WITCHDRAWER_UPDATE_LOG%" echo [%date% %time%] Update completed.
+cd /d "%TEMP%"
+rmdir /s /q "%WITCHDRAWER_UPDATE_ROOT%" >nul 2>&1
+start "" /b "%ComSpec%" /d /c del /q "%~f0" >nul 2>&1 & exit /b 0
+
+:update_failed
+>>"%WITCHDRAWER_UPDATE_LOG%" echo [%date% %time%] Update failed with exit code %errorlevel%.
+exit /b 1
+"""";
+    }
+
+    internal static ProcessStartInfo CreateUpdaterStartInfo(
+        string updaterPath,
+        string tempRoot,
+        string payloadDirectory,
+        string appDirectory,
+        string appExecutablePath,
+        string executableName,
+        string updateLogPath)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = Path.Combine(Environment.SystemDirectory, "cmd.exe"),
+            Arguments = $"/d /s /c \"\"{updaterPath}\"\"",
+            WorkingDirectory = Path.GetDirectoryName(updaterPath)
+                ?? Path.GetTempPath(),
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            WindowStyle = ProcessWindowStyle.Hidden
+        };
+
+        startInfo.Environment["WITCHDRAWER_UPDATE_ROOT"] = tempRoot;
+        startInfo.Environment["WITCHDRAWER_PAYLOAD"] = payloadDirectory;
+        startInfo.Environment["WITCHDRAWER_APP_DIR"] = appDirectory;
+        startInfo.Environment["WITCHDRAWER_APP_EXE"] = appExecutablePath;
+        startInfo.Environment["WITCHDRAWER_EXE_NAME"] = executableName;
+        startInfo.Environment["WITCHDRAWER_UPDATE_LOG"] = updateLogPath;
+        return startInfo;
+    }
+
+    internal static int CleanupLegacyUpdaterArtifacts(string appDirectory)
+    {
+        var removedCount = 0;
+        foreach (var fileName in new[] { "update.zip", "updater.bat" })
+        {
+            if (TryDeleteFile(Path.Combine(appDirectory, fileName)))
+            {
+                removedCount++;
+            }
+        }
+
+        return removedCount;
     }
 
     internal static bool IsAllowedDownloadUrl(string downloadUrl)
@@ -339,6 +462,23 @@ del "%~f0" >nul 2>&1
         catch
         {
         }
+    }
+
+    private static bool TryDeleteFile(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+                return true;
+            }
+        }
+        catch
+        {
+        }
+
+        return false;
     }
 
     private static string TruncateReleaseNotes(string? body, int maxLength)

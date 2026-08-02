@@ -74,6 +74,7 @@ public partial class App : Application
             var launcher = new ShellFileLauncher();
             var todoService = new TodoService(repository);
             var updateService = new UpdateService(logger);
+            await updateService.CleanupLegacyUpdaterArtifactsAsync();
             var quickPanelHotKeySettings = new QuickPanelHotKeySettingsStore(drawerService);
             var boxVisualStyleStore = new BoxVisualStyleStore(drawerService, logger);
             var boxPositionLockStateStore =

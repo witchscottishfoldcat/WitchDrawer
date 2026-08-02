@@ -533,7 +533,7 @@
                 </Border>
 
                 <!-- Right Content Area -->
-                <Grid Grid.Column="1" Margin="20,16,20,18" VerticalAlignment="Stretch">
+                <Grid Grid.Column="1" Margin="20,12,20,18" VerticalAlignment="Stretch">
                     <!-- Dashboard Page -->
                     <Grid VerticalAlignment="Stretch">
                         <Grid.Style>
@@ -558,7 +558,7 @@
                         </Grid.RowDefinitions>
 
                         <!-- Dashboard Info Header -->
-                        <Grid Grid.Row="0" Margin="0,0,0,14">
+                        <Grid Grid.Row="0" Margin="0,0,0,8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
@@ -577,14 +577,14 @@
                                                FontWeight="SemiBold"
                                                />
                                 </StackPanel>
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,1,0,0">
                                     <TextBlock Text="{Binding SelectedBox.Name, TargetNullValue=选择一个收纳盒}"
                                                Foreground="{DynamicResource TextPrimaryBrush}"
                                                FontSize="24"
                                                FontWeight="SemiBold" />
                                     
                                     <!-- 重命名收纳盒悬浮按钮与浮窗 -->
-                                    <Grid Margin="10,4,0,0">
+                                    <Grid Margin="10,1,0,0">
                                          <Button x:Name="BtnRenameBox"
                                                  Click="OnRenameBoxClicked"
                                                  Focusable="False"
@@ -637,7 +637,7 @@
                                         </Popup>
                                     </Grid>
 
-                                    <Grid Margin="4,4,0,0">
+                                    <Grid Margin="4,1,0,0">
                                         <Button x:Name="BtnLockBoxPosition"
                                                 Command="{Binding ToggleSelectedBoxPositionLockCommand}"
                                                 AutomationProperties.Name="{Binding SelectedBox.PositionLockButtonAutomationName}"
@@ -685,7 +685,7 @@
                                         </Button>
                                     </Grid>
 
-                                    <Grid Margin="4,4,0,0">
+                                    <Grid Margin="4,1,0,0">
                                         <Button x:Name="BtnDeleteBox"
                                                 Click="OnDeleteBoxClicked"
                                                 Style="{StaticResource DangerButtonStyle}"
@@ -828,7 +828,7 @@
                             </Grid.ColumnDefinitions>
 
                             <!-- Selected box controls -->
-                            <Grid Grid.Row="0" Margin="0,0,0,10" VerticalAlignment="Stretch">
+                            <Grid Grid.Row="0" Margin="0,0,0,6" VerticalAlignment="Stretch">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" /> <!-- 顶部状态卡片 -->
                                     <RowDefinition Height="Auto" /> <!-- 收纳盒属性配置卡片 -->
@@ -878,7 +878,7 @@
                                         BorderBrush="{DynamicResource BorderBrushSoft}"
                                         BorderThickness="1"
                                         CornerRadius="12"
-                                        Padding="12"
+                                        Padding="12,3"
                                         Margin="0">
                                     <Grid x:Name="BoxControlsPageHost"
                                           MinHeight="34"
@@ -1313,10 +1313,10 @@
                                     BorderBrush="{DynamicResource BorderBrushSoft}"
                                     BorderThickness="1"
                                     CornerRadius="12"
-                                    Padding="12"
+                                    Padding="12,10"
                                     Margin="0,0,0,10">
                                 <DockPanel>
-                                    <Grid DockPanel.Dock="Top" Margin="3,1,3,11">
+                                    <Grid DockPanel.Dock="Top" Margin="3,0,3,7">
                                         <StackPanel Orientation="Horizontal">
                                             <Border Width="16"
                                                     Height="3"
@@ -1366,6 +1366,9 @@
                                         <!-- Files ListBox -->
                                         <ListBox x:Name="MainItemsList"
                                                  ItemsSource="{Binding Items}"
+                                                 Height="200"
+                                                 VerticalAlignment="Top"
+                                                 ClipToBounds="True"
                                                  PreviewKeyDown="OnMainItemsPreviewKeyDown"
                                                  MouseDoubleClick="OnItemsMouseDoubleClick"
                                                  ScrollViewer.CanContentScroll="True"
@@ -1375,9 +1378,9 @@
                                                  Visibility="{Binding Items.Count, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
                                             <ListBox.ItemContainerStyle>
                                                 <Style TargetType="{x:Type ListBoxItem}">
-                                                    <Setter Property="MinHeight" Value="44" />
-                                                    <Setter Property="Padding" Value="7,5" />
-                                                    <Setter Property="Margin" Value="0,1" />
+                                                    <Setter Property="MinHeight" Value="40" />
+                                                    <Setter Property="Padding" Value="7,3" />
+                                                    <Setter Property="Margin" Value="0" />
                                                     <Setter Property="FocusVisualStyle" Value="{x:Null}" />
                                                     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                                                     <Setter Property="Template">
@@ -1520,7 +1523,7 @@
                              </Border>
 
                             <Border Grid.Row="2"
-                                    MinHeight="58"
+                                    MinHeight="54"
                                     Background="{DynamicResource DropZoneBrush}"
                                     BorderBrush="{DynamicResource BorderBrushSoft}"
                                     BorderThickness="1"
