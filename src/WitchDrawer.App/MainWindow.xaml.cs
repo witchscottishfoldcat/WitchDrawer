@@ -740,6 +740,37 @@ public partial class MainWindow : Window
         DrawerSortPopup.IsOpen = false;
     }
 
+    private void OnOpenBoxActionsMenu(object sender, RoutedEventArgs e)
+    {
+        BoxActionsPopup.IsOpen = !BoxActionsPopup.IsOpen;
+        e.Handled = true;
+    }
+
+    private void OnBoxActionMenuItemClicked(object sender, RoutedEventArgs e)
+    {
+        BoxActionsPopup.IsOpen = false;
+    }
+
+    private void OnMainWindowPreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (!BoxActionsPopup.IsOpen || e.OriginalSource is not DependencyObject source)
+        {
+            return;
+        }
+
+        if (ReferenceEquals(source, BtnMoreBoxActions) || BtnMoreBoxActions.IsAncestorOf(source))
+        {
+            return;
+        }
+
+        BoxActionsPopup.IsOpen = false;
+    }
+
+    private void OnMainWindowDeactivated(object? sender, EventArgs e)
+    {
+        BoxActionsPopup.IsOpen = false;
+    }
+
     private async void OnCreateDrawerBoxClicked(object sender, RoutedEventArgs e)
     {
         CreateBoxPopup.IsOpen = false;
@@ -823,6 +854,7 @@ public partial class MainWindow : Window
 
     private void OnDeleteBoxClicked(object sender, RoutedEventArgs e)
     {
+        BoxActionsPopup.IsOpen = false;
         DeleteConfirmPopup.IsOpen = true;
     }
 
