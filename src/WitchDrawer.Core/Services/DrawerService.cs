@@ -144,7 +144,20 @@ public sealed class DrawerService
             var targetPath = FileNameService.GetUniqueDestinationPath(storageRoot, displayName, isDirectory);
             PathSafety.EnsureChildPath(storageRoot, targetPath);
 
-            await SafeFileOps.MoveAsync(fullSourcePath, targetPath, isDirectory, cancellationToken);
+            try
+            {
+                await SafeFileOps.MoveAsync(fullSourcePath, targetPath, isDirectory, cancellationToken);
+            }
+            catch (UnauthorizedAccessException exception)
+            {
+                throw CreateImportPermissionException(displayName, fullSourcePath, exception);
+            }
+            catch (IOException exception)
+            {
+                throw new InvalidOperationException(
+                    $"无法收纳“{displayName}”：{exception.Message}",
+                    exception);
+            }
 
             item = new DrawerItem(
                 Guid.NewGuid(),
@@ -249,7 +262,20 @@ public sealed class DrawerService
             var targetPath = FileNameService.GetUniqueDestinationPath(storageRoot, displayName, isDirectory);
             PathSafety.EnsureChildPath(storageRoot, targetPath);
 
-            await SafeFileOps.MoveAsync(fullSourcePath, targetPath, isDirectory, cancellationToken);
+            try
+            {
+                await SafeFileOps.MoveAsync(fullSourcePath, targetPath, isDirectory, cancellationToken);
+            }
+            catch (UnauthorizedAccessException exception)
+            {
+                throw CreateImportPermissionException(displayName, fullSourcePath, exception);
+            }
+            catch (IOException exception)
+            {
+                throw new InvalidOperationException(
+                    $"无法移动“{displayName}”：{exception.Message}",
+                    exception);
+            }
 
             displayName = Path.GetFileName(targetPath);
             storedPath = targetPath;
@@ -545,6 +571,31 @@ public sealed class DrawerService
         }
 
         return Path.GetFullPath(desktopPath);
+    }
+
+    /// <summary>
+    /// Wraps a file-move permission failure with an actionable hint. The most
+    /// common cause is dragging from a read-only system location such as the
+    /// public desktop (C:\Users\Public\Desktop), where the source directory is
+    /// not writable and the file cannot be deleted as part of the move.
+    /// </summary>
+    internal static InvalidOperationException CreateImportPermissionException(
+        string displayName,
+        string sourcePath,
+        UnauthorizedAccessException innerException)
+    {
+        var commonDesktop = Environment.GetFolderPath(
+            Environment.SpecialFolder.CommonDesktopDirectory);
+        var isPublicDesktop = !string.IsNullOrWhiteSpace(commonDesktop)
+            && sourcePath.StartsWith(commonDesktop, StringComparison.OrdinalIgnoreCase);
+        var hint = isPublicDesktop
+            ? "源位置（公共桌面）默认只读，无法从中移走文件。"
+            : "源目录没有写入权限，无法移走文件。";
+        return new InvalidOperationException(
+            $"无法收纳“{displayName}”：{hint}"
+            + "可改用“映射收纳盒”（仅保存引用、不移动文件），"
+            + "或先将文件复制到可写位置再拖入。",
+            innerException);
     }
 
     private static string GetReservedUniqueDestinationPath(

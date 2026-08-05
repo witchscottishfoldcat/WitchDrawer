@@ -274,6 +274,39 @@ public sealed class DrawerServiceAdvancedTests
         Assert.Empty(await workspace.Repository.GetItemsAsync(targetBox.Id));
     }
 
+    [Fact]
+    public void CreateImportPermissionException_MentionsMappingBoxForPublicDesktop()
+    {
+        var commonDesktop = Environment.GetFolderPath(
+            Environment.SpecialFolder.CommonDesktopDirectory);
+        if (string.IsNullOrWhiteSpace(commonDesktop))
+        {
+            return; // 环境无公共桌面时跳过。
+        }
+
+        var sourcePath = Path.Combine(commonDesktop, "微信.lnk");
+        var exception = DrawerService.CreateImportPermissionException(
+            "微信.lnk",
+            sourcePath,
+            new UnauthorizedAccessException("Access denied"));
+
+        Assert.Contains("映射收纳盒", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("公共桌面", exception.Message, StringComparison.Ordinal);
+        Assert.IsType<UnauthorizedAccessException>(exception.InnerException);
+    }
+
+    [Fact]
+    public void CreateImportPermissionException_GenericHintForOtherReadOnlyLocations()
+    {
+        var exception = DrawerService.CreateImportPermissionException(
+            "a.txt",
+            "C:\\Program Files\\SomeApp\\a.txt",
+            new UnauthorizedAccessException("Access denied"));
+
+        Assert.Contains("映射收纳盒", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("源目录没有写入权限", exception.Message, StringComparison.Ordinal);
+    }
+
     private sealed class RecordingFileLauncher : IFileLauncher
     {
         public List<string> Opened { get; } = [];
