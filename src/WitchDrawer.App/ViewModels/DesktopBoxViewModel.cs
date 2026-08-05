@@ -15,6 +15,8 @@ namespace WitchDrawer.App.ViewModels;
 public sealed class DesktopBoxViewModel : ObservableObject
 {
     private const double EdgeExpandThreshold = 14;
+    private const double VisibleHeaderRowHeight = 24;
+    private const double HiddenGridContentInset = 6;
     private const string MappingViewModeSettingPrefix = "MappingViewMode:";
     private const string MappingListViewMode = "List";
     private const string MappingGridViewMode = "Grid";
@@ -144,6 +146,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
             {
                 OnPropertyChanged(nameof(IsDrawerCollapsed));
                 OnPropertyChanged(nameof(IsHeaderVisible));
+                OnPropertyChanged(nameof(HeaderRowHeight));
                 OnPropertyChanged(nameof(ShowFileEmptyState));
             }
         }
@@ -153,7 +156,17 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     public bool IsTitleVisible => _isTitleVisible;
 
-    public bool IsHeaderVisible => !IsDrawerCollapsed || IsTitleVisible;
+    public bool IsHeaderVisible => ShouldShowHeader(
+        IsDrawerBox,
+        IsDrawerExpanded,
+        IsTitleVisible);
+
+    public double HeaderRowHeight => CalculateHeaderRowHeight(
+        IsHeaderVisible,
+        IsDrawerBox,
+        IsMappingListMode,
+        LayoutSettings.MappingListMargin.Top,
+        LayoutSettings.MappingListMargin.Bottom);
 
     public double DrawerCoverWidth => _drawerCoverWidth;
 
@@ -236,6 +249,34 @@ public sealed class DesktopBoxViewModel : ObservableObject
         bool isEmpty,
         bool isDrawerCollapsed) =>
         !isTodoBox && isEmpty && !isDrawerCollapsed;
+
+    internal static bool ShouldShowHeader(
+        bool isDrawerBox,
+        bool isDrawerExpanded,
+        bool isTitleVisible) =>
+        isTitleVisible || (isDrawerBox && isDrawerExpanded);
+
+    internal static double CalculateHeaderRowHeight(
+        bool isHeaderVisible,
+        bool isDrawerBox,
+        bool isMappingListMode,
+        double contentTopMargin,
+        double contentBottomMargin)
+    {
+        if (isHeaderVisible)
+        {
+            return VisibleHeaderRowHeight;
+        }
+
+        if (isDrawerBox)
+        {
+            return 0;
+        }
+
+        return isMappingListMode
+            ? Math.Max(0, contentBottomMargin - contentTopMargin)
+            : HiddenGridContentInset;
+    }
 
     public string NewTodoTitle
     {
@@ -320,6 +361,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
         OnPropertyChanged(nameof(IsDrawerCollapsed));
         OnPropertyChanged(nameof(IsTitleVisible));
         OnPropertyChanged(nameof(IsHeaderVisible));
+        OnPropertyChanged(nameof(HeaderRowHeight));
         OnPropertyChanged(nameof(DrawerContentHeight));
         OnPropertyChanged(nameof(IsMappingListMode));
         OnPropertyChanged(nameof(IsGridMode));
@@ -777,6 +819,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
         if (SetProperty(ref _isMappingListMode, value, nameof(IsMappingListMode)))
         {
             OnPropertyChanged(nameof(IsGridMode));
+            OnPropertyChanged(nameof(HeaderRowHeight));
             HideDragPreview();
             UpdateItemIconSizes();
         }
@@ -1018,6 +1061,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(IsHeaderVisible));
+        OnPropertyChanged(nameof(HeaderRowHeight));
         OnPropertyChanged(nameof(DrawerContentHeight));
     }
 
@@ -1262,6 +1306,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
         UpdateItemIconSizes();
         UpdateGridCanvasSize();
+        OnPropertyChanged(nameof(HeaderRowHeight));
         if (IsDrawerBox && e.PropertyName is nameof(DesktopBoxLayoutSettings.CurrentPreset))
         {
             ResizeDrawerCover(

@@ -92,6 +92,7 @@
                     <Button Width="34"
                             Height="34"
                             Padding="0"
+                            Focusable="False"
                             Style="{StaticResource GhostButtonStyle}"
                             Click="OnMinimizeClicked"
                             ToolTip="最小化">
@@ -105,6 +106,7 @@
                     <Button Width="34"
                             Height="34"
                             Padding="0"
+                            Focusable="False"
                             Click="OnCloseClicked"
                             ToolTip="关闭">
                         <Button.Style>

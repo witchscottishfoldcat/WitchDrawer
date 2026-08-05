@@ -228,18 +228,7 @@
         
         <Grid MouseLeftButtonDown="OnSurfaceMouseLeftButtonDown">
             <Grid.RowDefinitions>
-                <RowDefinition>
-                    <RowDefinition.Style>
-                        <Style TargetType="{x:Type RowDefinition}">
-                            <Setter Property="Height" Value="24" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsHeaderVisible}" Value="False">
-                                    <Setter Property="Height" Value="0" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </RowDefinition.Style>
-                </RowDefinition>
+                <RowDefinition Height="{Binding HeaderRowHeight}" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
