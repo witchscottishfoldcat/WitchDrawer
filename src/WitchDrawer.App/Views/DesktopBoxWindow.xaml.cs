@@ -17,6 +17,8 @@ namespace WitchDrawer.App.Views;
 public partial class DesktopBoxWindow : Window
 {
     private const string InternalDrawerItemDragFormat = "WitchDrawer.DesktopBoxItem";
+    private const double DrawerPopupGap = 8;
+    private const double DrawerPopupCollisionPadding = 4;
 
     private static readonly HashSet<Guid> CompletedInternalDragIds = [];
     private static readonly HashSet<Guid> CompletedInternalItemIds = [];
@@ -138,15 +140,81 @@ public partial class DesktopBoxWindow : Window
 
     private async void OnExpandDrawerClick(object sender, RoutedEventArgs e)
     {
-        if (sender is UIElement placementTarget)
+        await ViewModel.ApplyDrawerItemSortAsync(ViewModel.DrawerItemSortMode);
+        if (sender is UIElement centerTarget)
         {
-            DrawerSecondaryPopup.PlacementTarget = placementTarget;
+            ConfigureDrawerSecondaryPopupPlacement(centerTarget);
         }
 
-        await ViewModel.ApplyDrawerItemSortAsync(ViewModel.DrawerItemSortMode);
         DrawerSecondaryPopup.IsOpen = true;
         ClearItemSelection();
         e.Handled = true;
+    }
+
+    private void ConfigureDrawerSecondaryPopupPlacement(UIElement centerTarget)
+    {
+        var popupSize = new Size(
+            ViewModel.DrawerSecondaryPanelWidth,
+            ViewModel.DrawerSecondaryPanelHeight);
+        var occupiedBounds = Application.Current.Windows
+            .OfType<DesktopBoxWindow>()
+            .Where(window => window != this && window.IsVisible)
+            .Select(window => window.GetVisibleBounds())
+            .ToArray();
+        var placement = DrawerPopupPlacementSelector.Select(
+            GetVisibleBounds(),
+            popupSize,
+            occupiedBounds,
+            DrawerPopupGap,
+            DrawerPopupCollisionPadding);
+
+        DrawerSecondaryPopup.HorizontalOffset = 0;
+        DrawerSecondaryPopup.VerticalOffset = 0;
+        if (placement == DrawerPopupPlacement.Center)
+        {
+            DrawerSecondaryPopup.PlacementTarget = centerTarget;
+            DrawerSecondaryPopup.Placement = PlacementMode.Center;
+            return;
+        }
+
+        DrawerSecondaryPopup.PlacementTarget = WindowBorder;
+        switch (placement)
+        {
+            case DrawerPopupPlacement.Bottom:
+                DrawerSecondaryPopup.Placement = PlacementMode.Bottom;
+                DrawerSecondaryPopup.HorizontalOffset =
+                    (WindowBorder.ActualWidth - popupSize.Width) / 2;
+                DrawerSecondaryPopup.VerticalOffset = DrawerPopupGap;
+                break;
+            case DrawerPopupPlacement.Top:
+                DrawerSecondaryPopup.Placement = PlacementMode.Top;
+                DrawerSecondaryPopup.HorizontalOffset =
+                    (WindowBorder.ActualWidth - popupSize.Width) / 2;
+                DrawerSecondaryPopup.VerticalOffset = -DrawerPopupGap;
+                break;
+            case DrawerPopupPlacement.Right:
+                DrawerSecondaryPopup.Placement = PlacementMode.Right;
+                DrawerSecondaryPopup.HorizontalOffset = DrawerPopupGap;
+                DrawerSecondaryPopup.VerticalOffset =
+                    (WindowBorder.ActualHeight - popupSize.Height) / 2;
+                break;
+            case DrawerPopupPlacement.Left:
+                DrawerSecondaryPopup.Placement = PlacementMode.Left;
+                DrawerSecondaryPopup.HorizontalOffset = -DrawerPopupGap;
+                DrawerSecondaryPopup.VerticalOffset =
+                    (WindowBorder.ActualHeight - popupSize.Height) / 2;
+                break;
+        }
+    }
+
+    internal Rect GetVisibleBounds()
+    {
+        var margin = WindowBorder.Margin;
+        return new Rect(
+            Left + margin.Left,
+            Top + margin.Top,
+            Math.Max(0, ActualWidth - margin.Left - margin.Right),
+            Math.Max(0, ActualHeight - margin.Top - margin.Bottom));
     }
 
     private void OnDrawerSecondaryPopupOpened(object? sender, EventArgs e)

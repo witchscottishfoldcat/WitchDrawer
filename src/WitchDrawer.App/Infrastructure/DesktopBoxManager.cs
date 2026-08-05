@@ -613,7 +613,7 @@ public sealed class DesktopBoxManager
         const double snapThreshold = 10.0;
         const double visualGap = 8.0;
 
-        var boundsA = GetVisibleBounds(draggedWindow);
+        var boundsA = draggedWindow.GetVisibleBounds();
         double currentLeft = boundsA.Left;
         double currentTop = boundsA.Top;
         double width = boundsA.Width;
@@ -644,7 +644,7 @@ public sealed class DesktopBoxManager
                 continue;
             }
 
-            var boundsB = GetVisibleBounds(otherWindow);
+            var boundsB = otherWindow.GetVisibleBounds();
             double leftB = boundsB.Left;
             double topB = boundsB.Top;
             double widthB = boundsB.Width;
@@ -760,13 +760,4 @@ public sealed class DesktopBoxManager
         }
     }
 
-    private static Rect GetVisibleBounds(DesktopBoxWindow window)
-    {
-        var margin = window.WindowBorder.Margin;
-        return new Rect(
-            window.Left + margin.Left,
-            window.Top + margin.Top,
-            Math.Max(0, window.ActualWidth - margin.Left - margin.Right),
-            Math.Max(0, window.ActualHeight - margin.Top - margin.Bottom));
-    }
 }
