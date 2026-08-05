@@ -3,18 +3,20 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
+using WitchDrawer.App.Controls;
 using WitchDrawer.App.Infrastructure;
 using WitchDrawer.Core.Logging;
 using WitchDrawer.Core.Models;
 
 namespace WitchDrawer.App.ViewModels;
 
-public sealed class DrawerItemViewModel : ObservableObject
+public sealed class DrawerItemViewModel : ObservableObject, IVirtualizingCanvasItem
 {
     private const int MaxIconLoadAttempts = 4;
 
     private ImageSource? _iconImage;
     private bool _hasIcon;
+    private int _isIconLoadRequested;
     private int _isLoadingIcon;
     private int _requestedIconPixelSize;
     private int _loadedIconPixelSize;
@@ -43,7 +45,6 @@ public sealed class DrawerItemViewModel : ObservableObject
         _requestedIconPixelSize = NormalizeIconPixelSize(iconPixelSize);
         _gridColumn = Math.Max(0, model.GridColumn ?? 0);
         _gridRow = Math.Max(0, model.GridRow ?? 0);
-        _ = LoadIconAsync();
     }
 
     public DrawerItem Model { get; }
@@ -137,10 +138,25 @@ public sealed class DrawerItemViewModel : ObservableObject
         private set => SetProperty(ref _hasIcon, value);
     }
 
+    double IVirtualizingCanvasItem.VirtualizationLeft => GridLeft;
+
+    double IVirtualizingCanvasItem.VirtualizationTop => GridTop;
+
+    internal bool IsIconLoadRequested => Volatile.Read(ref _isIconLoadRequested) == 1;
+
+    public void EnsureIconLoaded()
+    {
+        if (Interlocked.Exchange(ref _isIconLoadRequested, 1) == 0)
+        {
+            _ = LoadIconAsync();
+        }
+    }
+
     public void ReloadIconIfNeeded()
     {
         if (!HasIcon)
         {
+            Volatile.Write(ref _isIconLoadRequested, 1);
             _ = LoadIconAsync();
         }
     }
@@ -149,7 +165,7 @@ public sealed class DrawerItemViewModel : ObservableObject
     {
         var normalizedSize = NormalizeIconPixelSize(iconPixelSize);
         var previousSize = Interlocked.Exchange(ref _requestedIconPixelSize, normalizedSize);
-        if (previousSize != normalizedSize || !HasIcon)
+        if ((previousSize != normalizedSize || !HasIcon) && IsIconLoadRequested)
         {
             _ = LoadIconAsync();
         }

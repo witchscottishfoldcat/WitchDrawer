@@ -91,13 +91,13 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     public event EventHandler? ItemsChanged;
 
-    public ObservableCollection<DrawerItemViewModel> Items { get; } = [];
+    public ResettableObservableCollection<DrawerItemViewModel> Items { get; } = [];
 
     public ObservableCollection<DrawerItemViewModel> DrawerPreviewItems { get; } = [];
 
     public ObservableCollection<DrawerCoverTileViewModel> DrawerCoverTiles { get; } = [];
 
-    public ObservableCollection<DrawerItemViewModel> DrawerSecondaryItems { get; } = [];
+    public ResettableObservableCollection<DrawerItemViewModel> DrawerSecondaryItems { get; } = [];
 
     public ObservableCollection<TodoItemViewModel> TodoItems { get; } = [];
 
@@ -144,6 +144,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
             {
                 OnPropertyChanged(nameof(IsDrawerCollapsed));
                 OnPropertyChanged(nameof(IsHeaderVisible));
+                OnPropertyChanged(nameof(ShowFileEmptyState));
             }
         }
     }
@@ -225,7 +226,16 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     public bool IsEmpty => Items.Count == 0;
 
-    public bool ShowFileEmptyState => !IsTodoBox && IsEmpty;
+    public bool ShowFileEmptyState => ShouldShowFileEmptyState(
+        IsTodoBox,
+        IsEmpty,
+        IsDrawerCollapsed);
+
+    internal static bool ShouldShowFileEmptyState(
+        bool isTodoBox,
+        bool isEmpty,
+        bool isDrawerCollapsed) =>
+        !isTodoBox && isEmpty && !isDrawerCollapsed;
 
     public string NewTodoTitle
     {
@@ -429,7 +439,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
         {
             if (IsTodoBox)
             {
-                Items.Clear();
+                Items.ReplaceAll([]);
                 await LoadTodoItemsAsync();
                 UpdateGridCanvasSize();
                 return;
@@ -441,44 +451,28 @@ public sealed class DesktopBoxViewModel : ObservableObject
             var items = await _drawerService.GetItemsAsync(BoxId);
             var isPixelated = IsPixelStyle;
             var positions = ResolveItemPositions(items);
+            var existingById = Items.ToDictionary(item => item.Id);
+            var nextItems = new List<DrawerItemViewModel>(items.Count);
 
-            var existingIds = new HashSet<Guid>();
-            for (var i = Items.Count - 1; i >= 0; i--)
+            foreach (var item in items)
             {
-                existingIds.Add(Items[i].Id);
-            }
-
-            var newIds = items.Select(i => i.Id).ToHashSet();
-
-            for (var i = Items.Count - 1; i >= 0; i--)
-            {
-                if (!newIds.Contains(Items[i].Id))
+                if (!existingById.TryGetValue(item.Id, out var itemViewModel))
                 {
-                    Items.RemoveAt(i);
-                }
-            }
-
-            for (var i = 0; i < items.Count; i++)
-            {
-                if (existingIds.Contains(items[i].Id))
-                {
-                    var existing = Items.FirstOrDefault(x => x.Id == items[i].Id);
-                    var position = positions[items[i].Id];
-                    existing?.SetGridPosition(position.Column, position.Row, LayoutSettings);
-                    existing?.RequestIconSize(GetIconPixelSize(isPixelated));
-                    continue;
+                    itemViewModel = new DrawerItemViewModel(
+                        item,
+                        Name,
+                        isPixelated,
+                        GetIconPixelSize(isPixelated),
+                        _logger);
                 }
 
-                var itemViewModel = new DrawerItemViewModel(
-                    items[i],
-                    Name,
-                    isPixelated,
-                    GetIconPixelSize(isPixelated),
-                    _logger);
-                var itemPosition = positions[items[i].Id];
+                var itemPosition = positions[item.Id];
                 itemViewModel.SetGridPosition(itemPosition.Column, itemPosition.Row, LayoutSettings);
-                Items.Insert(i, itemViewModel);
+                itemViewModel.RequestIconSize(GetIconPixelSize(isPixelated));
+                nextItems.Add(itemViewModel);
             }
+
+            Items.ReplaceAll(nextItems);
 
             StatusText = Items.Count == 0 ? "拖入文件" : "已同步";
             UpdateGridCanvasSize();
@@ -492,6 +486,19 @@ public sealed class DesktopBoxViewModel : ObservableObject
             _logger.Error(exception, "Failed to load desktop box.");
             StatusText = exception.Message;
         }
+    }
+
+    public void ReleaseHiddenWindowItems()
+    {
+        Items.ReplaceAll([]);
+        DrawerPreviewItems.Clear();
+        DrawerCoverTiles.Clear();
+        DrawerSecondaryItems.ReplaceAll([]);
+        TodoItems.Clear();
+        UpdateGridCanvasSize();
+        OnPropertyChanged(nameof(ItemCountLabel));
+        OnPropertyChanged(nameof(IsEmpty));
+        OnPropertyChanged(nameof(ShowFileEmptyState));
     }
 
     private bool CanAddTodo()
@@ -845,6 +852,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
         var usedSlots = new HashSet<(int Column, int Row)>();
         var nextColumn = 0;
         var nextRow = 0;
+        var maxUsedColumn = 0;
 
         foreach (var item in items)
         {
@@ -854,16 +862,25 @@ public sealed class DesktopBoxViewModel : ObservableObject
                 slot = (item.GridColumn.Value, item.GridRow.Value);
                 if (usedSlots.Contains(slot))
                 {
-                    slot = FindFirstFreeSlot(nextColumn, nextRow, usedSlots);
+                    slot = FindFirstFreeSlot(
+                        nextColumn,
+                        nextRow,
+                        usedSlots,
+                        maxUsedColumn);
                 }
             }
             else
             {
-                slot = FindFirstFreeSlot(nextColumn, nextRow, usedSlots);
+                slot = FindFirstFreeSlot(
+                    nextColumn,
+                    nextRow,
+                    usedSlots,
+                    maxUsedColumn);
             }
 
             usedSlots.Add(slot);
             positions[item.Id] = slot;
+            maxUsedColumn = Math.Max(maxUsedColumn, slot.Column);
             nextColumn = slot.Column + 1;
             nextRow = slot.Row;
         }
@@ -874,12 +891,14 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private (int Column, int Row) FindFirstFreeSlot(
         int startColumn,
         int startRow,
-        HashSet<(int Column, int Row)> occupiedSlots)
+        HashSet<(int Column, int Row)> occupiedSlots,
+        int? knownMaxOccupiedColumn = null)
     {
 
         var column = Math.Max(0, startColumn);
         var row = Math.Max(0, startRow);
-        var maxOccupiedColumn = occupiedSlots.Count > 0 ? occupiedSlots.Max(s => s.Column) : 0;
+        var maxOccupiedColumn = knownMaxOccupiedColumn
+            ?? (occupiedSlots.Count > 0 ? occupiedSlots.Max(slot => slot.Column) : 0);
         var wrapColumn = Math.Max(4, Math.Max(column, maxOccupiedColumn));
 
         while (occupiedSlots.Contains((column, row)))
@@ -1126,11 +1145,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
         ApplyDrawerSortMode(sortMode);
 
-        DrawerSecondaryItems.Clear();
-        foreach (var item in sortedItems)
-        {
-            DrawerSecondaryItems.Add(item);
-        }
+        DrawerSecondaryItems.ReplaceAll(sortedItems);
 
         OnPropertyChanged(nameof(DrawerSecondaryColumns));
         OnPropertyChanged(nameof(DrawerSecondaryRows));

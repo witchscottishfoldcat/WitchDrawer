@@ -170,6 +170,25 @@ public sealed class DesktopBoxLayoutSettingsTests
     }
 
     [Theory]
+    [InlineData(false, true, false, true)]
+    [InlineData(false, true, true, false)]
+    [InlineData(true, true, false, false)]
+    [InlineData(false, false, false, false)]
+    public void EmptyDropZone_HidesBehindTheCollapsedDrawerCover(
+        bool isTodoBox,
+        bool isEmpty,
+        bool isDrawerCollapsed,
+        bool expectedVisibility)
+    {
+        Assert.Equal(
+            expectedVisibility,
+            DesktopBoxViewModel.ShouldShowFileEmptyState(
+                isTodoBox,
+                isEmpty,
+                isDrawerCollapsed));
+    }
+
+    [Theory]
     [InlineData("180,112", true, 180, 112)]
     [InlineData("320.5,240.25", true, 320.5, 240.25)]
     [InlineData("320;240", false, 0, 0)]

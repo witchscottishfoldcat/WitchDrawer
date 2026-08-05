@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using WitchDrawer.App.Infrastructure;
@@ -17,6 +16,7 @@ public sealed class QuickPanelViewModel : ObservableObject
     private readonly IFileLauncher _launcher;
     private readonly IAppLogger _logger;
     private readonly BoxVisualStyleStore _boxVisualStyleStore;
+    private readonly SemaphoreSlim _refreshGate = new(1, 1);
     private List<DrawerItemViewModel> _allItems = [];
     private string _searchText = string.Empty;
     private double _iconDpiScaleX = 1;
@@ -36,7 +36,7 @@ public sealed class QuickPanelViewModel : ObservableObject
         OpenItemCommand = new AsyncRelayCommand<DrawerItemViewModel?>(OpenItemAsync);
     }
 
-    public ObservableCollection<DrawerItemViewModel> Items { get; } = [];
+    public ResettableObservableCollection<DrawerItemViewModel> Items { get; } = [];
 
     public IAsyncRelayCommand<DrawerItemViewModel?> OpenItemCommand { get; }
 
@@ -71,6 +71,7 @@ public sealed class QuickPanelViewModel : ObservableObject
 
     public async Task LoadAsync()
     {
+        await _refreshGate.WaitAsync();
         try
         {
             var boxes = await _drawerService.GetBoxesAsync();
@@ -81,29 +82,58 @@ public sealed class QuickPanelViewModel : ObservableObject
             var stylesByBoxId = boxStyles.ToDictionary(entry => entry.Id, entry => entry.Style);
             var items = await _drawerService.GetAllItemsAsync();
 
-            _allItems = items
-                .Select(item =>
-                {
-                    boxesById.TryGetValue(item.BoxId, out var box);
-                    var isPixelated = stylesByBoxId.TryGetValue(
-                        item.BoxId,
-                        out var visualStyle)
-                        && visualStyle == BoxVisualStyle.Pixel;
-                    return new DrawerItemViewModel(
-                        item,
-                        box?.Name ?? string.Empty,
-                        isPixelated,
-                        GetIconPixelSize(isPixelated),
-                        _logger);
-                })
-                .ToList();
-
+            _allItems = CreateItemViewModels(items, boxesById, stylesByBoxId);
             ApplyFilter();
         }
         catch (Exception exception)
         {
             _logger.Error(exception, "Failed to load quick panel.");
             StatusText = exception.Message;
+        }
+        finally
+        {
+            _refreshGate.Release();
+        }
+    }
+
+    public async Task RefreshBoxAsync(Guid boxId)
+    {
+        await _refreshGate.WaitAsync();
+        try
+        {
+            var boxes = await _drawerService.GetBoxesAsync();
+            var box = boxes.FirstOrDefault(candidate => candidate.Id == boxId);
+            var retainedItems = _allItems
+                .Where(item => item.Model.BoxId != boxId)
+                .ToList();
+
+            if (box is not null)
+            {
+                var visualStyle = await _boxVisualStyleStore.LoadAsync(box);
+                var items = await _drawerService.GetItemsAsync(boxId);
+                retainedItems.AddRange(CreateItemViewModels(
+                    items,
+                    new Dictionary<Guid, Box> { [box.Id] = box },
+                    new Dictionary<Guid, BoxVisualStyle> { [box.Id] = visualStyle }));
+            }
+
+            var boxOrder = boxes
+                .Select((candidate, index) => (candidate.Id, Index: index))
+                .ToDictionary(entry => entry.Id, entry => entry.Index);
+            _allItems = retainedItems
+                .OrderBy(item => boxOrder.GetValueOrDefault(item.Model.BoxId, int.MaxValue))
+                .ThenBy(item => item.Model.SortOrder)
+                .ToList();
+            ApplyFilter();
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, $"Failed to refresh quick panel box {boxId:D}.");
+            StatusText = exception.Message;
+        }
+        finally
+        {
+            _refreshGate.Release();
         }
     }
 
@@ -151,13 +181,30 @@ public sealed class QuickPanelViewModel : ObservableObject
                 || item.PathLabel.Contains(query, StringComparison.OrdinalIgnoreCase)
                 || item.BoxName.Contains(query, StringComparison.OrdinalIgnoreCase));
 
-        Items.Clear();
-        foreach (var item in filtered.Take(300))
-        {
-            Items.Add(item);
-        }
-
+        Items.ReplaceAll(filtered.Take(300));
         StatusText = $"{Items.Count} / {_allItems.Count} 项";
     }
-}
 
+    private List<DrawerItemViewModel> CreateItemViewModels(
+        IEnumerable<DrawerItem> items,
+        IReadOnlyDictionary<Guid, Box> boxesById,
+        IReadOnlyDictionary<Guid, BoxVisualStyle> stylesByBoxId)
+    {
+        return items
+            .Select(item =>
+            {
+                boxesById.TryGetValue(item.BoxId, out var box);
+                var isPixelated = stylesByBoxId.TryGetValue(
+                    item.BoxId,
+                    out var visualStyle)
+                    && visualStyle == BoxVisualStyle.Pixel;
+                return new DrawerItemViewModel(
+                    item,
+                    box?.Name ?? string.Empty,
+                    isPixelated,
+                    GetIconPixelSize(isPixelated),
+                    _logger);
+            })
+            .ToList();
+    }
+}

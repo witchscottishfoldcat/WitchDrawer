@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:views="clr-namespace:WitchDrawer.App.Views"
         xmlns:viewModels="clr-namespace:WitchDrawer.App.ViewModels"
+        xmlns:infrastructure="clr-namespace:WitchDrawer.App.Infrastructure"
         Title="WitchDrawer"
         Icon="/Assets/app.png"
         Width="1000"
@@ -27,7 +28,7 @@
             BorderThickness="1"
             CornerRadius="24">
         <Border.Effect>
-            <DropShadowEffect BlurRadius="26" Color="#000000" Opacity="0.14" ShadowDepth="4" Direction="270" />
+            <DropShadowEffect BlurRadius="18" Color="#000000" Opacity="0.12" ShadowDepth="3" Direction="270" />
         </Border.Effect>
         <Grid>
             <Grid.RowDefinitions>
@@ -274,6 +275,23 @@
                                 <ListBox.Resources>
                                     <Style TargetType="{x:Type ScrollBar}"
                                            BasedOn="{StaticResource DrawerScrollBarStyle}" />
+                                    <Style x:Key="SidebarBoxIconPathStyle"
+                                           TargetType="{x:Type Path}">
+                                        <Setter Property="Stroke" Value="{DynamicResource AccentBrush}" />
+                                        <Setter Property="StrokeThickness" Value="1.6" />
+                                        <Setter Property="StrokeStartLineCap" Value="Round" />
+                                        <Setter Property="StrokeEndLineCap" Value="Round" />
+                                        <Setter Property="StrokeLineJoin" Value="Round" />
+                                        <Setter Property="Fill" Value="Transparent" />
+                                    </Style>
+                                    <Style x:Key="SidebarBoxIconCellStyle"
+                                           TargetType="{x:Type Rectangle}">
+                                        <Setter Property="Width" Value="4.25" />
+                                        <Setter Property="Height" Value="4.25" />
+                                        <Setter Property="RadiusX" Value="1.2" />
+                                        <Setter Property="RadiusY" Value="1.2" />
+                                        <Setter Property="Fill" Value="{DynamicResource AccentBrush}" />
+                                    </Style>
                                 </ListBox.Resources>
                                 <ListBox.ItemContainerStyle>
                                     <Style TargetType="{x:Type ListBoxItem}">
@@ -360,38 +378,56 @@
                                                     CornerRadius="10"
                                                     Background="{DynamicResource AccentSoftBrush}"
                                                     BorderThickness="0">
-                                                <Grid>
-                                                    <Path x:Name="NormalBoxIcon"
-                                                          Data="M 2,6 L 16,6 L 16,16 L 2,16 Z M 1,2 L 17,2 L 17,7 L 1,7 Z M 7,10 L 11,10"
-                                                          Stroke="{DynamicResource AccentBrush}"
-                                                          StrokeThickness="1.3"
-                                                            Width="16"
-                                                            Height="16"
-                                                          Stretch="Uniform" />
-                                                    <Path x:Name="MappingBoxIcon"
-                                                          Data="M 7,12 L 5.5,13.5 C 4,15 1.5,15 0,13.5 C -1.5,12 -1.5,9.5 0,8 L 3,5 C 4.5,3.5 7,3.5 8.5,5 M 6,9 L 9,6 M 8.5,5 C 10,6.5 10,9 8.5,10.5 L 5.5,13.5 M 9,6 L 10.5,4.5 C 12,3 14.5,3 16,4.5 C 17.5,6 17.5,8.5 16,10 L 13,13 C 11.5,14.5 9,14.5 7.5,13"
-                                                          Stroke="{DynamicResource AccentBrush}"
-                                                          StrokeThickness="1.25"
-                                                            Width="16"
-                                                            Height="16"
-                                                          Stretch="Uniform"
-                                                          Visibility="Collapsed" />
-                                                    <Path x:Name="TodoBoxIcon"
-                                                          Data="M 2,2 L 15,2 L 15,16 L 2,16 Z M 5,9 L 8,12 L 13,6"
-                                                          Stroke="{DynamicResource AccentBrush}"
-                                                          StrokeThickness="1.35"
-                                                            Width="15"
-                                                            Height="15"
-                                                           Stretch="Uniform"
-                                                           Visibility="Collapsed" />
-                                                    <Path x:Name="DrawerBoxIcon"
-                                                          Data="M 2,3 L 16,3 L 16,15 L 2,15 Z M 5,6 L 8,6 L 8,9 L 5,9 Z M 10,6 L 13,6 L 13,9 L 10,9 Z M 5,11 L 8,11 L 8,14 L 5,14 Z M 10,11 L 13,11 L 13,14 L 10,14 Z"
-                                                          Stroke="{DynamicResource AccentBrush}"
-                                                          StrokeThickness="1.2"
-                                                            Width="15"
-                                                            Height="15"
-                                                          Stretch="Uniform"
-                                                          Visibility="Collapsed" />
+                                                <Grid Width="18" Height="18">
+                                                    <Viewbox x:Name="NormalBoxIcon"
+                                                             Width="18"
+                                                             Height="18"
+                                                             Stretch="Uniform">
+                                                        <Canvas Width="18" Height="18">
+                                                            <Path Style="{StaticResource SidebarBoxIconPathStyle}"
+                                                                  Data="M 3.75,7.15 L 14.25,7.15 L 13.9,13.95 C 13.85,14.85 13.1,15.55 12.2,15.55 L 5.8,15.55 C 4.9,15.55 4.15,14.85 4.1,13.95 Z M 3.3,3.15 L 14.7,3.15 C 15.3,3.15 15.8,3.65 15.8,4.25 L 15.8,5.75 C 15.8,6.35 15.3,6.85 14.7,6.85 L 3.3,6.85 C 2.7,6.85 2.2,6.35 2.2,5.75 L 2.2,4.25 C 2.2,3.65 2.7,3.15 3.3,3.15 Z M 7,10.35 L 11,10.35" />
+                                                        </Canvas>
+                                                    </Viewbox>
+                                                    <Viewbox x:Name="MappingBoxIcon"
+                                                             Width="18"
+                                                             Height="18"
+                                                             Stretch="Uniform"
+                                                             Visibility="Collapsed">
+                                                        <Canvas Width="18" Height="18">
+                                                            <Path Style="{StaticResource SidebarBoxIconPathStyle}"
+                                                                  Data="M 7.4,11.5 L 5.8,13.1 C 4.7,14.2 3,14.2 1.9,13.1 C 0.8,12 0.8,10.3 1.9,9.2 L 4.4,6.7 C 5.5,5.6 7.2,5.6 8.3,6.7 M 10.6,6.5 L 12.2,4.9 C 13.3,3.8 15,3.8 16.1,4.9 C 17.2,6 17.2,7.7 16.1,8.8 L 13.6,11.3 C 12.5,12.4 10.8,12.4 9.7,11.3 M 6.6,11.4 L 11.4,6.6" />
+                                                        </Canvas>
+                                                    </Viewbox>
+                                                    <Viewbox x:Name="TodoBoxIcon"
+                                                             Width="18"
+                                                             Height="18"
+                                                             Stretch="Uniform"
+                                                             Visibility="Collapsed">
+                                                        <Canvas Width="18" Height="18">
+                                                            <Path Style="{StaticResource SidebarBoxIconPathStyle}"
+                                                                  Data="M 5.15,2.35 L 12.85,2.35 C 14.4,2.35 15.65,3.6 15.65,5.15 L 15.65,12.85 C 15.65,14.4 14.4,15.65 12.85,15.65 L 5.15,15.65 C 3.6,15.65 2.35,14.4 2.35,12.85 L 2.35,5.15 C 2.35,3.6 3.6,2.35 5.15,2.35 Z M 5.45,9.15 L 8.05,11.75 L 12.85,6.55" />
+                                                        </Canvas>
+                                                    </Viewbox>
+                                                    <Viewbox x:Name="DrawerBoxIcon"
+                                                             Width="18"
+                                                             Height="18"
+                                                             Stretch="Uniform"
+                                                             Visibility="Collapsed">
+                                                        <Canvas Width="18" Height="18">
+                                                            <Rectangle Canvas.Left="3.25"
+                                                                       Canvas.Top="3.25"
+                                                                       Style="{StaticResource SidebarBoxIconCellStyle}" />
+                                                            <Rectangle Canvas.Left="10.5"
+                                                                       Canvas.Top="3.25"
+                                                                       Style="{StaticResource SidebarBoxIconCellStyle}" />
+                                                            <Rectangle Canvas.Left="3.25"
+                                                                       Canvas.Top="10.5"
+                                                                       Style="{StaticResource SidebarBoxIconCellStyle}" />
+                                                            <Rectangle Canvas.Left="10.5"
+                                                                       Canvas.Top="10.5"
+                                                                       Style="{StaticResource SidebarBoxIconCellStyle}" />
+                                                        </Canvas>
+                                                    </Viewbox>
                                                 </Grid>
                                             </Border>
                                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="4,0,0,0">
@@ -1718,6 +1754,7 @@
                                                                 HorizontalAlignment="Left">
                                                             <Grid>
                                                                 <Image Source="{Binding IconImage}"
+                                                                       infrastructure:DeferredIconLoad.IsEnabled="True"
                                                                        Width="20"
                                                                        Height="20"
                                                                        HorizontalAlignment="Center"

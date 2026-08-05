@@ -20,6 +20,7 @@ public static class AppThemeManager
             ["AccentBrush"] = "#0071E3",
             ["AccentSoftBrush"] = "#2E0071E3",
             ["GlassSurfaceBrush"] = "#66FFFFFF",
+            ["DrawerCoverSurfaceBrush"] = "#B8FFFFFF",
             ["DrawerSecondarySurfaceBrush"] = "#70F5F5F7",
             ["GlassInnerBrush"] = "#3DFFFFFF",
             ["GlassStrokeBrush"] = "#66FFFFFF",
@@ -59,6 +60,7 @@ public static class AppThemeManager
             SetColor("AccentPressedBrush", "#0071E3");
             SetColor("AccentSoftBrush", "#330A84FF");
             SetColor("GlassSurfaceBrush", "#D12C2C2E");
+            SetColor("DrawerCoverSurfaceBrush", "#E62C2C2E");
             SetColor("DrawerSecondarySurfaceBrush", "#8C121218");
             SetColor("GlassInnerBrush", "#1FFFFFFF");
             SetColor("GlassStrokeBrush", "#33FFFFFF");
@@ -85,6 +87,7 @@ public static class AppThemeManager
             SetColor("AccentPressedBrush", "#0059B3");
             SetColor("AccentSoftBrush", "#300071E3");
             SetColor("GlassSurfaceBrush", "#EFFFFFFF");
+            SetColor("DrawerCoverSurfaceBrush", "#EBFFFFFF");
             SetColor("DrawerSecondarySurfaceBrush", "#C7F5F5F7");
             SetColor("GlassInnerBrush", "#B8FFFFFF");
             SetColor("GlassStrokeBrush", "#A6FFFFFF");
@@ -111,6 +114,7 @@ public static class AppThemeManager
             SetColor("AccentPressedBrush", "#0059B3");
             SetColor("AccentSoftBrush", "#E7F1FF");
             SetColor("GlassSurfaceBrush", "#FFFFFF");
+            SetColor("DrawerCoverSurfaceBrush", "#F7FFFFFF");
             SetColor("DrawerSecondarySurfaceBrush", "#F2FFFFFF");
             SetColor("GlassInnerBrush", "#F5F5F7");
             SetColor("GlassStrokeBrush", "#E5E5EA");

@@ -8,6 +8,8 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
     public const string DefaultPreset = "6x6";
     public const string DefaultDrawerPreset = "4x4";
     public const double DrawerSurfaceInset = 10;
+    private const int MaximumGridViewportColumns = 12;
+    private const int MaximumGridViewportRows = 8;
 
     private double _iconSize = 20;
     private double _iconFrameSize = 30;
@@ -161,6 +163,10 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
 
     public double DrawerSurfacePadding => DrawerSurfaceInset;
 
+    public double GridViewportMaxWidth => ItemSlotWidth * MaximumGridViewportColumns;
+
+    public double GridViewportMaxHeight => ItemSlotHeight * MaximumGridViewportRows;
+
     public Thickness DrawerHoverMargin => _currentPreset switch
     {
         "3x3" => new Thickness(5),
@@ -301,6 +307,8 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
         OnPropertyChanged(nameof(DrawerPreviewIconSize));
         OnPropertyChanged(nameof(DrawerPreviewGap));
         OnPropertyChanged(nameof(DrawerSurfacePadding));
+        OnPropertyChanged(nameof(GridViewportMaxWidth));
+        OnPropertyChanged(nameof(GridViewportMaxHeight));
         OnPropertyChanged(nameof(DrawerHoverMargin));
         OnPropertyChanged(nameof(MappingListWidth));
         OnPropertyChanged(nameof(MappingListRowHeight));
@@ -384,6 +392,8 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
         OnPropertyChanged(nameof(FallbackIconFontSize));
         OnPropertyChanged(nameof(IconFrameSize));
         OnPropertyChanged(nameof(ItemMargin));
+        OnPropertyChanged(nameof(GridViewportMaxWidth));
+        OnPropertyChanged(nameof(GridViewportMaxHeight));
         OnPropertyChanged(nameof(IsCompactPreset));
         OnPropertyChanged(nameof(MappingListWidth));
         OnPropertyChanged(nameof(MappingListRowHeight));

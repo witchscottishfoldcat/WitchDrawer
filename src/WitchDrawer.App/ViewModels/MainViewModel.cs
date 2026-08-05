@@ -120,11 +120,11 @@ public sealed class MainViewModel : ObservableObject
 
     public event EventHandler? BoxesChanged;
 
-    public event EventHandler? ItemsChanged;
+    public event EventHandler<BoxItemsChangedEventArgs>? ItemsChanged;
 
     public ObservableCollection<BoxViewModel> Boxes { get; } = [];
 
-    public ObservableCollection<DrawerItemViewModel> Items { get; } = [];
+    public ResettableObservableCollection<DrawerItemViewModel> Items { get; } = [];
 
     public ObservableCollection<ArchivedTodoItemViewModel> ArchivedTodos { get; } = [];
 
@@ -334,7 +334,7 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>
     /// Reloads items/quick-panel state without raising BoxesChanged (avoids desktop refresh loops).
     /// </summary>
-    public async Task ReloadItemsFromDesktopAsync()
+    public async Task ReloadItemsFromDesktopAsync(Guid? affectedBoxId = null)
     {
         if (IsBusy)
         {
@@ -344,12 +344,22 @@ public sealed class MainViewModel : ObservableObject
         try
         {
             IsBusy = true;
-            await LoadItemsForSelectedBoxAsync(SelectedBox);
+            if (affectedBoxId is null || SelectedBox?.Id == affectedBoxId.Value)
+            {
+                await LoadItemsForSelectedBoxAsync(SelectedBox);
+            }
             if (IsArchivePage)
             {
                 await LoadArchivedTodosAsync();
             }
-            await _quickPanelViewModel.LoadAsync();
+            if (affectedBoxId is Guid boxId)
+            {
+                await _quickPanelViewModel.RefreshBoxAsync(boxId);
+            }
+            else
+            {
+                await _quickPanelViewModel.LoadAsync();
+            }
         }
         catch (Exception exception)
         {
@@ -435,9 +445,9 @@ public sealed class MainViewModel : ObservableObject
             }
 
             await LoadItemsForSelectedBoxAsync(selectedBox);
-            await _quickPanelViewModel.LoadAsync();
+            await _quickPanelViewModel.RefreshBoxAsync(selectedBox.Id);
             StatusText = $"已导入 {imported} 项到 {selectedBox.Name}";
-            ItemsChanged?.Invoke(this, EventArgs.Empty);
+            ItemsChanged?.Invoke(this, new BoxItemsChangedEventArgs(selectedBox.Id));
         });
     }
 
@@ -513,7 +523,7 @@ public sealed class MainViewModel : ObservableObject
             await _boxVisualStyleStore.SaveAsync(selectedBox.Id, option.Style);
             selectedBox.ApplyVisualStyle(option.Style);
             await LoadItemsForSelectedBoxAsync(selectedBox);
-            await _quickPanelViewModel.LoadAsync();
+            await _quickPanelViewModel.RefreshBoxAsync(selectedBox.Id);
             StatusText = $"已将“{selectedBox.Name}”切换为{option.Name}";
             BoxesChanged?.Invoke(this, EventArgs.Empty);
         });
@@ -606,10 +616,10 @@ public sealed class MainViewModel : ObservableObject
                     ? Boxes.FirstOrDefault()
                     : Boxes.FirstOrDefault(box => box.Id == result.BoxId) ?? Boxes.FirstOrDefault());
 
-            await _quickPanelViewModel.LoadAsync();
+            await _quickPanelViewModel.RefreshBoxAsync(selectedBox.Id);
             StatusText = result.StatusMessage;
             BoxesChanged?.Invoke(this, EventArgs.Empty);
-            ItemsChanged?.Invoke(this, EventArgs.Empty);
+            ItemsChanged?.Invoke(this, new BoxItemsChangedEventArgs(selectedBox.Id));
         });
     }
 
@@ -639,7 +649,7 @@ public sealed class MainViewModel : ObservableObject
 
             await SelectBoxAsync(Boxes.FirstOrDefault(b => b.Id == selectedBox.Id) ?? Boxes.FirstOrDefault());
 
-            await _quickPanelViewModel.LoadAsync();
+            await _quickPanelViewModel.RefreshBoxAsync(selectedBox.Id);
             StatusText = $"已重命名收纳盒为 {newName.Trim()}";
             BoxesChanged?.Invoke(this, EventArgs.Empty);
         });
@@ -706,7 +716,7 @@ public sealed class MainViewModel : ObservableObject
         {
             if (IsCurrentItemsLoad(selectedBox, version))
             {
-                Items.Clear();
+                Items.ReplaceAll([]);
             }
 
             await TodoBoxDetail.LoadAsync(selectedBox.Id);
@@ -718,7 +728,7 @@ public sealed class MainViewModel : ObservableObject
         {
             if (IsCurrentItemsLoad(null, version))
             {
-                Items.Clear();
+                Items.ReplaceAll([]);
             }
 
             return;
@@ -735,16 +745,13 @@ public sealed class MainViewModel : ObservableObject
             }
 
             var isPixelated = selectedBox.IsPixelStyle;
-            Items.Clear();
-            foreach (var item in items)
-            {
-                Items.Add(new DrawerItemViewModel(
+            Items.ReplaceAll(items.Select(item =>
+                new DrawerItemViewModel(
                     item,
                     selectedBox.Name,
                     isPixelated,
                     GetIconPixelSize(isPixelated),
-                    _logger));
-            }
+                    _logger)));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -801,9 +808,9 @@ public sealed class MainViewModel : ObservableObject
         {
             var result = await _drawerService.DeleteItemAsync(item.Id);
             await LoadItemsForSelectedBoxAsync(SelectedBox);
-            await _quickPanelViewModel.LoadAsync();
+            await _quickPanelViewModel.RefreshBoxAsync(item.Model.BoxId);
             StatusText = result.StatusMessage;
-            ItemsChanged?.Invoke(this, EventArgs.Empty);
+            ItemsChanged?.Invoke(this, new BoxItemsChangedEventArgs(item.Model.BoxId));
         });
     }
 
@@ -832,7 +839,7 @@ public sealed class MainViewModel : ObservableObject
             }
 
             StatusText = $"已将“{todo.Title}”恢复到 {todo.BoxName}";
-            ItemsChanged?.Invoke(this, EventArgs.Empty);
+            ItemsChanged?.Invoke(this, new BoxItemsChangedEventArgs(todo.Model.BoxId));
         });
     }
 
@@ -875,7 +882,10 @@ public sealed class MainViewModel : ObservableObject
     private void OnTodoBoxDetailItemsChanged(object? sender, EventArgs e)
     {
         StatusText = TodoBoxDetail.StatusText;
-        ItemsChanged?.Invoke(this, EventArgs.Empty);
+        if (TodoBoxDetail.BoxId is Guid boxId)
+        {
+            ItemsChanged?.Invoke(this, new BoxItemsChangedEventArgs(boxId));
+        }
     }
 
     private async Task ApplyThemeAsync(AppTheme theme)

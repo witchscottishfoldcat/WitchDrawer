@@ -13,9 +13,11 @@ namespace WitchDrawer.App.Infrastructure;
 public static class ShellIconProvider
 {
     private const int MaxCachedIconEntries = 512;
+    private const int MaxConcurrentIconLoads = 4;
     private static readonly ConcurrentDictionary<string, Lazy<Task<ImageSource?>>> IconTasks =
         new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentQueue<KeyValuePair<string, Lazy<Task<ImageSource?>>>> IconTaskOrder = new();
+    private static readonly SemaphoreSlim IconLoadGate = new(MaxConcurrentIconLoads, MaxConcurrentIconLoads);
 
     private const uint ShgfiIcon = 0x000000100;
     private const uint ShgfiLargeIcon = 0x000000000;
@@ -84,6 +86,7 @@ public static class ShellIconProvider
 
     private static async Task<ImageSource?> LoadIconAsync(string cacheKey, string fullPath, bool isDirectory, int size)
     {
+        await IconLoadGate.WaitAsync().ConfigureAwait(false);
         try
         {
             var icon = await Task.Run(() => GetIcon(fullPath, isDirectory, size)).ConfigureAwait(false);
@@ -98,6 +101,10 @@ public static class ShellIconProvider
         {
             IconTasks.TryRemove(cacheKey, out _);
             throw;
+        }
+        finally
+        {
+            IconLoadGate.Release();
         }
     }
 

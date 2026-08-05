@@ -29,6 +29,7 @@
         <SolidColorBrush x:Key="AccentPressedBrush" Color="#0059B3" />
         <SolidColorBrush x:Key="AccentSoftBrush" Color="{StaticResource AccentSoftColor}" />
         <SolidColorBrush x:Key="GlassSurfaceBrush" Color="#FFFFFF" />
+        <SolidColorBrush x:Key="DrawerCoverSurfaceBrush" Color="#F7FFFFFF" />
         <SolidColorBrush x:Key="GlassInnerBrush" Color="#F5F5F7" />
         <SolidColorBrush x:Key="GlassStrokeBrush" Color="#E5E5EA" />
         <SolidColorBrush x:Key="PositiveBrush" Color="#34C759" />

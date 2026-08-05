@@ -68,7 +68,7 @@ public sealed class DesktopBoxManager
             static (recipient, message) => recipient.ApplyDrawerSortMode(message));
     }
 
-    public event EventHandler? ItemsChanged;
+    public event EventHandler<BoxItemsChangedEventArgs>? ItemsChanged;
 
     private int _refreshVersion;
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
@@ -136,7 +136,9 @@ public sealed class DesktopBoxManager
                     await viewModel.LoadDrawerCoverSizeAsync();
                     await viewModel.LoadTitleVisibilityAsync();
                     await viewModel.LoadDrawerSortModeAsync();
-                    viewModel.ItemsChanged += (_, _) => ItemsChanged?.Invoke(this, EventArgs.Empty);
+                    viewModel.ItemsChanged += (_, _) => ItemsChanged?.Invoke(
+                        this,
+                        new BoxItemsChangedEventArgs(viewModel.BoxId));
 
                     window = new DesktopBoxWindow(viewModel);
                     await PlaceWindowAsync(window, box.Id, index);
@@ -163,6 +165,7 @@ public sealed class DesktopBoxManager
                     window.SetPositionLocked(isPositionLocked);
                     window.SetDesktopForeground(_desktopIsForeground);
                     window.QueueSendToBottom();
+                    await window.ViewModel.LoadAsync();
                 }
                 else
                 {
@@ -170,7 +173,6 @@ public sealed class DesktopBoxManager
                     window.SetPositionLocked(isPositionLocked);
                 }
 
-                await window.ViewModel.LoadAsync();
                 window.SetDesktopForeground(_desktopIsForeground);
                 window.QueueSendToBottom();
             }
@@ -184,7 +186,7 @@ public sealed class DesktopBoxManager
     /// <summary>
     /// Reloads item lists for existing desktop windows without recreating them.
     /// </summary>
-    public async Task RefreshItemsAsync()
+    public async Task RefreshItemsAsync(Guid? affectedBoxId = null)
     {
         if (_closing)
         {
@@ -199,7 +201,18 @@ public sealed class DesktopBoxManager
                 return;
             }
 
-            foreach (var window in _windows.Values.ToArray())
+            if (affectedBoxId is Guid boxId)
+            {
+                if (_windows.TryGetValue(boxId, out var affectedWindow)
+                    && affectedWindow.IsVisible)
+                {
+                    await affectedWindow.ViewModel.LoadAsync();
+                }
+
+                return;
+            }
+
+            foreach (var window in _windows.Values.Where(window => window.IsVisible).ToArray())
             {
                 await window.ViewModel.LoadAsync();
             }
@@ -277,6 +290,7 @@ public sealed class DesktopBoxManager
 
         if (_windows.TryGetValue(boxId, out var window) && !window.IsVisible)
         {
+            await window.ViewModel.LoadAsync();
             window.Show();
             window.QueueSendToBottom();
             return true;

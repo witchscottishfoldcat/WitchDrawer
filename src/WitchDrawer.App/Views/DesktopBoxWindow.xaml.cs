@@ -155,14 +155,6 @@ public partial class DesktopBoxWindow : Window
             DispatcherPriority.Loaded,
             () =>
             {
-                if (PresentationSource.FromVisual(DrawerSecondaryPopupRoot) is HwndSource popupSource)
-                {
-                    var backdrop = ScreenBackdropCapture.CaptureGaussianBlur(popupSource.Handle);
-                    DrawerSecondaryBackdrop.Background = backdrop is null
-                        ? Brushes.Transparent
-                        : new ImageBrush(backdrop) { Stretch = Stretch.Fill };
-                }
-
                 var initialScaleX = Math.Clamp(
                     ViewModel.LayoutSettings.DrawerPrimaryIconFrameSize
                         / Math.Max(1, DrawerSecondaryPopupRoot.ActualWidth),
@@ -175,18 +167,26 @@ public partial class DesktopBoxWindow : Window
                     0.32);
                 var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
                 var duration = TimeSpan.FromMilliseconds(190);
+                DrawerSecondaryPopupRoot.CacheMode = new BitmapCache
+                {
+                    EnableClearType = true
+                };
                 DrawerSecondaryPopupScale.BeginAnimation(
                     ScaleTransform.ScaleXProperty,
                     new DoubleAnimation(initialScaleX, 1, duration) { EasingFunction = easing });
                 DrawerSecondaryPopupScale.BeginAnimation(
                     ScaleTransform.ScaleYProperty,
                     new DoubleAnimation(initialScaleY, 1, duration) { EasingFunction = easing });
-                DrawerSecondaryPopupRoot.BeginAnimation(
-                    OpacityProperty,
-                    new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(145))
-                    {
-                        EasingFunction = easing
-                    });
+                var opacityAnimation = new DoubleAnimation(
+                    0,
+                    1,
+                    TimeSpan.FromMilliseconds(145))
+                {
+                    EasingFunction = easing
+                };
+                opacityAnimation.Completed += (_, _) =>
+                    DrawerSecondaryPopupRoot.CacheMode = null;
+                DrawerSecondaryPopupRoot.BeginAnimation(OpacityProperty, opacityAnimation);
             });
     }
 
@@ -423,6 +423,7 @@ public partial class DesktopBoxWindow : Window
             ResetDragVisualState();
             ClearPendingIconDrag();
             Hide();
+            ViewModel.ReleaseHiddenWindowItems();
             return;
         }
 

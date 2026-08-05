@@ -119,15 +119,14 @@ public partial class App : Application
             StartSingleInstanceServer(logger);
 
             mainViewModel.BoxesChanged += async (_, _) => await _desktopBoxManager.RefreshAsync();
-            mainViewModel.ItemsChanged += async (_, _) =>
+            mainViewModel.ItemsChanged += async (_, eventArgs) =>
             {
-                await quickPanelViewModel.LoadAsync();
-                await _desktopBoxManager.RefreshItemsAsync();
+                await _desktopBoxManager.RefreshItemsAsync(eventArgs.BoxId);
             };
-            _desktopBoxManager.ItemsChanged += async (_, _) =>
+            _desktopBoxManager.ItemsChanged += async (_, eventArgs) =>
             {
                 // Desktop boxes already mutated their own UI; only sync main/quick panel.
-                await mainViewModel.ReloadItemsFromDesktopAsync();
+                await mainViewModel.ReloadItemsFromDesktopAsync(eventArgs.BoxId);
             };
             _mainWindow.ReopenBoxRequested += async (_, boxId) => await _desktopBoxManager.ShowAsync(boxId);
             _mainWindow.DesktopShellRestarted += async (_, _) =>
