@@ -48,6 +48,16 @@ public sealed class DrawerItemViewModel : ObservableObject
 
     public DrawerItem Model { get; }
 
+    /// <summary>
+    /// The desktop box view model that owns this item; used by context-menu
+    /// command bindings because ContextMenu lives outside the visual tree.
+    /// </summary>
+    public DesktopBoxViewModel? Owner { get; set; }
+
+    public bool IsFile => Model.ItemKind == ItemKind.File;
+
+    public bool IsDirectory => Model.ItemKind == ItemKind.Directory;
+
     public Guid Id => Model.Id;
 
     public string DisplayName

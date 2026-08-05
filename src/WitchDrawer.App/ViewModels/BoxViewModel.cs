@@ -12,6 +12,7 @@ public sealed partial class BoxViewModel : ObservableObject
     private BoxVisualStyle _visualStyle;
     private bool _isPositionLocked;
     private bool _isTitleVisible = true;
+    private bool _isItemNameVisible = true;
     private DrawerItemSortMode _drawerItemSortMode = DrawerItemSortMode.Name;
 
     public BoxViewModel(
@@ -44,6 +45,7 @@ public sealed partial class BoxViewModel : ObservableObject
 
         _ = LoadPresetAsync();
         _ = LoadTitleVisibilityAsync();
+        _ = LoadItemNameVisibilityAsync();
         _ = LoadDrawerSortModeAsync();
     }
 
@@ -60,6 +62,9 @@ public sealed partial class BoxViewModel : ObservableObject
 
     internal static string GetLegacyDrawerTitleVisibilitySettingKey(Guid boxId) =>
         $"DrawerTitleVisible:{boxId:N}";
+
+    internal static string GetItemNameVisibilitySettingKey(Guid boxId) =>
+        $"BoxShowItemNames:{boxId:N}";
 
     internal static string GetDrawerSortModeSettingKey(Guid boxId) =>
         $"DrawerSortMode:{boxId:N}";
@@ -79,6 +84,12 @@ public sealed partial class BoxViewModel : ObservableObject
     public bool IsDrawerBox => Type == BoxType.Drawer;
 
     public bool IsTitleVisible => _isTitleVisible;
+
+    public bool IsItemNameVisible => _isItemNameVisible;
+
+    public string ItemNameVisibilityToolTip => IsItemNameVisible
+        ? "隐藏图标下方文件名"
+        : "显示图标下方文件名";
 
     public string TitleVisibilityToolTip => IsTitleVisible ? "隐藏桌面收纳盒名称" : "显示桌面收纳盒名称";
 
@@ -198,6 +209,18 @@ public sealed partial class BoxViewModel : ObservableObject
             new BoxTitleVisibilityChangedMessage(Id, isVisible));
     }
 
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private async Task ToggleItemNameVisibilityAsync()
+    {
+        var isVisible = !IsItemNameVisible;
+        await _drawerService.SetSettingAsync(
+            GetItemNameVisibilitySettingKey(Id),
+            isVisible.ToString());
+        ApplyItemNameVisibility(isVisible);
+        WeakReferenceMessenger.Default.Send(
+            new BoxItemNameVisibilityChangedMessage(Id, isVisible));
+    }
+
     internal async Task LoadTitleVisibilityAsync()
     {
         var saved = await _drawerService.GetSettingAsync(GetTitleVisibilitySettingKey(Id));
@@ -208,6 +231,12 @@ public sealed partial class BoxViewModel : ObservableObject
         }
 
         ApplyTitleVisibility(!bool.TryParse(saved, out var isVisible) || isVisible);
+    }
+
+    internal async Task LoadItemNameVisibilityAsync()
+    {
+        var saved = await _drawerService.GetSettingAsync(GetItemNameVisibilitySettingKey(Id));
+        ApplyItemNameVisibility(!bool.TryParse(saved, out var isVisible) || isVisible);
     }
 
     [CommunityToolkit.Mvvm.Input.RelayCommand]
@@ -265,6 +294,19 @@ public sealed partial class BoxViewModel : ObservableObject
 
         OnPropertyChanged(nameof(TitleVisibilityToolTip));
         OnPropertyChanged(nameof(TitleVisibilityAutomationName));
+    }
+
+    private void ApplyItemNameVisibility(bool isVisible)
+    {
+        if (!SetProperty(
+                ref _isItemNameVisible,
+                isVisible,
+                nameof(IsItemNameVisible)))
+        {
+            return;
+        }
+
+        OnPropertyChanged(nameof(ItemNameVisibilityToolTip));
     }
 }
 

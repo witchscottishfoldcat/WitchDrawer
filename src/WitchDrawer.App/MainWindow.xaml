@@ -783,6 +783,38 @@
                                                   Visibility="{Binding SelectedBox.IsTitleVisible, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
                                         </Grid>
                                     </Button>
+
+                                    <Button Width="34"
+                                            Height="34"
+                                            MinWidth="34"
+                                            MinHeight="34"
+                                            Margin="4,0,0,0"
+                                            Padding="0"
+                                            Command="{Binding SelectedBox.ToggleItemNameVisibilityCommand}"
+                                            ToolTip="{Binding SelectedBox.ItemNameVisibilityToolTip}"
+                                            Style="{StaticResource GhostButtonStyle}">
+                                        <Grid Width="20" Height="16">
+                                            <Border BorderBrush="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                    BorderThickness="1.1"
+                                                    CornerRadius="2"
+                                                    Width="14"
+                                                    Height="12"
+                                                    HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center" />
+                                            <TextBlock Text="Aa"
+                                                       FontSize="8.5"
+                                                       FontWeight="Bold"
+                                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center" />
+                                            <Path Data="M 1,1 L 19,15"
+                                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                  StrokeThickness="1.6"
+                                                  StrokeStartLineCap="Round"
+                                                  StrokeEndLineCap="Round"
+                                                  Visibility="{Binding SelectedBox.IsItemNameVisible, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                                        </Grid>
+                                    </Button>
                                 </StackPanel>
                             </StackPanel>
 
@@ -2223,6 +2255,126 @@
                                                 Style="{StaticResource CrystalThemeChoiceButtonStyle}" />
                                     </UniformGrid>
                                 </Grid>
+                                </Border>
+
+                                <!-- Box Appearance & Organization Card -->
+                                <Border Background="{DynamicResource PanelBrush}"
+                                    BorderBrush="{DynamicResource BorderBrushSoft}"
+                                    BorderThickness="1"
+                                    CornerRadius="12"
+                                    Padding="10"
+                                    Margin="0,0,0,6">
+                                <StackPanel>
+                                    <TextBlock Text="收纳盒外观与整理"
+                                               FontWeight="SemiBold"
+                                               FontSize="13"
+                                               Foreground="{DynamicResource TextPrimaryBrush}" />
+
+                                    <!-- 背景透明度滑块 -->
+                                    <Grid Margin="0,10,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="背景不透明度"
+                                                   FontSize="11.5"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                   VerticalAlignment="Center" />
+                                        <Slider Grid.Column="1"
+                                                Minimum="5"
+                                                Maximum="100"
+                                                TickFrequency="5"
+                                                IsSnapToTickEnabled="True"
+                                                Margin="12,0"
+                                                VerticalAlignment="Center"
+                                                Value="{Binding BoxOpacity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                LostMouseCapture="OnBoxOpacitySliderLostMouseCapture"
+                                                ToolTip="调节桌面收纳盒玻璃背景的透明度" />
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding BoxOpacity, StringFormat={}{0}%}"
+                                                   FontSize="11.5"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource AccentBrush}"
+                                                   VerticalAlignment="Center"
+                                                   MinWidth="36"
+                                                   TextAlignment="Right" />
+                                    </Grid>
+                                    <TextBlock Text="图标与文字保持不透明，仅背景玻璃变化。"
+                                               FontSize="10.5"
+                                               Foreground="{DynamicResource TextMutedBrush}"
+                                               Margin="0,2,0,0" />
+
+                                    <!-- 一键分类 -->
+                                    <Grid Margin="0,12,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="一键分类映射"
+                                                       FontSize="12"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                                            <TextBlock Text="将各盒中的路径引用按类型（图片/文档/视频/音频/压缩包）归入自动创建的分类收纳盒"
+                                                       FontSize="10.5"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                       TextWrapping="Wrap"
+                                                       MaxWidth="300" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1"
+                                                Content="一键分类"
+                                                Command="{Binding ClassifyItemsCommand}"
+                                                Style="{StaticResource PrimaryButtonStyle}"
+                                                Padding="14,6"
+                                                VerticalAlignment="Center" />
+                                    </Grid>
+
+                                    <!-- 合并收纳盒 -->
+                                    <Grid Margin="0,12,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="合并收纳盒"
+                                                       FontSize="12"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                                            <TextBlock Text="把当前选中盒的全部内容并入另一个同类收纳盒，然后删除当前盒"
+                                                       FontSize="10.5"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                       TextWrapping="Wrap"
+                                                       MaxWidth="300" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1"
+                                                    Orientation="Horizontal"
+                                                    VerticalAlignment="Center">
+                                            <ComboBox x:Name="MergeTargetComboBox"
+                                                      Width="130"
+                                                      Height="30"
+                                                      ItemsSource="{Binding MergeTargets}"
+                                                      DisplayMemberPath="Name"
+                                                      VerticalContentAlignment="Center"
+                                                      Background="{DynamicResource PanelBrush}"
+                                                      BorderBrush="{DynamicResource BorderBrushSoft}"
+                                                      Foreground="{DynamicResource TextPrimaryBrush}"
+                                                      Visibility="{Binding HasMergeTargets, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                            <Button Content="合并"
+                                                    Margin="8,0,0,0"
+                                                    Command="{Binding MergeSelectedBoxCommand}"
+                                                    CommandParameter="{Binding SelectedItem, ElementName=MergeTargetComboBox}"
+                                                    Style="{StaticResource PrimaryButtonStyle}"
+                                                    Padding="14,6"
+                                                    Visibility="{Binding HasMergeTargets, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                            <TextBlock Text="没有可合并的同类型盒"
+                                                       FontSize="10.5"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                       VerticalAlignment="Center"
+                                                       Visibility="{Binding HasMergeTargets, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
                                 </Border>
 
                                 <!-- Keyboard Shortcuts Card -->

@@ -103,7 +103,8 @@ public static class ShellIconProvider
 
     private static ImageSource? GetIcon(string fullPath, bool isDirectory, int size)
     {
-        if (!isDirectory && IsShortcut(fullPath))
+        var isShortcut = !isDirectory && IsShortcut(fullPath);
+        if (isShortcut)
         {
             foreach (var candidate in GetShortcutIconCandidates(fullPath))
             {
@@ -115,6 +116,10 @@ public static class ShellIconProvider
             }
         }
 
+        // IShellItemImageFactory with IconOnly renders the item icon without the
+        // shortcut arrow overlay, so shortcuts can still use it for the best
+        // quality icon. Only the SHGetFileInfo fallback below (whose .lnk icon
+        // is the arrowed generic shortcut glyph) is replaced with a clean icon.
         var shellItemIcon = TryGetShellItemIcon(fullPath, size);
         if (shellItemIcon is not null)
         {
@@ -124,13 +129,23 @@ public static class ShellIconProvider
         var attributes = isDirectory ? FileAttributeDirectory : FileAttributeNormal;
         var flags = GetIconFlags(size);
 
-        if (!File.Exists(fullPath) && !Directory.Exists(fullPath))
+        var iconPath = fullPath;
+        if (isShortcut)
+        {
+            // SHGFI_USEFILEATTRIBUTES makes SHGetFileInfo key off the extension
+            // only, so a placeholder ".exe" path yields a generic application
+            // icon without the shortcut arrow.
+            var baseDirectory = Path.GetDirectoryName(fullPath) ?? string.Empty;
+            iconPath = Path.Combine(baseDirectory, "WitchDrawerGenericIcon.exe");
+            flags |= ShgfiUseFileAttributes;
+        }
+        else if (!File.Exists(fullPath) && !Directory.Exists(fullPath))
         {
             flags |= ShgfiUseFileAttributes;
         }
 
-        return GetIcon(fullPath, attributes, flags, size)
-            ?? GetIcon(fullPath, attributes, flags | ShgfiUseFileAttributes, size);
+        return GetIcon(iconPath, attributes, flags, size)
+            ?? GetIcon(iconPath, attributes, flags | ShgfiUseFileAttributes, size);
     }
 
     private static uint GetIconFlags(int size)

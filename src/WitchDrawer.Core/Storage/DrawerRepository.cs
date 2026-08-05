@@ -376,6 +376,34 @@ public sealed class DrawerRepository
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Updates only the display name of an item. The underlying file (if any)
+    /// keeps its on-disk name, so renaming inside a drawer never touches the
+    /// original file system entry.
+    /// </summary>
+    public async Task UpdateItemDisplayNameAsync(
+        Guid itemId,
+        string newDisplayName,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            UPDATE Items
+            SET DisplayName = $displayName,
+                UpdatedAt = $updatedAt
+            WHERE Id = $id;
+            """;
+        command.Parameters.AddWithValue("$id", itemId.ToString());
+        command.Parameters.AddWithValue("$displayName", newDisplayName);
+        command.Parameters.AddWithValue("$updatedAt", ToDb(DateTimeOffset.UtcNow));
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     public async Task MoveItemToBoxAsync(
         DrawerItem item,
         Guid targetBoxId,

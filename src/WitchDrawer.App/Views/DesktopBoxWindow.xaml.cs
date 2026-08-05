@@ -37,6 +37,7 @@ public partial class DesktopBoxWindow : Window
     private NativePoint _drawerResizeStartCursor;
     private bool _suppressDrawerItemClick;
     private bool _drawerPositionChanged;
+    private DrawerItemViewModel? _renameTargetItem;
 
     private sealed class DesktopBoxDragPayload(Guid dragId, Guid itemId, Guid sourceBoxId)
     {
@@ -72,6 +73,7 @@ public partial class DesktopBoxWindow : Window
         DpiChanged += OnDpiChanged;
         AppThemeManager.ThemeChanged += OnThemeChanged;
         AppThemeManager.CrystalBoxTransparencyChanged += OnCrystalBoxTransparencyChanged;
+        AppThemeManager.BoxBackgroundOpacityChanged += OnBoxBackgroundOpacityChanged;
         Activated += OnWindowActivated;
         Deactivated += OnWindowDeactivated;
         StateChanged += OnWindowStateChanged;
@@ -395,6 +397,79 @@ public partial class DesktopBoxWindow : Window
         }
     }
 
+    private void OnRenameItemMenuClicked(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { DataContext: DrawerItemViewModel item })
+        {
+            OpenRenameItemPopup(item);
+        }
+    }
+
+    private void OpenRenameItemPopup(DrawerItemViewModel item)
+    {
+        _renameTargetItem = item;
+        TxtRenameItem.Text = item.DisplayName;
+        RenameItemPopup.IsOpen = true;
+        TxtRenameItem.Focus();
+        TxtRenameItem.SelectAll();
+    }
+
+    private void OnRenameItemKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            _ = ConfirmRenameItemAsync();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            RenameItemPopup.IsOpen = false;
+            e.Handled = true;
+        }
+    }
+
+    private async void OnConfirmRenameItemClicked(object sender, RoutedEventArgs e)
+    {
+        await ConfirmRenameItemAsync();
+    }
+
+    private async Task ConfirmRenameItemAsync()
+    {
+        var item = _renameTargetItem;
+        if (item is null)
+        {
+            RenameItemPopup.IsOpen = false;
+            return;
+        }
+
+        var renamed = await ViewModel.RenameItemAsync(item, TxtRenameItem.Text);
+        if (renamed)
+        {
+            RenameItemPopup.IsOpen = false;
+        }
+    }
+
+    private async void OnSingleRowLayoutMenuClicked(object sender, RoutedEventArgs e)
+    {
+        await ApplyMaxRowsAsync(1);
+    }
+
+    private async void OnThreeRowLayoutMenuClicked(object sender, RoutedEventArgs e)
+    {
+        await ApplyMaxRowsAsync(3);
+    }
+
+    private async void OnAutoRowLayoutMenuClicked(object sender, RoutedEventArgs e)
+    {
+        await ApplyMaxRowsAsync(null);
+    }
+
+    private async Task ApplyMaxRowsAsync(int? maxRows)
+    {
+        ViewModel.ApplyMaxRows(maxRows);
+        await ViewModel.SaveMaxRowsAsync(maxRows);
+    }
+
     private static T? FindVisualAncestor<T>(DependencyObject source)
         where T : DependencyObject
     {
@@ -436,6 +511,7 @@ public partial class DesktopBoxWindow : Window
         DpiChanged -= OnDpiChanged;
         AppThemeManager.ThemeChanged -= OnThemeChanged;
         AppThemeManager.CrystalBoxTransparencyChanged -= OnCrystalBoxTransparencyChanged;
+        AppThemeManager.BoxBackgroundOpacityChanged -= OnBoxBackgroundOpacityChanged;
         Activated -= OnWindowActivated;
         Deactivated -= OnWindowDeactivated;
         StateChanged -= OnWindowStateChanged;
@@ -551,10 +627,56 @@ public partial class DesktopBoxWindow : Window
         ApplyThemeAppearance();
     }
 
+    private void OnBoxBackgroundOpacityChanged(object? sender, double opacity)
+    {
+        ApplyThemeAppearance();
+    }
+
     private void ApplyThemeAppearance()
     {
         AppThemeManager.ApplyDesktopBoxResources(Resources);
         AppThemeManager.ApplyToWindow(this);
+        ApplyBoxBackgroundOpacity();
+    }
+
+    private static readonly string[] GlassBrushKeys =
+    [
+        "GlassSurfaceBrush",
+        "GlassStrokeBrush",
+        "GlassInnerBrush",
+        "DrawerSecondarySurfaceBrush"
+    ];
+
+    /// <summary>
+    /// Scales the alpha of the four glass brushes used by desktop boxes so the
+    /// box background can fade independently of its icon/text content.
+    /// </summary>
+    private void ApplyBoxBackgroundOpacity()
+    {
+        var opacity = AppThemeManager.BoxBackgroundOpacity;
+        // Icon backplates stay at least 30% of their authored alpha so icons
+        // remain readable even at the most transparent setting.
+        var innerOpacity = Math.Max(0.3, opacity);
+
+        foreach (var key in GlassBrushKeys)
+        {
+            // 透明水晶模式会把透明版颜色注入窗口 Resources；必须先以窗口级
+            // 颜色为基准，Remove 后再回退到 Application 全局主题色。
+            var themeBrush = Resources[key] as SolidColorBrush
+                ?? Application.Current.TryFindResource(key) as SolidColorBrush;
+            if (themeBrush is null)
+            {
+                continue;
+            }
+
+            Resources.Remove(key);
+            var multiplier = key == "GlassInnerBrush" ? innerOpacity : opacity;
+            var color = themeBrush.Color;
+            color.A = (byte)Math.Round(color.A * multiplier);
+            var brush = new SolidColorBrush(color);
+            brush.Freeze();
+            Resources[key] = brush;
+        }
     }
 
     private void OnWindowActivated(object? sender, EventArgs e)

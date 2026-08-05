@@ -84,6 +84,20 @@ public sealed class StyledNormalBoxCreationTests
         {
             return Task.CompletedTask;
         }
+
+        public Task OpenAsAdminAsync(
+            string path,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task ShowInFolderAsync(
+            string path,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class RecordingLogger : IAppLogger
