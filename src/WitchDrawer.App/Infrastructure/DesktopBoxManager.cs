@@ -102,6 +102,7 @@ public sealed class DesktopBoxManager
                 var win = _windows[removedId];
                 win.LocationChanged -= OnWindowLocationChanged;
                 win.PreviewMouseLeftButtonUp -= OnWindowMouseUp;
+                win.Activated -= OnDesktopBoxActivated;
                 win.ForceClose();
                 _windows.Remove(removedId);
             }
@@ -146,6 +147,7 @@ public sealed class DesktopBoxManager
 
                     window.LocationChanged += OnWindowLocationChanged;
                     window.PreviewMouseLeftButtonUp += OnWindowMouseUp;
+                    window.Activated += OnDesktopBoxActivated;
                     window.SetPositionChangedCallback(async (id) =>
                     {
                         _isAdjustingPosition = true;
@@ -265,6 +267,7 @@ public sealed class DesktopBoxManager
 
             window.LocationChanged -= OnWindowLocationChanged;
             window.PreviewMouseLeftButtonUp -= OnWindowMouseUp;
+            window.Activated -= OnDesktopBoxActivated;
             _windows.Remove(boxId);
             recreateRequired = true;
         }
@@ -322,6 +325,7 @@ public sealed class DesktopBoxManager
         {
             window.LocationChanged -= OnWindowLocationChanged;
             window.PreviewMouseLeftButtonUp -= OnWindowMouseUp;
+            window.Activated -= OnDesktopBoxActivated;
             window.ForceClose();
         }
 
@@ -406,21 +410,33 @@ public sealed class DesktopBoxManager
             return;
         }
 
-        if (ForegroundWindowMonitor.IsDesktopWindow(windowHandle))
-        {
-            SetDesktopForeground(true);
-            return;
-        }
-
-        // Clicking a desktop box should not make it disappear while Show Desktop
-        // is active. Any other foreground window ends the temporary topmost mode.
-        if (_windows.Values.Any(window => window.NativeHandle == windowHandle))
-        {
-            return;
-        }
-
-        SetDesktopForeground(false);
+        var isDesktopWindow = ForegroundWindowMonitor.IsDesktopWindow(windowHandle);
+        var isDesktopBoxWindow = _windows.Values.Any(
+            window => window.NativeHandle == windowHandle);
+        SetDesktopForeground(ResolveDesktopForegroundState(
+            isDesktopWindow,
+            isDesktopBoxWindow));
     }
+
+    private void OnDesktopBoxActivated(object? sender, EventArgs e)
+    {
+        if (_closing)
+        {
+            return;
+        }
+
+        // A box activation ends Show Desktop mode immediately. Waiting for the
+        // coalesced foreground hook leaves every Shell-owned box raised together
+        // for several frames.
+        SetDesktopForeground(ResolveDesktopForegroundState(
+            isDesktopWindow: false,
+            isDesktopBoxWindow: true));
+    }
+
+    internal static bool ResolveDesktopForegroundState(
+        bool isDesktopWindow,
+        bool isDesktopBoxWindow) =>
+        isDesktopWindow && !isDesktopBoxWindow;
 
     private void SetDesktopForeground(bool isForeground)
     {
