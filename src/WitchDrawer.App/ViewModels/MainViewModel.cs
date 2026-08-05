@@ -17,6 +17,7 @@ public sealed class MainViewModel : ObservableObject
     private const double ItemIconSizeDip = 19;
     private const string ThemeSettingKey = "Theme";
     private const string CrystalBoxTransparencySettingKey = "CrystalBoxTransparency";
+    private const string BoxBackgroundOpacitySettingKey = "BoxBackgroundOpacity";
     private const string StartupRegistryKeyName = "WitchDrawer";
 
     private readonly DrawerService _drawerService;
@@ -39,6 +40,7 @@ public sealed class MainViewModel : ObservableObject
     private AppTheme _currentTheme;
     private bool _isTransparentCrystalBoxes;
     private bool _launchOnStartup;
+    private int _boxOpacity = 100;
     private string _updateStatusText = string.Empty;
     private bool _isCheckingUpdate;
     private string? _pendingUpdateSha256;
@@ -95,6 +97,8 @@ public sealed class MainViewModel : ObservableObject
         ApplyMoeThemeCommand = new AsyncRelayCommand(() => ApplyThemeAsync(AppTheme.Moe));
         ApplyGlassThemeCommand = new AsyncRelayCommand(() => ApplyThemeAsync(AppTheme.Glass));
         ApplyCrystalThemeCommand = new AsyncRelayCommand(ApplyCrystalThemeAsync);
+        MergeSelectedBoxCommand = new AsyncRelayCommand<BoxViewModel?>(MergeSelectedBoxAsync, box => box is not null);
+        ClassifyItemsCommand = new AsyncRelayCommand(ClassifyItemsAsync);
         ToggleLaunchOnStartupCommand = new AsyncRelayCommand(ToggleLaunchOnStartupAsync);
         CheckForUpdateCommand = new AsyncRelayCommand(CheckForUpdateAsync);
         ShowDashboardCommand = new RelayCommand(() =>
@@ -179,6 +183,13 @@ public sealed class MainViewModel : ObservableObject
     public IAsyncRelayCommand ApplyGlassThemeCommand { get; }
 
     public IAsyncRelayCommand ApplyCrystalThemeCommand { get; }
+
+    /// <summary>
+    /// Merges the selected box's contents into the given target box.
+    /// </summary>
+    public IAsyncRelayCommand<BoxViewModel?> MergeSelectedBoxCommand { get; }
+
+    public IAsyncRelayCommand ClassifyItemsCommand { get; }
 
     public IAsyncRelayCommand ToggleLaunchOnStartupCommand { get; }
 
@@ -282,6 +293,46 @@ public sealed class MainViewModel : ObservableObject
         private set => SetProperty(ref _launchOnStartup, value);
     }
 
+    /// <summary>
+    /// Desktop box background opacity in percent (5..100).
+    /// </summary>
+    public int BoxOpacity
+    {
+        get => _boxOpacity;
+        set
+        {
+            var normalized = Math.Clamp(value, 5, 100);
+            if (SetProperty(ref _boxOpacity, normalized))
+            {
+                AppThemeManager.SetBoxBackgroundOpacity(normalized / 100.0);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Boxes the selected box can be merged into (same storage category, not itself).
+    /// </summary>
+    public IReadOnlyList<BoxViewModel> MergeTargets
+    {
+        get
+        {
+            var selected = SelectedBox;
+            if (selected is null || selected.IsTodoBox)
+            {
+                return Array.Empty<BoxViewModel>();
+            }
+
+            var selectedIsMapping = selected.Type == BoxType.Mapping;
+            return Boxes
+                .Where(candidate => candidate.Id != selected.Id
+                    && !candidate.IsTodoBox
+                    && (candidate.Type == BoxType.Mapping) == selectedIsMapping)
+                .ToArray();
+        }
+    }
+
+    public bool HasMergeTargets => MergeTargets.Count > 0;
+
     public string UpdateStatusText
     {
         get => _updateStatusText;
@@ -325,6 +376,7 @@ public sealed class MainViewModel : ObservableObject
 
             LaunchOnStartup = ReadStartupRegistry();
             await RestoreCrystalBoxTransparencyAsync();
+            await LoadBoxOpacityAsync();
 
             StatusText = $"{Boxes.Count} 个收纳盒已同步到桌面";
             BoxesChanged?.Invoke(this, EventArgs.Empty);
@@ -656,6 +708,8 @@ public sealed class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectedBox));
         OnPropertyChanged(nameof(IsSelectedTodoBox));
         OnPropertyChanged(nameof(CanImportFiles));
+        OnPropertyChanged(nameof(MergeTargets));
+        OnPropertyChanged(nameof(HasMergeTargets));
         DeleteSelectedBoxCommand.NotifyCanExecuteChanged();
         RenameSelectedBoxCommand.NotifyCanExecuteChanged();
         SetSelectedBoxVisualStyleCommand.NotifyCanExecuteChanged();
@@ -922,6 +976,63 @@ public sealed class MainViewModel : ObservableObject
         await _drawerService.SetSettingAsync(
             CrystalBoxTransparencySettingKey,
             enabled.ToString());
+    }
+
+    private async Task LoadBoxOpacityAsync()
+    {
+        var saved = await _drawerService.GetSettingAsync(BoxBackgroundOpacitySettingKey);
+        if (int.TryParse(saved, out var opacity))
+        {
+            BoxOpacity = Math.Clamp(opacity, 5, 100);
+        }
+
+        AppThemeManager.SetBoxBackgroundOpacity(BoxOpacity / 100.0);
+    }
+
+    public async Task SaveBoxOpacityAsync()
+    {
+        await _drawerService.SetSettingAsync(
+            BoxBackgroundOpacitySettingKey,
+            BoxOpacity.ToString());
+    }
+
+    private async Task MergeSelectedBoxAsync(BoxViewModel? targetBox)
+    {
+        var selected = SelectedBox;
+        if (selected is null || targetBox is null || selected.Id == targetBox.Id)
+        {
+            return;
+        }
+
+        await RunBusyAsync(async () =>
+        {
+            try
+            {
+                var mergedCount = await _drawerService.MergeBoxAsync(selected.Id, targetBox.Id);
+                StatusText = $"已将“{selected.Name}”的 {mergedCount} 项合并到“{targetBox.Name}”";
+            }
+            catch (Exception exception)
+            {
+                // 合并可能已部分完成（源盒删除失败等），无论如何都刷新列表。
+                StatusText = exception.Message;
+            }
+
+            await LoadAsync();
+            ItemsChanged?.Invoke(this, EventArgs.Empty);
+        });
+    }
+
+    private async Task ClassifyItemsAsync()
+    {
+        await RunBusyAsync(async () =>
+        {
+            var result = await _drawerService.ClassifyMappingItemsAsync();
+            StatusText = result.MovedCount > 0
+                ? $"已按类型归类 {result.MovedCount} 项映射引用（{result.SkippedCount} 项无需移动或属于存储文件）"
+                : "没有需要归类的映射引用";
+            await LoadAsync();
+            ItemsChanged?.Invoke(this, EventArgs.Empty);
+        });
     }
 
     private void SetCurrentTheme(AppTheme theme)

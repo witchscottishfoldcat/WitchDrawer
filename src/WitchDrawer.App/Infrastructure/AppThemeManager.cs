@@ -37,9 +37,17 @@ public static class AppThemeManager
 
     public static event EventHandler<bool>? CrystalBoxTransparencyChanged;
 
+    public static event EventHandler<double>? BoxBackgroundOpacityChanged;
+
     public static AppTheme CurrentTheme => _currentTheme;
 
     public static bool UseTransparentCrystalBoxes => _useTransparentCrystalBoxes;
+
+    /// <summary>
+    /// 0.05..1.0 multiplier applied to the desktop-box glass brush alphas.
+    /// 1.0 keeps the theme's authored opacity; lower values make boxes more see-through.
+    /// </summary>
+    public static double BoxBackgroundOpacity { get; private set; } = 1.0;
 
     public static void Apply(AppTheme theme)
     {
@@ -136,6 +144,18 @@ public static class AppThemeManager
 
         _useTransparentCrystalBoxes = enabled;
         CrystalBoxTransparencyChanged?.Invoke(null, enabled);
+    }
+
+    public static void SetBoxBackgroundOpacity(double opacity)
+    {
+        var normalized = double.IsFinite(opacity) ? Math.Clamp(opacity, 0.05, 1.0) : 1.0;
+        if (Math.Abs(BoxBackgroundOpacity - normalized) < 0.001)
+        {
+            return;
+        }
+
+        BoxBackgroundOpacity = normalized;
+        BoxBackgroundOpacityChanged?.Invoke(null, normalized);
     }
 
     public static void ApplyDesktopBoxResources(ResourceDictionary resources)

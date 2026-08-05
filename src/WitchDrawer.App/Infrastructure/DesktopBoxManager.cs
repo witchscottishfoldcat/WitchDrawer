@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows;
 using CommunityToolkit.Mvvm.Messaging;
@@ -63,6 +64,9 @@ public sealed class DesktopBoxManager
         WeakReferenceMessenger.Default.Register<DesktopBoxManager, BoxTitleVisibilityChangedMessage>(
             this,
             static (recipient, message) => recipient.ApplyTitleVisibility(message));
+        WeakReferenceMessenger.Default.Register<DesktopBoxManager, BoxItemNameVisibilityChangedMessage>(
+            this,
+            static (recipient, message) => recipient.ApplyItemNameVisibility(message));
         WeakReferenceMessenger.Default.Register<DesktopBoxManager, DrawerSortModeChangedMessage>(
             this,
             static (recipient, message) => recipient.ApplyDrawerSortMode(message));
@@ -135,6 +139,8 @@ public sealed class DesktopBoxManager
                         layoutSettings);
                     await viewModel.LoadDrawerCoverSizeAsync();
                     await viewModel.LoadTitleVisibilityAsync();
+                    await viewModel.LoadItemNameVisibilityAsync();
+                    await viewModel.LoadMaxRowsAsync();
                     await viewModel.LoadDrawerSortModeAsync();
                     viewModel.ItemsChanged += (_, _) => ItemsChanged?.Invoke(this, EventArgs.Empty);
 
@@ -455,6 +461,15 @@ public sealed class DesktopBoxManager
         }
     }
 
+    private void ApplyItemNameVisibility(
+        BoxItemNameVisibilityChangedMessage message)
+    {
+        if (_windows.TryGetValue(message.BoxId, out var window))
+        {
+            window.ViewModel.ApplyItemNameVisibility(message.IsVisible);
+        }
+    }
+
     private void ApplyDrawerSortMode(DrawerSortModeChangedMessage message)
     {
         if (_windows.TryGetValue(message.BoxId, out var window))
@@ -463,22 +478,207 @@ public sealed class DesktopBoxManager
         }
     }
 
-    private async Task PlaceWindowAsync(Window window, Guid boxId, int fallbackIndex)
+    private async Task PlaceWindowAsync(DesktopBoxWindow window, Guid boxId, int fallbackIndex)
     {
         // SizeToContent windows report NaN for Width/Height before they are shown; measure
         // first and use DesiredSize so saved positions are restored correctly.
         window.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
 
         var savedPosition = await _drawerService.GetSettingAsync(BoxPositionSettingPrefix + boxId.ToString("N"));
-        if (TryParsePosition(savedPosition, out var left, out var top))
+        var workAreas = GetMonitorWorkAreasDip(window);
+        var primaryWorkArea = workAreas.Count > 0 ? workAreas[0] : SystemParameters.WorkArea;
+
+        double left;
+        double top;
+        if (TryParsePosition(savedPosition, out var savedLeft, out var savedTop))
         {
-            var workArea = SystemParameters.WorkArea;
-            window.Left = Math.Max(workArea.Left, Math.Min(left, workArea.Right - window.DesiredSize.Width));
-            window.Top = Math.Max(workArea.Top, Math.Min(top, workArea.Bottom - window.DesiredSize.Height));
-            return;
+            (left, top) = ClampToContainingWorkArea(
+                savedLeft,
+                savedTop,
+                window.DesiredSize,
+                workAreas,
+                primaryWorkArea);
+        }
+        else
+        {
+            (left, top) = PlaceNewWindowCore(window, fallbackIndex, primaryWorkArea);
         }
 
-        PlaceNewWindow(window, fallbackIndex);
+        // Anti-overlap: a saved position may collide with another box (e.g. after a
+        // monitor was unplugged and several boxes were clamped onto the same screen).
+        // Cascade the window to a nearby free spot instead of stacking it.
+        (left, top) = FindNonOverlappingPosition(window, left, top, workAreas, primaryWorkArea);
+
+        window.Left = left;
+        window.Top = top;
+    }
+
+    private (double Left, double Top) FindNonOverlappingPosition(
+        DesktopBoxWindow window,
+        double left,
+        double top,
+        IReadOnlyList<Rect> workAreas,
+        Rect primaryWorkArea)
+    {
+        const double gap = 12;
+        const double margin = 8;
+        var width = NormalizeDimension(window.DesiredSize.Width);
+        var height = NormalizeDimension(window.DesiredSize.Height);
+
+        var placedRects = _windows.Values
+            .Where(candidate => candidate != window && candidate.IsVisible)
+            .Select(candidate => new Rect(
+                candidate.Left,
+                candidate.Top,
+                Math.Max(1, candidate.ActualWidth),
+                Math.Max(1, candidate.ActualHeight)))
+            .ToArray();
+        if (placedRects.Length == 0)
+        {
+            return (left, top);
+        }
+
+        var workArea = FindContainingWorkArea(left, top, width, height, workAreas, primaryWorkArea);
+        var rect = new Rect(left, top, width, height);
+        if (placedRects.All(placed => !placed.IntersectsWith(rect)))
+        {
+            return (left, top);
+        }
+
+        var cascadeLeft = workArea.Left + margin;
+        var cascadeTop = workArea.Top + margin;
+        var currentLeft = cascadeLeft;
+        var currentTop = cascadeTop;
+
+        // Try the whole work area grid before giving up; afterwards accept the last
+        // candidate so a fully saturated screen still places the window.
+        for (var attempt = 0; attempt < 200; attempt++)
+        {
+            rect = new Rect(currentLeft, currentTop, width, height);
+            if (placedRects.All(placed => !placed.IntersectsWith(rect)))
+            {
+                return (currentLeft, currentTop);
+            }
+
+            currentLeft += width + gap;
+            if (currentLeft + width > workArea.Right - margin)
+            {
+                currentLeft = cascadeLeft;
+                currentTop += height + gap;
+            }
+
+            if (currentTop + height > workArea.Bottom - margin)
+            {
+                currentTop = cascadeTop;
+            }
+        }
+
+        return (left, top);
+    }
+
+    private static (double Left, double Top) ClampToContainingWorkArea(
+        double left,
+        double top,
+        Size windowSize,
+        IReadOnlyList<Rect> workAreas,
+        Rect primaryWorkArea)
+    {
+        var workArea = FindContainingWorkArea(left, top, windowSize.Width, windowSize.Height, workAreas, primaryWorkArea);
+        return (
+            Math.Max(workArea.Left, Math.Min(left, workArea.Right - windowSize.Width)),
+            Math.Max(workArea.Top, Math.Min(top, workArea.Bottom - windowSize.Height)));
+    }
+
+    private static double NormalizeDimension(double value)
+    {
+        return double.IsFinite(value) && value > 1 ? value : 1;
+    }
+
+    private static Rect FindContainingWorkArea(
+        double left,
+        double top,
+        double width,
+        double height,
+        IReadOnlyList<Rect> workAreas,
+        Rect primaryWorkArea)
+    {
+        if (workAreas.Count == 0)
+        {
+            return primaryWorkArea;
+        }
+
+        // Prefer the work area containing the window center; fall back to the
+        // area with the largest intersection, then the primary screen.
+        var centerX = left + width / 2;
+        var centerY = top + height / 2;
+        var centerContaining = workAreas.FirstOrDefault(area => area.Contains(centerX, centerY));
+        if (centerContaining != default)
+        {
+            return centerContaining;
+        }
+
+        var windowRect = new Rect(left, top, Math.Max(1, width), Math.Max(1, height));
+        var bestIntersection = double.MinValue;
+        var bestArea = primaryWorkArea;
+        foreach (var area in workAreas)
+        {
+            var intersection = Rect.Intersect(area, windowRect);
+            var areaValue = intersection == Rect.Empty ? -1 : intersection.Width * intersection.Height;
+            if (areaValue > bestIntersection)
+            {
+                bestIntersection = areaValue;
+                bestArea = area;
+            }
+        }
+
+        return bestArea;
+    }
+
+    /// <summary>
+    /// Enumerates every monitor's work area and converts it to DIP using the
+    /// window's DPI scale. Monitors are ordered primary-first.
+    /// </summary>
+    private static IReadOnlyList<Rect> GetMonitorWorkAreasDip(Window window)
+    {
+        var scale = 1.0;
+        try
+        {
+            var dpi = System.Windows.Media.VisualTreeHelper.GetDpi(window);
+            scale = Math.Max(0.1, dpi.DpiScaleX);
+        }
+        catch
+        {
+            // Fall back to unscaled physical pixels.
+        }
+
+        var monitors = new List<(NativeRect Work, bool IsPrimary)>();
+
+        bool EnumMonitorCallback(
+            nint monitorHandle,
+            nint hdcMonitor,
+            ref NativeRect monitorRect,
+            nint data)
+        {
+            var info = new MonitorInfo { CbSize = Marshal.SizeOf<MonitorInfo>() };
+            if (GetMonitorInfo(monitorHandle, ref info))
+            {
+                monitors.Add((info.RcWork, (info.DwFlags & MonitorInfoPrimary) != 0));
+            }
+
+            return true;
+        }
+
+        EnumDisplayMonitors(nint.Zero, nint.Zero, EnumMonitorCallback, nint.Zero);
+
+        var ordered = monitors
+            .OrderByDescending(monitor => monitor.IsPrimary)
+            .Select(monitor => new Rect(
+                monitor.Work.Left / scale,
+                monitor.Work.Top / scale,
+                (monitor.Work.Right - monitor.Work.Left) / scale,
+                (monitor.Work.Bottom - monitor.Work.Top) / scale))
+            .ToList();
+        return ordered;
     }
 
     private static bool TryParsePosition(string? raw, out double left, out double top)
@@ -501,17 +701,27 @@ public sealed class DesktopBoxManager
 
     private static void PlaceNewWindow(Window window, int index)
     {
+        var (left, top) = PlaceNewWindowCore(window, index, SystemParameters.WorkArea);
+        window.Left = left;
+        window.Top = top;
+    }
+
+    private static (double Left, double Top) PlaceNewWindowCore(
+        Window window,
+        int index,
+        Rect workArea)
+    {
         const double margin = 18;
         const double gap = 12;
         const double topPadding = 84;
 
-        var workArea = SystemParameters.WorkArea;
         var centerX = workArea.Left + (workArea.Width - window.DesiredSize.Width) / 2;
         var centerY = workArea.Top + (workArea.Height - window.DesiredSize.Height) / 2;
 
         var offset = index * (window.DesiredSize.Width + gap);
-        window.Left = Math.Max(workArea.Left + margin, Math.Min(centerX + offset, workArea.Right - window.DesiredSize.Width - margin));
-        window.Top = Math.Max(workArea.Top + margin, Math.Min(centerY + topPadding * 0.5, workArea.Bottom - window.DesiredSize.Height - margin));
+        var left = Math.Max(workArea.Left + margin, Math.Min(centerX + offset, workArea.Right - window.DesiredSize.Width - margin));
+        var top = Math.Max(workArea.Top + margin, Math.Min(centerY + topPadding * 0.5, workArea.Bottom - window.DesiredSize.Height - margin));
+        return (left, top);
     }
 
     private void OnWindowLocationChanged(object? sender, EventArgs e)
@@ -755,4 +965,40 @@ public sealed class DesktopBoxManager
             Math.Max(0, window.ActualWidth - margin.Left - margin.Right),
             Math.Max(0, window.ActualHeight - margin.Top - margin.Bottom));
     }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeRect
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct MonitorInfo
+    {
+        public int CbSize;
+        public NativeRect RcMonitor;
+        public NativeRect RcWork;
+        public uint DwFlags;
+    }
+
+    private const uint MonitorInfoPrimary = 1;
+
+    private delegate bool MonitorEnumProc(
+        nint monitorHandle,
+        nint hdcMonitor,
+        ref NativeRect monitorRect,
+        nint data);
+
+    [DllImport("user32.dll")]
+    private static extern bool EnumDisplayMonitors(
+        nint hdc,
+        nint clipRect,
+        MonitorEnumProc callback,
+        nint data);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern bool GetMonitorInfo(nint monitorHandle, ref MonitorInfo info);
 }

@@ -889,6 +889,12 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void OnBoxOpacitySliderLostMouseCapture(object sender, MouseEventArgs e)
+    {
+        // Persist once the user releases the slider instead of on every tick.
+        await ViewModel.SaveBoxOpacityAsync();
+    }
+
     private void OnOpenProjectLinkClicked(object sender, RoutedEventArgs e)
     {
         OpenExternalUri("https://github.com/witchscottishfoldcat/WitchDrawer");

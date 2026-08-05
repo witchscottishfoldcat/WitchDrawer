@@ -144,7 +144,20 @@ public sealed class DrawerService
             var targetPath = FileNameService.GetUniqueDestinationPath(storageRoot, displayName, isDirectory);
             PathSafety.EnsureChildPath(storageRoot, targetPath);
 
-            await SafeFileOps.MoveAsync(fullSourcePath, targetPath, isDirectory, cancellationToken);
+            try
+            {
+                await SafeFileOps.MoveAsync(fullSourcePath, targetPath, isDirectory, cancellationToken);
+            }
+            catch (UnauthorizedAccessException exception)
+            {
+                throw CreateImportPermissionException(displayName, fullSourcePath, exception);
+            }
+            catch (IOException exception)
+            {
+                throw new InvalidOperationException(
+                    $"无法收纳“{displayName}”：{exception.Message}",
+                    exception);
+            }
 
             item = new DrawerItem(
                 Guid.NewGuid(),
@@ -249,7 +262,20 @@ public sealed class DrawerService
             var targetPath = FileNameService.GetUniqueDestinationPath(storageRoot, displayName, isDirectory);
             PathSafety.EnsureChildPath(storageRoot, targetPath);
 
-            await SafeFileOps.MoveAsync(fullSourcePath, targetPath, isDirectory, cancellationToken);
+            try
+            {
+                await SafeFileOps.MoveAsync(fullSourcePath, targetPath, isDirectory, cancellationToken);
+            }
+            catch (UnauthorizedAccessException exception)
+            {
+                throw CreateImportPermissionException(displayName, fullSourcePath, exception);
+            }
+            catch (IOException exception)
+            {
+                throw new InvalidOperationException(
+                    $"无法移动“{displayName}”：{exception.Message}",
+                    exception);
+            }
 
             displayName = Path.GetFileName(targetPath);
             storedPath = targetPath;
@@ -547,6 +573,31 @@ public sealed class DrawerService
         return Path.GetFullPath(desktopPath);
     }
 
+    /// <summary>
+    /// Wraps a file-move permission failure with an actionable hint. The most
+    /// common cause is dragging from a read-only system location such as the
+    /// public desktop (C:\Users\Public\Desktop), where the source directory is
+    /// not writable and the file cannot be deleted as part of the move.
+    /// </summary>
+    internal static InvalidOperationException CreateImportPermissionException(
+        string displayName,
+        string sourcePath,
+        UnauthorizedAccessException innerException)
+    {
+        var commonDesktop = Environment.GetFolderPath(
+            Environment.SpecialFolder.CommonDesktopDirectory);
+        var isPublicDesktop = !string.IsNullOrWhiteSpace(commonDesktop)
+            && sourcePath.StartsWith(commonDesktop, StringComparison.OrdinalIgnoreCase);
+        var hint = isPublicDesktop
+            ? "源位置（公共桌面）默认只读，无法从中移走文件。"
+            : "源目录没有写入权限，无法移走文件。";
+        return new InvalidOperationException(
+            $"无法收纳“{displayName}”：{hint}"
+            + "可改用“映射收纳盒”（仅保存引用、不移动文件），"
+            + "或先将文件复制到可写位置再拖入。",
+            innerException);
+    }
+
     private static string GetReservedUniqueDestinationPath(
         string directory,
         string fileName,
@@ -629,6 +680,221 @@ public sealed class DrawerService
             ?? throw new InvalidOperationException("Box does not exist.");
 
         await _repository.UpdateBoxNameAsync(boxId, newName.Trim(), cancellationToken);
+    }
+
+    /// <summary>
+    /// Renames the drawer item's display name only. The underlying file on disk
+    /// keeps its real name, so this never mutates the user's file system entry.
+    /// A trailing ".lnk" is re-appended when the stored name used it, keeping the
+    /// shortcut look consistent for mapping boxes.
+    /// </summary>
+    public async Task RenameItemAsync(
+        Guid itemId,
+        string newDisplayName,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedName = newDisplayName?.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedName))
+        {
+            throw new ArgumentException("Item name cannot be empty.", nameof(newDisplayName));
+        }
+
+        var item = await _repository.GetItemAsync(itemId, cancellationToken)
+            ?? throw new InvalidOperationException("Item does not exist.");
+
+        var storedName = item.DisplayName;
+        var storeWithLinkSuffix = storedName.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase);
+        if (storeWithLinkSuffix
+            && !normalizedName.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase))
+        {
+            normalizedName += ".lnk";
+        }
+
+        await _repository.UpdateItemDisplayNameAsync(itemId, normalizedName, cancellationToken);
+    }
+
+    public async Task OpenItemAsAdminAsync(
+        Guid itemId,
+        IFileLauncher launcher,
+        CancellationToken cancellationToken = default)
+    {
+        var item = await _repository.GetItemAsync(itemId, cancellationToken)
+            ?? throw new InvalidOperationException("Item does not exist.");
+
+        if (item.ItemKind == ItemKind.Directory)
+        {
+            throw new InvalidOperationException("Folders cannot be opened with administrator rights.");
+        }
+
+        var path = item.EffectivePath;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            throw new InvalidOperationException("Item has no file path.");
+        }
+
+        await launcher.OpenAsAdminAsync(path, cancellationToken);
+    }
+
+    public async Task ShowItemInFolderAsync(
+        Guid itemId,
+        IFileLauncher launcher,
+        CancellationToken cancellationToken = default)
+    {
+        var item = await _repository.GetItemAsync(itemId, cancellationToken)
+            ?? throw new InvalidOperationException("Item does not exist.");
+
+        var path = item.EffectivePath;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            throw new InvalidOperationException("Item has no file path.");
+        }
+
+        await launcher.ShowInFolderAsync(path, cancellationToken);
+    }
+
+    /// <summary>
+    /// Merges every item of <paramref name="sourceBoxId"/> into
+    /// <paramref name="targetBoxId"/> and then deletes the source box.
+    /// Stored items are physically moved into the target box storage;
+    /// mapping references are re-pointed at the target box.
+    /// </summary>
+    /// <returns>The number of items merged.</returns>
+    public async Task<int> MergeBoxAsync(
+        Guid sourceBoxId,
+        Guid targetBoxId,
+        CancellationToken cancellationToken = default)
+    {
+        if (sourceBoxId == targetBoxId)
+        {
+            throw new InvalidOperationException("Cannot merge a box into itself.");
+        }
+
+        var sourceBox = await _repository.GetBoxAsync(sourceBoxId, cancellationToken)
+            ?? throw new InvalidOperationException("Source box does not exist.");
+        var targetBox = await _repository.GetBoxAsync(targetBoxId, cancellationToken)
+            ?? throw new InvalidOperationException("Target box does not exist.");
+
+        if (sourceBox.Type == BoxType.Todo || targetBox.Type == BoxType.Todo)
+        {
+            throw new InvalidOperationException("Todo boxes cannot be merged.");
+        }
+
+        var sourceIsMapping = sourceBox.Type == BoxType.Mapping;
+        var targetIsMapping = targetBox.Type == BoxType.Mapping;
+        if (sourceIsMapping != targetIsMapping)
+        {
+            throw new InvalidOperationException(
+                "Mapping boxes can only be merged into other mapping boxes, "
+                + "and storage boxes only into other storage boxes.");
+        }
+
+        var items = await _repository.GetItemsAsync(sourceBoxId, cancellationToken);
+
+        // 预检：映射盒的每一项都必须是无存储路径的引用，存储盒的每一项都必须
+        // 有可移动的存储文件，避免中途失败后才暴露数据异常。
+        foreach (var item in items)
+        {
+            if (sourceIsMapping && !string.IsNullOrWhiteSpace(item.StoredPath))
+            {
+                throw new InvalidOperationException(
+                    $"“{item.DisplayName}”是存储项，不能并入映射盒。");
+            }
+
+            if (!sourceIsMapping && string.IsNullOrWhiteSpace(item.StoredPath))
+            {
+                throw new InvalidOperationException(
+                    $"“{item.DisplayName}”没有可移动的存储文件。");
+            }
+        }
+
+        var movedItems = new List<DrawerItem>(items.Count);
+        try
+        {
+            foreach (var item in items)
+            {
+                await MoveItemToBoxAsync(item.Id, targetBoxId, cancellationToken: cancellationToken);
+                movedItems.Add(item);
+            }
+        }
+        catch (Exception exception)
+        {
+            // Best-effort rollback: move already-merged items back to the source
+            // box so a failed merge does not leave a half-migrated state.
+            foreach (var item in movedItems)
+            {
+                try
+                {
+                    await MoveItemToBoxAsync(item.Id, sourceBoxId, cancellationToken: cancellationToken);
+                }
+                catch
+                {
+                    // Rollback is best-effort; the original failure is rethrown.
+                }
+            }
+
+            throw new InvalidOperationException(
+                $"合并中断（已移动 {movedItems.Count}/{items.Count} 项，尝试回滚）：{exception.Message}",
+                exception);
+        }
+
+        var deleteResult = await DeleteBoxAsync(sourceBoxId, cancellationToken);
+        if (!deleteResult.BoxRemoved)
+        {
+            throw new InvalidOperationException(
+                "Items were merged but the source box could not be removed: "
+                + string.Join("; ", deleteResult.Failures));
+        }
+
+        return items.Count;
+    }
+
+    /// <summary>
+    /// One-click classification: moves every mapping reference (items that point
+    /// at external files) into per-type mapping boxes ("图片收纳盒", "文档收纳盒",
+    /// ...). Stored items are intentionally left untouched because they must not
+    /// be moved into mapping boxes.
+    /// </summary>
+    public async Task<ClassifyResult> ClassifyMappingItemsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var boxes = await _repository.GetBoxesAsync(cancellationToken);
+        var allItems = await _repository.GetItemsAsync(null, cancellationToken);
+
+        var targetBoxes = new Dictionary<string, Box>(StringComparer.OrdinalIgnoreCase);
+        var movedCount = 0;
+        var skippedCount = 0;
+
+        foreach (var item in allItems)
+        {
+            if (!string.IsNullOrWhiteSpace(item.StoredPath))
+            {
+                skippedCount++;
+                continue;
+            }
+
+            var category = ClassifyCategory.GetCategory(
+                item.DisplayName,
+                item.SourcePath,
+                isDirectory: item.ItemKind == ItemKind.Directory);
+            if (!targetBoxes.TryGetValue(category.BoxName, out var targetBox))
+            {
+                targetBox = boxes.FirstOrDefault(box => box.Type == BoxType.Mapping
+                    && string.Equals(box.Name, category.BoxName, StringComparison.OrdinalIgnoreCase))
+                    ?? await CreateBoxAsync(category.BoxName, BoxType.Mapping, cancellationToken);
+                targetBoxes[category.BoxName] = targetBox;
+            }
+
+            if (item.BoxId == targetBox.Id)
+            {
+                skippedCount++;
+                continue;
+            }
+
+            await MoveItemToBoxAsync(item.Id, targetBox.Id, cancellationToken: cancellationToken);
+            movedCount++;
+        }
+
+        return new ClassifyResult(movedCount, skippedCount);
     }
 
     public async Task OpenItemAsync(Guid itemId, IFileLauncher launcher, CancellationToken cancellationToken = default)

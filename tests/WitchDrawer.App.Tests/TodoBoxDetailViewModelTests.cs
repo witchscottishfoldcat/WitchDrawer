@@ -224,5 +224,19 @@ public sealed class TodoBoxDetailViewModelTests
         {
             return Task.CompletedTask;
         }
+
+        public Task OpenAsAdminAsync(
+            string path,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task ShowInFolderAsync(
+            string path,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
     }
 }

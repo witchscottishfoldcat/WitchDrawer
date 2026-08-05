@@ -22,6 +22,8 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private const string TitleVisibilitySettingPrefix = "BoxTitleVisible:";
     private const string LegacyDrawerTitleVisibilitySettingPrefix = "DrawerTitleVisible:";
     private const string DrawerSortModeSettingPrefix = "DrawerSortMode:";
+    private const string ItemNameVisibilitySettingPrefix = "BoxShowItemNames:";
+    private const string MaxRowsSettingPrefix = "BoxMaxRows:";
     private const double DefaultDrawerCoverWidth = 180;
     private const double DefaultDrawerCoverHeight = 112;
     private const double MaximumDrawerCoverDimension = 720;
@@ -50,6 +52,8 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private double _iconDpiScaleY = 1;
     private bool _isDrawerExpanded;
     private bool _isTitleVisible = true;
+    private bool _isItemNameVisible = true;
+    private int? _maxRows;
     private double _drawerCoverWidth = DefaultDrawerCoverWidth;
     private double _drawerCoverHeight = DefaultDrawerCoverHeight;
     private int _drawerCoverColumns = 3;
@@ -75,7 +79,11 @@ public sealed class DesktopBoxViewModel : ObservableObject
         _layoutSettings.PropertyChanged += OnLayoutSettingsChanged;
 
         OpenItemCommand = new AsyncRelayCommand<DrawerItemViewModel?>(OpenItemAsync);
+        OpenItemAsAdminCommand = new AsyncRelayCommand<DrawerItemViewModel?>(OpenItemAsAdminAsync);
+        ShowItemInFolderCommand = new AsyncRelayCommand<DrawerItemViewModel?>(ShowItemInFolderAsync);
         DeleteItemCommand = new AsyncRelayCommand<DrawerItemViewModel?>(DeleteItemAsync);
+        ExportItemToDesktopCommand = new AsyncRelayCommand<DrawerItemViewModel?>(ExportItemToDesktopAsync);
+        SortItemsCommand = new AsyncRelayCommand<DrawerItemSortMode?>(SortItemsAsync);
         RefreshCommand = new AsyncRelayCommand(LoadAsync);
         UseMappingGridModeCommand = new AsyncRelayCommand(() => SetMappingViewModeAsync(useListMode: false));
         UseMappingListModeCommand = new AsyncRelayCommand(() => SetMappingViewModeAsync(useListMode: true));
@@ -103,7 +111,15 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     public IAsyncRelayCommand<DrawerItemViewModel?> OpenItemCommand { get; }
 
+    public IAsyncRelayCommand<DrawerItemViewModel?> OpenItemAsAdminCommand { get; }
+
+    public IAsyncRelayCommand<DrawerItemViewModel?> ShowItemInFolderCommand { get; }
+
     public IAsyncRelayCommand<DrawerItemViewModel?> DeleteItemCommand { get; }
+
+    public IAsyncRelayCommand<DrawerItemViewModel?> ExportItemToDesktopCommand { get; }
+
+    public IAsyncRelayCommand<DrawerItemSortMode?> SortItemsCommand { get; }
 
     public IAsyncRelayCommand RefreshCommand { get; }
 
@@ -151,6 +167,14 @@ public sealed class DesktopBoxViewModel : ObservableObject
     public bool IsDrawerCollapsed => IsDrawerBox && !IsDrawerExpanded;
 
     public bool IsTitleVisible => _isTitleVisible;
+
+    public bool IsItemNameVisible => _isItemNameVisible;
+
+    public int? MaxRows => _maxRows;
+
+    public double MaxGridCanvasHeight => _maxRows.HasValue
+        ? Math.Max(1, _maxRows.Value) * LayoutSettings.ItemSlotHeight
+        : double.PositiveInfinity;
 
     public bool IsHeaderVisible => !IsDrawerCollapsed || IsTitleVisible;
 
@@ -404,6 +428,11 @@ public sealed class DesktopBoxViewModel : ObservableObject
     public (int Column, int Row) GetAvailableDropSlot(int targetColumn, int targetRow, Guid? movingItemId = null)
     {
         var targetSlot = NormalizeGridSlot(targetColumn, targetRow);
+        // 拖拽落点限制在布局预设列数内（如 3×3 最多第 3 列），避免落点
+        // 被 FindFirstFreeSlot 的换行逻辑弹到远处的下一行。
+        targetSlot = (
+            Math.Min(targetSlot.Column, Math.Max(0, LayoutSettings.Columns - 1)),
+            targetSlot.Row);
         var occupiedSlots = Items
             .Where(item => movingItemId is null || item.Id != movingItemId.Value)
             .Select(item => (item.GridColumn, item.GridRow))
@@ -474,7 +503,10 @@ public sealed class DesktopBoxViewModel : ObservableObject
                     Name,
                     isPixelated,
                     GetIconPixelSize(isPixelated),
-                    _logger);
+                    _logger)
+                {
+                    Owner = this
+                };
                 var itemPosition = positions[items[i].Id];
                 itemViewModel.SetGridPosition(itemPosition.Column, itemPosition.Row, LayoutSettings);
                 Items.Insert(i, itemViewModel);
@@ -794,6 +826,146 @@ public sealed class DesktopBoxViewModel : ObservableObject
         }
     }
 
+    private async Task OpenItemAsAdminAsync(DrawerItemViewModel? item)
+    {
+        if (item is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _drawerService.OpenItemAsAdminAsync(item.Id, _launcher);
+            StatusText = $"已以管理员身份打开 {item.DisplayName}";
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to open desktop box item as administrator.");
+            StatusText = exception.Message;
+        }
+    }
+
+    private async Task ShowItemInFolderAsync(DrawerItemViewModel? item)
+    {
+        if (item is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _drawerService.ShowItemInFolderAsync(item.Id, _launcher);
+            StatusText = $"已定位 {item.DisplayName}";
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to reveal desktop box item in folder.");
+            StatusText = exception.Message;
+        }
+    }
+
+    /// <summary>
+    /// Renames the drawer display name only; the file on disk is never touched.
+    /// </summary>
+    public async Task<bool> RenameItemAsync(DrawerItemViewModel? item, string? newName)
+    {
+        if (item is null)
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(newName))
+        {
+            StatusText = "名称不能为空";
+            return false;
+        }
+
+        try
+        {
+            await _drawerService.RenameItemAsync(item.Id, newName);
+            await LoadAsync();
+            StatusText = $"已重命名为 {newName.Trim()}";
+            ItemsChanged?.Invoke(this, EventArgs.Empty);
+            return true;
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to rename desktop box item.");
+            StatusText = exception.Message;
+            return false;
+        }
+    }
+
+    private async Task ExportItemToDesktopCommandAsync(DrawerItemViewModel? item)
+    {
+        await ExportItemToDesktopAsync(item);
+    }
+
+    /// <summary>
+    /// Re-arranges the free grid so items are ordered by the selected rule
+    /// (name / size / type / modified date), column by column.
+    /// </summary>
+    private async Task SortItemsAsync(DrawerItemSortMode? sortMode)
+    {
+        var mode = sortMode ?? DrawerItemSortMode.Name;
+        if (IsBusy || IsTodoBox)
+        {
+            return;
+        }
+
+        if (IsDrawerBox)
+        {
+            await ApplyDrawerItemSortAsync(mode);
+            StatusText = $"已按{DrawerSortModeLabel(mode)}排序";
+            return;
+        }
+
+        try
+        {
+            IsBusy = true;
+            var snapshot = Items
+                .OrderBy(item => item.GridRow)
+                .ThenBy(item => item.GridColumn)
+                .ToArray();
+            var sorted = SortDrawerItems(snapshot, mode);
+            var reservedSlots = new HashSet<(int Column, int Row)>();
+            var nextColumn = 0;
+            var nextRow = 0;
+            foreach (var item in sorted)
+            {
+                var slot = FindFirstFreeSlot(nextColumn, nextRow, reservedSlots);
+                reservedSlots.Add(slot);
+                await _drawerService.UpdateItemGridPositionAsync(
+                    item.Id,
+                    slot.Column,
+                    slot.Row);
+                item.SetGridPosition(slot.Column, slot.Row, LayoutSettings);
+                nextColumn = slot.Column + 1;
+                nextRow = slot.Row;
+            }
+
+            UpdateGridCanvasSize();
+            StatusText = $"已按{DrawerSortModeLabel(mode)}排序";
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to sort desktop box items.");
+            StatusText = exception.Message;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private static string DrawerSortModeLabel(DrawerItemSortMode mode) => mode switch
+    {
+        DrawerItemSortMode.Size => "大小",
+        DrawerItemSortMode.ItemType => "类型",
+        DrawerItemSortMode.ModifiedDate => "修改日期",
+        _ => "名称"
+    };
+
     private async Task DeleteItemAsync(DrawerItemViewModel? item)
     {
         if (item is null)
@@ -876,18 +1048,28 @@ public sealed class DesktopBoxViewModel : ObservableObject
         int startRow,
         HashSet<(int Column, int Row)> occupiedSlots)
     {
-
         var column = Math.Max(0, startColumn);
         var row = Math.Max(0, startRow);
         var maxOccupiedColumn = occupiedSlots.Count > 0 ? occupiedSlots.Max(s => s.Column) : 0;
-        var wrapColumn = Math.Max(4, Math.Max(column, maxOccupiedColumn));
+
+        // 每行有效列数 = 布局预设列数与已有布局的最大列数中较大者。
+        // 这样自动放置遵循"3×3/4×4/…"预设换行，同时不会压缩手动摆放的超宽布局。
+        var wrapWidth = Math.Max(LayoutSettings.Columns, maxOccupiedColumn + 1);
+        var maxColumnIndex = wrapWidth - 1;
+
+        // 起点超出本行有效范围时先换到下一行开头。
+        while (column > maxColumnIndex)
+        {
+            column -= wrapWidth;
+            row++;
+        }
 
         while (occupiedSlots.Contains((column, row)))
         {
             column++;
-            if (column > wrapColumn)
+            if (column > maxColumnIndex)
             {
-                column = Math.Max(0, startColumn);
+                column = 0;
                 row++;
             }
         }
@@ -923,7 +1105,10 @@ public sealed class DesktopBoxViewModel : ObservableObject
         }
 
         GridCanvasWidth = Math.Max(1, maxCol + 1) * LayoutSettings.ItemSlotWidth;
-        GridCanvasHeight = Math.Max(1, maxRow + 1) * LayoutSettings.ItemSlotHeight;
+        var contentHeight = Math.Max(1, maxRow + 1) * LayoutSettings.ItemSlotHeight;
+        GridCanvasHeight = _maxRows.HasValue
+            ? Math.Min(contentHeight, _maxRows.Value * LayoutSettings.ItemSlotHeight)
+            : contentHeight;
         OnPropertyChanged(nameof(DragPreviewWidth));
         OnPropertyChanged(nameof(DragPreviewHeight));
     }
@@ -988,6 +1173,48 @@ public sealed class DesktopBoxViewModel : ObservableObject
         ApplyTitleVisibility(!bool.TryParse(saved, out var isVisible) || isVisible);
     }
 
+    public async Task LoadItemNameVisibilityAsync()
+    {
+        var saved = await _drawerService.GetSettingAsync(GetItemNameVisibilitySettingKey(BoxId));
+        ApplyItemNameVisibility(!bool.TryParse(saved, out var isVisible) || isVisible);
+    }
+
+    public void ApplyItemNameVisibility(bool isVisible)
+    {
+        if (SetProperty(ref _isItemNameVisible, isVisible, nameof(IsItemNameVisible)))
+        {
+            OnPropertyChanged(nameof(MaxGridCanvasHeight));
+            UpdateGridCanvasSize();
+        }
+    }
+
+    public async Task LoadMaxRowsAsync()
+    {
+        var saved = await _drawerService.GetSettingAsync(GetMaxRowsSettingKey(BoxId));
+        if (int.TryParse(saved, out var maxRows) && maxRows >= 1)
+        {
+            ApplyMaxRows(maxRows);
+        }
+    }
+
+    public void ApplyMaxRows(int? maxRows)
+    {
+        var normalized = maxRows.HasValue ? Math.Max(1, maxRows.Value) : (int?)null;
+        if (!SetProperty(ref _maxRows, normalized, nameof(MaxRows)))
+        {
+            return;
+        }
+
+        OnPropertyChanged(nameof(MaxGridCanvasHeight));
+        UpdateGridCanvasSize();
+    }
+
+    public Task SaveMaxRowsAsync(int? maxRows)
+    {
+        var value = maxRows.HasValue ? maxRows.Value.ToString(CultureInfo.InvariantCulture) : string.Empty;
+        return _drawerService.SetSettingAsync(GetMaxRowsSettingKey(BoxId), value);
+    }
+
     public void ApplyTitleVisibility(bool isVisible)
     {
         if (!SetProperty(
@@ -1046,6 +1273,12 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     internal static string GetDrawerSortModeSettingKey(Guid boxId) =>
         $"{DrawerSortModeSettingPrefix}{boxId:N}";
+
+    internal static string GetItemNameVisibilitySettingKey(Guid boxId) =>
+        $"{ItemNameVisibilitySettingPrefix}{boxId:N}";
+
+    internal static string GetMaxRowsSettingKey(Guid boxId) =>
+        $"{MaxRowsSettingPrefix}{boxId:N}";
 
     internal static bool TryParseDrawerCoverSize(
         string? value,
@@ -1246,6 +1479,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
         }
 
         UpdateItemIconSizes();
+        OnPropertyChanged(nameof(MaxGridCanvasHeight));
         UpdateGridCanvasSize();
         if (IsDrawerBox && e.PropertyName is nameof(DesktopBoxLayoutSettings.CurrentPreset))
         {

@@ -92,6 +92,10 @@ public sealed class DrawerBoxCreationTests
     private sealed class NoOpFileLauncher : IFileLauncher
     {
         public Task OpenAsync(string path, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task OpenAsAdminAsync(string path, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task ShowInFolderAsync(string path, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
     private sealed class RecordingLogger : IAppLogger
