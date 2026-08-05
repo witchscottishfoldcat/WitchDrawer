@@ -221,7 +221,6 @@
                     </DataTrigger>
                     <DataTrigger Binding="{Binding IsDrawerCollapsed}" Value="True">
                         <Setter Property="CornerRadius" Value="24" />
-                        <Setter Property="Background" Value="{DynamicResource DrawerCoverSurfaceBrush}" />
                     </DataTrigger>
                 </Style.Triggers>
             </Style>
