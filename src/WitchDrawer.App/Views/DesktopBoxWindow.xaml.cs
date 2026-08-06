@@ -808,8 +808,7 @@ public partial class DesktopBoxWindow : Window
             e.Effects = acceptsDrop ? DragDropEffects.Move : DragDropEffects.None;
             if (showPreview)
             {
-                var slot = GetDropSlot(e, payload);
-                ViewModel.ShowDragPreview(slot.Column, slot.Row);
+                ShowDropPreview(e, payload);
             }
         }
         else
@@ -820,8 +819,7 @@ public partial class DesktopBoxWindow : Window
             e.Effects = acceptsDrop ? dropEffect : DragDropEffects.None;
             if (showPreview)
             {
-                var slot = GetDropSlot(e);
-                ViewModel.ShowDragPreview(slot.Column, slot.Row);
+                ShowDropPreview(e, null);
             }
         }
 
@@ -1037,6 +1035,14 @@ public partial class DesktopBoxWindow : Window
             return ViewModel.GetListDropSlot(movingItemId);
         }
 
+        if (ViewModel.IsDrawerCollapsed)
+        {
+            // The collapsed drawer cover is not the item grid (the IconList is hidden and
+            // has zero size), so pointer coordinates cannot select a grid cell. Append
+            // after the last item, the same fallback the mapping list view uses.
+            return ViewModel.GetListDropSlot(movingItemId);
+        }
+
         var itemList = ActiveItemsList;
         var point = e.GetPosition(itemList);
         var padding = itemList.Padding;
@@ -1047,6 +1053,70 @@ public partial class DesktopBoxWindow : Window
             Math.Max(0, itemList.ActualHeight - padding.Top - padding.Bottom));
 
         return ViewModel.GetAvailableDropSlot(rawSlot.Column, rawSlot.Row, movingItemId);
+    }
+
+    private void ShowDropPreview(DragEventArgs e, DesktopBoxDragPayload? payload)
+    {
+        if (ViewModel.IsDrawerCollapsed)
+        {
+            var coverMovingItemId = payload?.SourceBoxId == ViewModel.BoxId ? payload.ItemId : (Guid?)null;
+            ShowDrawerCoverDropPreview(coverMovingItemId);
+            return;
+        }
+
+        var slot = GetDropSlot(e, payload);
+        ViewModel.ShowDragPreview(slot.Column, slot.Row);
+    }
+
+    private void ShowDrawerCoverDropPreview(Guid? movingItemId)
+    {
+        // Dropped items append after the last item (see GetDropSlot), so the preview
+        // frame marks the exact cover cell the item will occupy -- the same
+        // "frame == landing spot" contract the normal grid boxes have.
+        var insertIndex = ViewModel.Items.Count(item => movingItemId is null || item.Id != movingItemId.Value);
+        if (insertIndex >= ViewModel.DrawerCoverCapacity
+            || DrawerCoverItems.ActualWidth <= 0
+            || DrawerCoverItems.ActualHeight <= 0)
+        {
+            // The item lands in the overflow popup (or the cover is not measured yet):
+            // there is no cover cell to point at, keep just the box highlight.
+            ViewModel.HideDragPreview();
+            return;
+        }
+
+        var cellRect = CalculateCoverCellRect(
+            insertIndex,
+            ViewModel.DrawerCoverColumns,
+            ViewModel.DrawerCoverRows,
+            DrawerCoverItems.ActualWidth,
+            DrawerCoverItems.ActualHeight,
+            ViewModel.LayoutSettings.ItemSpacing);
+        var origin = DrawerCoverItems.TranslatePoint(
+            new Point(cellRect.Left, cellRect.Top),
+            DragPreviewCanvas);
+        ViewModel.ShowDragPreviewAt(origin.X, origin.Y, cellRect.Width, cellRect.Height);
+    }
+
+    internal static Rect CalculateCoverCellRect(
+        int cellIndex,
+        int columns,
+        int rows,
+        double surfaceWidth,
+        double surfaceHeight,
+        double inset)
+    {
+        var safeColumns = Math.Max(1, columns);
+        var safeRows = Math.Max(1, rows);
+        var cellWidth = surfaceWidth / safeColumns;
+        var cellHeight = surfaceHeight / safeRows;
+        var safeIndex = Math.Max(0, cellIndex);
+        var cellColumn = safeIndex % safeColumns;
+        var cellRow = safeIndex / safeColumns;
+        return new Rect(
+            (cellColumn * cellWidth) + inset,
+            (cellRow * cellHeight) + inset,
+            Math.Max(1, cellWidth - (inset * 2)),
+            Math.Max(1, cellHeight - (inset * 2)));
     }
 
     private void SelectItem(Guid itemId)

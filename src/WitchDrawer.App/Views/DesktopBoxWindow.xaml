@@ -1065,7 +1065,8 @@
                             </Style.Triggers>
                         </Style>
                     </Grid.Style>
-                    <ItemsControl ItemsSource="{Binding DrawerCoverTiles}">
+                    <ItemsControl x:Name="DrawerCoverItems"
+                                  ItemsSource="{Binding DrawerCoverTiles}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <UniformGrid Columns="{Binding DataContext.DrawerCoverColumns, RelativeSource={RelativeSource AncestorType=Window}}"
@@ -1210,16 +1211,29 @@
                 </Grid>
             </Grid>
 
-            <Canvas Grid.Row="1"
+            <Canvas x:Name="DragPreviewCanvas"
+                    Grid.Row="1"
                     Panel.ZIndex="2"
                     Margin="8,2,8,8"
                     IsHitTestVisible="False"
                     ClipToBounds="False"
                     HorizontalAlignment="Left"
                     VerticalAlignment="Top"
-                    Width="{Binding GridCanvasWidth}"
-                    Height="{Binding GridCanvasHeight}"
                     Visibility="{Binding IsDragPreviewVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Canvas.Style>
+                    <Style TargetType="Canvas">
+                        <Setter Property="Width" Value="{Binding GridCanvasWidth}" />
+                        <Setter Property="Height" Value="{Binding GridCanvasHeight}" />
+                        <Style.Triggers>
+                            <!-- Collapsed drawer: the frame is positioned over a cover cell;
+                                 the canvas itself must not grow the SizeToContent window. -->
+                            <DataTrigger Binding="{Binding IsDrawerCollapsed}" Value="True">
+                                <Setter Property="Width" Value="0" />
+                                <Setter Property="Height" Value="0" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Canvas.Style>
                 <Rectangle Canvas.Left="{Binding DragPreviewLeft}"
                            Canvas.Top="{Binding DragPreviewTop}"
                            Width="{Binding DragPreviewWidth}"

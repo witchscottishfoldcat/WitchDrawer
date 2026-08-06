@@ -42,6 +42,8 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private bool _isDragPreviewVisible;
     private double _dragPreviewLeft;
     private double _dragPreviewTop;
+    private double? _dragPreviewWidthOverride;
+    private double? _dragPreviewHeightOverride;
     private int _previewColumn;
     private int _previewRow;
     private string _statusText = "拖入文件";
@@ -250,6 +252,11 @@ public sealed class DesktopBoxViewModel : ObservableObject
         bool isDrawerCollapsed) =>
         !isTodoBox && isEmpty && !isDrawerCollapsed;
 
+    internal static bool ShouldShowGridDragPreview(
+        bool isMappingListMode,
+        bool isDrawerCollapsed) =>
+        !isMappingListMode && !isDrawerCollapsed;
+
     internal static bool ShouldShowHeader(
         bool isDrawerBox,
         bool isDrawerExpanded,
@@ -324,9 +331,11 @@ public sealed class DesktopBoxViewModel : ObservableObject
         private set => SetProperty(ref _dragPreviewTop, value);
     }
 
-    public double DragPreviewWidth => Math.Max(1, LayoutSettings.ItemSlotWidth - (LayoutSettings.ItemSpacing * 2));
+    public double DragPreviewWidth => _dragPreviewWidthOverride
+        ?? Math.Max(1, LayoutSettings.ItemSlotWidth - (LayoutSettings.ItemSpacing * 2));
 
-    public double DragPreviewHeight => Math.Max(1, LayoutSettings.ItemSlotHeight - (LayoutSettings.ItemSpacing * 2));
+    public double DragPreviewHeight => _dragPreviewHeightOverride
+        ?? Math.Max(1, LayoutSettings.ItemSlotHeight - (LayoutSettings.ItemSpacing * 2));
 
     public bool IsBusy
     {
@@ -430,14 +439,20 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     public void ShowDragPreview(int column, int row)
     {
-        if (IsMappingListMode)
+        if (!ShouldShowGridDragPreview(IsMappingListMode, IsDrawerCollapsed))
         {
+            // A collapsed drawer shows the cover tiles, not the item grid, so a positional
+            // frame cannot line up with what the user sees. Growing the preview canvas
+            // here would also resize the SizeToContent window under the stationary
+            // cursor, feeding back into the slot calculation and oscillating.
             IsDragPreviewVisible = false;
             return;
         }
 
         _previewColumn = column;
         _previewRow = row;
+        _dragPreviewWidthOverride = null;
+        _dragPreviewHeightOverride = null;
         IsDragPreviewVisible = true;
         UpdateGridCanvasSize();
 
@@ -450,7 +465,25 @@ public sealed class DesktopBoxViewModel : ObservableObject
         IsDragPreviewVisible = false;
         _previewColumn = 0;
         _previewRow = 0;
+        _dragPreviewWidthOverride = null;
+        _dragPreviewHeightOverride = null;
         UpdateGridCanvasSize();
+    }
+
+    // Free-form preview used by the collapsed drawer cover: the frame is placed
+    // directly over the cover cell the dropped item will occupy, in the preview
+    // canvas' coordinate space, instead of using item-grid slot math.
+    public void ShowDragPreviewAt(double left, double top, double width, double height)
+    {
+        _previewColumn = 0;
+        _previewRow = 0;
+        _dragPreviewWidthOverride = Math.Max(1, width);
+        _dragPreviewHeightOverride = Math.Max(1, height);
+        DragPreviewLeft = left;
+        DragPreviewTop = top;
+        IsDragPreviewVisible = true;
+        OnPropertyChanged(nameof(DragPreviewWidth));
+        OnPropertyChanged(nameof(DragPreviewHeight));
     }
 
     public (int Column, int Row) GetAvailableDropSlot(int targetColumn, int targetRow, Guid? movingItemId = null)

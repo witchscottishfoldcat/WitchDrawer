@@ -1,4 +1,5 @@
 using System.Windows.Media;
+using WitchDrawer.App.ViewModels;
 using WitchDrawer.App.Views;
 
 namespace WitchDrawer.App.Tests;
@@ -68,5 +69,47 @@ public sealed class DesktopBoxWindowDragTests
         Assert.True(DesktopBoxWindow.IsSameOrVisualDescendant(root, root));
         Assert.True(DesktopBoxWindow.IsSameOrVisualDescendant(root, child));
         Assert.False(DesktopBoxWindow.IsSameOrVisualDescendant(root, new DrawingVisual()));
+    }
+
+    [Theory]
+    [InlineData(false, false, true)]   // normal grid box: positional frame
+    [InlineData(true, false, false)]   // mapping list view: no grid to point at
+    [InlineData(false, true, false)]   // collapsed drawer: cover tiles are not the item grid
+    [InlineData(true, true, false)]
+    public void GridDragPreview_OnlyShowsForVisibleItemGrid(
+        bool isMappingListMode,
+        bool isDrawerCollapsed,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            DesktopBoxViewModel.ShouldShowGridDragPreview(isMappingListMode, isDrawerCollapsed));
+    }
+
+    [Theory]
+    [InlineData(0, 0.5, 0.5)]      // first cell starts at the inset
+    [InlineData(1, 37.5, 0.5)]     // second column starts one cell over
+    [InlineData(3, 0.5, 30.5)]     // second row starts one cell down
+    public void CoverCellRect_PlacesFrameOnTheAppendedCoverCell(
+        int cellIndex,
+        double expectedLeft,
+        double expectedTop)
+    {
+        // 3 columns x 2 rows over a 111 x 60 cover surface with 0.5 inset.
+        var rect = DesktopBoxWindow.CalculateCoverCellRect(cellIndex, 3, 2, 111, 60, 0.5);
+
+        Assert.Equal(expectedLeft, rect.Left);
+        Assert.Equal(expectedTop, rect.Top);
+        Assert.Equal(36, rect.Width);
+        Assert.Equal(29, rect.Height);
+    }
+
+    [Fact]
+    public void CoverCellRect_ClampsDegenerateInput()
+    {
+        var rect = DesktopBoxWindow.CalculateCoverCellRect(-1, 0, 0, 0, 0, 10);
+
+        Assert.Equal(1, rect.Width);
+        Assert.Equal(1, rect.Height);
     }
 }
