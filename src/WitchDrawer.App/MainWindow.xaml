@@ -2355,6 +2355,44 @@
                                 </Grid>
                             </Border>
 
+                            <!-- Data Storage Card -->
+                            <Border Background="{DynamicResource PanelBrush}"
+                                    BorderBrush="{DynamicResource BorderBrushSoft}"
+                                    BorderThickness="1"
+                                    CornerRadius="12"
+                                    Padding="10"
+                                    Margin="0,0,0,6">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="数据存储位置"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="13"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <TextBlock Text="{Binding CurrentDataDirectory}"
+                                                   Margin="0,2,0,0"
+                                                   FontSize="11.5"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource TextMutedBrush}" />
+                                        <TextBlock Text="迁移会把数据库与盒内文件复制到新文件夹，重启后生效；原目录会保留作为备份。"
+                                                   Margin="0,2,0,0"
+                                                   FontSize="10.5"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource TextMutedBrush}" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1"
+                                            Content="更改位置…"
+                                            Click="OnChangeDataDirectoryClick"
+                                            Margin="12,0,0,0"
+                                            Height="28"
+                                            Padding="12,0"
+                                            VerticalAlignment="Center" />
+                                </Grid>
+                            </Border>
+
                             <!-- Startup Card -->
                                 <Border Background="{DynamicResource PanelBrush}"
                                     BorderBrush="{DynamicResource BorderBrushSoft}"

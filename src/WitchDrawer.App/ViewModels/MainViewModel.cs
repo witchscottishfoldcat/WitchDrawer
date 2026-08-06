@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using WitchDrawer.App.Infrastructure;
 using WitchDrawer.App.Messages;
+using WitchDrawer.Core;
 using WitchDrawer.Core.Abstractions;
 using WitchDrawer.Core.Logging;
 using WitchDrawer.Core.Models;
@@ -27,6 +28,8 @@ public sealed class MainViewModel : ObservableObject
     private readonly UpdateService _updateService;
     private readonly BoxVisualStyleStore _boxVisualStyleStore;
     private readonly BoxPositionLockStateStore _boxPositionLockStateStore;
+    private readonly AppPaths _appPaths;
+    private readonly DataStorageMigrationService _dataStorageMigrationService;
     private BoxViewModel? _selectedBox;
     private CancellationTokenSource? _itemsLoadCts;
     private int _itemsLoadVersion;
@@ -53,7 +56,9 @@ public sealed class MainViewModel : ObservableObject
         QuickPanelViewModel quickPanelViewModel,
         UpdateService updateService,
         BoxVisualStyleStore boxVisualStyleStore,
-        BoxPositionLockStateStore boxPositionLockStateStore)
+        BoxPositionLockStateStore boxPositionLockStateStore,
+        AppPaths appPaths,
+        DataStorageMigrationService dataStorageMigrationService)
     {
         _drawerService = drawerService;
         _todoService = todoService;
@@ -63,6 +68,8 @@ public sealed class MainViewModel : ObservableObject
         _updateService = updateService;
         _boxVisualStyleStore = boxVisualStyleStore;
         _boxPositionLockStateStore = boxPositionLockStateStore;
+        _appPaths = appPaths;
+        _dataStorageMigrationService = dataStorageMigrationService;
         TodoBoxDetail = new TodoBoxDetailViewModel(todoService, logger);
         TodoBoxDetail.ItemsChanged += OnTodoBoxDetailItemsChanged;
 
@@ -300,6 +307,37 @@ public sealed class MainViewModel : ObservableObject
         {
             var version = GetCurrentVersion();
             return $"v{version.Major}.{version.Minor}.{version.Build}";
+        }
+    }
+
+    /// <summary>
+    /// 当前生效的数据根目录（数据库与收纳盒文件所在位置）。
+    /// </summary>
+    public string CurrentDataDirectory => _appPaths.RootDirectory;
+
+    /// <summary>
+    /// 将数据目录整体迁移到新文件夹。成功后需重启应用才会切换到新目录。
+    /// </summary>
+    public async Task MigrateDataDirectoryAsync(string targetDirectory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(targetDirectory);
+        IsBusy = true;
+        StatusText = "正在迁移数据目录…";
+        try
+        {
+            var newPaths = await _dataStorageMigrationService.MigrateAsync(targetDirectory);
+            StatusText = "数据已迁移，重启后生效";
+            _logger.Info($"Data directory migrated to {newPaths.RootDirectory}. Restart required.");
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Data directory migration failed.");
+            StatusText = "数据目录迁移失败";
+            throw;
+        }
+        finally
+        {
+            IsBusy = false;
         }
     }
 

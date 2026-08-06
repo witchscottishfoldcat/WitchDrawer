@@ -121,7 +121,13 @@ public sealed class TodoBoxDetailViewModelTests
             quickPanel,
             new UpdateService(logger),
             visualStyleStore,
-            new BoxPositionLockStateStore(workspace.DrawerService, logger));
+            new BoxPositionLockStateStore(workspace.DrawerService, logger),
+            workspace.Paths,
+            new DataStorageMigrationService(
+                workspace.Paths,
+                workspace.Repository,
+                new StorageLocationStore(
+                    Path.Combine(workspace.Root, "storage-location.json"))));
         await viewModel.LoadAsync();
 
         viewModel.SelectedBox = Assert.Single(
@@ -150,17 +156,25 @@ public sealed class TodoBoxDetailViewModelTests
     {
         private TodoWorkspace(
             string root,
+            AppPaths paths,
+            DrawerRepository repository,
             DrawerService drawerService,
             TodoService todoService,
             Box todoBox)
         {
             Root = root;
+            Paths = paths;
+            Repository = repository;
             DrawerService = drawerService;
             TodoService = todoService;
             TodoBox = todoBox;
         }
 
         public string Root { get; }
+
+        public AppPaths Paths { get; }
+
+        public DrawerRepository Repository { get; }
 
         public DrawerService DrawerService { get; }
 
@@ -184,6 +198,8 @@ public sealed class TodoBoxDetailViewModelTests
 
             return new TodoWorkspace(
                 root,
+                paths,
+                repository,
                 drawerService,
                 new TodoService(repository),
                 todoBox);

@@ -102,6 +102,17 @@ public sealed class DrawerRepository
         }
     }
 
+    /// <summary>
+    /// 将 WAL 日志完整回写主数据库文件并截断旁路文件。
+    /// 数据目录迁移前调用，保证 witchdrawer.db 单文件即为完整数据。
+    /// </summary>
+    public async Task CheckpointAsync(CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await ExecuteNonQueryAsync(connection, "PRAGMA wal_checkpoint(TRUNCATE);", cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Box>> GetBoxesAsync(CancellationToken cancellationToken = default)
     {
         await using var connection = CreateConnection();

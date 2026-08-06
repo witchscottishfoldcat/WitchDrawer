@@ -34,7 +34,12 @@ public sealed class DrawerBoxCreationTests
                 quickPanel,
                 new UpdateService(logger),
                 visualStyleStore,
-                new BoxPositionLockStateStore(drawerService, logger));
+                new BoxPositionLockStateStore(drawerService, logger),
+                paths,
+                new DataStorageMigrationService(
+                    paths,
+                    repository,
+                    new StorageLocationStore(Path.Combine(root, "storage-location.json"))));
             var existingIds = (await drawerService.GetBoxesAsync()).Select(box => box.Id).ToHashSet();
 
             await viewModel.CreateDrawerBoxCommand.ExecuteAsync(null);

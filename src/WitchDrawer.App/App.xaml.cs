@@ -105,6 +105,9 @@ public partial class App : Application
             var boxVisualStyleStore = new BoxVisualStyleStore(drawerService, logger);
             var boxPositionLockStateStore =
                 new BoxPositionLockStateStore(drawerService, logger);
+            var storageLocationStore = StorageLocationStore.ForCurrentUser();
+            var dataStorageMigrationService =
+                new DataStorageMigrationService(paths, repository, storageLocationStore);
 
             logger.Info("Data directory: " + paths.RootDirectory);
             logger.Info("Database path: " + paths.DatabasePath);
@@ -128,7 +131,9 @@ public partial class App : Application
                 quickPanelViewModel,
                 updateService,
                 boxVisualStyleStore,
-                boxPositionLockStateStore);
+                boxPositionLockStateStore,
+                paths,
+                dataStorageMigrationService);
             _desktopBoxManager = new DesktopBoxManager(
                 drawerService,
                 todoService,

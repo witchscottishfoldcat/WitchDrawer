@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.ComponentModel;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -191,6 +192,86 @@ public partial class MainWindow : Window
         QuickPanelHotKeyStatusText.Text = "需包含 Ctrl、Alt 或 Win；Esc 取消";
         QuickPanelHotKeyButton.Focus();
         Keyboard.Focus(QuickPanelHotKeyButton);
+    }
+
+    private async void OnChangeDataDirectoryClick(object sender, RoutedEventArgs e)
+    {
+        var viewModel = ViewModel;
+        var dialog = new Microsoft.Win32.OpenFolderDialog
+        {
+            Title = "选择新的数据存储文件夹（请使用空文件夹）"
+        };
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        var targetDirectory = dialog.FolderName;
+        if (string.Equals(
+                Path.GetFullPath(targetDirectory),
+                Path.GetFullPath(viewModel.CurrentDataDirectory),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            MessageBox.Show(
+                this,
+                "所选文件夹就是当前数据目录，无需迁移。",
+                "数据存储位置",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        var confirm = MessageBox.Show(
+            this,
+            $"将把数据从\n{viewModel.CurrentDataDirectory}\n\n迁移到\n{targetDirectory}\n\n迁移完成后需要重启应用才会使用新目录，是否继续？",
+            "迁移数据存储位置",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Question);
+        if (confirm != MessageBoxResult.OK)
+        {
+            return;
+        }
+
+        try
+        {
+            await viewModel.MigrateDataDirectoryAsync(targetDirectory);
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Data directory migration failed.");
+            MessageBox.Show(
+                this,
+                "数据迁移失败：\n" + exception.Message,
+                "数据存储位置",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            return;
+        }
+
+        var restart = MessageBox.Show(
+            this,
+            "数据已迁移完成。是否立即重启 WitchDrawer 以使用新目录？\n（原目录会保留作为备份，可稍后手动删除）",
+            "迁移完成",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+        if (restart != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        var processPath = Environment.ProcessPath;
+        if (!string.IsNullOrWhiteSpace(processPath))
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = processPath,
+                UseShellExecute = true,
+                WorkingDirectory = AppContext.BaseDirectory
+            });
+        }
+
+        _forceClosing = true;
+        Application.Current.Shutdown();
     }
 
     private async void OnQuickPanelHotKeyPreviewKeyDown(object sender, KeyEventArgs e)

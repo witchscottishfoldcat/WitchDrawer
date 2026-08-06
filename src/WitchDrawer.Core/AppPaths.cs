@@ -1,3 +1,5 @@
+using WitchDrawer.Core.Storage;
+
 namespace WitchDrawer.Core;
 
 /// <summary>
@@ -46,7 +48,8 @@ public sealed record AppPaths(string RootDirectory)
     /// <summary>
     /// 解析当前用户应使用的数据路径：
     /// 1. 环境变量 WITCHDRAWER_DATA_DIR（若设置且有效）
-    /// 2. %LocalAppData%\WitchDrawer
+    /// 2. 设置页保存的自定义数据目录（storage-location.json）
+    /// 3. %LocalAppData%\WitchDrawer
     /// 解析后会校验目录可写；不可写时抛出带路径上下文的异常。
     /// </summary>
     public static AppPaths ForCurrentUser()
@@ -57,6 +60,23 @@ public sealed record AppPaths(string RootDirectory)
             var configuredPaths = new AppPaths(Path.GetFullPath(configuredRoot.Trim()));
             configuredPaths.EnsureCreatedAndWritable();
             return configuredPaths;
+        }
+
+        string? settingsConfiguredRoot = null;
+        try
+        {
+            settingsConfiguredRoot = StorageLocationStore.ForCurrentUser().LoadConfiguredDirectory();
+        }
+        catch
+        {
+            // 引导配置不可读时回退默认目录，避免应用无法启动。
+        }
+
+        if (!string.IsNullOrWhiteSpace(settingsConfiguredRoot))
+        {
+            var settingsPaths = new AppPaths(settingsConfiguredRoot);
+            settingsPaths.EnsureCreatedAndWritable();
+            return settingsPaths;
         }
 
         var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
