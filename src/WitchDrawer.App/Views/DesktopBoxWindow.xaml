@@ -226,7 +226,7 @@
             </Style>
         </Border.Style>
         
-        <Grid MouseLeftButtonDown="OnSurfaceMouseLeftButtonDown">
+        <Grid Background="Transparent" MouseLeftButtonDown="OnSurfaceMouseLeftButtonDown">
             <Grid.RowDefinitions>
                 <RowDefinition Height="{Binding HeaderRowHeight}" />
                 <RowDefinition Height="*" />
