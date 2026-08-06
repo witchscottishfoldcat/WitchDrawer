@@ -34,6 +34,32 @@ public partial class App : Application
         base.OnStartup(e);
 
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
+        if (ProcessElevation.RequiresUnelevatedRelaunch())
+        {
+            var executablePath = Environment.ProcessPath;
+            var nativeErrorCode = 0;
+            if (!string.IsNullOrWhiteSpace(executablePath)
+                && ProcessElevation.TryRelaunchCurrentProcessUnelevated(
+                    executablePath,
+                    e.Args,
+                    AppContext.BaseDirectory,
+                    out nativeErrorCode))
+            {
+                Shutdown(0);
+                return;
+            }
+
+            MessageBox.Show(
+                $"WitchDrawer 当前以管理员身份运行，Windows 会阻止桌面文件拖入盒子。\n\n"
+                + $"自动切换到普通权限失败（错误码 {nativeErrorCode}）。请退出后直接双击启动，不要选择“以管理员身份运行”。",
+                "WitchDrawer 无法接收桌面拖放",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            Shutdown(-1);
+            return;
+        }
+
         var silentStart = StartupLaunchPolicy.IsSilent(e.Args);
 
         _singleInstanceMutex = new Mutex(true, SingleInstanceMutexName, out var isFirstInstance);
