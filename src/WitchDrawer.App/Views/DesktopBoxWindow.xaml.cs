@@ -396,7 +396,10 @@ public partial class DesktopBoxWindow : Window
             return;
         }
 
-        var current = e.GetPosition(this);
+        IInputElement coordinateSpace = ReferenceEquals(sender, DrawerSecondaryPopupRoot)
+            ? DrawerSecondaryPopupRoot
+            : this;
+        var current = e.GetPosition(coordinateSpace);
         if (Math.Abs(current.X - _dragStartPoint.Value.X) < SystemParameters.MinimumHorizontalDragDistance
             && Math.Abs(current.Y - _dragStartPoint.Value.Y) < SystemParameters.MinimumVerticalDragDistance)
         {
@@ -447,13 +450,8 @@ public partial class DesktopBoxWindow : Window
         }
 
         _suppressDrawerItemClick = false;
-        _dragStartPoint = e.GetPosition(this);
+        _dragStartPoint = e.GetPosition(DrawerSecondaryPopupRoot);
         _dragStartItem = item;
-    }
-
-    private void OnDrawerSecondaryIconMouseMove(object sender, MouseEventArgs e)
-    {
-        OnDrawerIconMouseMove(sender, e);
     }
 
     private async void OnDrawerSecondaryItemClick(object sender, RoutedEventArgs e)
@@ -1153,12 +1151,26 @@ public partial class DesktopBoxWindow : Window
         drawerItem.IsDragSource = true;
         dragSource.QueryContinueDrag += queryContinueDrag;
         dragSource.GiveFeedback += giveFeedback;
+
+        // The secondary drawer popup is StaysOpen="False", so the OLE drag's mouse capture
+        // would close it mid-drag and detach the drag source (killing GiveFeedback /
+        // QueryContinueDrag and the cursor override). Keep it open for the drag's duration.
+        var keepDrawerPopupOpen = DrawerSecondaryPopup.IsOpen
+            && dragSource is Visual dragVisual
+            && IsSameOrVisualDescendant(DrawerSecondaryPopupRoot, dragVisual);
+        if (keepDrawerPopupOpen)
+        {
+            DrawerSecondaryPopup.StaysOpen = true;
+        }
+
         try
         {
             DragDrop.DoDragDrop(dragSource, data, DragDropEffects.Move);
             var internalDropSucceeded = payload.WasDroppedInsideWitchDrawer
                 || ConsumeDroppedInsideWitchDrawer(payload);
-            var cursorOverApp = IsCursorOverWitchDrawerWindow();
+            var cursorOverWindow = IsCursorOverWitchDrawerWindow();
+            var cursorOverPopup = IsCursorOverOpenDrawerPopup();
+            var cursorOverApp = cursorOverWindow || cursorOverPopup;
 
             if (internalDropSucceeded)
             {
@@ -1189,6 +1201,10 @@ public partial class DesktopBoxWindow : Window
         }
         finally
         {
+            if (keepDrawerPopupOpen)
+            {
+                DrawerSecondaryPopup.StaysOpen = false;
+            }
             dragSource.QueryContinueDrag -= queryContinueDrag;
             dragSource.GiveFeedback -= giveFeedback;
             drawerItem.IsDragSource = false;
@@ -1318,6 +1334,47 @@ public partial class DesktopBoxWindow : Window
     [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
     private static extern bool GetCursorPos(out NativePoint lpPoint);
 
+    private bool IsCursorOverOpenDrawerPopup()
+    {
+        // Popups are not part of Application.Current.Windows, so the window hit-test above
+        // misses releases over the secondary drawer popup. Treat those as inside the app;
+        // otherwise a short drag ending on the popup would wrongly move the item to the desktop.
+        if (!DrawerSecondaryPopup.IsOpen
+            || !DrawerSecondaryPopupRoot.IsVisible
+            || !GetCursorPos(out var cursor))
+        {
+            return false;
+        }
+
+        try
+        {
+            var topLeft = DrawerSecondaryPopupRoot.PointToScreen(new Point(0, 0));
+            var bottomRight = DrawerSecondaryPopupRoot.PointToScreen(
+                new Point(DrawerSecondaryPopupRoot.ActualWidth, DrawerSecondaryPopupRoot.ActualHeight));
+            return IsScreenPointInside(cursor.X, cursor.Y, topLeft, bottomRight);
+        }
+        catch (InvalidOperationException)
+        {
+            // Popup content has no presentation source yet; skip it.
+            return false;
+        }
+    }
+
+    internal static bool IsScreenPointInside(int x, int y, Point topLeft, Point bottomRight)
+    {
+        return x >= topLeft.X
+            && x <= bottomRight.X
+            && y >= topLeft.Y
+            && y <= bottomRight.Y;
+    }
+
+    internal static bool IsSameOrVisualDescendant(Visual root, Visual candidate)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+        ArgumentNullException.ThrowIfNull(candidate);
+        return ReferenceEquals(root, candidate) || root.IsAncestorOf(candidate);
+    }
+
     private static bool IsCursorOverWitchDrawerWindow()
     {
         // Mouse.GetPosition is stale right after DoDragDrop; use the real cursor screen
@@ -1338,10 +1395,7 @@ public partial class DesktopBoxWindow : Window
             {
                 var topLeft = window.PointToScreen(new Point(0, 0));
                 var bottomRight = window.PointToScreen(new Point(window.ActualWidth, window.ActualHeight));
-                if (cursor.X >= topLeft.X
-                    && cursor.X <= bottomRight.X
-                    && cursor.Y >= topLeft.Y
-                    && cursor.Y <= bottomRight.Y)
+                if (IsScreenPointInside(cursor.X, cursor.Y, topLeft, bottomRight))
                 {
                     return true;
                 }

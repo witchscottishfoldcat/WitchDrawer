@@ -925,6 +925,7 @@
                 <Border x:Name="DrawerSecondaryPopupRoot"
                         Width="{Binding DrawerSecondaryPanelWidth}"
                         Height="{Binding DrawerSecondaryPanelHeight}"
+                        PreviewMouseMove="OnDrawerIconMouseMove"
                         Opacity="0"
                         Background="Transparent"
                         BorderBrush="{DynamicResource GlassStrokeBrush}"
@@ -1003,8 +1004,7 @@
                                                 Margin="0"
                                                 ToolTip="{Binding PathLabel}"
                                                 Click="OnDrawerSecondaryItemClick"
-                                                PreviewMouseLeftButtonDown="OnDrawerSecondaryIconPreviewMouseLeftButtonDown"
-                                                MouseMove="OnDrawerSecondaryIconMouseMove">
+                                                PreviewMouseLeftButtonDown="OnDrawerSecondaryIconPreviewMouseLeftButtonDown">
                                             <Border Width="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
                                                     Height="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
                                                     CornerRadius="{Binding DataContext.LayoutSettings.IconCornerRadius, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
@@ -1041,6 +1041,7 @@
                   Background="Transparent"
                   Width="{Binding DrawerCoverWidth}"
                   Height="{Binding DrawerContentHeight}"
+                  PreviewMouseMove="OnDrawerIconMouseMove"
                   PreviewMouseLeftButtonDown="OnDrawerSurfacePreviewMouseLeftButtonDown"
                   Visibility="{Binding IsDrawerCollapsed, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <Thumb Cursor="SizeAll"
@@ -1077,7 +1078,6 @@
                                     <Button Style="{StaticResource DrawerTileButtonStyle}"
                                             Click="OnDrawerDirectItemClick"
                                             PreviewMouseLeftButtonDown="OnDrawerIconPreviewMouseLeftButtonDown"
-                                            MouseMove="OnDrawerIconMouseMove"
                                             ToolTip="{Binding Item.PathLabel}"
                                             Visibility="{Binding HasItem, Converter={StaticResource BooleanToVisibilityConverter}}">
                                         <Border Width="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType=Window}}"
