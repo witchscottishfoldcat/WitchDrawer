@@ -84,4 +84,52 @@ public sealed class DrawerPopupPlacementSelectorTests
 
         Assert.Equal(DrawerPopupPlacement.Center, placement);
     }
+
+    [Fact]
+    public void Select_SkipsPlacementThatWouldSpillOffWorkArea()
+    {
+        // Right candidate runs 208..288, but the work area ends at x=250,
+        // so Right must be skipped in favor of an in-bounds placement.
+        var placement = DrawerPopupPlacementSelector.Select(
+            AnchorBounds,
+            PopupSize,
+            [],
+            gap: 8,
+            collisionPadding: 4,
+            workArea: new Rect(0, 0, 250, 400));
+
+        Assert.Equal(DrawerPopupPlacement.Bottom, placement);
+    }
+
+    [Fact]
+    public void Select_PrefersBottomWhenRightIsTheOnlyInBoundsSide()
+    {
+        // Bottom would spill past the work-area bottom edge, Right is blocked by
+        // another box, so the selector should keep looking rather than flip back.
+        var placement = DrawerPopupPlacementSelector.Select(
+            AnchorBounds,
+            PopupSize,
+            [new Rect(204, 100, 90, 60)],
+            gap: 8,
+            collisionPadding: 4,
+            workArea: new Rect(0, 0, 1000, 200));
+
+        // Bottom candidate runs 168..218 > work area bottom 200, so it is skipped;
+        // Right is blocked; Top candidate runs 42..92 which fits -> Top.
+        Assert.Equal(DrawerPopupPlacement.Top, placement);
+    }
+
+    [Fact]
+    public void Select_IgnoresWorkAreaWhenCandidateFitsInside()
+    {
+        var placement = DrawerPopupPlacementSelector.Select(
+            AnchorBounds,
+            PopupSize,
+            [],
+            gap: 8,
+            collisionPadding: 4,
+            workArea: new Rect(0, 0, 1000, 1000));
+
+        Assert.Equal(DrawerPopupPlacement.Bottom, placement);
+    }
 }

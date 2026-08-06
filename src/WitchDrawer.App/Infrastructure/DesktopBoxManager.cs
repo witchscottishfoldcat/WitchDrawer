@@ -178,6 +178,8 @@ public sealed class DesktopBoxManager
                 window.SetDesktopForeground(_desktopIsForeground);
                 window.QueueSendToBottom();
             }
+
+            ResolveWindowOverlaps();
         }
         finally
         {
@@ -542,6 +544,78 @@ public sealed class DesktopBoxManager
         var offset = index * (window.DesiredSize.Width + gap);
         window.Left = Math.Max(workArea.Left + margin, Math.Min(centerX + offset, workArea.Right - window.DesiredSize.Width - margin));
         window.Top = Math.Max(workArea.Top + margin, Math.Min(centerY + topPadding * 0.5, workArea.Bottom - window.DesiredSize.Height - margin));
+    }
+
+    /// <summary>
+    /// Nudges windows apart so no two boxes overlap. Restored positions can collide
+    /// (e.g. after a resolution/monitor change clamps several boxes to the same
+    /// edge), so each window is cascaded below/right of whatever it overlaps.
+    /// </summary>
+    private void ResolveWindowOverlaps()
+    {
+        const double cascadeStep = 12;
+
+        var workArea = SystemParameters.WorkArea;
+        var placed = new List<Rect>();
+        foreach (var window in _windows.Values.Where(w => w.IsVisible))
+        {
+            if (window is not DesktopBoxWindow boxWindow)
+            {
+                continue;
+            }
+
+            var bounds = boxWindow.GetVisibleBounds();
+            if (bounds.Width <= 0 || bounds.Height <= 0)
+            {
+                continue;
+            }
+
+            var moved = true;
+            var guard = 0;
+            while (moved && guard++ < 200)
+            {
+                moved = false;
+                foreach (var other in placed)
+                {
+                    if (!bounds.IntersectsWith(other))
+                    {
+                        continue;
+                    }
+
+                    var nextLeft = bounds.Left;
+                    var nextTop = other.Bottom + cascadeStep;
+                    if (nextTop + bounds.Height > workArea.Bottom)
+                    {
+                        // No room below; wrap to the right of the blocking box and
+                        // restart from the top so the cascade stays on screen.
+                        nextLeft = other.Right + cascadeStep;
+                        nextTop = workArea.Top;
+                    }
+
+                    bounds = new Rect(nextLeft, nextTop, bounds.Width, bounds.Height);
+                    moved = true;
+                }
+            }
+
+            // Clamp back into the work area so a wrapped cascade never leaves the box
+            // hanging off the right/bottom edge.
+            var clampedLeft = Math.Max(workArea.Left, Math.Min(bounds.Left, workArea.Right - bounds.Width));
+            var clampedTop = Math.Max(workArea.Top, Math.Min(bounds.Top, workArea.Bottom - bounds.Height));
+            if (Math.Abs(clampedLeft - bounds.Left) > 0.5
+                || Math.Abs(clampedTop - bounds.Top) > 0.5)
+            {
+                bounds = new Rect(clampedLeft, clampedTop, bounds.Width, bounds.Height);
+            }
+
+            if (Math.Abs(boxWindow.Left - bounds.Left) > 0.5
+                || Math.Abs(boxWindow.Top - bounds.Top) > 0.5)
+            {
+                boxWindow.Left = bounds.Left;
+                boxWindow.Top = bounds.Top;
+            }
+
+            placed.Add(bounds);
+        }
     }
 
     private void OnWindowLocationChanged(object? sender, EventArgs e)

@@ -141,6 +141,7 @@ public partial class DesktopBoxWindow : Window
     private async void OnExpandDrawerClick(object sender, RoutedEventArgs e)
     {
         await ViewModel.ApplyDrawerItemSortAsync(ViewModel.DrawerItemSortMode);
+        PrepareDrawerSecondaryPopupForOpen();
         if (sender is UIElement centerTarget)
         {
             ConfigureDrawerSecondaryPopupPlacement(centerTarget);
@@ -151,22 +152,46 @@ public partial class DesktopBoxWindow : Window
         e.Handled = true;
     }
 
+    private void PrepareDrawerSecondaryPopupForOpen()
+    {
+        DrawerSecondaryPopupRoot.BeginAnimation(OpacityProperty, null);
+        DrawerSecondaryPopupRoot.Opacity = 0;
+        PrepareDrawerPopupScaleForPlacement(DrawerSecondaryPopupScale);
+    }
+
+    internal static void PrepareDrawerPopupScaleForPlacement(ScaleTransform scale)
+    {
+        ArgumentNullException.ThrowIfNull(scale);
+
+        // Popup creates its HWND using the child's current transformed bounds. A
+        // reduced scale here shifts the first HWND up/left; when the animation
+        // later reaches 1, the full-size content is left at that stale position.
+        // Position with a neutral transform and apply the visual scale only after
+        // the Popup has opened.
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        scale.ScaleX = 1;
+        scale.ScaleY = 1;
+    }
+
     private void ConfigureDrawerSecondaryPopupPlacement(UIElement centerTarget)
     {
         var popupSize = new Size(
             ViewModel.DrawerSecondaryPanelWidth,
             ViewModel.DrawerSecondaryPanelHeight);
+        var anchor = GetVisibleBounds();
         var occupiedBounds = Application.Current.Windows
             .OfType<DesktopBoxWindow>()
             .Where(window => window != this && window.IsVisible)
             .Select(window => window.GetVisibleBounds())
             .ToArray();
         var placement = DrawerPopupPlacementSelector.Select(
-            GetVisibleBounds(),
+            anchor,
             popupSize,
             occupiedBounds,
             DrawerPopupGap,
-            DrawerPopupCollisionPadding);
+            DrawerPopupCollisionPadding,
+            SystemParameters.WorkArea);
 
         DrawerSecondaryPopup.HorizontalOffset = 0;
         DrawerSecondaryPopup.VerticalOffset = 0;
@@ -177,34 +202,18 @@ public partial class DesktopBoxWindow : Window
             return;
         }
 
-        DrawerSecondaryPopup.PlacementTarget = WindowBorder;
-        switch (placement)
-        {
-            case DrawerPopupPlacement.Bottom:
-                DrawerSecondaryPopup.Placement = PlacementMode.Bottom;
-                DrawerSecondaryPopup.HorizontalOffset =
-                    (WindowBorder.ActualWidth - popupSize.Width) / 2;
-                DrawerSecondaryPopup.VerticalOffset = DrawerPopupGap;
-                break;
-            case DrawerPopupPlacement.Top:
-                DrawerSecondaryPopup.Placement = PlacementMode.Top;
-                DrawerSecondaryPopup.HorizontalOffset =
-                    (WindowBorder.ActualWidth - popupSize.Width) / 2;
-                DrawerSecondaryPopup.VerticalOffset = -DrawerPopupGap;
-                break;
-            case DrawerPopupPlacement.Right:
-                DrawerSecondaryPopup.Placement = PlacementMode.Right;
-                DrawerSecondaryPopup.HorizontalOffset = DrawerPopupGap;
-                DrawerSecondaryPopup.VerticalOffset =
-                    (WindowBorder.ActualHeight - popupSize.Height) / 2;
-                break;
-            case DrawerPopupPlacement.Left:
-                DrawerSecondaryPopup.Placement = PlacementMode.Left;
-                DrawerSecondaryPopup.HorizontalOffset = -DrawerPopupGap;
-                DrawerSecondaryPopup.VerticalOffset =
-                    (WindowBorder.ActualHeight - popupSize.Height) / 2;
-                break;
-        }
+        // Keep the collision-aware side selected above. Relative Popup placement
+        // can be flipped by WPF near a screen edge, potentially putting it back on
+        // top of a neighboring box.
+        var target = DrawerPopupPlacementSelector.GetCandidateBounds(
+            placement,
+            anchor,
+            popupSize,
+            DrawerPopupGap);
+        DrawerSecondaryPopup.PlacementTarget = null;
+        DrawerSecondaryPopup.Placement = PlacementMode.Absolute;
+        DrawerSecondaryPopup.HorizontalOffset = target.Left;
+        DrawerSecondaryPopup.VerticalOffset = target.Top;
     }
 
     internal Rect GetVisibleBounds()

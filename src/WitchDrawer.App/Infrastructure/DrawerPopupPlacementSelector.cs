@@ -26,7 +26,8 @@ internal static class DrawerPopupPlacementSelector
         Size popupSize,
         IReadOnlyCollection<Rect> occupiedBounds,
         double gap,
-        double collisionPadding)
+        double collisionPadding,
+        Rect? workArea = null)
     {
         if (!IsUsable(anchorBounds) || !IsUsable(popupSize))
         {
@@ -42,7 +43,14 @@ internal static class DrawerPopupPlacementSelector
                 anchorBounds,
                 popupSize,
                 normalizedGap);
-            if (!occupiedBounds.Any(bounds => Intersects(candidate, bounds, normalizedPadding)))
+            if (workArea is { } bounds && IsUsable(bounds) && !bounds.Contains(candidate))
+            {
+                // The candidate would spill off the work area; WPF would then
+                // flip the popup back over the anchor, causing an overlap.
+                continue;
+            }
+
+            if (!occupiedBounds.Any(occupied => Intersects(candidate, occupied, normalizedPadding)))
             {
                 return placement;
             }
