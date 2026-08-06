@@ -229,6 +229,72 @@ public sealed class PerformanceVirtualizationTests
     }
 
     [Fact]
+    public void CenteredUniformPanel_AlignsPartialLastRowToTheLeft()
+    {
+        Exception? threadException = null;
+        var thread = new Thread(() =>
+        {
+            Window? window = null;
+            try
+            {
+                var panelFactory = new FrameworkElementFactory(typeof(CenteredUniformPanel));
+                panelFactory.SetValue(CenteredUniformPanel.ColumnsProperty, 4);
+                panelFactory.SetValue(CenteredUniformPanel.CellSizeProperty, 25d);
+                var listBox = new ListBox
+                {
+                    Width = 100,
+                    Height = 60,
+                    BorderThickness = new Thickness(0),
+                    ItemsPanel = new ItemsPanelTemplate(panelFactory),
+                    ItemsSource = Enumerable.Range(0, 5)
+                };
+                listBox.SetValue(ScrollViewer.CanContentScrollProperty, true);
+                listBox.SetValue(ScrollViewer.HorizontalScrollBarVisibilityProperty, ScrollBarVisibility.Disabled);
+                listBox.SetValue(ScrollViewer.VerticalScrollBarVisibilityProperty, ScrollBarVisibility.Disabled);
+                listBox.SetValue(VirtualizingPanel.IsVirtualizingProperty, true);
+                window = new Window
+                {
+                    SizeToContent = SizeToContent.WidthAndHeight,
+                    Left = -10000,
+                    Top = -10000,
+                    ShowInTaskbar = false,
+                    WindowStyle = WindowStyle.None,
+                    Content = listBox
+                };
+                window.Show();
+                listBox.UpdateLayout();
+
+                var panel = FindVisualChild<CenteredUniformPanel>(listBox);
+                Assert.NotNull(panel);
+                Assert.Equal(5, VisualTreeHelper.GetChildrenCount(panel));
+                var bounds = Enumerable.Range(0, 5)
+                    .Select(index => (FrameworkElement)VisualTreeHelper.GetChild(panel, index))
+                    .Select(child => child.TransformToAncestor(panel)
+                        .TransformBounds(new Rect(child.RenderSize)))
+                    .ToArray();
+
+                Assert.Equal(bounds[0].Left, bounds[4].Left, 3);
+                Assert.True(
+                    bounds[4].Left < panel.ActualWidth / 2,
+                    $"Partial last row starts at {bounds[4].Left:0.##}, expected left alignment.");
+            }
+            catch (Exception exception)
+            {
+                threadException = exception;
+            }
+            finally
+            {
+                window?.Close();
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+
+        Assert.Null(threadException);
+    }
+
+    [Fact]
     public void DrawerItemViewModel_DelaysIconLoadingUntilAVisibleContainerRequestsIt()
     {
         var item = CreateDrawerItem("lazy.txt", 0, 0, new DesktopBoxLayoutSettings());

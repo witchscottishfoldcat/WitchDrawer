@@ -148,13 +148,8 @@ public sealed class CenteredUniformPanel : VirtualizingPanel, IScrollInfo
 
             var row = itemIndex / columns;
             var column = itemIndex % columns;
-            var firstIndexInRow = row * columns;
-            var countInRow = Math.Min(columns, itemCount - firstIndexInRow);
-            var horizontalOffset = row == (itemCount - 1) / columns
-                ? (columns - countInRow) * cellSize / 2
-                : 0;
             InternalChildren[childIndex].Arrange(new Rect(
-                gridLeft + horizontalOffset + (column * cellSize),
+                gridLeft + (column * cellSize),
                 (row * cellSize) - VerticalOffset,
                 cellSize,
                 cellSize));
