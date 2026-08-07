@@ -72,7 +72,7 @@ public sealed class MainViewModel : ObservableObject
         _dataStorageMigrationService = dataStorageMigrationService;
         TodoBoxDetail = new TodoBoxDetailViewModel(todoService, logger);
         TodoBoxDetail.ItemsChanged += OnTodoBoxDetailItemsChanged;
-        BoxSizeSettings = new BoxSizeSettingsViewModel(drawerService);
+        BoxSizeSettings = new BoxSizeSettingsViewModel(drawerService, logger);
 
         LoadCommand = new AsyncRelayCommand(LoadAsync);
         CreateNormalBoxCommand = new AsyncRelayCommand(

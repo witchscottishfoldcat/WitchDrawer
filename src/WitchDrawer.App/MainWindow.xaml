@@ -1074,8 +1074,10 @@
                                         CornerRadius="14"
                                         Padding="14,5"
                                         Margin="0">
+                                    <!-- MinHeight 固定为两行展开后的高度（38 + 6 + 32）：盒子尺寸行按盒型显隐时
+                                         卡片高度保持恒定，PrimaryPanel 垂直居中，避免下方内容区瞬间移位（页面抖动）。 -->
                                     <Grid x:Name="BoxControlsPageHost"
-                                          MinHeight="38"
+                                          MinHeight="76"
                                           ClipToBounds="True">
                                         <VisualStateManager.VisualStateGroups>
                                             <VisualStateGroup x:Name="BoxControlsPageStates">
@@ -1524,7 +1526,8 @@
                                                             Background="{DynamicResource PanelAltBrush}"
                                                             BorderBrush="{DynamicResource BorderBrushSoft}"
                                                             BorderThickness="1"
-                                                            CornerRadius="10">
+                                                            CornerRadius="10"
+                                                            ToolTip="{Binding BoxSizeSettings.ModeSummary}">
                                                         <UniformGrid Columns="2" Rows="1">
                                                             <Button Content="自适应"
                                                                     Style="{StaticResource AdaptiveSizeModeButtonStyle}"
@@ -1597,6 +1600,23 @@
                                                                 Command="{Binding BoxSizeSettings.IncreaseRowsCommand}"
                                                                 ToolTip="增加行数" />
                                                     </StackPanel>
+                                                    <!-- 下限提示：解释固定模式下 − 按钮为何被禁用 -->
+                                                    <TextBlock Text="{Binding BoxSizeSettings.ExtentHint}"
+                                                               Margin="12,0,0,0"
+                                                               VerticalAlignment="Center"
+                                                               FontSize="9.5"
+                                                               Foreground="{DynamicResource TextMutedBrush}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="{x:Type TextBlock}">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding BoxSizeSettings.IsFixedMode}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
                                                 </StackPanel>
                                             </Grid>
 
@@ -1604,6 +1624,7 @@
 
                                         <Grid x:Name="BoxVisualStyleSecondaryPanel"
                                               Opacity="0"
+                                              VerticalAlignment="Center"
                                               IsHitTestVisible="False">
                                             <Grid.RenderTransform>
                                                 <TranslateTransform x:Name="BoxVisualStyleSecondaryTransform"

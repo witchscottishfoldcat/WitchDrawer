@@ -164,10 +164,17 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
     public double DrawerSurfacePadding => DrawerSurfaceInset;
 
     /// <summary>
-    /// 视口除网格外需要预留的 chrome 宽度：IconList 两侧 Padding 各 2px，再加少量余量。
-    /// MaxWidth/MaxHeight 必须包含这部分，否则满 12 列/8 行的盒子会被上限裁掉一圈。
+    /// 视口除网格外需要预留的 chrome 宽度上限余量：在 <see cref="GridViewportFixedChromeInset"/>
+    /// 的基础上再加少量 slack。MaxWidth/MaxHeight 必须包含这部分，否则满 12 列/8 行的盒子会被上限裁掉一圈。
     /// </summary>
     public const double GridViewportChromeInset = 10;
+
+    /// <summary>
+    /// 固定模式视口的精确 chrome 尺寸，与 DesktopBoxWindow.xaml 中 IconList 的
+    /// Padding (2px × 2) 加 ListBox Border (1px × 2) 一一对应：改动 XAML 中任一数值时
+    /// 必须同步更新此处，否则固定模式最右/最下列图标会被裁掉（与自适应模式失配）。
+    /// </summary>
+    public const double GridViewportFixedChromeInset = 6;
 
     public double GridViewportMaxWidth => (ItemSlotWidth * MaximumGridViewportColumns) + GridViewportChromeInset;
 

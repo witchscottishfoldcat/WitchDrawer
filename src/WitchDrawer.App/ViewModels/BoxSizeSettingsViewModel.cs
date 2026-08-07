@@ -1,8 +1,8 @@
-using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using WitchDrawer.App.Messages;
+using WitchDrawer.Core.Logging;
 using WitchDrawer.Core.Models;
 using WitchDrawer.Core.Services;
 
@@ -16,15 +16,23 @@ namespace WitchDrawer.App.ViewModels;
 public sealed partial class BoxSizeSettingsViewModel : ObservableObject
 {
     private readonly DrawerService _drawerService;
+    private readonly IAppLogger _logger;
     private readonly Dictionary<Guid, (int Columns, int Rows)> _extents = [];
     private BoxViewModel? _selectedBox;
     private bool _isFixedMode;
     private int _fixedColumns = BoxSizeModeState.Adaptive.Columns;
     private int _fixedRows = BoxSizeModeState.Adaptive.Rows;
 
-    public BoxSizeSettingsViewModel(DrawerService drawerService)
+    // 目标盒每次切换时递增；加载完成时把 _appliedStateVersion 对齐到该版本。
+    // 用途：1) 丢弃乱序完成的过期加载结果；2) 状态未就位前拒绝写入，
+    // 防止把上一个盒子的固定尺寸套用到新选中的盒子上。
+    private int _stateVersion;
+    private int _appliedStateVersion = -1;
+
+    public BoxSizeSettingsViewModel(DrawerService drawerService, IAppLogger logger)
     {
         _drawerService = drawerService;
+        _logger = logger;
 
         WeakReferenceMessenger.Default.Register<BoxSizeSettingsViewModel, BoxGridExtentChangedMessage>(
             this,
@@ -43,15 +51,25 @@ public sealed partial class BoxSizeSettingsViewModel : ObservableObject
     public void SetTargetBox(BoxViewModel? box)
     {
         var target = box is { SupportsFixedSize: true } ? box : null;
-        if (SetProperty(ref _selectedBox, target, nameof(SelectedBox)))
+        if (!SetProperty(ref _selectedBox, target, nameof(SelectedBox)))
         {
-            OnPropertyChanged(nameof(HasSelection));
-            OnPropertyChanged(nameof(SelectedExtent));
-            OnPropertyChanged(nameof(ExtentHint));
-            OnPropertyChanged(nameof(ModeSummary));
-            NotifyBoundsChanged();
-            _ = LoadStateAsync();
+            return;
         }
+
+        var version = ++_stateVersion;
+
+        // 立即重置为自适应默认值：异步加载完成前面板绝不残留上一个盒子的状态，
+        // 既不误显示，也不会在加载间隙把旧盒子的尺寸写入新盒子。
+        IsFixedMode = false;
+        FixedColumns = BoxSizeModeState.Adaptive.Columns;
+        FixedRows = BoxSizeModeState.Adaptive.Rows;
+
+        OnPropertyChanged(nameof(HasSelection));
+        OnPropertyChanged(nameof(SelectedExtent));
+        OnPropertyChanged(nameof(ExtentHint));
+        OnPropertyChanged(nameof(ModeSummary));
+        NotifyBoundsChanged();
+        _ = LoadStateAsync(target, version);
     }
 
     public bool IsFixedMode
@@ -167,7 +185,11 @@ public sealed partial class BoxSizeSettingsViewModel : ObservableObject
 
     private async Task ApplyStateAsync(BoxSizeModeState state)
     {
-        if (_selectedBox is null || !state.FitsExtent(SelectedExtent.Columns, SelectedExtent.Rows))
+        // 捕获调用时刻的目标盒：await 期间选中可能已切换，持久化与广播必须落到原目标。
+        var box = _selectedBox;
+        if (box is null
+            || _appliedStateVersion != _stateVersion
+            || !state.FitsExtent(SelectedExtent.Columns, SelectedExtent.Rows))
         {
             return;
         }
@@ -177,27 +199,52 @@ public sealed partial class BoxSizeSettingsViewModel : ObservableObject
         FixedRows = state.Rows;
 
         OnPropertyChanged(nameof(ModeSummary));
-        await _drawerService.SetSettingAsync(
-            BoxViewModel.GetSizeModeSettingKey(_selectedBox.Id),
-            state.Serialize());
+        try
+        {
+            await _drawerService.SetSettingAsync(
+                BoxViewModel.GetSizeModeSettingKey(box.Id),
+                state.Serialize());
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to persist box size mode state.");
+            return;
+        }
+
         WeakReferenceMessenger.Default.Send(
-            new BoxSizeModeChangedMessage(_selectedBox.Id, state.IsFixed, state.Columns, state.Rows));
+            new BoxSizeModeChangedMessage(box.Id, state.IsFixed, state.Columns, state.Rows));
     }
 
-    private async Task LoadStateAsync()
+    private async Task LoadStateAsync(BoxViewModel? box, int version)
     {
-        if (_selectedBox is null)
+        if (box is null)
         {
             return;
         }
 
-        var saved = await _drawerService.GetSettingAsync(
-            BoxViewModel.GetSizeModeSettingKey(_selectedBox.Id));
+        string? saved;
+        try
+        {
+            saved = await _drawerService.GetSettingAsync(BoxViewModel.GetSizeModeSettingKey(box.Id));
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to load box size mode state.");
+            return;
+        }
+
+        // 加载期间目标已切换（或发起了更新的加载）：丢弃过期结果，防止乱序覆盖。
+        if (version != _stateVersion || _selectedBox?.Id != box.Id)
+        {
+            return;
+        }
+
         var state = BoxSizeModeState.Parse(saved);
 
         IsFixedMode = state.IsFixed;
         FixedColumns = state.Columns;
         FixedRows = state.Rows;
+        _appliedStateVersion = version;
 
         OnPropertyChanged(nameof(ModeSummary));
         OnPropertyChanged(nameof(ExtentHint));

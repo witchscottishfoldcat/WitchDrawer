@@ -76,8 +76,8 @@ public sealed class BoxSizeSettingsTests
             Assert.True(viewModel.IsFixedSize);
             var slotWidth = viewModel.LayoutSettings.ItemSlotWidth;
             var slotHeight = viewModel.LayoutSettings.ItemSlotHeight;
-            Assert.Equal((3 * slotWidth) + 6, viewModel.GridViewportWidth);
-            Assert.Equal((2 * slotHeight) + 6, viewModel.GridViewportHeight);
+            Assert.Equal((3 * slotWidth) + DesktopBoxLayoutSettings.GridViewportFixedChromeInset, viewModel.GridViewportWidth);
+            Assert.Equal((2 * slotHeight) + DesktopBoxLayoutSettings.GridViewportFixedChromeInset, viewModel.GridViewportHeight);
             Assert.Equal(3 * slotWidth, viewModel.GridCanvasWidth);
             Assert.Equal(2 * slotHeight, viewModel.GridCanvasHeight);
 
@@ -147,7 +147,7 @@ public sealed class BoxSizeSettingsTests
                 0,
                 DateTimeOffset.UtcNow,
                 DateTimeOffset.UtcNow);
-            var viewModel = new BoxSizeSettingsViewModel(drawerService);
+            var viewModel = new BoxSizeSettingsViewModel(drawerService, new RecordingLogger());
             var boxViewModel = new BoxViewModel(box, drawerService, BoxVisualStyle.Modern, false);
             var broadcasts = new List<BoxSizeModeChangedMessage>();
             WeakReferenceMessenger.Default.Register<BoxSizeModeChangedMessage>(
@@ -196,7 +196,7 @@ public sealed class BoxSizeSettingsTests
                 0,
                 DateTimeOffset.UtcNow,
                 DateTimeOffset.UtcNow);
-            var viewModel = new BoxSizeSettingsViewModel(drawerService);
+            var viewModel = new BoxSizeSettingsViewModel(drawerService, new RecordingLogger());
             var boxViewModel = new BoxViewModel(box, drawerService, BoxVisualStyle.Modern, false);
 
             viewModel.SetTargetBox(boxViewModel);
@@ -242,7 +242,7 @@ public sealed class BoxSizeSettingsTests
             var mappingBox = new Box(
                 Guid.NewGuid(), "映射", BoxType.Mapping, null, 1,
                 DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
-            var viewModel = new BoxSizeSettingsViewModel(drawerService);
+            var viewModel = new BoxSizeSettingsViewModel(drawerService, new RecordingLogger());
 
             viewModel.SetTargetBox(
                 new BoxViewModel(mappingBox, drawerService, BoxVisualStyle.Modern, false));
@@ -346,6 +346,80 @@ public sealed class BoxSizeSettingsTests
             Assert.Empty(viewModel.Items);
             Assert.True(viewModel.TryGetAvailableDropSlot(0, 0, null, out var freedSlot));
             Assert.Equal((0, 0), freedSlot);
+        }
+        finally
+        {
+            CleanupTempRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task SizeSettingsViewModel_SwitchingTargetResetsStateImmediately()
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var (drawerService, _) = await CreateDrawerServiceAsync(root);
+            var fixedBox = new Box(
+                Guid.NewGuid(), "固定盒", BoxType.Normal, Path.Combine(root, "a"), 0,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+            var freshBox = new Box(
+                Guid.NewGuid(), "新盒", BoxType.Normal, Path.Combine(root, "b"), 1,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+            await drawerService.SetSettingAsync(
+                BoxViewModel.GetSizeModeSettingKey(fixedBox.Id), "Fixed:6:3");
+            var viewModel = new BoxSizeSettingsViewModel(drawerService, new RecordingLogger());
+
+            viewModel.SetTargetBox(new BoxViewModel(fixedBox, drawerService, BoxVisualStyle.Modern, false));
+            await Task.Delay(200);
+            Assert.True(viewModel.IsFixedMode);
+            Assert.Equal(6, viewModel.FixedColumns);
+            Assert.Equal(3, viewModel.FixedRows);
+
+            // 切换目标的瞬间必须同步回到自适应默认值，绝不残留上一个盒子的状态。
+            viewModel.SetTargetBox(new BoxViewModel(freshBox, drawerService, BoxVisualStyle.Modern, false));
+
+            Assert.False(viewModel.IsFixedMode);
+            Assert.Equal(BoxSizeModeState.Adaptive.Columns, viewModel.FixedColumns);
+            Assert.Equal(BoxSizeModeState.Adaptive.Rows, viewModel.FixedRows);
+
+            // 新盒子没有已保存状态，异步加载完成后保持自适应默认值。
+            await Task.Delay(200);
+            Assert.False(viewModel.IsFixedMode);
+            Assert.Equal(BoxSizeModeState.Adaptive.Columns, viewModel.FixedColumns);
+            Assert.Equal(BoxSizeModeState.Adaptive.Rows, viewModel.FixedRows);
+        }
+        finally
+        {
+            CleanupTempRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task SizeSettingsViewModel_SwitchingTargetDuringLoadDoesNotLeakStaleState()
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var (drawerService, _) = await CreateDrawerServiceAsync(root);
+            var fixedBox = new Box(
+                Guid.NewGuid(), "固定盒", BoxType.Normal, Path.Combine(root, "a"), 0,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+            var freshBox = new Box(
+                Guid.NewGuid(), "新盒", BoxType.Normal, Path.Combine(root, "b"), 1,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+            await drawerService.SetSettingAsync(
+                BoxViewModel.GetSizeModeSettingKey(fixedBox.Id), "Fixed:6:3");
+            var viewModel = new BoxSizeSettingsViewModel(drawerService, new RecordingLogger());
+
+            // 不等固定盒的加载完成就切走：过期的加载结果不得覆盖新目标的已重置状态。
+            viewModel.SetTargetBox(new BoxViewModel(fixedBox, drawerService, BoxVisualStyle.Modern, false));
+            viewModel.SetTargetBox(new BoxViewModel(freshBox, drawerService, BoxVisualStyle.Modern, false));
+            await Task.Delay(300);
+
+            Assert.False(viewModel.IsFixedMode);
+            Assert.Equal(BoxSizeModeState.Adaptive.Columns, viewModel.FixedColumns);
+            Assert.Equal(BoxSizeModeState.Adaptive.Rows, viewModel.FixedRows);
         }
         finally
         {
