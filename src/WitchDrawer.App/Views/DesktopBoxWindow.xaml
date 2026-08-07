@@ -34,6 +34,10 @@
                     <Setter Property="MinWidth" Value="0" />
                     <Setter Property="MinHeight" Value="0" />
                 </DataTrigger>
+                <DataTrigger Binding="{Binding IsFixedSize}" Value="True">
+                    <Setter Property="MinWidth" Value="0" />
+                    <Setter Property="MinHeight" Value="0" />
+                </DataTrigger>
             </Style.Triggers>
         </Style>
     </Window.Style>
@@ -1264,18 +1268,21 @@
             <!-- 空列表时: 拖拽投放槽 (跑马灯虚线动画) -->
             <Border Grid.Row="1"
                     Panel.ZIndex="0"
-                    Margin="14"
                     Background="Transparent"
                     VerticalAlignment="Stretch"
                     IsHitTestVisible="False"
                     Visibility="{Binding ShowFileEmptyState, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <Border.Style>
                     <Style TargetType="Border">
+                        <Setter Property="Margin" Value="14" />
                         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushSoft}"/>
                         <Style.Triggers>
                             <!-- 拖拽滑入时，卡片背景高亮，启动跑马灯 -->
                             <DataTrigger Binding="{Binding IsDragOver}" Value="True">
                                 <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsFixedSize}" Value="True">
+                                <Setter Property="Margin" Value="4" />
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>

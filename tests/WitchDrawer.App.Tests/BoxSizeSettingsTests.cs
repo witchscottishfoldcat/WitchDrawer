@@ -72,14 +72,15 @@ public sealed class BoxSizeSettingsTests
 
             viewModel.ApplySizeMode(new BoxSizeModeState(true, 3, 2));
 
-            // 固定模式不再把窗口撑成 m×n 固定框：视口始终 Auto 贴合内容，
-            // m×n 只作为容量与格位上限。
+            // 固定模式将视口与画布硬性固定为 m×n 网格的真实物理尺寸。
             Assert.True(viewModel.IsFixedSize);
-            Assert.True(double.IsNaN(viewModel.GridViewportWidth));
-            Assert.True(double.IsNaN(viewModel.GridViewportHeight));
-
             var slotWidth = viewModel.LayoutSettings.ItemSlotWidth;
             var slotHeight = viewModel.LayoutSettings.ItemSlotHeight;
+            Assert.Equal(3 * slotWidth, viewModel.GridViewportWidth);
+            Assert.Equal(2 * slotHeight, viewModel.GridViewportHeight);
+            Assert.Equal(3 * slotWidth, viewModel.GridCanvasWidth);
+            Assert.Equal(2 * slotHeight, viewModel.GridCanvasHeight);
+
             var clamped = viewModel.GetGridSlot(slotWidth * 10, slotHeight * 10);
             Assert.Equal((2, 1), clamped);
 

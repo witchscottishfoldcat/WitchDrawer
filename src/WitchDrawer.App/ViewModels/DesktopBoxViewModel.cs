@@ -155,12 +155,15 @@ public sealed class DesktopBoxViewModel : ObservableObject
     public bool IsFixedSize => SupportsFixedSize && _sizeMode.IsFixed;
 
     /// <summary>
-    /// 网格视口宽度始终为 NaN（WPF 中即 Auto）：无论自适应还是固定模式，窗口都贴合
-    /// 内容尺寸；固定模式的 m×n 只作为容量与位置上限，不再把窗口撑成固定框。
+    /// 网格视口宽度：固定模式下按照 m×n 固定维度渲染；自适应模式下为 NaN（Auto 贴合内容）。
     /// </summary>
-    public double GridViewportWidth => double.NaN;
+    public double GridViewportWidth => IsFixedSize
+        ? SizeMode.Columns * LayoutSettings.ItemSlotWidth
+        : double.NaN;
 
-    public double GridViewportHeight => double.NaN;
+    public double GridViewportHeight => IsFixedSize
+        ? SizeMode.Rows * LayoutSettings.ItemSlotHeight
+        : double.NaN;
 
     /// <summary>
     /// 固定模式下禁用滚动条（硬约束：放不下就拒绝拖入，而不是滚动查看）。
@@ -1173,9 +1176,16 @@ public sealed class DesktopBoxViewModel : ObservableObject
             item.SetTempOffset(0, 0, LayoutSettings);
         }
 
-        // 固定模式同样按内容计算画布：m×n 只是容量上限，窗口随内容贴合（参考自适应）。
-        GridCanvasWidth = Math.Max(1, maxCol + 1) * LayoutSettings.ItemSlotWidth;
-        GridCanvasHeight = Math.Max(1, maxRow + 1) * LayoutSettings.ItemSlotHeight;
+        if (IsFixedSize)
+        {
+            GridCanvasWidth = Math.Max(1, SizeMode.Columns) * LayoutSettings.ItemSlotWidth;
+            GridCanvasHeight = Math.Max(1, SizeMode.Rows) * LayoutSettings.ItemSlotHeight;
+        }
+        else
+        {
+            GridCanvasWidth = Math.Max(1, maxCol + 1) * LayoutSettings.ItemSlotWidth;
+            GridCanvasHeight = Math.Max(1, maxRow + 1) * LayoutSettings.ItemSlotHeight;
+        }
 
         OnPropertyChanged(nameof(DragPreviewWidth));
         OnPropertyChanged(nameof(DragPreviewHeight));
