@@ -2,9 +2,12 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.IO;
+using System.Windows.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
 using WitchDrawer.App.Infrastructure;
+using WitchDrawer.App.Messages;
 using WitchDrawer.Core.Abstractions;
 using WitchDrawer.Core.Logging;
 using WitchDrawer.Core.Models;
@@ -59,6 +62,9 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private int _drawerCoverColumns = 3;
     private int _drawerCoverRows = 2;
     private DrawerItemSortMode _drawerItemSortMode = DrawerItemSortMode.Name;
+    private BoxSizeModeState _sizeMode = BoxSizeModeState.Adaptive;
+    private int _occupiedColumns = 1;
+    private int _occupiedRows = 1;
 
     public DesktopBoxViewModel(
         Box box,
@@ -138,6 +144,36 @@ public sealed class DesktopBoxViewModel : ObservableObject
     public bool IsTodoBox => Type == BoxType.Todo;
 
     public bool IsDrawerBox => Type == BoxType.Drawer;
+
+    /// <summary>
+    /// 固定 m×n 格尺寸仅适用于普通网格收纳盒；其余盒型始终自适应。
+    /// </summary>
+    public bool SupportsFixedSize => Type is BoxType.Normal or BoxType.Pixel;
+
+    public BoxSizeModeState SizeMode => _sizeMode;
+
+    public bool IsFixedSize => SupportsFixedSize && _sizeMode.IsFixed;
+
+    /// <summary>
+    /// 网格视口宽度始终为 NaN（WPF 中即 Auto）：无论自适应还是固定模式，窗口都贴合
+    /// 内容尺寸；固定模式的 m×n 只作为容量与位置上限，不再把窗口撑成固定框。
+    /// </summary>
+    public double GridViewportWidth => double.NaN;
+
+    public double GridViewportHeight => double.NaN;
+
+    /// <summary>
+    /// 固定模式下禁用滚动条（硬约束：放不下就拒绝拖入，而不是滚动查看）。
+    /// </summary>
+    public ScrollBarVisibility GridHorizontalScrollBarVisibility =>
+        IsFixedSize ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto;
+
+    public ScrollBarVisibility GridVerticalScrollBarVisibility =>
+        IsFixedSize ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto;
+
+    public int OccupiedColumns => _occupiedColumns;
+
+    public int OccupiedRows => _occupiedRows;
 
     public bool IsDrawerExpanded
     {
@@ -400,12 +436,13 @@ public sealed class DesktopBoxViewModel : ObservableObject
         var row = Math.Max(0, (int)Math.Floor(y / Math.Max(1, LayoutSettings.ItemSlotHeight)));
 
         // Edge expansion: when the pointer reaches the right/bottom edge of the *content*
-        // grid, target a brand-new column/row so the box grows by one cell.
-        //
+        // grid, target a brand-new column/row so the box grows by one cell. 固定模式下
+        // 边缘扩展仍然生效（窗口随内容生长），但最终格位会被钳制在 m×n 上限内。
         // The reference is the item-grid extent ((maxCol+1)*slotWidth), which stays constant
         // while dragging. Using the live window/IconList size here would create a feedback
         // loop: expanding grows the window, which moves the edge away from the pointer, which
         // un-expands, which shrinks the window... — the box would flicker at the threshold.
+
         if (surfaceWidth > 0 && surfaceHeight > 0)
         {
             var maxCol = Items.Count == 0 ? 0 : Items.Max(item => item.GridColumn);
@@ -423,6 +460,12 @@ public sealed class DesktopBoxViewModel : ObservableObject
             {
                 row = Math.Max(row, maxRow + 1);
             }
+        }
+
+        if (IsFixedSize)
+        {
+            column = Math.Min(column, _sizeMode.Columns - 1);
+            row = Math.Min(row, _sizeMode.Rows - 1);
         }
 
         return (column, row);
@@ -495,6 +538,82 @@ public sealed class DesktopBoxViewModel : ObservableObject
             .ToHashSet();
 
         return FindFirstFreeSlot(targetSlot.Column, targetSlot.Row, occupiedSlots);
+    }
+
+    /// <summary>
+    /// 固定模式下的总格数；自适应模式视为无限。
+    /// </summary>
+    public int FixedCapacity => IsFixedSize ? _sizeMode.Columns * _sizeMode.Rows : int.MaxValue;
+
+    /// <summary>
+    /// 固定模式下是否还有空位可以放入（拖入校验用；自适应模式恒为 true）。
+    /// </summary>
+    public bool HasFreeSlotForDrop(Guid? movingItemId = null)
+    {
+        if (!IsFixedSize)
+        {
+            return true;
+        }
+
+        var occupied = Items.Count(item => movingItemId is null || item.Id != movingItemId.Value);
+        return occupied < FixedCapacity;
+    }
+
+    /// <summary>
+    /// 自适应模式等价于 <see cref="GetAvailableDropSlot"/>；固定模式把目标格钳制在
+    /// m×n 边界内，找不到空位时返回 false（硬约束：放不下就是放不下）。
+    /// </summary>
+    public bool TryGetAvailableDropSlot(
+        int targetColumn,
+        int targetRow,
+        Guid? movingItemId,
+        out (int Column, int Row) slot)
+    {
+        if (!IsFixedSize)
+        {
+            slot = GetAvailableDropSlot(targetColumn, targetRow, movingItemId);
+            return true;
+        }
+
+        var occupiedSlots = Items
+            .Where(item => movingItemId is null || item.Id != movingItemId.Value)
+            .Select(item => (item.GridColumn, item.GridRow))
+            .ToHashSet();
+
+        return TryFindFreeSlotInFixedBounds(targetColumn, targetRow, occupiedSlots, out slot);
+    }
+
+    private bool TryFindFreeSlotInFixedBounds(
+        int startColumn,
+        int startRow,
+        HashSet<(int Column, int Row)> occupiedSlots,
+        out (int Column, int Row) slot)
+    {
+        var columns = _sizeMode.Columns;
+        var rows = _sizeMode.Rows;
+        var preferred = (
+            Math.Clamp(startColumn, 0, columns - 1),
+            Math.Clamp(startRow, 0, rows - 1));
+        if (!occupiedSlots.Contains(preferred))
+        {
+            slot = preferred;
+            return true;
+        }
+
+        for (var row = 0; row < rows; row++)
+        {
+            for (var column = 0; column < columns; column++)
+            {
+                if (!occupiedSlots.Contains((column, row)))
+                {
+                    slot = (column, row);
+                    return true;
+                }
+            }
+        }
+
+        slot = preferred;
+        return false;
     }
 
     public (int Column, int Row) GetListDropSlot(Guid? movingItemId = null)
@@ -702,7 +821,20 @@ public sealed class DesktopBoxViewModel : ObservableObject
             var nextRow = startRow ?? 0;
             foreach (var path in pathList)
             {
-                var slot = FindFirstFreeSlot(nextColumn, nextRow, reservedSlots);
+                (int Column, int Row) slot;
+                if (IsFixedSize)
+                {
+                    // 硬约束：固定模式装满即停止导入，剩余文件保持原样。
+                    if (!TryFindFreeSlotInFixedBounds(nextColumn, nextRow, reservedSlots, out slot))
+                    {
+                        break;
+                    }
+                }
+                else
+                {
+                    slot = FindFirstFreeSlot(nextColumn, nextRow, reservedSlots);
+                }
+
                 reservedSlots.Add(slot);
                 var importedItem = await _drawerService.ImportPathAsync(BoxId, path, slot.Column, slot.Row);
                 importedIds.Add(importedItem.Id);
@@ -711,7 +843,11 @@ public sealed class DesktopBoxViewModel : ObservableObject
             }
 
             await LoadAsync();
-            StatusText = $"已收纳 {importedIds.Count} 项";
+            StatusText = importedIds.Count < pathList.Length
+                ? importedIds.Count > 0
+                    ? $"已收纳 {importedIds.Count} 项，盒子已满"
+                    : "盒子已满，无法收纳"
+                : $"已收纳 {importedIds.Count} 项";
             ItemsChanged?.Invoke(this, EventArgs.Empty);
             return importedIds;
         }
@@ -746,7 +882,20 @@ public sealed class DesktopBoxViewModel : ObservableObject
             else
             {
                 var occupiedSlots = Items.Select(item => (item.GridColumn, item.GridRow)).ToHashSet();
-                var targetSlot = FindFirstFreeSlot(targetColumn, targetRow, occupiedSlots);
+                (int Column, int Row) targetSlot;
+                if (IsFixedSize)
+                {
+                    // 硬约束：目标盒已满时拒绝跨盒移入。
+                    if (!TryFindFreeSlotInFixedBounds(targetColumn, targetRow, occupiedSlots, out targetSlot))
+                    {
+                        StatusText = "目标收纳盒已满";
+                        return false;
+                    }
+                }
+                else
+                {
+                    targetSlot = FindFirstFreeSlot(targetColumn, targetRow, occupiedSlots);
+                }
                 await _drawerService.MoveItemToBoxAsync(itemId, BoxId, targetSlot.Column, targetSlot.Row);
                 await LoadAsync();
                 movedAcrossBoxes = true;
@@ -913,7 +1062,11 @@ public sealed class DesktopBoxViewModel : ObservableObject
             .Where(candidate => candidate.Id != item.Id)
             .Select(candidate => (candidate.GridColumn, candidate.GridRow))
             .ToHashSet();
-        var availableSlot = FindFirstFreeSlot(targetColumn, targetRow, occupiedSlots);
+        var availableSlot = IsFixedSize
+            ? TryFindFreeSlotInFixedBounds(targetColumn, targetRow, occupiedSlots, out var fixedSlot)
+                ? fixedSlot
+                : (Column: item.GridColumn, Row: item.GridRow)
+            : FindFirstFreeSlot(targetColumn, targetRow, occupiedSlots);
         targetColumn = availableSlot.Column;
         targetRow = availableSlot.Row;
 
@@ -1000,6 +1153,9 @@ public sealed class DesktopBoxViewModel : ObservableObject
         var maxCol = Items.Count == 0 ? 0 : Items.Max(item => item.GridColumn);
         var maxRow = Items.Count == 0 ? 0 : Items.Max(item => item.GridRow);
 
+        // 内容实际撑开的格子范围（不含拖拽预览），供固定尺寸下限校验使用。
+        PublishGridExtentIfChanged(maxCol + 1, maxRow + 1);
+
         // While a drag preview is showing, grow the canvas just enough to include the previewed
         // slot, so dropping at the right/bottom edge visibly extends the box by one cell and it
         // shrinks back as soon as the pointer moves off the edge (or the preview is hidden on
@@ -1017,10 +1173,61 @@ public sealed class DesktopBoxViewModel : ObservableObject
             item.SetTempOffset(0, 0, LayoutSettings);
         }
 
+        // 固定模式同样按内容计算画布：m×n 只是容量上限，窗口随内容贴合（参考自适应）。
         GridCanvasWidth = Math.Max(1, maxCol + 1) * LayoutSettings.ItemSlotWidth;
         GridCanvasHeight = Math.Max(1, maxRow + 1) * LayoutSettings.ItemSlotHeight;
+
         OnPropertyChanged(nameof(DragPreviewWidth));
         OnPropertyChanged(nameof(DragPreviewHeight));
+    }
+
+    private void PublishGridExtentIfChanged(int columns, int rows)
+    {
+        columns = Math.Max(1, columns);
+        rows = Math.Max(1, rows);
+        if (_occupiedColumns == columns && _occupiedRows == rows)
+        {
+            return;
+        }
+
+        _occupiedColumns = columns;
+        _occupiedRows = rows;
+        OnPropertyChanged(nameof(OccupiedColumns));
+        OnPropertyChanged(nameof(OccupiedRows));
+        WeakReferenceMessenger.Default.Send(new BoxGridExtentChangedMessage(BoxId, columns, rows));
+    }
+
+    /// <summary>
+    /// 应用尺寸模式（不触发持久化；持久化由设置页 ViewModel 负责）。
+    /// </summary>
+    public void ApplySizeMode(BoxSizeModeState state)
+    {
+        var normalized = SupportsFixedSize && state.IsFixed
+            ? new BoxSizeModeState(
+                true,
+                BoxSizeModeState.ClampColumns(state.Columns),
+                BoxSizeModeState.ClampRows(state.Rows))
+            : BoxSizeModeState.Adaptive;
+        if (_sizeMode == normalized)
+        {
+            return;
+        }
+
+        _sizeMode = normalized;
+        OnPropertyChanged(nameof(SizeMode));
+        OnPropertyChanged(nameof(IsFixedSize));
+        OnPropertyChanged(nameof(GridViewportWidth));
+        OnPropertyChanged(nameof(GridViewportHeight));
+        OnPropertyChanged(nameof(FixedCapacity));
+        OnPropertyChanged(nameof(GridHorizontalScrollBarVisibility));
+        OnPropertyChanged(nameof(GridVerticalScrollBarVisibility));
+        UpdateGridCanvasSize();
+    }
+
+    internal async Task LoadSizeModeAsync()
+    {
+        var saved = await _drawerService.GetSettingAsync(BoxViewModel.GetSizeModeSettingKey(BoxId));
+        ApplySizeMode(BoxSizeModeState.Parse(saved));
     }
 
     public void ResizeDrawerCover(double width, double height)
@@ -1340,6 +1547,8 @@ public sealed class DesktopBoxViewModel : ObservableObject
         UpdateItemIconSizes();
         UpdateGridCanvasSize();
         OnPropertyChanged(nameof(HeaderRowHeight));
+        OnPropertyChanged(nameof(GridViewportWidth));
+        OnPropertyChanged(nameof(GridViewportHeight));
         if (IsDrawerBox && e.PropertyName is nameof(DesktopBoxLayoutSettings.CurrentPreset))
         {
             ResizeDrawerCover(

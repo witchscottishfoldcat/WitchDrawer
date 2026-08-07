@@ -55,6 +55,8 @@ public sealed partial class BoxViewModel : ObservableObject
 
     internal static string GetLayoutPresetSettingKey(Guid boxId) => $"BoxPreset_{boxId}";
 
+    internal static string GetSizeModeSettingKey(Guid boxId) => $"BoxSizeMode:{boxId:N}";
+
     internal static string GetTitleVisibilitySettingKey(Guid boxId) =>
         $"BoxTitleVisible:{boxId:N}";
 
@@ -77,6 +79,11 @@ public sealed partial class BoxViewModel : ObservableObject
     public bool IsTodoBox => Type == BoxType.Todo;
 
     public bool IsDrawerBox => Type == BoxType.Drawer;
+
+    /// <summary>
+    /// 固定 m×n 格尺寸仅适用于普通网格收纳盒；其余盒型始终自适应。
+    /// </summary>
+    public bool SupportsFixedSize => Type is BoxType.Normal or BoxType.Pixel;
 
     public bool IsTitleVisible => _isTitleVisible;
 

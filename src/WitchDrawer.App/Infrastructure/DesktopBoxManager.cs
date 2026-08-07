@@ -66,6 +66,9 @@ public sealed class DesktopBoxManager
         WeakReferenceMessenger.Default.Register<DesktopBoxManager, DrawerSortModeChangedMessage>(
             this,
             static (recipient, message) => recipient.ApplyDrawerSortMode(message));
+        WeakReferenceMessenger.Default.Register<DesktopBoxManager, BoxSizeModeChangedMessage>(
+            this,
+            static (recipient, message) => recipient.ApplyBoxSizeMode(message));
     }
 
     public event EventHandler<BoxItemsChangedEventArgs>? ItemsChanged;
@@ -137,6 +140,7 @@ public sealed class DesktopBoxManager
                     await viewModel.LoadDrawerCoverSizeAsync();
                     await viewModel.LoadTitleVisibilityAsync();
                     await viewModel.LoadDrawerSortModeAsync();
+                    await viewModel.LoadSizeModeAsync();
                     viewModel.ItemsChanged += (_, _) => ItemsChanged?.Invoke(
                         this,
                         new BoxItemsChangedEventArgs(viewModel.BoxId));
@@ -462,6 +466,17 @@ public sealed class DesktopBoxManager
         }
 
         window.ViewModel.LayoutSettings.ApplyPresetWithoutCallback(message.Preset);
+    }
+
+    private void ApplyBoxSizeMode(BoxSizeModeChangedMessage message)
+    {
+        if (!_windows.TryGetValue(message.BoxId, out var window))
+        {
+            return;
+        }
+
+        window.ViewModel.ApplySizeMode(
+            new BoxSizeModeState(message.IsFixed, message.Columns, message.Rows));
     }
 
     private void ApplyBoxPositionLockState(

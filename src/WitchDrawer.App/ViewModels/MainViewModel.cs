@@ -72,6 +72,7 @@ public sealed class MainViewModel : ObservableObject
         _dataStorageMigrationService = dataStorageMigrationService;
         TodoBoxDetail = new TodoBoxDetailViewModel(todoService, logger);
         TodoBoxDetail.ItemsChanged += OnTodoBoxDetailItemsChanged;
+        BoxSizeSettings = new BoxSizeSettingsViewModel(drawerService);
 
         LoadCommand = new AsyncRelayCommand(LoadAsync);
         CreateNormalBoxCommand = new AsyncRelayCommand(
@@ -138,6 +139,8 @@ public sealed class MainViewModel : ObservableObject
     public ObservableCollection<ArchivedTodoItemViewModel> ArchivedTodos { get; } = [];
 
     public TodoBoxDetailViewModel TodoBoxDetail { get; }
+
+    public BoxSizeSettingsViewModel BoxSizeSettings { get; }
 
     public IReadOnlyList<BoxVisualStyleOption> BoxVisualStyleOptions =>
         BoxVisualStyleCatalog.Options;
@@ -703,6 +706,7 @@ public sealed class MainViewModel : ObservableObject
         }
 
         _selectedBox = value;
+        BoxSizeSettings.SetTargetBox(value);
         OnPropertyChanged(nameof(SelectedBox));
         OnPropertyChanged(nameof(IsSelectedTodoBox));
         OnPropertyChanged(nameof(CanImportFiles));

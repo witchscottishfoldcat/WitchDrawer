@@ -315,8 +315,9 @@ public sealed class PerformanceVirtualizationTests
     {
         var settings = new DesktopBoxLayoutSettings();
 
-        Assert.Equal(settings.ItemSlotWidth * 12, settings.GridViewportMaxWidth);
-        Assert.Equal(settings.ItemSlotHeight * 8, settings.GridViewportMaxHeight);
+        // 上限需包含视口 chrome（Padding 2×2 + 固定模式圆角留白 6），满格盒子才不会被裁。
+        Assert.Equal((settings.ItemSlotWidth * 12) + DesktopBoxLayoutSettings.GridViewportChromeInset, settings.GridViewportMaxWidth);
+        Assert.Equal((settings.ItemSlotHeight * 8) + DesktopBoxLayoutSettings.GridViewportChromeInset, settings.GridViewportMaxHeight);
     }
 
     [Fact]

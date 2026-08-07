@@ -804,6 +804,13 @@ public partial class DesktopBoxWindow : Window
         if (e.Data.GetDataPresent(InternalDrawerItemDragFormat))
         {
             acceptsDrop = TryGetInternalDragPayload(e.Data, out var payload);
+            // 固定模式（硬约束）：盒已满时拒绝拖入。
+            if (acceptsDrop && !ViewModel.HasFreeSlotForDrop(
+                    payload.SourceBoxId == ViewModel.BoxId ? payload.ItemId : (Guid?)null))
+            {
+                acceptsDrop = false;
+            }
+
             showPreview = acceptsDrop;
             e.Effects = acceptsDrop ? DragDropEffects.Move : DragDropEffects.None;
             if (showPreview)
@@ -815,6 +822,12 @@ public partial class DesktopBoxWindow : Window
         {
             var dropEffect = ChooseFileDropEffect(e.AllowedEffects);
             acceptsDrop = e.Data.GetDataPresent(DataFormats.FileDrop) && dropEffect != DragDropEffects.None;
+            // 固定模式（硬约束）：盒已满时拒绝拖入文件。
+            if (acceptsDrop && !ViewModel.HasFreeSlotForDrop())
+            {
+                acceptsDrop = false;
+            }
+
             showPreview = acceptsDrop;
             e.Effects = acceptsDrop ? dropEffect : DragDropEffects.None;
             if (showPreview)
@@ -865,13 +878,20 @@ public partial class DesktopBoxWindow : Window
             {
                 if (TryGetInternalDragPayload(e.Data, out var payload))
                 {
+                    var slot = GetDropSlot(e, payload);
+                    if (slot is null)
+                    {
+                        // 固定模式盒已满：拒绝落放，不标记为内部移动，项目保留在原盒。
+                        e.Effects = DragDropEffects.None;
+                        return;
+                    }
+
                     e.Effects = DragDropEffects.Move;
                     // Mark synchronously (same object instance, in-process) so the source
                     // box sees it immediately after DoDragDrop returns and treats this as
                     // an internal move/rearrange rather than a move-out to the desktop.
                     payload.WasDroppedInsideWitchDrawer = true;
-                    var slot = GetDropSlot(e, payload);
-                    _ = CompleteInternalDropAsync(payload, slot);
+                    _ = CompleteInternalDropAsync(payload, slot.Value);
                 }
 
                 return;
@@ -880,9 +900,16 @@ public partial class DesktopBoxWindow : Window
             if (e.Data.GetData(DataFormats.FileDrop) is string[] paths)
             {
                 var slot = GetDropSlot(e);
+                if (slot is null)
+                {
+                    // 固定模式盒已满：拒绝导入，文件保持原样。
+                    e.Effects = DragDropEffects.None;
+                    return;
+                }
+
                 e.Effects = paths.Length > 0 ? ChooseFileDropEffect(e.AllowedEffects) : DragDropEffects.None;
                 // ImportPathsAsync already reloads the box internally; no extra LoadAsync here.
-                var importedIds = await ViewModel.ImportPathsAsync(paths, slot.Column, slot.Row);
+                var importedIds = await ViewModel.ImportPathsAsync(paths, slot.Value.Column, slot.Value.Row);
                 e.Effects = importedIds.Count > 0 ? ChooseFileDropEffect(e.AllowedEffects) : DragDropEffects.None;
                 var lastImportedId = importedIds.LastOrDefault();
                 var importedItem = lastImportedId != Guid.Empty
@@ -1027,7 +1054,7 @@ public partial class DesktopBoxWindow : Window
         }
     }
 
-    private (int Column, int Row) GetDropSlot(DragEventArgs e, DesktopBoxDragPayload? payload = null)
+    private (int Column, int Row)? GetDropSlot(DragEventArgs e, DesktopBoxDragPayload? payload = null)
     {
         var movingItemId = payload?.SourceBoxId == ViewModel.BoxId ? payload.ItemId : (Guid?)null;
         if (ViewModel.IsMappingListMode)
@@ -1052,7 +1079,10 @@ public partial class DesktopBoxWindow : Window
             Math.Max(0, itemList.ActualWidth - padding.Left - padding.Right),
             Math.Max(0, itemList.ActualHeight - padding.Top - padding.Bottom));
 
-        return ViewModel.GetAvailableDropSlot(rawSlot.Column, rawSlot.Row, movingItemId);
+        // 固定模式（硬约束）：盒内找不到空位时返回 null，调用方据此拒绝拖放。
+        return ViewModel.TryGetAvailableDropSlot(rawSlot.Column, rawSlot.Row, movingItemId, out var slot)
+            ? slot
+            : null;
     }
 
     private void ShowDropPreview(DragEventArgs e, DesktopBoxDragPayload? payload)
@@ -1065,7 +1095,14 @@ public partial class DesktopBoxWindow : Window
         }
 
         var slot = GetDropSlot(e, payload);
-        ViewModel.ShowDragPreview(slot.Column, slot.Row);
+        if (slot is null)
+        {
+            // 固定模式盒已满：不显示落点预览，DragOver 已给出禁止光标。
+            ViewModel.HideDragPreview();
+            return;
+        }
+
+        ViewModel.ShowDragPreview(slot.Value.Column, slot.Value.Row);
     }
 
     private void ShowDrawerCoverDropPreview(Guid? movingItemId)

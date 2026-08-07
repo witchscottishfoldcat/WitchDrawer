@@ -1161,6 +1161,7 @@
                                             <Grid.RowDefinitions>
                                                 <RowDefinition Height="38" />
                                                 <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
                                             </Grid.RowDefinitions>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="132" />
@@ -1446,6 +1447,157 @@
                                                                 CommandParameter="{x:Static viewModels:DrawerItemSortMode.ModifiedDate}" />
                                                     </UniformGrid>
                                                 </Border>
+                                            </Grid>
+
+                                            <Grid Grid.Row="2"
+                                                  Grid.ColumnSpan="3"
+                                                  Margin="0,6,0,0">
+                                                <Grid.Style>
+                                                    <Style TargetType="{x:Type Grid}">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding SelectedBox.SupportsFixedSize}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Grid.Style>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="盒子尺寸"
+                                                           Margin="0,0,10,0"
+                                                           Style="{StaticResource BoxControlLabelStyle}" />
+                                                <StackPanel Grid.Column="1"
+                                                            Orientation="Horizontal"
+                                                            HorizontalAlignment="Left"
+                                                            VerticalAlignment="Center">
+                                                    <StackPanel.Resources>
+                                                        <Style x:Key="SizeModeChoiceButtonStyle"
+                                                               TargetType="{x:Type Button}"
+                                                               BasedOn="{StaticResource GhostButtonStyle}">
+                                                            <Setter Property="MinHeight" Value="28" />
+                                                            <Setter Property="Padding" Value="12,4" />
+                                                            <Setter Property="Background" Value="Transparent" />
+                                                            <Setter Property="BorderBrush" Value="Transparent" />
+                                                            <Setter Property="BorderThickness" Value="0" />
+                                                            <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+                                                            <Setter Property="FontSize" Value="10.5" />
+                                                            <Setter Property="FontWeight" Value="Medium" />
+                                                        </Style>
+                                                        <Style x:Key="AdaptiveSizeModeButtonStyle"
+                                                               TargetType="{x:Type Button}"
+                                                               BasedOn="{StaticResource SizeModeChoiceButtonStyle}">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding BoxSizeSettings.IsAdaptiveMode}" Value="True">
+                                                                    <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                                                                    <Setter Property="Foreground" Value="White" />
+                                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                        <Style x:Key="FixedSizeModeButtonStyle"
+                                                               TargetType="{x:Type Button}"
+                                                               BasedOn="{StaticResource SizeModeChoiceButtonStyle}">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding BoxSizeSettings.IsFixedMode}" Value="True">
+                                                                    <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                                                                    <Setter Property="Foreground" Value="White" />
+                                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                        <Style x:Key="SizeStepperButtonStyle"
+                                                               TargetType="{x:Type Button}"
+                                                               BasedOn="{StaticResource GhostButtonStyle}">
+                                                            <Setter Property="Width" Value="24" />
+                                                            <Setter Property="Height" Value="24" />
+                                                            <Setter Property="MinWidth" Value="0" />
+                                                            <Setter Property="MinHeight" Value="0" />
+                                                            <Setter Property="Padding" Value="0" />
+                                                            <Setter Property="FontSize" Value="12" />
+                                                            <Setter Property="FontWeight" Value="SemiBold" />
+                                                        </Style>
+                                                    </StackPanel.Resources>
+                                                    <Border Padding="2"
+                                                            Background="{DynamicResource PanelAltBrush}"
+                                                            BorderBrush="{DynamicResource BorderBrushSoft}"
+                                                            BorderThickness="1"
+                                                            CornerRadius="10">
+                                                        <UniformGrid Columns="2" Rows="1">
+                                                            <Button Content="自适应"
+                                                                    Style="{StaticResource AdaptiveSizeModeButtonStyle}"
+                                                                    Command="{Binding BoxSizeSettings.UseAdaptiveModeCommand}" />
+                                                            <Button Content="固定格数"
+                                                                    Style="{StaticResource FixedSizeModeButtonStyle}"
+                                                                    Command="{Binding BoxSizeSettings.UseFixedModeCommand}" />
+                                                        </UniformGrid>
+                                                    </Border>
+                                                    <StackPanel Orientation="Horizontal"
+                                                                Margin="12,0,0,0"
+                                                                VerticalAlignment="Center">
+                                                        <StackPanel.Style>
+                                                            <Style TargetType="{x:Type StackPanel}">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding BoxSizeSettings.IsFixedMode}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </StackPanel.Style>
+                                                        <Button Content="−"
+                                                                Style="{StaticResource SizeStepperButtonStyle}"
+                                                                Command="{Binding BoxSizeSettings.DecreaseColumnsCommand}"
+                                                                ToolTip="减少列数" />
+                                                        <Border Background="{DynamicResource PanelAltBrush}"
+                                                                BorderBrush="{DynamicResource BorderBrushSoft}"
+                                                                BorderThickness="1"
+                                                                CornerRadius="7"
+                                                                MinWidth="26"
+                                                                Padding="5,1.5"
+                                                                Margin="4,0"
+                                                                VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding BoxSizeSettings.FixedColumns}"
+                                                                       HorizontalAlignment="Center"
+                                                                       FontSize="11"
+                                                                       FontWeight="SemiBold"
+                                                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                        </Border>
+                                                        <Button Content="＋"
+                                                                Style="{StaticResource SizeStepperButtonStyle}"
+                                                                Command="{Binding BoxSizeSettings.IncreaseColumnsCommand}"
+                                                                ToolTip="增加列数" />
+                                                        <TextBlock Text="×"
+                                                                   Margin="9,0"
+                                                                   VerticalAlignment="Center"
+                                                                   FontSize="11"
+                                                                   Foreground="{DynamicResource TextMutedBrush}" />
+                                                        <Button Content="−"
+                                                                Style="{StaticResource SizeStepperButtonStyle}"
+                                                                Command="{Binding BoxSizeSettings.DecreaseRowsCommand}"
+                                                                ToolTip="减少行数" />
+                                                        <Border Background="{DynamicResource PanelAltBrush}"
+                                                                BorderBrush="{DynamicResource BorderBrushSoft}"
+                                                                BorderThickness="1"
+                                                                CornerRadius="7"
+                                                                MinWidth="26"
+                                                                Padding="5,1.5"
+                                                                Margin="4,0"
+                                                                VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding BoxSizeSettings.FixedRows}"
+                                                                       HorizontalAlignment="Center"
+                                                                       FontSize="11"
+                                                                       FontWeight="SemiBold"
+                                                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                        </Border>
+                                                        <Button Content="＋"
+                                                                Style="{StaticResource SizeStepperButtonStyle}"
+                                                                Command="{Binding BoxSizeSettings.IncreaseRowsCommand}"
+                                                                ToolTip="增加行数" />
+                                                    </StackPanel>
+                                                </StackPanel>
                                             </Grid>
 
                                          </Grid>

@@ -163,9 +163,15 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
 
     public double DrawerSurfacePadding => DrawerSurfaceInset;
 
-    public double GridViewportMaxWidth => ItemSlotWidth * MaximumGridViewportColumns;
+    /// <summary>
+    /// 视口除网格外需要预留的 chrome 宽度：IconList 两侧 Padding 各 2px，再加少量余量。
+    /// MaxWidth/MaxHeight 必须包含这部分，否则满 12 列/8 行的盒子会被上限裁掉一圈。
+    /// </summary>
+    public const double GridViewportChromeInset = 10;
 
-    public double GridViewportMaxHeight => ItemSlotHeight * MaximumGridViewportRows;
+    public double GridViewportMaxWidth => (ItemSlotWidth * MaximumGridViewportColumns) + GridViewportChromeInset;
+
+    public double GridViewportMaxHeight => (ItemSlotHeight * MaximumGridViewportRows) + GridViewportChromeInset;
 
     public Thickness DrawerHoverMargin => _currentPreset switch
     {
