@@ -900,6 +900,9 @@ public partial class DesktopBoxWindow : Window
 
     private void OnPreviewDragOver(object sender, DragEventArgs e)
     {
+        // 紧跟 DragLeave 的 DragOver 说明只是 resize churn：取消待执行的复位。
+        CancelPendingDragLeaveReset();
+
         if (ViewModel.IsTodoBox)
         {
             ViewModel.IsDragOver = false;
@@ -957,11 +960,41 @@ public partial class DesktopBoxWindow : Window
 
     private void OnPreviewDragLeave(object sender, DragEventArgs e)
     {
-        // DragLeave is also raised when a drag is cancelled while the pointer is still
-        // inside the list. Coordinate checks therefore leave IsDragOver stuck true.
-        // If the pointer only crossed a child boundary, the next DragOver immediately
-        // restores the preview.
-        ResetDragVisualState();
+        // SizeToContent 窗口随拖拽预览在指针下方生长时，OLE 会补发 DragLeave/DragEnter 对
+        // （churn）。若在此同步复位，就会出现"复位→下一帧 DragOver 再显示→再复位"的疯狂频闪。
+        // 改为延迟复位：churn 场景紧跟的 DragOver 会取消它；真正离开/取消时没有后续
+        // DragOver，复位在极短延迟后生效（肉眼不可辨）。
+        var cts = new CancellationTokenSource();
+        var previous = Interlocked.Exchange(ref _dragLeaveResetCts, cts);
+        previous?.Cancel();
+        previous?.Dispose();
+        _ = ResetDragVisualStateAfterSettlingAsync(cts);
+    }
+
+    private CancellationTokenSource? _dragLeaveResetCts;
+
+    private async Task ResetDragVisualStateAfterSettlingAsync(CancellationTokenSource cts)
+    {
+        try
+        {
+            await Task.Delay(90, cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        if (!cts.IsCancellationRequested)
+        {
+            ResetDragVisualState();
+        }
+    }
+
+    private void CancelPendingDragLeaveReset()
+    {
+        var cts = Interlocked.Exchange(ref _dragLeaveResetCts, null);
+        cts?.Cancel();
+        cts?.Dispose();
     }
 
     private async void OnFilesDropped(object sender, DragEventArgs e)
@@ -1449,6 +1482,8 @@ public partial class DesktopBoxWindow : Window
 
     private void ResetDragVisualState()
     {
+        // 立即复位（落放/拖拽结束/全局清理）：任何延迟复位都取消。
+        CancelPendingDragLeaveReset();
         ViewModel.HideDragPreview();
         ViewModel.IsDragOver = false;
     }
