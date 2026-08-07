@@ -216,15 +216,38 @@ public partial class DesktopBoxWindow : Window
         DrawerSecondaryPopup.VerticalOffset = target.Top;
     }
 
-    internal Rect GetVisibleBounds()
+    internal Rect GetVisibleBounds() =>
+        ComputeVisibleBounds(Left, Top, ActualWidth, ActualHeight, WindowBorder.Margin);
+
+    /// <summary>
+    /// <see cref="GetVisibleBounds"/> 的逆运算：把可视区域原点换算回窗口 Left/Top。
+    /// 重叠消解在可视区域坐标系里计算，写回窗口位置时必须减去阴影留白 Margin，
+    /// 否则每执行一次消解窗口就会按 Margin 平移一次（位置漂移）。
+    /// </summary>
+    internal void MoveToVisibleOrigin(double visibleLeft, double visibleTop)
     {
-        var margin = WindowBorder.Margin;
-        return new Rect(
-            Left + margin.Left,
-            Top + margin.Top,
-            Math.Max(0, ActualWidth - margin.Left - margin.Right),
-            Math.Max(0, ActualHeight - margin.Top - margin.Bottom));
+        var (left, top) = ComputeWindowOrigin(visibleLeft, visibleTop, WindowBorder.Margin);
+        Left = left;
+        Top = top;
     }
+
+    internal static Rect ComputeVisibleBounds(
+        double windowLeft,
+        double windowTop,
+        double windowWidth,
+        double windowHeight,
+        Thickness margin) =>
+        new(
+            windowLeft + margin.Left,
+            windowTop + margin.Top,
+            Math.Max(0, windowWidth - margin.Left - margin.Right),
+            Math.Max(0, windowHeight - margin.Top - margin.Bottom));
+
+    internal static (double Left, double Top) ComputeWindowOrigin(
+        double visibleLeft,
+        double visibleTop,
+        Thickness margin) =>
+        (visibleLeft - margin.Left, visibleTop - margin.Top);
 
     private void OnDrawerSecondaryPopupOpened(object? sender, EventArgs e)
     {

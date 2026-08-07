@@ -622,11 +622,13 @@ public sealed class DesktopBoxManager
                 bounds = new Rect(clampedLeft, clampedTop, bounds.Width, bounds.Height);
             }
 
-            if (Math.Abs(boxWindow.Left - bounds.Left) > 0.5
-                || Math.Abs(boxWindow.Top - bounds.Top) > 0.5)
+            // 比较与写回都必须在可视区域坐标系中进行：bounds 是可视区域矩形，
+            // 而窗口 Left/Top 包含阴影留白 Margin，混用会让窗口每次消解都平移一圈。
+            var currentBounds = boxWindow.GetVisibleBounds();
+            if (Math.Abs(currentBounds.Left - bounds.Left) > 0.5
+                || Math.Abs(currentBounds.Top - bounds.Top) > 0.5)
             {
-                boxWindow.Left = bounds.Left;
-                boxWindow.Top = bounds.Top;
+                boxWindow.MoveToVisibleOrigin(bounds.Left, bounds.Top);
             }
 
             placed.Add(bounds);
