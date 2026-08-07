@@ -355,6 +355,50 @@ public sealed class BoxSizeSettingsTests
     }
 
     [Fact]
+    public async Task DragExpansion_KeepsExpandedSlotWhilePointerInsideBox()
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var (drawerService, repository) = await CreateDrawerServiceAsync(root);
+            var box = await drawerService.CreateBoxAsync("普通盒", BoxType.Normal);
+            var viewModel = new DesktopBoxViewModel(
+                box,
+                drawerService,
+                new TodoService(repository),
+                new NoOpFileLauncher(),
+                new RecordingLogger(),
+                BoxVisualStyle.Modern);
+
+            var sourceDir = Path.Combine(root, "source");
+            Directory.CreateDirectory(sourceDir);
+            var file = Path.Combine(sourceDir, "a.txt");
+            File.WriteAllText(file, "payload");
+            await viewModel.ImportPathsAsync([file]);
+            Assert.Single(viewModel.Items);
+
+            var slot = viewModel.LayoutSettings.ItemSlotWidth;   // 6x6 = 37
+            var contentRight = slot;                             // 1 项占 1 列
+            // 经过右缘阈值（contentRight - 14）→ 扩展出第 2 列。
+            var expanded = viewModel.GetGridSlot(contentRight - 5, 10, 200, 200);
+            Assert.Equal(1, expanded.Column);
+            viewModel.ShowDragPreview(expanded.Column, expanded.Row);
+
+            // 滞回：预览已扩展时，指针回到盒内左侧（哪怕瞬时错位）不应收缩回去。
+            var kept = viewModel.GetGridSlot(10, 10, 200, 200);
+            Assert.Equal(1, kept.Column);
+
+            // 只有明确撤离（指针越过阈值再往左一整格）才允许收缩。
+            var collapsed = viewModel.GetGridSlot(contentRight - 14 - slot - 5, 10, 200, 200);
+            Assert.Equal(0, collapsed.Column);
+        }
+        finally
+        {
+            CleanupTempRoot(root);
+        }
+    }
+
+    [Fact]
     public async Task SizeSettingsViewModel_SwitchingTargetResetsStateImmediately()
     {
         var root = CreateTempRoot();

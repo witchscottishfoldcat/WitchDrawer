@@ -455,12 +455,22 @@ public sealed class DesktopBoxViewModel : ObservableObject
             var contentRight = (maxCol + 1) * LayoutSettings.ItemSlotWidth;
             var contentBottom = (maxRow + 1) * LayoutSettings.ItemSlotHeight;
 
-            if (x >= contentRight - EdgeExpandThreshold)
+            // 收缩滞回：预览已位于扩展格时，把收缩阈值向内容侧再退一整格。
+            // 窗口在指针下方实时 resize 时，坐标读取存在瞬时错位帧；没有滞回的话
+            // 扩展帧与错位帧交替 → 扩展→收缩→扩展……（空盒上表现为疯狂频闪）。
+            var collapseHysteresisX = IsDragPreviewVisible && _previewColumn > maxCol
+                ? LayoutSettings.ItemSlotWidth
+                : 0;
+            var collapseHysteresisY = IsDragPreviewVisible && _previewRow > maxRow
+                ? LayoutSettings.ItemSlotHeight
+                : 0;
+
+            if (x >= contentRight - EdgeExpandThreshold - collapseHysteresisX)
             {
                 column = Math.Max(column, maxCol + 1);
             }
 
-            if (y >= contentBottom - EdgeExpandThreshold)
+            if (y >= contentBottom - EdgeExpandThreshold - collapseHysteresisY)
             {
                 row = Math.Max(row, maxRow + 1);
             }
