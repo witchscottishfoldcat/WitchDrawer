@@ -14,6 +14,8 @@
         ShowActivated="False"
         AllowDrop="True"
         Background="Transparent"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
         Focusable="True"
         PreviewMouseDown="OnWindowPreviewMouseDown"
         PreviewKeyDown="OnPreviewKeyDown"
@@ -1051,6 +1053,7 @@
                   PreviewMouseLeftButtonDown="OnDrawerSurfacePreviewMouseLeftButtonDown"
                   Visibility="{Binding IsDrawerCollapsed, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <Thumb Cursor="SizeAll"
+                       DragStarted="OnDrawerMoveStarted"
                        DragDelta="OnDrawerMoveDelta"
                        DragCompleted="OnDrawerMoveCompleted">
                     <Thumb.Template>

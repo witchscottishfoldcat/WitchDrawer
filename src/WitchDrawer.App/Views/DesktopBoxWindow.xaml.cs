@@ -37,6 +37,8 @@ public partial class DesktopBoxWindow : Window
     private double _drawerResizeStartWidth;
     private double _drawerResizeStartHeight;
     private NativePoint _drawerResizeStartCursor;
+    private double _drawerMoveStartLeft;
+    private double _drawerMoveStartTop;
     private bool _suppressDrawerItemClick;
     private bool _drawerPositionChanged;
 
@@ -72,6 +74,7 @@ public partial class DesktopBoxWindow : Window
         SourceInitialized += OnSourceInitialized;
         Loaded += OnLoaded;
         DpiChanged += OnDpiChanged;
+        SizeChanged += OnWindowSizeChanged;
         AppThemeManager.ThemeChanged += OnThemeChanged;
         AppThemeManager.CrystalBoxTransparencyChanged += OnCrystalBoxTransparencyChanged;
         Activated += OnWindowActivated;
@@ -231,6 +234,47 @@ public partial class DesktopBoxWindow : Window
         Top = top;
     }
 
+    /// <summary>
+    /// SizeToContent 窗口以左上角为锚点随内容向右下生长。内容尺寸变化（切换图标预设、
+    /// 固定格数、增删项目）可能把右/下边缘推出工作区——表现为盒子边缘被屏幕"吞掉"。
+    /// 尺寸变化后把可视区域钳回工作区；只做显示性校正，不写回已保存位置。
+    /// </summary>
+    private void OnWindowSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (!IsVisible || e.PreviousSize == e.NewSize)
+        {
+            return;
+        }
+
+        var bounds = GetVisibleBounds();
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+        {
+            return;
+        }
+
+        var workArea = SystemParameters.WorkArea;
+        var visibleLeft = bounds.Left;
+        var visibleTop = bounds.Top;
+        if (bounds.Right > workArea.Right)
+        {
+            visibleLeft = workArea.Right - bounds.Width;
+        }
+
+        if (bounds.Bottom > workArea.Bottom)
+        {
+            visibleTop = workArea.Bottom - bounds.Height;
+        }
+
+        // 盒子比工作区还大时，左/上钳制优先，保证标题栏可见。
+        visibleLeft = Math.Max(workArea.Left, visibleLeft);
+        visibleTop = Math.Max(workArea.Top, visibleTop);
+        if (Math.Abs(visibleLeft - bounds.Left) > 0.5
+            || Math.Abs(visibleTop - bounds.Top) > 0.5)
+        {
+            MoveToVisibleOrigin(visibleLeft, visibleTop);
+        }
+    }
+
     internal static Rect ComputeVisibleBounds(
         double windowLeft,
         double windowTop,
@@ -323,6 +367,14 @@ public partial class DesktopBoxWindow : Window
 
     private async void OnDrawerResizeCompleted(object sender, DragCompletedEventArgs e)
     {
+        if (e.Canceled)
+        {
+            // 拖拽被取消（如捕获丢失/Alt+Tab 切走）：回滚到拖拽前的尺寸，不保存。
+            ViewModel.ResizeDrawerCover(_drawerResizeStartWidth, _drawerResizeStartHeight);
+            e.Handled = true;
+            return;
+        }
+
         try
         {
             await ViewModel.SaveDrawerCoverSizeAsync();
@@ -364,6 +416,13 @@ public partial class DesktopBoxWindow : Window
         }
     }
 
+    private void OnDrawerMoveStarted(object sender, DragStartedEventArgs e)
+    {
+        _drawerMoveStartLeft = Left;
+        _drawerMoveStartTop = Top;
+        e.Handled = true;
+    }
+
     private void OnDrawerMoveDelta(object sender, DragDeltaEventArgs e)
     {
         if (_isPositionLocked)
@@ -379,6 +438,20 @@ public partial class DesktopBoxWindow : Window
 
     private void OnDrawerMoveCompleted(object sender, DragCompletedEventArgs e)
     {
+        if (e.Canceled)
+        {
+            // 拖拽被取消（如捕获丢失/Alt+Tab 切走）：弹回拖拽前的位置，不保存。
+            if (_drawerPositionChanged)
+            {
+                _drawerPositionChanged = false;
+                Left = _drawerMoveStartLeft;
+                Top = _drawerMoveStartTop;
+            }
+
+            e.Handled = true;
+            return;
+        }
+
         if (!_drawerPositionChanged)
         {
             return;
