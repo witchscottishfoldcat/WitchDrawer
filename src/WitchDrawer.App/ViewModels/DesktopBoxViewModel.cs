@@ -154,17 +154,15 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     public bool IsFixedSize => SupportsFixedSize && _sizeMode.IsFixed;
 
-    private const double IconListPaddingInset = 4;
-
     /// <summary>
-    /// 网格视口宽度：固定模式下包含 IconList Padding (2px * 2) 预留，防止最右侧/最下方图标边缘被截断。
+    /// 网格视口宽度：固定模式下加上预留的 ChromeInset，与自适应模式的视口物理宽/高完全对齐。
     /// </summary>
     public double GridViewportWidth => IsFixedSize
-        ? (SizeMode.Columns * LayoutSettings.ItemSlotWidth) + IconListPaddingInset
+        ? (SizeMode.Columns * LayoutSettings.ItemSlotWidth) + DesktopBoxLayoutSettings.GridViewportChromeInset
         : double.NaN;
 
     public double GridViewportHeight => IsFixedSize
-        ? (SizeMode.Rows * LayoutSettings.ItemSlotHeight) + IconListPaddingInset
+        ? (SizeMode.Rows * LayoutSettings.ItemSlotHeight) + DesktopBoxLayoutSettings.GridViewportChromeInset
         : double.NaN;
 
     /// <summary>

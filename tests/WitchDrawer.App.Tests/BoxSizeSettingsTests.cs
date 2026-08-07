@@ -76,8 +76,8 @@ public sealed class BoxSizeSettingsTests
             Assert.True(viewModel.IsFixedSize);
             var slotWidth = viewModel.LayoutSettings.ItemSlotWidth;
             var slotHeight = viewModel.LayoutSettings.ItemSlotHeight;
-            Assert.Equal((3 * slotWidth) + 4, viewModel.GridViewportWidth);
-            Assert.Equal((2 * slotHeight) + 4, viewModel.GridViewportHeight);
+            Assert.Equal((3 * slotWidth) + DesktopBoxLayoutSettings.GridViewportChromeInset, viewModel.GridViewportWidth);
+            Assert.Equal((2 * slotHeight) + DesktopBoxLayoutSettings.GridViewportChromeInset, viewModel.GridViewportHeight);
             Assert.Equal(3 * slotWidth, viewModel.GridCanvasWidth);
             Assert.Equal(2 * slotHeight, viewModel.GridCanvasHeight);
 
