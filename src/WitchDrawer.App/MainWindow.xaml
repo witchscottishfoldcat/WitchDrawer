@@ -1866,9 +1866,13 @@
                                         </Grid>
 
                                         <!-- Files ListBox -->
+                                        <!-- MaxHeight = 4 行 × 行高 48（ListBoxItem MinHeight），BorderThickness=0
+                                             去掉默认边框：视口恰好容纳 4 个完整项，底部不再露出半行。 -->
                                         <ListBox x:Name="MainItemsList"
                                                  ItemsSource="{Binding Items}"
                                                  VerticalAlignment="Stretch"
+                                                 MaxHeight="192"
+                                                 BorderThickness="0"
                                                  ClipToBounds="True"
                                                  PreviewKeyDown="OnMainItemsPreviewKeyDown"
                                                  MouseDoubleClick="OnItemsMouseDoubleClick"
