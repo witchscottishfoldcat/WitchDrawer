@@ -8,6 +8,13 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
     public const string DefaultPreset = "6x6";
     public const string DefaultDrawerPreset = "4x4";
     public const double DrawerSurfaceInset = 10;
+
+    /// <summary>
+    /// 图标项容器（DesktopBoxWindow.xaml 中 ListBoxItem 的 Root Border）的描边厚度。
+    /// 图标框内容区不变式依赖该值，修改 XAML 描边厚度时必须同步。
+    /// </summary>
+    public const double ItemBorderThickness = 1.2;
+
     private const int MaximumGridViewportColumns = 12;
     private const int MaximumGridViewportRows = 8;
 
@@ -343,6 +350,9 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
 
     private void UpdateDimensions()
     {
+        // 不变式：IconFrameSize 必须 ≤ 项内容区 = ItemSlot - 2×ItemMargin - 2×(项边框 1.2 + ItemPadding)。
+        // 否则图标框溢出内容区，其 1px 描边会在右/下（水平居中+垂直顶对齐的溢出方向）被裁掉，
+        // 表现为"图标框缺边"。调整本表时由 IconFrame_FitsInsideItemContentArea 测试把关。
         switch (_currentPreset)
         {
             case "3x3":
@@ -352,7 +362,7 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
                 Columns = 3;
                 ItemSlotWidth = 74;
                 ItemSlotHeight = 74;
-                ItemPadding = new Thickness(4);
+                ItemPadding = new Thickness(3);
                 IconFontSize = 11;
                 IconTextWrapping = TextWrapping.Wrap;
                 IconTextMaxHeight = 32;
@@ -366,7 +376,7 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
                 Columns = 4;
                 ItemSlotWidth = 55;
                 ItemSlotHeight = 55;
-                ItemPadding = new Thickness(3);
+                ItemPadding = new Thickness(1);
                 IconFontSize = 10;
                 IconTextWrapping = TextWrapping.NoWrap;
                 IconTextMaxHeight = 16;
@@ -380,7 +390,7 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
                 Columns = 5;
                 ItemSlotWidth = 44;
                 ItemSlotHeight = 44;
-                ItemPadding = new Thickness(2);
+                ItemPadding = new Thickness(1);
                 IconFontSize = 9;
                 IconTextWrapping = TextWrapping.NoWrap;
                 IconTextMaxHeight = 14;

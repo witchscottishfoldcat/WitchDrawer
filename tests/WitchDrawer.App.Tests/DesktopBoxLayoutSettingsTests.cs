@@ -93,6 +93,34 @@ public sealed class DesktopBoxLayoutSettingsTests
     }
 
     [Theory]
+    [InlineData("3x3")]
+    [InlineData("4x4")]
+    [InlineData("5x5")]
+    [InlineData("6x6")]
+    public void IconFrame_FitsInsideItemContentArea(string preset)
+    {
+        var settings = new DesktopBoxLayoutSettings();
+        settings.ApplyPresetWithoutCallback(preset);
+
+        // 项内容区 = 槽位 − 两侧 ItemMargin − 两侧(容器边框 + ItemPadding)。
+        // 图标框一旦超出内容区，其 1px 描边会在溢出侧（水平居中→左右，垂直顶对齐→下）被裁掉，
+        // 表现为"图标框缺边"（除上方外都缺）。
+        var contentWidth = settings.ItemSlotWidth
+            - settings.ItemMargin.Left - settings.ItemMargin.Right
+            - (2 * (DesktopBoxLayoutSettings.ItemBorderThickness + settings.ItemPadding.Left));
+        var contentHeight = settings.ItemSlotHeight
+            - settings.ItemMargin.Top - settings.ItemMargin.Bottom
+            - (2 * (DesktopBoxLayoutSettings.ItemBorderThickness + settings.ItemPadding.Top));
+
+        Assert.True(
+            settings.IconFrameSize <= contentWidth,
+            $"{preset}: IconFrameSize {settings.IconFrameSize} 超出内容区宽度 {contentWidth}");
+        Assert.True(
+            settings.IconFrameSize <= contentHeight,
+            $"{preset}: IconFrameSize {settings.IconFrameSize} 超出内容区高度 {contentHeight}");
+    }
+
+    [Theory]
     [InlineData("3x3", 5)]
     [InlineData("4x4", 2.5)]
     [InlineData("5x5", 2)]
