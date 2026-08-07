@@ -1022,7 +1022,7 @@
                             </Grid.ColumnDefinitions>
 
                             <!-- Selected box controls -->
-                            <Grid Grid.Row="0" Margin="0,0,0,12" VerticalAlignment="Stretch">
+                            <Grid Grid.Row="0" Margin="0,0,0,8" VerticalAlignment="Stretch">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" /> <!-- 顶部状态卡片 -->
                                     <RowDefinition Height="Auto" /> <!-- 收纳盒属性配置卡片 -->
@@ -1072,12 +1072,12 @@
                                         BorderBrush="{DynamicResource BorderBrushSoft}"
                                         BorderThickness="1"
                                         CornerRadius="14"
-                                        Padding="14,5"
+                                        Padding="14,3"
                                         Margin="0">
-                                    <!-- MinHeight 固定为两行展开后的高度（38 + 6 + 32）：盒子尺寸行按盒型显隐时
+                                    <!-- MinHeight 固定为两行展开后的高度（38 + 2 + 32）：盒子尺寸行按盒型显隐时
                                          卡片高度保持恒定，PrimaryPanel 垂直居中，避免下方内容区瞬间移位（页面抖动）。 -->
                                     <Grid x:Name="BoxControlsPageHost"
-                                          MinHeight="76"
+                                          MinHeight="72"
                                           ClipToBounds="True">
                                         <VisualStateManager.VisualStateGroups>
                                             <VisualStateGroup x:Name="BoxControlsPageStates">
@@ -1234,7 +1234,7 @@
                                             </Grid>
 
                                             <Grid
-                                                  Height="34"
+                                                  Height="38"
                                                   Margin="8,0,0,0"
                                                   VerticalAlignment="Center">
                                                 <Grid.Style>
@@ -1453,7 +1453,7 @@
 
                                             <Grid Grid.Row="2"
                                                   Grid.ColumnSpan="3"
-                                                  Margin="0,6,0,0">
+                                                  Margin="0,2,0,0">
                                                 <Grid.Style>
                                                     <Style TargetType="{x:Type Grid}">
                                                         <Setter Property="Visibility" Value="Collapsed" />
@@ -1815,10 +1815,10 @@
                                     BorderBrush="{DynamicResource BorderBrushSoft}"
                                     BorderThickness="1"
                                     CornerRadius="16"
-                                    Padding="16,13"
+                                    Padding="16,9"
                                     Margin="0,0,0,12">
                                 <DockPanel>
-                                    <Grid DockPanel.Dock="Top" Margin="2,0,2,10">
+                                    <Grid DockPanel.Dock="Top" Margin="2,0,2,6">
                                         <StackPanel Orientation="Horizontal">
                                             <Border Width="5"
                                                     Height="5"
@@ -2025,12 +2025,12 @@
                              </Border>
 
                             <Border Grid.Row="2"
-                                    MinHeight="62"
+                                    MinHeight="54"
                                     Background="{DynamicResource PanelBrush}"
                                     BorderBrush="{DynamicResource BorderBrushSoft}"
                                     BorderThickness="1"
                                     CornerRadius="14">
-                                <Grid Margin="14,9">
+                                <Grid Margin="14,6">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
