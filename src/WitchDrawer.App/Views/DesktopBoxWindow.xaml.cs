@@ -42,7 +42,7 @@ public partial class DesktopBoxWindow : Window
     private bool _suppressDrawerItemClick;
     private bool _drawerPositionChanged;
 
-    private sealed class DesktopBoxDragPayload(Guid dragId, Guid itemId, Guid sourceBoxId)
+    internal sealed class DesktopBoxDragPayload(Guid dragId, Guid itemId, Guid sourceBoxId)
     {
         private readonly TaskCompletionSource<bool> _dropCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -252,7 +252,7 @@ public partial class DesktopBoxWindow : Window
             return;
         }
 
-        var workArea = SystemParameters.WorkArea;
+        var workArea = GetWorkAreaDip();
         var visibleLeft = bounds.Left;
         var visibleTop = bounds.Top;
         if (bounds.Right > workArea.Right)
@@ -1499,14 +1499,22 @@ public partial class DesktopBoxWindow : Window
                 : DragDropEffects.None;
     }
 
-    private static void MarkDroppedInsideWitchDrawer(DesktopBoxDragPayload payload)
+    internal static void MarkDroppedInsideWitchDrawer(DesktopBoxDragPayload payload)
     {
+        // 目标盒的 Drop 处理器在 DoDragDrop 返回前就会同步置位 WasDroppedInsideWitchDrawer，
+        // 源端靠该标志位即可识别内部落放；静态集合只是"同步标记缺失"时的兜底通道。
+        // 已有同步标记时再写入集合，条目永远不会被消费（源端 || 短路），残留 ItemId 会把
+        // 该项目之后的"拖出到桌面"误判成内部落放，导致首次拖出静默失效。
+        if (!payload.WasDroppedInsideWitchDrawer)
+        {
+            CompletedInternalDragIds.Add(payload.DragId);
+            CompletedInternalItemIds.Add(payload.ItemId);
+        }
+
         payload.WasDroppedInsideWitchDrawer = true;
-        CompletedInternalDragIds.Add(payload.DragId);
-        CompletedInternalItemIds.Add(payload.ItemId);
     }
 
-    private static bool ConsumeDroppedInsideWitchDrawer(DesktopBoxDragPayload payload)
+    internal static bool ConsumeDroppedInsideWitchDrawer(DesktopBoxDragPayload payload)
     {
         var matchedByDrag = CompletedInternalDragIds.Remove(payload.DragId);
         var matchedByItem = CompletedInternalItemIds.Remove(payload.ItemId);
@@ -1536,6 +1544,76 @@ public partial class DesktopBoxWindow : Window
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
     private static extern bool GetCursorPos(out NativePoint lpPoint);
+
+    private const uint MonitorDefaultToNearest = 2;
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct NativeRect
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [System.Runtime.InteropServices.StructLayout(
+        System.Runtime.InteropServices.LayoutKind.Sequential,
+        CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private struct NativeMonitorInfo
+    {
+        public int Size;
+        public NativeRect Monitor;
+        public NativeRect WorkArea;
+        public uint Flags;
+        [System.Runtime.InteropServices.MarshalAs(
+            System.Runtime.InteropServices.UnmanagedType.ByValTStr, SizeConst = 32)]
+        public string DeviceName;
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern nint MonitorFromWindow(nint hwnd, uint dwFlags);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool GetMonitorInfo(nint hMonitor, ref NativeMonitorInfo lpmi);
+
+    /// <summary>
+    /// 窗口当前所在显示器的工作区（DIP）。<see cref="SystemParameters.WorkArea"/> 只覆盖主屏，
+    /// 多显示器下必须按窗口所在屏取工作区，否则副屏上的盒子会被钳制逻辑误判越界搬回主屏。
+    /// 句柄尚未创建或查询失败时回退到主屏工作区。
+    /// </summary>
+    internal Rect GetWorkAreaDip()
+    {
+        var fallback = SystemParameters.WorkArea;
+        var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        if (handle == nint.Zero)
+        {
+            return fallback;
+        }
+
+        var monitor = MonitorFromWindow(handle, MonitorDefaultToNearest);
+        if (monitor == nint.Zero)
+        {
+            return fallback;
+        }
+
+        var info = new NativeMonitorInfo
+        {
+            Size = System.Runtime.InteropServices.Marshal.SizeOf<NativeMonitorInfo>()
+        };
+        if (!GetMonitorInfo(monitor, ref info))
+        {
+            return fallback;
+        }
+
+        // GetMonitorInfo 返回物理像素，按窗口当前 DPI 换算成 DIP。
+        var dpi = VisualTreeHelper.GetDpi(this);
+        return new Rect(
+            info.WorkArea.Left / dpi.DpiScaleX,
+            info.WorkArea.Top / dpi.DpiScaleY,
+            (info.WorkArea.Right - info.WorkArea.Left) / dpi.DpiScaleX,
+            (info.WorkArea.Bottom - info.WorkArea.Top) / dpi.DpiScaleY);
+    }
 
     private bool IsCursorOverOpenDrawerPopup()
     {

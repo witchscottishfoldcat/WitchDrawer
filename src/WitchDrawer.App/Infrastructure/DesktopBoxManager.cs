@@ -274,6 +274,9 @@ public sealed class DesktopBoxManager
             window.LocationChanged -= OnWindowLocationChanged;
             window.PreviewMouseLeftButtonUp -= OnWindowMouseUp;
             window.Activated -= OnDesktopBoxActivated;
+            // 外部（Explorer 重建桌面）销毁 HWND 不会触发 WPF Closed，必须显式 ForceClose
+            // 让 OnClosed 里的退订/清理执行，否则整棵窗口对象图被静态事件永久引用（僵尸泄漏）。
+            window.ForceClose();
             _windows.Remove(boxId);
             recreateRequired = true;
         }
@@ -510,7 +513,7 @@ public sealed class DesktopBoxManager
         }
     }
 
-    private async Task PlaceWindowAsync(Window window, Guid boxId, int fallbackIndex)
+    private async Task PlaceWindowAsync(DesktopBoxWindow window, Guid boxId, int fallbackIndex)
     {
         // SizeToContent windows report NaN for Width/Height before they are shown; measure
         // first and use DesiredSize so saved positions are restored correctly.
@@ -519,7 +522,12 @@ public sealed class DesktopBoxManager
         var savedPosition = await _drawerService.GetSettingAsync(BoxPositionSettingPrefix + boxId.ToString("N"));
         if (TryParsePosition(savedPosition, out var left, out var top))
         {
-            var workArea = SystemParameters.WorkArea;
+            // 先按存档位置落位并创建句柄，确保取到目标位置所在显示器的工作区再钳制；
+            // SystemParameters.WorkArea 只有主屏，会把副屏上的存档位置错钳回主屏。
+            window.Left = left;
+            window.Top = top;
+            new System.Windows.Interop.WindowInteropHelper(window).EnsureHandle();
+            var workArea = window.GetWorkAreaDip();
             window.Left = Math.Max(workArea.Left, Math.Min(left, workArea.Right - window.DesiredSize.Width));
             window.Top = Math.Max(workArea.Top, Math.Min(top, workArea.Bottom - window.DesiredSize.Height));
             return;

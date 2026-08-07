@@ -477,3 +477,172 @@ public sealed class BoxSizeSettingsTests
         }
     }
 }
+
+public sealed class FixedModeImportEnforcementTests
+{
+    [Fact]
+    public async Task MainWindowImport_RespectsFixedBoxCapacity()
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var paths = new AppPaths(root);
+            var repository = new DrawerRepository(paths.DatabasePath);
+            var drawerService = new DrawerService(paths, repository);
+            await drawerService.InitializeAsync();
+            var logger = new RecordingLogger();
+            var launcher = new NoOpFileLauncher();
+            var visualStyleStore = new BoxVisualStyleStore(drawerService, logger);
+            var quickPanel = new QuickPanelViewModel(drawerService, launcher, logger, visualStyleStore);
+            var viewModel = new MainViewModel(
+                drawerService,
+                new TodoService(repository),
+                launcher,
+                logger,
+                quickPanel,
+                new UpdateService(logger),
+                visualStyleStore,
+                new BoxPositionLockStateStore(drawerService, logger),
+                paths,
+                new DataStorageMigrationService(
+                    paths,
+                    repository,
+                    new StorageLocationStore(Path.Combine(root, "storage-location.json"))));
+
+            await viewModel.LoadCommand.ExecuteAsync(null);
+            await viewModel.CreateNormalBoxCommand.ExecuteAsync(null);
+            var box = viewModel.SelectedBox!;
+            Assert.NotNull(box);
+
+            // 等选中盒的尺寸状态异步加载就位（否则写入守卫会拒绝模式切换）。
+            await Task.Delay(200);
+
+            // 选中即成为尺寸设置目标；切成固定 1×1（容量 1）。
+            await viewModel.BoxSizeSettings.UseFixedModeCommand.ExecuteAsync(null);
+            await viewModel.BoxSizeSettings.DecreaseColumnsCommand.ExecuteAsync(null);
+            await viewModel.BoxSizeSettings.DecreaseColumnsCommand.ExecuteAsync(null);
+            await viewModel.BoxSizeSettings.DecreaseColumnsCommand.ExecuteAsync(null);
+            await viewModel.BoxSizeSettings.DecreaseRowsCommand.ExecuteAsync(null);
+            await viewModel.BoxSizeSettings.DecreaseRowsCommand.ExecuteAsync(null);
+            await viewModel.BoxSizeSettings.DecreaseRowsCommand.ExecuteAsync(null);
+            Assert.True(viewModel.BoxSizeSettings.IsFixedMode);
+            Assert.Equal(1, viewModel.BoxSizeSettings.FixedColumns);
+            Assert.Equal(1, viewModel.BoxSizeSettings.FixedRows);
+
+            var sourceDir = Path.Combine(root, "source");
+            Directory.CreateDirectory(sourceDir);
+            var files = new[] { "a.txt", "b.txt" }
+                .Select(name =>
+                {
+                    var path = Path.Combine(sourceDir, name);
+                    File.WriteAllText(path, "payload");
+                    return path;
+                })
+                .ToArray();
+
+            await viewModel.ImportPathsAsync(files);
+
+            // 容量 1：只导入 1 项，另一项保持原样并有明确提示。
+            var items = await drawerService.GetItemsAsync(box.Id);
+            Assert.Single(items);
+            Assert.Contains("已满", viewModel.StatusText);
+            Assert.True(File.Exists(files[1]));
+        }
+        finally
+        {
+            CleanupTempRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task FixedBox_LoadPacksUnslottedItemsIntoFixedBounds()
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var (drawerService, repository) = await CreateDrawerServiceAsync(root);
+            var box = await drawerService.CreateBoxAsync("固定盒", BoxType.Normal);
+
+            // 模拟无约束入口写入的项目：无格位（GridColumn/Row 为 null）。
+            var sourceDir = Path.Combine(root, "source");
+            Directory.CreateDirectory(sourceDir);
+            foreach (var name in new[] { "a.txt", "b.txt", "c.txt" })
+            {
+                var path = Path.Combine(sourceDir, name);
+                File.WriteAllText(path, "payload");
+                await drawerService.ImportPathAsync(box.Id, path);
+            }
+
+            var viewModel = new DesktopBoxViewModel(
+                box,
+                drawerService,
+                new TodoService(repository),
+                new NoOpFileLauncher(),
+                new RecordingLogger(),
+                BoxVisualStyle.Modern);
+            viewModel.ApplySizeMode(new BoxSizeModeState(true, 2, 1));
+            await viewModel.LoadAsync();
+
+            // 全部项目都必须排进 2×1 边界内（超容量的退化为边界内重叠，绝不丢到窗口外）。
+            Assert.Equal(3, viewModel.Items.Count);
+            Assert.All(viewModel.Items, item =>
+            {
+                Assert.InRange(item.GridColumn, 0, 1);
+                Assert.Equal(0, item.GridRow);
+            });
+        }
+        finally
+        {
+            CleanupTempRoot(root);
+        }
+    }
+
+    private static string CreateTempRoot() =>
+        Path.Combine(Path.GetTempPath(), "WitchDrawerTests", Guid.NewGuid().ToString("N"));
+
+    private static async Task<(DrawerService Service, DrawerRepository Repository)> CreateDrawerServiceAsync(
+        string root)
+    {
+        var paths = new AppPaths(root);
+        var repository = new DrawerRepository(paths.DatabasePath);
+        var drawerService = new DrawerService(paths, repository);
+        await drawerService.InitializeAsync();
+        return (drawerService, repository);
+    }
+
+    private static void CleanupTempRoot(string root)
+    {
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            try
+            {
+                if (Directory.Exists(root))
+                {
+                    Directory.Delete(root, recursive: true);
+                }
+
+                return;
+            }
+            catch (IOException) when (attempt < 9)
+            {
+                Thread.Sleep(100);
+            }
+        }
+    }
+
+    private sealed class NoOpFileLauncher : IFileLauncher
+    {
+        public Task OpenAsync(string path, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
+    private sealed class RecordingLogger : IAppLogger
+    {
+        public void Info(string message)
+        {
+        }
+
+        public void Error(Exception exception, string message)
+        {
+        }
+    }
+}

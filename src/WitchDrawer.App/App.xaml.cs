@@ -149,16 +149,17 @@ public partial class App : Application
                 quickPanelHotKey);
             StartSingleInstanceServer(logger);
 
-            mainViewModel.BoxesChanged += async (_, _) => await _desktopBoxManager.RefreshAsync();
+            // 这些事件处理器是 async void：刷新期间的异常（如 SQLite 写入失败）会直接逃出
+            // 成为进程级未处理异常，必须就地捕获记录。
+            mainViewModel.BoxesChanged += async (_, _) =>
+                await GuardRefreshAsync(() => _desktopBoxManager.RefreshAsync(), "RefreshAsync", logger);
             mainViewModel.ItemsChanged += async (_, eventArgs) =>
-            {
-                await _desktopBoxManager.RefreshItemsAsync(eventArgs.BoxId);
-            };
+                await GuardRefreshAsync(() => _desktopBoxManager.RefreshItemsAsync(eventArgs.BoxId), "RefreshItemsAsync", logger);
             _desktopBoxManager.ItemsChanged += async (_, eventArgs) =>
-            {
-                // Desktop boxes already mutated their own UI; only sync main/quick panel.
-                await mainViewModel.ReloadItemsFromDesktopAsync(eventArgs.BoxId);
-            };
+                await GuardRefreshAsync(
+                    () => mainViewModel.ReloadItemsFromDesktopAsync(eventArgs.BoxId),
+                    "ReloadItemsFromDesktopAsync",
+                    logger);
             _mainWindow.ReopenBoxRequested += async (_, boxId) => await _desktopBoxManager.ShowAsync(boxId);
             _mainWindow.DesktopShellRestarted += async (_, _) =>
                 await _desktopBoxManager.RecoverDesktopHostsAsync();
@@ -234,6 +235,18 @@ public partial class App : Application
         return Enum.TryParse<AppTheme>(savedTheme, ignoreCase: true, out var theme)
             ? theme
             : AppTheme.Moe;
+    }
+
+    private static async Task GuardRefreshAsync(Func<Task> refresh, string operationName, IAppLogger logger)
+    {
+        try
+        {
+            await refresh();
+        }
+        catch (Exception exception)
+        {
+            logger.Error(exception, $"Desktop box refresh failed during {operationName}.");
+        }
     }
 
     private void StartSingleInstanceServer(IAppLogger logger)

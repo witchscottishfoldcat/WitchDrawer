@@ -113,3 +113,42 @@ public sealed class DesktopBoxWindowDragTests
         Assert.Equal(1, rect.Height);
     }
 }
+
+public sealed class InternalDragCompletionTests
+{
+    [Fact]
+    public void Mark_WithSynchronousFlag_LeavesNoStaleEntriesForLaterDragOut()
+    {
+        // 实际 OLE 路径：目标盒在 DoDragDrop 返回前同步置位，CompleteInternalDropAsync 随后 Mark。
+        // Mark 此时不得再写静态集合，否则残留 ItemId 会把该项目之后的"拖出到桌面"误判为内部落放。
+        var itemId = Guid.NewGuid();
+        var sourceBoxId = Guid.NewGuid();
+        var payload = DesktopBoxWindow.DesktopBoxDragPayload.Create(itemId, sourceBoxId);
+        payload.WasDroppedInsideWitchDrawer = true;
+
+        DesktopBoxWindow.MarkDroppedInsideWitchDrawer(payload);
+
+        // 之后同一项目的新拖拽（新 DragId、同 ItemId）释放到桌面：不得命中任何残留。
+        var dragOut = DesktopBoxWindow.DesktopBoxDragPayload.Create(itemId, sourceBoxId);
+        Assert.False(DesktopBoxWindow.ConsumeDroppedInsideWitchDrawer(dragOut));
+        Assert.False(dragOut.WasDroppedInsideWitchDrawer);
+    }
+
+    [Fact]
+    public void Mark_WithoutSynchronousFlag_FallbackEntryIsConsumedExactlyOnce()
+    {
+        // 兜底通道：同步标记缺失时写入集合，源端消费一次后即清除。
+        var itemId = Guid.NewGuid();
+        var sourceBoxId = Guid.NewGuid();
+        var payload = DesktopBoxWindow.DesktopBoxDragPayload.Create(itemId, sourceBoxId);
+
+        DesktopBoxWindow.MarkDroppedInsideWitchDrawer(payload);
+
+        var first = DesktopBoxWindow.DesktopBoxDragPayload.Create(itemId, sourceBoxId);
+        Assert.True(DesktopBoxWindow.ConsumeDroppedInsideWitchDrawer(first));
+        Assert.True(first.WasDroppedInsideWitchDrawer);
+
+        var second = DesktopBoxWindow.DesktopBoxDragPayload.Create(itemId, sourceBoxId);
+        Assert.False(DesktopBoxWindow.ConsumeDroppedInsideWitchDrawer(second));
+    }
+}

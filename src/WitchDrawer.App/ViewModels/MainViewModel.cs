@@ -34,6 +34,8 @@ public sealed class MainViewModel : ObservableObject
     private CancellationTokenSource? _itemsLoadCts;
     private int _itemsLoadVersion;
     private bool _isBusy;
+    private bool _pendingDesktopReload;
+    private Guid? _pendingDesktopReloadBoxId;
     private bool _isSettingsPage;
     private bool _isAboutPage;
     private bool _isArchivePage;
@@ -381,6 +383,12 @@ public sealed class MainViewModel : ObservableObject
     {
         if (IsBusy)
         {
+            // 忙时合流而非丢弃：记录一次待刷，忙完补刷；null 表示全量，
+            // 一旦出现第二个不同盒子的变更就保持全量。
+            _pendingDesktopReloadBoxId = _pendingDesktopReload
+                ? (_pendingDesktopReloadBoxId == affectedBoxId ? affectedBoxId : null)
+                : affectedBoxId;
+            _pendingDesktopReload = true;
             return;
         }
 
@@ -412,7 +420,21 @@ public sealed class MainViewModel : ObservableObject
         finally
         {
             IsBusy = false;
+            FlushPendingDesktopReload();
         }
+    }
+
+    private void FlushPendingDesktopReload()
+    {
+        if (!_pendingDesktopReload || IsBusy)
+        {
+            return;
+        }
+
+        _pendingDesktopReload = false;
+        var boxId = _pendingDesktopReloadBoxId;
+        _pendingDesktopReloadBoxId = null;
+        _ = ReloadItemsFromDesktopAsync(boxId);
     }
 
     public async Task ReorderBoxAsync(Guid draggedBoxId, Guid targetBoxId, bool insertAfter)
@@ -480,8 +502,23 @@ public sealed class MainViewModel : ObservableObject
 
         await RunBusyAsync(async () =>
         {
+            // 固定格数盒的硬约束：主窗口导入同样不得超容量（桌面盒拖入路径已有同等约束）。
+            // 超容量的项目若入库，会因无格位被分配到固定边界外，在盒内不可见也不可选。
+            var pathsToImport = pathList;
+            var skippedForCapacity = 0;
+            if (selectedBox.SupportsFixedSize && BoxSizeSettings.IsFixedMode)
+            {
+                var capacity = BoxSizeSettings.FixedColumns * BoxSizeSettings.FixedRows;
+                var remaining = Math.Max(0, capacity - Items.Count);
+                if (remaining < pathList.Length)
+                {
+                    pathsToImport = pathList.Take(remaining).ToArray();
+                    skippedForCapacity = pathList.Length - pathsToImport.Length;
+                }
+            }
+
             var imported = 0;
-            foreach (var path in pathList)
+            foreach (var path in pathsToImport)
             {
                 await _drawerService.ImportPathAsync(selectedBox.Id, path);
                 imported++;
@@ -489,7 +526,11 @@ public sealed class MainViewModel : ObservableObject
 
             await LoadItemsForSelectedBoxAsync(selectedBox);
             await _quickPanelViewModel.RefreshBoxAsync(selectedBox.Id);
-            StatusText = $"已导入 {imported} 项到 {selectedBox.Name}";
+            StatusText = skippedForCapacity > 0
+                ? imported > 0
+                    ? $"已导入 {imported} 项到 {selectedBox.Name}，盒子已满（{skippedForCapacity} 项未导入）"
+                    : $"{selectedBox.Name} 已满，无法导入"
+                : $"已导入 {imported} 项到 {selectedBox.Name}";
             ItemsChanged?.Invoke(this, new BoxItemsChangedEventArgs(selectedBox.Id));
         });
     }
@@ -1016,6 +1057,7 @@ public sealed class MainViewModel : ObservableObject
         finally
         {
             IsBusy = false;
+            FlushPendingDesktopReload();
         }
     }
 

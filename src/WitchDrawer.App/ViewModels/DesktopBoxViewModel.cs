@@ -1089,18 +1089,27 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
         foreach (var item in items)
         {
-            (int Column, int Row) slot;
-            if (item.GridColumn >= 0 && item.GridRow >= 0)
+            (int Column, int Row)? persisted = item.GridColumn >= 0 && item.GridRow >= 0
+                ? (item.GridColumn.Value, item.GridRow.Value)
+                : null;
+            // 固定模式：越界的持久化格位（如经未做约束的入口导入）视为无格位，在边界内重排。
+            if (persisted is { } persistedSlot
+                && IsFixedSize
+                && (persistedSlot.Column >= _sizeMode.Columns || persistedSlot.Row >= _sizeMode.Rows))
             {
-                slot = (item.GridColumn.Value, item.GridRow.Value);
-                if (usedSlots.Contains(slot))
-                {
-                    slot = FindFirstFreeSlot(
-                        nextColumn,
-                        nextRow,
-                        usedSlots,
-                        maxUsedColumn);
-                }
+                persisted = null;
+            }
+
+            (int Column, int Row) slot;
+            if (persisted is { } validSlot && !usedSlots.Contains(validSlot))
+            {
+                slot = validSlot;
+            }
+            else if (IsFixedSize)
+            {
+                // 固定模式在 m×n 边界内找空位；满载时退化为钳制后的首选格
+                // （项目重叠但保持可见可操作，优于渲染到窗口外永久丢失）。
+                TryFindFreeSlotInFixedBounds(nextColumn, nextRow, usedSlots, out slot);
             }
             else
             {
