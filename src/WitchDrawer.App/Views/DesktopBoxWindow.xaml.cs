@@ -219,6 +219,19 @@ public partial class DesktopBoxWindow : Window
         DrawerSecondaryPopup.VerticalOffset = target.Top;
     }
 
+    /// <summary>
+    /// 初始布局稳定后强制重测。SizeToContent 窗口的首次测量以初始 HWND 尺寸为约束，
+    /// 若内容之后不再变化（如折叠抽屉盒的封面），窗口会一直停留在错误的初始宽度上
+    /// （封面两侧突出）。一次 InvalidateMeasure 即可让窗口贴合真实内容。
+    /// </summary>
+    internal void ResyncSizeToContent()
+    {
+        if (SizeToContent != SizeToContent.Manual)
+        {
+            InvalidateMeasure();
+        }
+    }
+
     internal Rect GetVisibleBounds() =>
         ComputeVisibleBounds(Left, Top, ActualWidth, ActualHeight, WindowBorder.Margin);
 

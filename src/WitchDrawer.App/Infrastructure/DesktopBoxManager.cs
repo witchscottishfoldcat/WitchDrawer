@@ -172,6 +172,9 @@ public sealed class DesktopBoxManager
                     window.SetDesktopForeground(_desktopIsForeground);
                     window.QueueSendToBottom();
                     await window.ViewModel.LoadAsync();
+                    // 首次布局的测量约束来自初始 HWND 尺寸，内容稳定后强制重测一次，
+                    // 否则窗口会一直停在错误的初始宽度（折叠抽屉盒封面两侧突出）。
+                    window.ResyncSizeToContent();
                 }
                 else
                 {
