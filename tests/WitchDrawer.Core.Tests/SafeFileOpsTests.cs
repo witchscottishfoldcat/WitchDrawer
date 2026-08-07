@@ -126,3 +126,61 @@ public sealed class SafeFileOpsTests
         }
     }
 }
+
+public sealed class SafeFileOpsRollbackTests
+{
+    [Fact]
+    public void CopyThenDelete_DirectoryCopyFailure_RemovesPartialDestinationTree()
+    {
+        using var workspace = new TempWorkspace();
+        var sourceDir = workspace.CreateDirectory("source-dir");
+        File.WriteAllText(Path.Combine(sourceDir, "root.txt"), "root");
+        Directory.CreateDirectory(Path.Combine(sourceDir, "child"));
+        File.WriteAllText(Path.Combine(sourceDir, "child", "nested.txt"), "nested");
+
+        // 预置冲突文件让复制在中途（子目录阶段）失败：根文件已复制、子目录复制抛错。
+        var targetDir = Path.Combine(workspace.Root, "copied-dir");
+        Directory.CreateDirectory(Path.Combine(targetDir, "child"));
+        File.WriteAllText(Path.Combine(targetDir, "child", "nested.txt"), "conflict");
+
+        Assert.Throws<IOException>(() =>
+            SafeFileOps.CopyThenDelete(sourceDir, targetDir, isDirectory: true, CancellationToken.None));
+
+        // 回滚：目标处的半成品目录树（含本次复制的 root.txt）必须被清理，源目录保持完整。
+        Assert.False(Directory.Exists(targetDir));
+        Assert.True(File.Exists(Path.Combine(sourceDir, "root.txt")));
+        Assert.True(File.Exists(Path.Combine(sourceDir, "child", "nested.txt")));
+    }
+
+    private sealed class TempWorkspace : IDisposable
+    {
+        public TempWorkspace()
+        {
+            Root = Path.Combine(Path.GetTempPath(), "WitchDrawer.SafeFileOps.RollbackTests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(Root);
+        }
+
+        public string Root { get; }
+
+        public string CreateDirectory(string name)
+        {
+            var path = Path.Combine(Root, name);
+            Directory.CreateDirectory(path);
+            return path;
+        }
+
+        public void Dispose()
+        {
+            try
+            {
+                if (Directory.Exists(Root))
+                {
+                    Directory.Delete(Root, recursive: true);
+                }
+            }
+            catch (IOException)
+            {
+            }
+        }
+    }
+}

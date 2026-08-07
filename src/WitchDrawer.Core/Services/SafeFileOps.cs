@@ -104,7 +104,18 @@ internal static class SafeFileOps
 
         if (isDirectory)
         {
-            CopyDirectory(sourcePath, destinationPath, cancellationToken);
+            try
+            {
+                CopyDirectory(sourcePath, destinationPath, cancellationToken);
+            }
+            catch
+            {
+                // 复制中途失败（磁盘满/取消/无权限）时清掉半成品目录树，
+                // 与文件分支和删除失败分支的回滚行为保持一致。
+                TryDeleteDirectory(destinationPath);
+                throw;
+            }
+
             try
             {
                 Directory.Delete(sourcePath, recursive: true);

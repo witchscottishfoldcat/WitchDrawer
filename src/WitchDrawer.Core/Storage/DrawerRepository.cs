@@ -726,6 +726,9 @@ public sealed class DrawerRepository
             DataSource = _databasePath,
             ForeignKeys = true,
             Mode = SqliteOpenMode.ReadWriteCreate,
+            // WAL 只解决读写并发；写写并发下默认 busy_timeout=0 会立即抛 SQLITE_BUSY。
+            // 给写操作一个短暂的等待窗口，避免重叠写入（如逐项删除循环中又来导入）直接报错冒到 UI。
+            DefaultTimeout = 5,
             // 避免连接池复用导致旁路文件句柄残留，便于排查目录权限问题。
             Pooling = false
         };

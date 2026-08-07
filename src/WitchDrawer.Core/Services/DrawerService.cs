@@ -647,6 +647,14 @@ public sealed class DrawerService
 
     private async Task PruneMissingStoredItemsAsync(Guid? boxId, CancellationToken cancellationToken)
     {
+        // 存储根不可达（可移动盘/网络盘暂时掉线）时绝不能清理：
+        // 文件仍然存在只是暂时不可见，把"看不到"当成"已删除"会永久销毁记录与恢复信息，
+        // 驱动器重新挂载后文件就变成无人知晓的孤儿。
+        if (!Directory.Exists(_paths.BoxesDirectory))
+        {
+            return;
+        }
+
         var items = await _repository.GetItemsAsync(boxId, cancellationToken);
         var missingItemIds = await Task.Run(() =>
         {
