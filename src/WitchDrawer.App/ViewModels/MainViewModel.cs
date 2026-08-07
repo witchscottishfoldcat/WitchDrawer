@@ -113,12 +113,14 @@ public sealed class MainViewModel : ObservableObject
         ShowArchiveCommand = new AsyncRelayCommand(ShowArchiveAsync);
         ShowSettingsCommand = new RelayCommand(() =>
         {
+            SelectedBox = null;
             IsArchivePage = false;
             IsSettingsPage = true;
             IsAboutPage = false;
         });
         ShowAboutCommand = new RelayCommand(() =>
         {
+            SelectedBox = null;
             IsArchivePage = false;
             IsSettingsPage = false;
             IsAboutPage = true;
@@ -854,6 +856,7 @@ public sealed class MainViewModel : ObservableObject
 
     private async Task ShowArchiveAsync()
     {
+        SelectedBox = null;
         IsArchivePage = true;
         IsSettingsPage = false;
         IsAboutPage = false;
