@@ -154,15 +154,17 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     public bool IsFixedSize => SupportsFixedSize && _sizeMode.IsFixed;
 
+    private const double FixedGridViewportPaddingInset = 6;
+
     /// <summary>
-    /// 网格视口宽度：固定模式下加上预留的 ChromeInset，与自适应模式的视口物理宽/高完全对齐。
+    /// 网格视口宽度：固定模式下精准预留 6px（ListBox Padding 2px*2 + 边框微距），与自适应模式物理尺寸 100% 像素级对齐。
     /// </summary>
     public double GridViewportWidth => IsFixedSize
-        ? (SizeMode.Columns * LayoutSettings.ItemSlotWidth) + DesktopBoxLayoutSettings.GridViewportChromeInset
+        ? (SizeMode.Columns * LayoutSettings.ItemSlotWidth) + FixedGridViewportPaddingInset
         : double.NaN;
 
     public double GridViewportHeight => IsFixedSize
-        ? (SizeMode.Rows * LayoutSettings.ItemSlotHeight) + DesktopBoxLayoutSettings.GridViewportChromeInset
+        ? (SizeMode.Rows * LayoutSettings.ItemSlotHeight) + FixedGridViewportPaddingInset
         : double.NaN;
 
     /// <summary>
