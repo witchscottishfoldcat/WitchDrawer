@@ -41,6 +41,9 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private BoxVisualStyle _visualStyle;
     private bool _isBusy;
     private double _gridCanvasWidth;
+    private DateTime _lastCanvasSizeChangedUtc = DateTime.MinValue;
+    private double _lastCanvasWidth = double.NaN;
+    private double _lastCanvasHeight = double.NaN;
     private double _gridCanvasHeight;
     private bool _isDragPreviewVisible;
     private double _dragPreviewLeft;
@@ -449,28 +452,27 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
         if (surfaceWidth > 0 && surfaceHeight > 0)
         {
+            // 画布刚因预览扩展而改尺寸后的极短窗口内，指针坐标读取处于布局过渡态，
+            // 会读出瞬时错位值：此时直接保持当前预览格，等布局稳定后再跟随指针。
+            // 否则扩展帧与错位帧交替 → 扩展/收缩来回打摆（空盒上表现为疯狂频闪）。
+            if (IsDragPreviewVisible
+                && (DateTime.UtcNow - _lastCanvasSizeChangedUtc).TotalMilliseconds < 120)
+            {
+                return (_previewColumn, _previewRow);
+            }
+
             var maxCol = Items.Count == 0 ? 0 : Items.Max(item => item.GridColumn);
             var maxRow = Items.Count == 0 ? 0 : Items.Max(item => item.GridRow);
 
             var contentRight = (maxCol + 1) * LayoutSettings.ItemSlotWidth;
             var contentBottom = (maxRow + 1) * LayoutSettings.ItemSlotHeight;
 
-            // 收缩滞回：预览已位于扩展格时，把收缩阈值向内容侧再退一整格。
-            // 窗口在指针下方实时 resize 时，坐标读取存在瞬时错位帧；没有滞回的话
-            // 扩展帧与错位帧交替 → 扩展→收缩→扩展……（空盒上表现为疯狂频闪）。
-            var collapseHysteresisX = IsDragPreviewVisible && _previewColumn > maxCol
-                ? LayoutSettings.ItemSlotWidth
-                : 0;
-            var collapseHysteresisY = IsDragPreviewVisible && _previewRow > maxRow
-                ? LayoutSettings.ItemSlotHeight
-                : 0;
-
-            if (x >= contentRight - EdgeExpandThreshold - collapseHysteresisX)
+            if (x >= contentRight - EdgeExpandThreshold)
             {
                 column = Math.Max(column, maxCol + 1);
             }
 
-            if (y >= contentBottom - EdgeExpandThreshold - collapseHysteresisY)
+            if (y >= contentBottom - EdgeExpandThreshold)
             {
                 row = Math.Max(row, maxRow + 1);
             }
@@ -1205,6 +1207,14 @@ public sealed class DesktopBoxViewModel : ObservableObject
         {
             GridCanvasWidth = Math.Max(1, maxCol + 1) * LayoutSettings.ItemSlotWidth;
             GridCanvasHeight = Math.Max(1, maxRow + 1) * LayoutSettings.ItemSlotHeight;
+        }
+
+        // 记录画布尺寸实际变化的时刻：GetGridSlot 在此后的极短窗口内冻结落点计算。
+        if (GridCanvasWidth != _lastCanvasWidth || GridCanvasHeight != _lastCanvasHeight)
+        {
+            _lastCanvasWidth = GridCanvasWidth;
+            _lastCanvasHeight = GridCanvasHeight;
+            _lastCanvasSizeChangedUtc = DateTime.UtcNow;
         }
 
         OnPropertyChanged(nameof(DragPreviewWidth));

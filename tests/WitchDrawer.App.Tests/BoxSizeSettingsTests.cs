@@ -384,13 +384,14 @@ public sealed class BoxSizeSettingsTests
             Assert.Equal(1, expanded.Column);
             viewModel.ShowDragPreview(expanded.Column, expanded.Row);
 
-            // 滞回：预览已扩展时，指针回到盒内左侧（哪怕瞬时错位）不应收缩回去。
+            // 冻结窗：画布刚改尺寸的 120ms 内坐标读取不可信，保持扩展格不收缩。
             var kept = viewModel.GetGridSlot(10, 10, 200, 200);
             Assert.Equal(1, kept.Column);
 
-            // 只有明确撤离（指针越过阈值再往左一整格）才允许收缩。
-            var collapsed = viewModel.GetGridSlot(contentRight - 14 - slot - 5, 10, 200, 200);
-            Assert.Equal(0, collapsed.Column);
+            // 冻结窗结束后正常跟随指针：撤回内容区深处即可收缩（第一格依然容易瞄准）。
+            await Task.Delay(200);
+            var followed = viewModel.GetGridSlot(10, 10, 200, 200);
+            Assert.Equal(0, followed.Column);
         }
         finally
         {
