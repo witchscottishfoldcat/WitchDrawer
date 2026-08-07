@@ -69,7 +69,9 @@ public sealed class StorageLocationStore
     }
 
     /// <summary>
-    /// 保存用户配置的数据根目录。
+    /// 保存用户配置的数据根目录。先写临时文件再原子替换：
+    /// 写一半断电/崩溃不会留下损坏的 JSON（损坏配置会让启动静默回退默认目录，
+    /// 用户自定义目录里的数据"看起来全丢了"）。
     /// </summary>
     public void SaveConfiguredDirectory(string dataDirectory)
     {
@@ -81,7 +83,10 @@ public sealed class StorageLocationStore
         }
 
         var config = new StorageLocationConfig(Path.GetFullPath(dataDirectory.Trim()));
-        File.WriteAllText(_filePath, JsonSerializer.Serialize(config, SerializerOptions));
+        var json = JsonSerializer.Serialize(config, SerializerOptions);
+        var tempPath = _filePath + ".tmp";
+        File.WriteAllText(tempPath, json);
+        File.Move(tempPath, _filePath, overwrite: true);
     }
 
     /// <summary>

@@ -30,6 +30,8 @@ public sealed class DataStorageMigrationService
     /// <summary>
     /// 将当前数据目录整体迁移到 <paramref name="targetRootDirectory"/>。
     /// 目标目录必须为空（或不存在），且不能位于当前数据目录内部。
+    /// 复制先落在临时目录，全部成功后一次性改名到位：失败/取消只残留临时目录，
+    /// 下次重试前会被自动清理，迁移永远可重试。
     /// 迁移成功后仅更新引导配置；旧目录保留作为备份，由用户自行清理。
     /// </summary>
     public async Task<AppPaths> MigrateAsync(
@@ -57,21 +59,46 @@ public sealed class DataStorageMigrationService
                 "目标文件夹不为空。为避免覆盖已有数据，请选择一个空文件夹。");
         }
 
-        var targetPaths = new AppPaths(targetRoot);
-        targetPaths.EnsureCreatedAndWritable();
-
-        // 先把 WAL 回写主库并截断旁路文件，确保复制出的 witchdrawer.db 是完整数据。
-        await _repository.CheckpointAsync(cancellationToken);
-
-        CopyDirectory(sourceRoot, targetRoot, cancellationToken);
-
-        if (File.Exists(_paths.DatabasePath) && !File.Exists(targetPaths.DatabasePath))
+        var tempRoot = targetRoot + ".tmp-migrating";
+        try
         {
-            throw new InvalidOperationException("迁移失败：数据库文件未能复制到目标文件夹。");
+            // 上次失败/崩溃可能留下的临时目录：先清掉，保证本次从干净状态开始。
+            if (Directory.Exists(tempRoot))
+            {
+                Directory.Delete(tempRoot, recursive: true);
+            }
+
+            // 在临时目录上验证可写性：不在目标目录里制造任何内容，
+            // 否则失败后重试会被"目标不为空"校验挡死。
+            var tempPaths = new AppPaths(tempRoot);
+            tempPaths.EnsureCreatedAndWritable();
+
+            // 先把 WAL 回写主库并截断旁路文件，确保复制出的 witchdrawer.db 是完整数据。
+            await _repository.CheckpointAsync(cancellationToken);
+
+            CopyDirectory(sourceRoot, tempRoot, cancellationToken);
+
+            if (File.Exists(_paths.DatabasePath) && !File.Exists(tempPaths.DatabasePath))
+            {
+                throw new InvalidOperationException("迁移失败：数据库文件未能复制到目标文件夹。");
+            }
+
+            // 校验阶段允许"目标已存在但为空"：先移除空壳，再把临时目录原子改名到位。
+            if (Directory.Exists(targetRoot))
+            {
+                Directory.Delete(targetRoot, recursive: true);
+            }
+
+            Directory.Move(tempRoot, targetRoot);
+        }
+        catch
+        {
+            TryDeleteDirectory(tempRoot);
+            throw;
         }
 
         _locationStore.SaveConfiguredDirectory(targetRoot);
-        return targetPaths;
+        return new AppPaths(targetRoot);
     }
 
     private static bool IsDescendantOf(string candidate, string ancestor)
@@ -106,6 +133,21 @@ public sealed class DataStorageMigrationService
             }
 
             File.Copy(file, Path.Combine(targetDirectory, name), overwrite: false);
+        }
+    }
+
+    private static void TryDeleteDirectory(string directory)
+    {
+        try
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+        catch
+        {
+            // 尽力清理；残留由下次迁移的开头清理兜底。
         }
     }
 }

@@ -28,6 +28,7 @@ public partial class App : Application
     private TaskbarIcon? _taskbarIcon;
     private MainWindow? _mainWindow;
     private DesktopBoxManager? _desktopBoxManager;
+    private IAppLogger? _logger;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -80,6 +81,7 @@ public partial class App : Application
             var paths = AppPaths.ForCurrentUser();
 
             var logger = new FileAppLogger(paths.LogsDirectory);
+            _logger = logger;
             var shortcutMigration = await Task.Run(() =>
                 StartupShortcutMigration.EnsureSilentArguments(
                     Environment.ProcessPath,
@@ -408,6 +410,42 @@ public partial class App : Application
         }
 
         Shutdown(0);
+    }
+
+    /// <summary>
+    /// 数据目录迁移后的重启：先布置一个分离的"等待当前进程退出再启动"的辅助进程，
+    /// 再走完整关闭流程。直接启动新进程会被单实例检测吸收（新实例信号旧实例后自行退出），
+    /// 导致重启落空；绕过 PerformShutdown 又可能丢掉位置保存等收尾工作。
+    /// </summary>
+    internal void RestartApplication()
+    {
+        try
+        {
+            var processPath = Environment.ProcessPath;
+            if (!string.IsNullOrWhiteSpace(processPath))
+            {
+                var arguments =
+                    "-NoProfile -WindowStyle Hidden -Command \""
+                    + $"while (Get-Process -Id {Environment.ProcessId} -ErrorAction SilentlyContinue) "
+                    + "{ Start-Sleep -Milliseconds 300 }; "
+                    + $"Start-Process -FilePath '{processPath}' -WorkingDirectory '{AppContext.BaseDirectory}'\"";
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "powershell.exe",
+                    Arguments = arguments,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden
+                });
+            }
+        }
+        catch (Exception exception)
+        {
+            // 重启安排失败不阻塞关闭：用户可手动启动。
+            _logger?.Error(exception, "Failed to schedule application restart after migration.");
+        }
+
+        PerformShutdown();
     }
 
     protected override void OnExit(ExitEventArgs e)

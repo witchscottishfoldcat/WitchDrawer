@@ -121,6 +121,74 @@ public sealed class DataStorageMigrationServiceTests
         }
     }
 
+    [Fact]
+    public async Task MigrateAsync_CopyFailureCleansUpAndAllowsRetry()
+    {
+        var sourceRoot = CreateTempDirectory();
+        var targetRoot = Path.Combine(Path.GetTempPath(), "WitchDrawer.Tests", Guid.NewGuid().ToString("N"));
+        var tempRoot = targetRoot + ".tmp-migrating";
+        try
+        {
+            var paths = new AppPaths(sourceRoot);
+            var repository = new DrawerRepository(paths.DatabasePath);
+            var service = new DrawerService(paths, repository);
+            await service.InitializeAsync();
+            var store = new StorageLocationStore(
+                Path.Combine(CreateTempDirectory(), StorageLocationStore.ConfigFileName));
+            var migration = new DataStorageMigrationService(paths, repository, store);
+
+            // 锁定一个排在数据库之后的源文件，让复制在中途失败（此时 db 已复制进临时目录）。
+            var lockedFile = Path.Combine(sourceRoot, "zzz-locked.txt");
+            await File.WriteAllTextAsync(lockedFile, "locked");
+            using (var lockStream = new FileStream(lockedFile, FileMode.Open, FileAccess.Read, FileShare.None))
+            {
+                await Assert.ThrowsAnyAsync<IOException>(() => migration.MigrateAsync(targetRoot));
+
+                // 失败只残留可自动清理的临时目录：临时目录被清除，目标目录不含半成品数据。
+                Assert.False(Directory.Exists(tempRoot));
+                Assert.True(
+                    !Directory.Exists(targetRoot)
+                    || !Directory.EnumerateFileSystemEntries(targetRoot).Any());
+                Assert.Null(store.LoadConfiguredDirectory());
+            }
+
+            // 释放文件锁后可直接重试（目标空目录存在也不应被拒）。
+            var newPaths = await migration.MigrateAsync(targetRoot);
+
+            Assert.True(File.Exists(newPaths.DatabasePath));
+            Assert.False(Directory.Exists(tempRoot));
+            Assert.Equal(Path.GetFullPath(targetRoot), store.LoadConfiguredDirectory());
+        }
+        finally
+        {
+            DeleteDirectory(sourceRoot);
+            DeleteDirectory(targetRoot);
+            DeleteDirectory(tempRoot);
+        }
+    }
+
+    [Fact]
+    public void StorageLocationStore_SaveLeavesNoTempFileBehind()
+    {
+        var bootstrapRoot = CreateTempDirectory();
+        try
+        {
+            var store = new StorageLocationStore(
+                Path.Combine(bootstrapRoot, StorageLocationStore.ConfigFileName));
+
+            store.SaveConfiguredDirectory(@"D:\Data\WitchDrawer");
+
+            Assert.Equal(
+                Path.GetFullPath(@"D:\Data\WitchDrawer"),
+                store.LoadConfiguredDirectory());
+            Assert.False(File.Exists(store.FilePath + ".tmp"));
+        }
+        finally
+        {
+            DeleteDirectory(bootstrapRoot);
+        }
+    }
+
     private static async Task<DataStorageMigrationService> CreateMigrationAsync(string sourceRoot)
     {
         var paths = new AppPaths(sourceRoot);
