@@ -164,7 +164,8 @@ public sealed class BoxSizeSettingsTests
             Assert.Equal(
                 "Fixed:4:4",
                 await drawerService.GetSettingAsync(BoxViewModel.GetSizeModeSettingKey(box.Id)));
-            var broadcast = Assert.Single(broadcasts);
+            // 共享静态 Messenger 且测试类并行：按盒子过滤，避免收到其他测试的广播。
+            var broadcast = Assert.Single(broadcasts.Where(message => message.BoxId == box.Id));
             Assert.Equal((box.Id, true, 4, 4), (broadcast.BoxId, broadcast.IsFixed, broadcast.Columns, broadcast.Rows));
 
             await viewModel.UseAdaptiveModeCommand.ExecuteAsync(null);
