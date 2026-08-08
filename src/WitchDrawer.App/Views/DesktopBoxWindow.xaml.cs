@@ -90,20 +90,54 @@ public partial class DesktopBoxWindow : Window
 
     private void SendToBottom()
     {
-        if (_desktopIsForeground)
-        {
-            _nativeWindow?.BringAboveDesktop();
-        }
-        else
-        {
-            _nativeWindow?.SendToBottom();
-        }
+        // 盒子永远停留在桌面层（桌面壳窗口之上、普通应用窗口之下），不再随前台状态上浮。
+        // 桌面父子关系（TryAttachToDesktop）保证 Win+D 显示桌面时盒子跟随桌面一起出现。
+        _nativeWindow?.SendToBottom();
     }
 
     public void QueueSendToBottom()
     {
         SendToBottom();
         Dispatcher.BeginInvoke(new Action(SendToBottom), DispatcherPriority.ApplicationIdle);
+    }
+
+    /// <summary>
+    /// 把所有桌面盒压回桌面层。弹窗打开时属主链被 Windows 整体提前，单个盒子沉底不够，
+    /// 必须遍历所有盒子窗口统一复位。
+    /// </summary>
+    internal static void QueueSendToBottomAll()
+    {
+        if (Application.Current is null)
+        {
+            return;
+        }
+
+        foreach (var window in Application.Current.Windows.OfType<DesktopBoxWindow>())
+        {
+            window.QueueSendToBottom();
+        }
+    }
+
+    /// <summary>
+    /// 把抽屉二级弹窗提到最前（不抢焦点）。必须先断开弹窗 HWND 的属主关系：
+    /// 置顶一个属子窗口会把整条属主链（盒子→桌面壳→所有盒子）再次提前。
+    /// 断开后置顶只作用于弹窗自身，盒子保持桌面层不动。
+    /// </summary>
+    private void BringDrawerPopupToFront()
+    {
+        if (PresentationSource.FromVisual(DrawerSecondaryPopupRoot) is HwndSource popupSource
+            && popupSource.Handle != nint.Zero)
+        {
+            SetWindowLongPtr(popupSource.Handle, WindowOwnerIndex, 0);
+            SetWindowPos(
+                popupSource.Handle,
+                WindowPositionTopmost,
+                0,
+                0,
+                0,
+                0,
+                SetWindowPosNoMove | SetWindowPosNoSize | SetWindowPosNoActivate);
+        }
     }
 
     public void SetPositionLocked(bool isPositionLocked)
@@ -122,15 +156,8 @@ public partial class DesktopBoxWindow : Window
 
     public void SetDesktopForeground(bool isForeground)
     {
-        if (_desktopIsForeground == isForeground)
-        {
-            return;
-        }
-
+        // 层级已与前台状态解耦：盒子永远留在桌面层，这里只记录状态并保持沉底。
         _desktopIsForeground = isForeground;
-        // Foreground monitoring is already coalesced by DesktopBoxManager.
-        // Apply the resulting layer once; a second idle-time SetWindowPos is
-        // visible as a flash during the Win+D compositor transition.
         SendToBottom();
     }
 
@@ -308,6 +335,14 @@ public partial class DesktopBoxWindow : Window
 
     private void OnDrawerSecondaryPopupOpened(object? sender, EventArgs e)
     {
+        // 弹窗 HWND 属主是盒子窗口，盒子窗口属主是桌面壳。弹窗打开时 Windows 会把
+        // 整条属主链提前：所有同属桌面壳的盒子都会被带到应用窗口之上（"全部上浮"）。
+        // 打开后立刻把所有盒子压回桌面层；弹窗本身是 topmost，不受影响。
+        QueueSendToBottomAll();
+        // 沉底在 ApplicationIdle 还会补一次，而压主窗口沉底会把它的属子弹窗一起拖下去；
+        // 置顶必须排在所有沉底调用之后，所以用 SystemIdle 优先级。
+        Dispatcher.BeginInvoke(DispatcherPriority.SystemIdle, BringDrawerPopupToFront);
+
         Dispatcher.BeginInvoke(
             DispatcherPriority.Loaded,
             () =>
@@ -1594,6 +1629,26 @@ public partial class DesktopBoxWindow : Window
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
     private static extern bool GetCursorPos(out NativePoint lpPoint);
+
+    private static readonly nint WindowPositionTopmost = -1;
+    private const int WindowOwnerIndex = -8;
+    private const uint SetWindowPosNoSize = 0x0001;
+    private const uint SetWindowPosNoMove = 0x0002;
+    private const uint SetWindowPosNoActivate = 0x0010;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool SetWindowPos(
+        nint hWnd,
+        nint hWndInsertAfter,
+        int x,
+        int y,
+        int cx,
+        int cy,
+        uint flags);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern nint SetWindowLongPtr(nint hWnd, int index, nint newValue);
 
     private const uint MonitorDefaultToNearest = 2;
 

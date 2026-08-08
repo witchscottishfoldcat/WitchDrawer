@@ -105,7 +105,6 @@ public sealed class DesktopBoxManager
                 var win = _windows[removedId];
                 win.LocationChanged -= OnWindowLocationChanged;
                 win.PreviewMouseLeftButtonUp -= OnWindowMouseUp;
-                win.Activated -= OnDesktopBoxActivated;
                 win.ForceClose();
                 _windows.Remove(removedId);
             }
@@ -151,7 +150,6 @@ public sealed class DesktopBoxManager
 
                     window.LocationChanged += OnWindowLocationChanged;
                     window.PreviewMouseLeftButtonUp += OnWindowMouseUp;
-                    window.Activated += OnDesktopBoxActivated;
                     window.SetPositionChangedCallback(async (id) =>
                     {
                         _isAdjustingPosition = true;
@@ -276,7 +274,6 @@ public sealed class DesktopBoxManager
 
             window.LocationChanged -= OnWindowLocationChanged;
             window.PreviewMouseLeftButtonUp -= OnWindowMouseUp;
-            window.Activated -= OnDesktopBoxActivated;
             // 外部（Explorer 重建桌面）销毁 HWND 不会触发 WPF Closed，必须显式 ForceClose
             // 让 OnClosed 里的退订/清理执行，否则整棵窗口对象图被静态事件永久引用（僵尸泄漏）。
             window.ForceClose();
@@ -337,7 +334,6 @@ public sealed class DesktopBoxManager
         {
             window.LocationChanged -= OnWindowLocationChanged;
             window.PreviewMouseLeftButtonUp -= OnWindowMouseUp;
-            window.Activated -= OnDesktopBoxActivated;
             window.ForceClose();
         }
 
@@ -430,20 +426,6 @@ public sealed class DesktopBoxManager
             isDesktopBoxWindow));
     }
 
-    private void OnDesktopBoxActivated(object? sender, EventArgs e)
-    {
-        if (_closing)
-        {
-            return;
-        }
-
-        // A box activation ends Show Desktop mode immediately. Waiting for the
-        // coalesced foreground hook leaves every Shell-owned box raised together
-        // for several frames.
-        SetDesktopForeground(ResolveDesktopForegroundState(
-            isDesktopWindow: false,
-            isDesktopBoxWindow: true));
-    }
 
     internal static bool ResolveDesktopForegroundState(
         bool isDesktopWindow,
