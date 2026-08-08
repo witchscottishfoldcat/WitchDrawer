@@ -165,6 +165,9 @@ public sealed class DesktopBoxManager
                         await SavePositionAsync(id);
                     });
 
+                    // 先创建句柄：OnSourceInitialized 里完成挂桌面 + 沉底，
+                    // 窗口首次可见时就已经在桌面层，不会先浮在最上层闪一帧再被压回。
+                    new System.Windows.Interop.WindowInteropHelper(window).EnsureHandle();
                     window.Show();
                     window.SetPositionLocked(isPositionLocked);
                     window.SetDesktopForeground(_desktopIsForeground);

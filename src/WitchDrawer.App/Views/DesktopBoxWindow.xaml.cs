@@ -119,16 +119,28 @@ public partial class DesktopBoxWindow : Window
     }
 
     /// <summary>
-    /// 把抽屉二级弹窗提到最前（不抢焦点）。必须先断开弹窗 HWND 的属主关系：
-    /// 置顶一个属子窗口会把整条属主链（盒子→桌面壳→所有盒子）再次提前。
-    /// 断开后置顶只作用于弹窗自身，盒子保持桌面层不动。
+    /// 断开弹窗 HWND 的属主关系：之后对弹窗的置顶/沉底不再沿属主链
+    /// （盒子→桌面壳→所有盒子）传播。在 Opened 时同步执行，消除窗口期。
+    /// </summary>
+    private void DetachDrawerPopupOwner()
+    {
+        if (PresentationSource.FromVisual(DrawerSecondaryPopupRoot) is HwndSource popupSource
+            && popupSource.Handle != nint.Zero)
+        {
+            SetWindowLongPtr(popupSource.Handle, WindowOwnerIndex, 0);
+        }
+    }
+
+    /// <summary>
+    /// 弹窗按"菜单"语义激活：置顶并获取前台。弹窗已断开属主（Opened 时），激活只影响
+    /// 弹窗自身——盒子不动。激活后 WPF 原生的 StaysOpen=False 完整生效：
+    /// 点击桌面/其他程序/其他盒子都会自动收起，无需额外兜底。
     /// </summary>
     private void BringDrawerPopupToFront()
     {
         if (PresentationSource.FromVisual(DrawerSecondaryPopupRoot) is HwndSource popupSource
             && popupSource.Handle != nint.Zero)
         {
-            SetWindowLongPtr(popupSource.Handle, WindowOwnerIndex, 0);
             SetWindowPos(
                 popupSource.Handle,
                 WindowPositionTopmost,
@@ -137,6 +149,7 @@ public partial class DesktopBoxWindow : Window
                 0,
                 0,
                 SetWindowPosNoMove | SetWindowPosNoSize | SetWindowPosNoActivate);
+            SetForegroundWindow(popupSource.Handle);
         }
     }
 
@@ -337,7 +350,8 @@ public partial class DesktopBoxWindow : Window
     {
         // 弹窗 HWND 属主是盒子窗口，盒子窗口属主是桌面壳。弹窗打开时 Windows 会把
         // 整条属主链提前：所有同属桌面壳的盒子都会被带到应用窗口之上（"全部上浮"）。
-        // 打开后立刻把所有盒子压回桌面层；弹窗本身是 topmost，不受影响。
+        // 第一时间断开弹窗属主，再把所有盒子压回桌面层，弹窗稍后置顶（不被沉底拖下）。
+        DetachDrawerPopupOwner();
         QueueSendToBottomAll();
         // 沉底在 ApplicationIdle 还会补一次，而压主窗口沉底会把它的属子弹窗一起拖下去；
         // 置顶必须排在所有沉底调用之后，所以用 SystemIdle 优先级。
@@ -818,6 +832,15 @@ public partial class DesktopBoxWindow : Window
         Close();
     }
 
+    private void OnTodoTitlePreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        // 待办输入需要键盘焦点：盒子是 NOACTIVATE，点击本身不激活窗口，
+        // 这里显式激活（用户明确要开始输入，盒子短暂到前面、点别处即收回）。
+        Activate();
+        TodoTitleTextBox.Focus();
+        Keyboard.Focus(TodoTitleTextBox);
+    }
+
     private async void OnTodoTitleKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key != Key.Enter || !ViewModel.AddTodoCommand.CanExecute(null))
@@ -1225,6 +1248,8 @@ public partial class DesktopBoxWindow : Window
 
         try
         {
+            // 拖拽不需要窗口激活：OLE 模态循环自行处理 Esc 取消与光标反馈，
+            // 激活只会把盒子抬起来闪一帧。
             await RunItemDragAsync(drawerItem, itemList);
         }
         finally
@@ -1368,11 +1393,8 @@ public partial class DesktopBoxWindow : Window
 
     private void BeginIconDrag(MouseButtonEventArgs e, ListBox itemList)
     {
-        // Bring the box to the foreground so keyboard input (e.g. Delete) reaches this window.
-        Activate();
-        itemList.Focus();
-        Keyboard.Focus(itemList);
-        QueueSendToBottom();
+        // 不在按下时激活：盒子窗口带 WS_EX_NOACTIVATE，刻意让点选不抬升（防闪帧）。
+        // 键盘激活推迟到拖拽真正开始时（OnIconMouseMove 超过阈值后）。
         _dragStartPoint = e.GetPosition(itemList);
         _dragStartItem = null;
 
@@ -1649,6 +1671,10 @@ public partial class DesktopBoxWindow : Window
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern nint SetWindowLongPtr(nint hWnd, int index, nint newValue);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool SetForegroundWindow(nint hWnd);
 
     private const uint MonitorDefaultToNearest = 2;
 

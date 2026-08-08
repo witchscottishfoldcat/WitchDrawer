@@ -13,6 +13,7 @@ public sealed class DesktopToolWindow
     private const int ExtendedStyleIndex = -20;
     private const nint ExtendedStyleAppWindow = 0x00040000;
     private const nint ExtendedStyleToolWindow = 0x00000080;
+    private const nint ExtendedStyleNoActivate = 0x08000000;
     private const uint GetWindowOwner = 4;
     private const nint SystemCommandMask = 0xFFF0;
     private const nint SystemCommandMinimize = 0xF020;
@@ -56,12 +57,14 @@ public sealed class DesktopToolWindow
     /// <summary>
     /// Marks the window as a tool window so Windows excludes it from Alt+Tab,
     /// attaches it to the desktop shell when available, and puts it at the
-    /// bottom of the normal top-level window Z order.
+    /// bottom of the normal top-level window Z order. WS_EX_NOACTIVATE 阻止
+    /// 点击激活：点击不再触发 Windows 的默认"激活并抬升"，盒子不会在点击瞬间
+    /// 浮出其他窗口再被压回（消除点击闪帧）。程序化 Activate() 不受此限制。
     /// </summary>
     public void Configure()
     {
         var extendedStyle = GetWindowLongPtr(_handle, ExtendedStyleIndex);
-        extendedStyle |= ExtendedStyleToolWindow;
+        extendedStyle |= ExtendedStyleToolWindow | ExtendedStyleNoActivate;
         extendedStyle &= ~ExtendedStyleAppWindow;
         SetWindowLongPtr(_handle, ExtendedStyleIndex, extendedStyle);
 

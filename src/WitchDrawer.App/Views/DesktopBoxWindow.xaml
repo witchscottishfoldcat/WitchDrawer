@@ -780,6 +780,7 @@
                         <TextBox x:Name="TodoTitleTextBox"
                                  Text="{Binding NewTodoTitle, UpdateSourceTrigger=PropertyChanged}"
                                  KeyDown="OnTodoTitleKeyDown"
+                                 PreviewMouseLeftButtonDown="OnTodoTitlePreviewMouseLeftButtonDown"
                                  MaxLength="200"
                                  Height="32"
                                  Padding="8,0"
