@@ -1087,16 +1087,26 @@
                             <DataTemplate>
                                 <Grid>
                                     <Button Style="{StaticResource DrawerTileButtonStyle}"
-                                            Click="OnDrawerDirectItemClick"
                                             PreviewMouseLeftButtonDown="OnDrawerIconPreviewMouseLeftButtonDown"
                                             ToolTip="{Binding Item.PathLabel}"
                                             Visibility="{Binding HasItem, Converter={StaticResource BooleanToVisibilityConverter}}">
                                         <Border Width="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType=Window}}"
                                                 Height="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType=Window}}"
                                                 CornerRadius="{Binding DataContext.LayoutSettings.IconCornerRadius, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                Background="{DynamicResource GlassInnerBrush}"
-                                                BorderBrush="{DynamicResource GlassStrokeBrush}"
                                                 BorderThickness="1">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Background" Value="{DynamicResource GlassInnerBrush}" />
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource GlassStrokeBrush}" />
+                                                    <Style.Triggers>
+                                                        <!-- 与图标网格同一套选中视觉：柔蓝底 + 蓝框 -->
+                                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                            <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
                                             <Grid DataContext="{Binding Item}">
                                                 <Image Width="{Binding DataContext.LayoutSettings.DrawerPrimaryIconSize, RelativeSource={RelativeSource AncestorType=Window}}"
                                                        infrastructure:DeferredIconLoad.IsEnabled="True"

@@ -24,6 +24,8 @@ public sealed class DesktopBoxManager
     private readonly BoxPositionLockStateStore _boxPositionLockStateStore;
     private readonly Dictionary<Guid, DesktopBoxWindow> _windows = [];
     private readonly ForegroundWindowMonitor _foregroundWindowMonitor;
+    private readonly GlobalMouseButtonMonitor _mouseButtonMonitor;
+    private readonly HashSet<Guid> _overlapResolutionBoxIds = [];
     private bool _closing;
     private bool _desktopIsForeground;
     private CancellationTokenSource? _foregroundChangeCts;
@@ -52,6 +54,15 @@ public sealed class DesktopBoxManager
         if (!_foregroundWindowMonitor.IsActive)
         {
             _logger.Info("Foreground window monitoring is unavailable; Show Desktop layering may be limited.");
+        }
+
+        // 盒子带 WS_EX_NOACTIVATE，点击不激活窗口，桌面点击不会产生 Deactivated
+        // 事件，选中框无法自动清除。全局鼠标钩子补上"外部点击"信号。
+        _mouseButtonMonitor = new GlobalMouseButtonMonitor();
+        _mouseButtonMonitor.MouseButtonDown += OnGlobalMouseButtonDown;
+        if (!_mouseButtonMonitor.IsActive)
+        {
+            _logger.Info("Global mouse monitoring is unavailable; outside clicks will not clear box selection.");
         }
 
         WeakReferenceMessenger.Default.Register<DesktopBoxManager, BoxLayoutPresetChangedMessage>(
@@ -100,6 +111,10 @@ public sealed class DesktopBoxManager
 
             var boxIds = boxes.Select(box => box.Id).ToHashSet();
 
+            // 每次刷新重新标记哪些窗口参与重叠消解：只有本次新放置（无存档位置）
+            // 或落位时被工作区钳制过（分辨率/显示器变化）的窗口才可被挪动。
+            _overlapResolutionBoxIds.Clear();
+
             foreach (var removedId in _windows.Keys.Where(id => !boxIds.Contains(id)).ToArray())
             {
                 var win = _windows[removedId];
@@ -145,7 +160,11 @@ public sealed class DesktopBoxManager
                         new BoxItemsChangedEventArgs(viewModel.BoxId));
 
                     window = new DesktopBoxWindow(viewModel);
-                    await PlaceWindowAsync(window, box.Id, index);
+                    if (await PlaceWindowAsync(window, box.Id, index))
+                    {
+                        _overlapResolutionBoxIds.Add(box.Id);
+                    }
+
                     _windows.Add(box.Id, window);
 
                     window.LocationChanged += OnWindowLocationChanged;
@@ -346,12 +365,41 @@ public sealed class DesktopBoxManager
         foregroundChangeCts?.Dispose();
         _foregroundWindowMonitor.ForegroundWindowChanged -= OnForegroundWindowChanged;
         _foregroundWindowMonitor.Dispose();
+        _mouseButtonMonitor.MouseButtonDown -= OnGlobalMouseButtonDown;
+        _mouseButtonMonitor.Dispose();
 
         _verticalGuide?.Close();
         _verticalGuide = null;
         _horizontalGuide?.Close();
         _horizontalGuide = null;
         WeakReferenceMessenger.Default.UnregisterAll(this);
+    }
+
+    /// <summary>
+    /// 盒子带 WS_EX_NOACTIVATE：点击盒子不激活任何窗口，随后点击桌面时
+    /// Window/Application.Deactivated 都不会触发，选中框（蓝框）会一直残留。
+    /// 全局鼠标钩子在每次按键时命中测试光标下的窗口：命中点不在某个盒子的
+    /// 窗口上，就清掉那个盒子的选中态。命中本盒子时保留——本盒子自己的鼠标
+    /// 处理（点空白清空/点项目改选）会接着处理这次点击。
+    /// </summary>
+    internal static bool ShouldClearSelectionOnOutsideClick(nint clickedHandle, nint boxHandle) =>
+        clickedHandle != boxHandle;
+
+    private void OnGlobalMouseButtonDown(int screenX, int screenY)
+    {
+        if (_closing)
+        {
+            return;
+        }
+
+        var clickedHandle = GlobalMouseButtonMonitor.HitTestWindowHandle(screenX, screenY);
+        foreach (var window in _windows.Values)
+        {
+            if (ShouldClearSelectionOnOutsideClick(clickedHandle, window.NativeHandle))
+            {
+                window.ClearSelectionFromOutside();
+            }
+        }
     }
 
     private void OnForegroundWindowChanged(nint windowHandle)
@@ -503,7 +551,13 @@ public sealed class DesktopBoxManager
         }
     }
 
-    private async Task PlaceWindowAsync(DesktopBoxWindow window, Guid boxId, int fallbackIndex)
+    /// <summary>
+    /// 恢复窗口位置。返回 <see langword="true"/> 表示该窗口需要参与重叠消解：
+    /// 没有存档位置的新盒子（按级联位落位，可能压住已有盒子），或存档位置被
+    /// 工作区钳制过（分辨率/显示器变化导致多个盒子挤到同一边缘）。原样还原的
+    /// 盒子返回 <see langword="false"/>——保持用户摆好的相对关系，哪怕彼此重叠。
+    /// </summary>
+    private async Task<bool> PlaceWindowAsync(DesktopBoxWindow window, Guid boxId, int fallbackIndex)
     {
         // SizeToContent windows report NaN for Width/Height before they are shown; measure
         // first and use DesiredSize so saved positions are restored correctly.
@@ -518,12 +572,15 @@ public sealed class DesktopBoxManager
             window.Top = top;
             new System.Windows.Interop.WindowInteropHelper(window).EnsureHandle();
             var workArea = window.GetWorkAreaDip();
-            window.Left = Math.Max(workArea.Left, Math.Min(left, workArea.Right - window.DesiredSize.Width));
-            window.Top = Math.Max(workArea.Top, Math.Min(top, workArea.Bottom - window.DesiredSize.Height));
-            return;
+            var clampedLeft = Math.Max(workArea.Left, Math.Min(left, workArea.Right - window.DesiredSize.Width));
+            var clampedTop = Math.Max(workArea.Top, Math.Min(top, workArea.Bottom - window.DesiredSize.Height));
+            window.Left = clampedLeft;
+            window.Top = clampedTop;
+            return Math.Abs(clampedLeft - left) > 0.5 || Math.Abs(clampedTop - top) > 0.5;
         }
 
         PlaceNewWindow(window, fallbackIndex);
+        return true;
     }
 
     private static bool TryParsePosition(string? raw, out double left, out double top)
@@ -560,15 +617,14 @@ public sealed class DesktopBoxManager
     }
 
     /// <summary>
-    /// Nudges windows apart so no two boxes overlap. Restored positions can collide
-    /// (e.g. after a resolution/monitor change clamps several boxes to the same
-    /// edge), so each window is cascaded below/right of whatever it overlaps.
+    /// Nudges apart windows that were placed without a usable saved position this
+    /// refresh (new boxes, or saved positions clamped by a resolution/monitor
+    /// change). Windows restored from an intact saved position keep their exact
+    /// spot — the user's arrangement is authoritative even when boxes overlap —
+    /// but still count as obstacles so movable windows cascade around them.
     /// </summary>
     private void ResolveWindowOverlaps()
     {
-        const double cascadeStep = 12;
-
-        var workArea = SystemParameters.WorkArea;
         var placed = new List<Rect>();
         foreach (var window in _windows.Values.Where(w => w.IsVisible))
         {
@@ -583,54 +639,80 @@ public sealed class DesktopBoxManager
                 continue;
             }
 
-            var moved = true;
-            var guard = 0;
-            while (moved && guard++ < 200)
+            if (!_overlapResolutionBoxIds.Contains(boxWindow.ViewModel.BoxId))
             {
-                moved = false;
-                foreach (var other in placed)
-                {
-                    if (!bounds.IntersectsWith(other))
-                    {
-                        continue;
-                    }
-
-                    var nextLeft = bounds.Left;
-                    var nextTop = other.Bottom + cascadeStep;
-                    if (nextTop + bounds.Height > workArea.Bottom)
-                    {
-                        // No room below; wrap to the right of the blocking box and
-                        // restart from the top so the cascade stays on screen.
-                        nextLeft = other.Right + cascadeStep;
-                        nextTop = workArea.Top;
-                    }
-
-                    bounds = new Rect(nextLeft, nextTop, bounds.Width, bounds.Height);
-                    moved = true;
-                }
+                placed.Add(bounds);
+                continue;
             }
 
-            // Clamp back into the work area so a wrapped cascade never leaves the box
-            // hanging off the right/bottom edge.
-            var clampedLeft = Math.Max(workArea.Left, Math.Min(bounds.Left, workArea.Right - bounds.Width));
-            var clampedTop = Math.Max(workArea.Top, Math.Min(bounds.Top, workArea.Bottom - bounds.Height));
-            if (Math.Abs(clampedLeft - bounds.Left) > 0.5
-                || Math.Abs(clampedTop - bounds.Top) > 0.5)
-            {
-                bounds = new Rect(clampedLeft, clampedTop, bounds.Width, bounds.Height);
-            }
+            // 级联换行与钳制都用盒子自己所在显示器的工作区；
+            // SystemParameters.WorkArea 只有主屏，会把副屏上的盒子错搬回主屏。
+            var workArea = boxWindow.GetWorkAreaDip();
+            var resolved = ResolveOverlapCascade(bounds, placed, workArea);
 
             // 比较与写回都必须在可视区域坐标系中进行：bounds 是可视区域矩形，
             // 而窗口 Left/Top 包含阴影留白 Margin，混用会让窗口每次消解都平移一圈。
-            var currentBounds = boxWindow.GetVisibleBounds();
-            if (Math.Abs(currentBounds.Left - bounds.Left) > 0.5
-                || Math.Abs(currentBounds.Top - bounds.Top) > 0.5)
+            if (Math.Abs(bounds.Left - resolved.Left) > 0.5
+                || Math.Abs(bounds.Top - resolved.Top) > 0.5)
             {
-                boxWindow.MoveToVisibleOrigin(bounds.Left, bounds.Top);
+                boxWindow.MoveToVisibleOrigin(resolved.Left, resolved.Top);
             }
 
-            placed.Add(bounds);
+            placed.Add(resolved);
         }
+    }
+
+    /// <summary>
+    /// Cascades <paramref name="bounds"/> below/right of every rect in
+    /// <paramref name="placed"/> until no overlap remains, then clamps the result
+    /// into <paramref name="workArea"/>. Pure math kept separate from the window
+    /// loop above so the collision rules stay unit-testable.
+    /// </summary>
+    internal static Rect ResolveOverlapCascade(
+        Rect bounds,
+        IReadOnlyList<Rect> placed,
+        Rect workArea)
+    {
+        const double cascadeStep = 12;
+
+        var moved = true;
+        var guard = 0;
+        while (moved && guard++ < 200)
+        {
+            moved = false;
+            foreach (var other in placed)
+            {
+                if (!bounds.IntersectsWith(other))
+                {
+                    continue;
+                }
+
+                var nextLeft = bounds.Left;
+                var nextTop = other.Bottom + cascadeStep;
+                if (nextTop + bounds.Height > workArea.Bottom)
+                {
+                    // No room below; wrap to the right of the blocking box and
+                    // restart from the top so the cascade stays on screen.
+                    nextLeft = other.Right + cascadeStep;
+                    nextTop = workArea.Top;
+                }
+
+                bounds = new Rect(nextLeft, nextTop, bounds.Width, bounds.Height);
+                moved = true;
+            }
+        }
+
+        // Clamp back into the work area so a wrapped cascade never leaves the box
+        // hanging off the right/bottom edge.
+        var clampedLeft = Math.Max(workArea.Left, Math.Min(bounds.Left, workArea.Right - bounds.Width));
+        var clampedTop = Math.Max(workArea.Top, Math.Min(bounds.Top, workArea.Bottom - bounds.Height));
+        if (Math.Abs(clampedLeft - bounds.Left) > 0.5
+            || Math.Abs(clampedTop - bounds.Top) > 0.5)
+        {
+            bounds = new Rect(clampedLeft, clampedTop, bounds.Width, bounds.Height);
+        }
+
+        return bounds;
     }
 
     private void OnWindowLocationChanged(object? sender, EventArgs e)

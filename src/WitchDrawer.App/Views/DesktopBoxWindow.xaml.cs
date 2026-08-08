@@ -529,16 +529,39 @@ public partial class DesktopBoxWindow : Window
         e.Handled = true;
     }
 
-    private void OnDrawerIconPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    private async void OnDrawerIconPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (sender is not Button { DataContext: DrawerCoverTileViewModel { Item: not null } tile })
         {
             return;
         }
 
+        if (e.ClickCount >= 2)
+        {
+            // 双击才打开：单击只选中（与图标网格一致），避免误触直接启动。
+            ClearPendingIconDrag();
+            await ViewModel.OpenItemCommand.ExecuteAsync(tile.Item);
+            e.Handled = true;
+            return;
+        }
+
+        SelectCoverTile(tile);
         _suppressDrawerItemClick = false;
         _dragStartPoint = e.GetPosition(this);
         _dragStartItem = tile.Item;
+    }
+
+    private void SelectCoverTile(DrawerCoverTileViewModel selectedTile)
+    {
+        foreach (var coverTile in ViewModel.DrawerCoverTiles)
+        {
+            coverTile.IsSelected = ReferenceEquals(coverTile, selectedTile);
+        }
+
+        // 与网格选中互斥：任何时刻全局只有一个选中项。
+        IconList.SelectedItem = null;
+        FileList.SelectedItem = null;
+        _keyboardDeleteTarget = null;
     }
 
     private async void OnDrawerIconMouseMove(object sender, MouseEventArgs e)
@@ -571,7 +594,8 @@ public partial class DesktopBoxWindow : Window
             return;
         }
 
-        _suppressDrawerItemClick = true;
+        // 只有弹窗磁贴的拖拽要吞掉随后的 Click；封面磁贴已不挂 Click（双击才打开）。
+        _suppressDrawerItemClick = ReferenceEquals(sender, DrawerSecondaryPopupRoot);
         try
         {
             await RunItemDragAsync(drawerItem, sender as UIElement ?? IconList);
@@ -579,22 +603,6 @@ public partial class DesktopBoxWindow : Window
         finally
         {
             _itemDragGate.Exit();
-        }
-    }
-
-    private async void OnDrawerDirectItemClick(object sender, RoutedEventArgs e)
-    {
-        if (_suppressDrawerItemClick)
-        {
-            _suppressDrawerItemClick = false;
-            e.Handled = true;
-            return;
-        }
-
-        if (sender is Button { DataContext: DrawerCoverTileViewModel { Item: not null } tile })
-        {
-            await ViewModel.OpenItemCommand.ExecuteAsync(tile.Item);
-            e.Handled = true;
         }
     }
 
@@ -809,11 +817,25 @@ public partial class DesktopBoxWindow : Window
         ResetDragVisualState();
     }
 
+    /// <summary>
+    /// 全局鼠标钩子发现点击落在本盒子之外（桌面/其他程序/其他盒子）时调用。
+    /// 盒子带 WS_EX_NOACTIVATE，外部点击不会产生任何 Deactivated 事件，
+    /// 选中框只能靠这个显式信号清除。
+    /// </summary>
+    internal void ClearSelectionFromOutside()
+    {
+        ClearItemSelection();
+    }
+
     private void ClearItemSelection()
     {
         IconList.SelectedItem = null;
         FileList.SelectedItem = null;
         _keyboardDeleteTarget = null;
+        foreach (var coverTile in ViewModel.DrawerCoverTiles)
+        {
+            coverTile.IsSelected = false;
+        }
     }
 
     private void OnWindowPreviewMouseDown(object sender, MouseButtonEventArgs e)
