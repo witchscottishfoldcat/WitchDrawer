@@ -828,12 +828,12 @@
 
                             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                                 <Grid Margin="0,0,8,0"
-                                      Visibility="{Binding SelectedBox.IsDrawerBox, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                      Visibility="{Binding SelectedBox.SupportsSorting, Converter={StaticResource BooleanToVisibilityConverter}}">
                                     <Button x:Name="DrawerSortMenuButton"
                                             Click="OnOpenDrawerSortMenu"
                                             Style="{StaticResource GhostButtonStyle}"
                                             Padding="9,5"
-                                            ToolTip="选择抽屉图标排序方式">
+                                            ToolTip="选择排序方式（自由排序记忆你摆放的布局）">
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="&#xE8CB;"
                                                        FontFamily="Segoe Fluent Icons"
@@ -881,6 +881,23 @@
                                                                   Direction="270" />
                                             </Border.Effect>
                                             <StackPanel>
+                                                <Button Command="{Binding SelectedBox.ApplyDrawerSortModeCommand}"
+                                                        CommandParameter="{x:Static viewModels:DrawerItemSortMode.Free}"
+                                                        Click="OnDrawerSortOptionClicked"
+                                                        Style="{StaticResource GhostButtonStyle}"
+                                                        Padding="10,8">
+                                                    <Grid Width="128">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="18" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="&#xE73E;"
+                                                                   FontFamily="Segoe Fluent Icons"
+                                                                   Foreground="{DynamicResource AccentBrush}"
+                                                                   Visibility="{Binding SelectedBox.IsFreeSort, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                        <TextBlock Grid.Column="1" Text="自由" />
+                                                    </Grid>
+                                                </Button>
                                                 <Button Command="{Binding SelectedBox.ApplyDrawerSortModeCommand}"
                                                         CommandParameter="{x:Static viewModels:DrawerItemSortMode.Name}"
                                                         Click="OnDrawerSortOptionClicked"

@@ -141,9 +141,9 @@ public partial class DesktopBoxWindow : Window
         _positionChangedCallback = callback;
     }
 
-    private async void OnExpandDrawerClick(object sender, RoutedEventArgs e)
+    private void OnExpandDrawerClick(object sender, RoutedEventArgs e)
     {
-        await ViewModel.ApplyDrawerItemSortAsync(ViewModel.DrawerItemSortMode);
+        ViewModel.SyncDrawerSecondaryFromItems();
         PrepareDrawerSecondaryPopupForOpen();
         if (sender is UIElement centerTarget)
         {
@@ -917,13 +917,15 @@ public partial class DesktopBoxWindow : Window
         {
             acceptsDrop = TryGetInternalDragPayload(e.Data, out var payload);
             // 固定模式（硬约束）：盒已满时拒绝拖入。
-            if (acceptsDrop && !ViewModel.HasFreeSlotForDrop(
-                    payload.SourceBoxId == ViewModel.BoxId ? payload.ItemId : (Guid?)null))
-            {
-                acceptsDrop = false;
-            }
+        if (acceptsDrop && !ViewModel.HasFreeSlotForDrop(
+                payload.SourceBoxId == ViewModel.BoxId ? payload.ItemId : (Guid?)null))
+        {
+            acceptsDrop = false;
+        }
 
-            showPreview = acceptsDrop;
+        // 排序模式的落点由排序键决定（盒内拖动为空操作），槽位预览会误导：
+        // 只保留盒子高亮，不显示落点框。
+        showPreview = acceptsDrop && ViewModel.IsFreeSort;
             e.Effects = acceptsDrop ? DragDropEffects.Move : DragDropEffects.None;
             if (showPreview)
             {
@@ -940,7 +942,7 @@ public partial class DesktopBoxWindow : Window
                 acceptsDrop = false;
             }
 
-            showPreview = acceptsDrop;
+            showPreview = acceptsDrop && ViewModel.IsFreeSort;
             e.Effects = acceptsDrop ? dropEffect : DragDropEffects.None;
             if (showPreview)
             {

@@ -59,23 +59,25 @@ public sealed class DrawerBoxCreationTests
                 BoxViewModel.GetTitleVisibilitySettingKey(createdBox.Id),
                 DesktopBoxViewModel.GetTitleVisibilitySettingKey(createdBox.Id));
             await selectedDrawer.LoadDrawerSortModeAsync();
-            Assert.Equal(DrawerItemSortMode.Name, selectedDrawer.DrawerItemSortMode);
-            Assert.True(selectedDrawer.IsDrawerSortByName);
-            Assert.Equal("名称", selectedDrawer.DrawerSortModeLabel);
+            // 统一排序：所有盒型默认自由排序（抽屉旧设置值自动迁移）。
+            Assert.Equal(DrawerItemSortMode.Free, selectedDrawer.DrawerItemSortMode);
+            Assert.True(selectedDrawer.IsFreeSort);
+            Assert.Equal("自由", selectedDrawer.DrawerSortModeLabel);
             Assert.Equal(
-                BoxViewModel.GetDrawerSortModeSettingKey(createdBox.Id),
-                DesktopBoxViewModel.GetDrawerSortModeSettingKey(createdBox.Id));
+                BoxViewModel.GetBoxSortModeSettingKey(createdBox.Id),
+                DesktopBoxViewModel.GetBoxSortModeSettingKey(createdBox.Id));
 
             await selectedDrawer.ApplyDrawerSortModeCommand.ExecuteAsync(
                 DrawerItemSortMode.ModifiedDate);
 
             Assert.Equal(DrawerItemSortMode.ModifiedDate, selectedDrawer.DrawerItemSortMode);
             Assert.True(selectedDrawer.IsDrawerSortByModifiedDate);
+            Assert.False(selectedDrawer.IsFreeSort);
             Assert.Equal("修改日期", selectedDrawer.DrawerSortModeLabel);
             Assert.Equal(
                 DrawerItemSortMode.ModifiedDate.ToString(),
                 await drawerService.GetSettingAsync(
-                    BoxViewModel.GetDrawerSortModeSettingKey(createdBox.Id)));
+                    BoxViewModel.GetBoxSortModeSettingKey(createdBox.Id)));
 
             await selectedDrawer.ToggleTitleVisibilityCommand.ExecuteAsync(null);
 

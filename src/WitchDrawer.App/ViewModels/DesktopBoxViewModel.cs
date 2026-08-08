@@ -64,7 +64,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private double _drawerCoverHeight = DefaultDrawerCoverHeight;
     private int _drawerCoverColumns = 3;
     private int _drawerCoverRows = 2;
-    private DrawerItemSortMode _drawerItemSortMode = DrawerItemSortMode.Name;
+    private DrawerItemSortMode _drawerItemSortMode = DrawerItemSortMode.Free;
     private BoxSizeModeState _sizeMode = BoxSizeModeState.Adaptive;
     private int _occupiedColumns = 1;
     private int _occupiedRows = 1;
@@ -661,7 +661,6 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
             var items = await _drawerService.GetItemsAsync(BoxId);
             var isPixelated = IsPixelStyle;
-            var positions = ResolveItemPositions(items);
             var existingById = Items.ToDictionary(item => item.Id);
             var nextItems = new List<DrawerItemViewModel>(items.Count);
 
@@ -677,13 +676,35 @@ public sealed class DesktopBoxViewModel : ObservableObject
                         _logger);
                 }
 
-                var itemPosition = positions[item.Id];
-                itemViewModel.SetGridPosition(itemPosition.Column, itemPosition.Row, LayoutSettings);
                 itemViewModel.RequestIconSize(GetIconPixelSize(isPixelated));
                 nextItems.Add(itemViewModel);
             }
 
-            Items.ReplaceAll(nextItems);
+            if (IsFreeSort)
+            {
+                // 自由排序：按持久化格位摆放（含无格位项目的空位分配）。
+                var positions = ResolveItemPositions(items);
+                foreach (var itemViewModel in nextItems)
+                {
+                    var itemPosition = positions[itemViewModel.Id];
+                    itemViewModel.SetGridPosition(itemPosition.Column, itemPosition.Row, LayoutSettings);
+                }
+
+                Items.ReplaceAll(nextItems);
+            }
+            else
+            {
+                // 自动排序：按排序键行优先展示；不写库，自由布局不受污染。
+                var ordered = await Task.Run(() => SortDrawerItems(nextItems, _drawerItemSortMode));
+                var sortedPositions = AssignSortedGridPositions(ordered);
+                foreach (var itemViewModel in ordered)
+                {
+                    var itemPosition = sortedPositions[itemViewModel.Id];
+                    itemViewModel.SetGridPosition(itemPosition.Column, itemPosition.Row, LayoutSettings);
+                }
+
+                Items.ReplaceAll(ordered.ToList());
+            }
 
             StatusText = Items.Count == 0 ? "拖入文件" : "已同步";
             UpdateGridCanvasSize();
@@ -838,6 +859,20 @@ public sealed class DesktopBoxViewModel : ObservableObject
             var nextRow = startRow ?? 0;
             foreach (var path in pathList)
             {
+                if (!IsFreeSort)
+                {
+                    // 排序模式：不写格位（显示位置由排序键决定），自由布局不受污染；
+                    // 固定盒容量硬约束仍然生效：装满即停止导入。
+                    if (IsFixedSize && Items.Count + importedIds.Count >= FixedCapacity)
+                    {
+                        break;
+                    }
+
+                    var sortedImport = await _drawerService.ImportPathAsync(BoxId, path);
+                    importedIds.Add(sortedImport.Id);
+                    continue;
+                }
+
                 (int Column, int Row) slot;
                 if (IsFixedSize)
                 {
@@ -894,26 +929,45 @@ public sealed class DesktopBoxViewModel : ObservableObject
             var currentItem = Items.FirstOrDefault(item => item.Id == itemId);
             if (currentItem is not null)
             {
-                await MoveItemWithinBoxAsync(currentItem, targetColumn, targetRow);
+                // 排序模式：盒内拖动不换位（显示顺序由排序键决定），落放为空操作。
+                if (IsFreeSort)
+                {
+                    await MoveItemWithinBoxAsync(currentItem, targetColumn, targetRow);
+                }
             }
             else
             {
-                var occupiedSlots = Items.Select(item => (item.GridColumn, item.GridRow)).ToHashSet();
-                (int Column, int Row) targetSlot;
-                if (IsFixedSize)
+                if (IsFreeSort)
                 {
-                    // 硬约束：目标盒已满时拒绝跨盒移入。
-                    if (!TryFindFreeSlotInFixedBounds(targetColumn, targetRow, occupiedSlots, out targetSlot))
+                    var occupiedSlots = Items.Select(item => (item.GridColumn, item.GridRow)).ToHashSet();
+                    (int Column, int Row) targetSlot;
+                    if (IsFixedSize)
+                    {
+                        // 硬约束：目标盒已满时拒绝跨盒移入。
+                        if (!TryFindFreeSlotInFixedBounds(targetColumn, targetRow, occupiedSlots, out targetSlot))
+                        {
+                            StatusText = "目标收纳盒已满";
+                            return false;
+                        }
+                    }
+                    else
+                    {
+                        targetSlot = FindFirstFreeSlot(targetColumn, targetRow, occupiedSlots);
+                    }
+                    await _drawerService.MoveItemToBoxAsync(itemId, BoxId, targetSlot.Column, targetSlot.Row);
+                }
+                else
+                {
+                    // 排序模式：固定盒容量校验后直接移入，不写格位。
+                    if (IsFixedSize && !HasFreeSlotForDrop())
                     {
                         StatusText = "目标收纳盒已满";
                         return false;
                     }
+
+                    await _drawerService.MoveItemToBoxAsync(itemId, BoxId);
                 }
-                else
-                {
-                    targetSlot = FindFirstFreeSlot(targetColumn, targetRow, occupiedSlots);
-                }
-                await _drawerService.MoveItemToBoxAsync(itemId, BoxId, targetSlot.Column, targetSlot.Row);
+
                 await LoadAsync();
                 movedAcrossBoxes = true;
             }
@@ -1090,6 +1144,34 @@ public sealed class DesktopBoxViewModel : ObservableObject
         await _drawerService.UpdateItemGridPositionAsync(item.Id, targetColumn, targetRow);
         item.SetGridPosition(targetColumn, targetRow, LayoutSettings);
         UpdateGridCanvasSize();
+    }
+
+    /// <summary>
+    /// 自动排序模式的格位分配：按排序后的顺序行优先填充。不写库——仅显示层。
+    /// 自适应模式沿用当前内容列宽（至少 4 列）；固定模式 wrap 到 m 列并钳制在边界内。
+    /// </summary>
+    private Dictionary<Guid, (int Column, int Row)> AssignSortedGridPositions(
+        IReadOnlyList<DrawerItemViewModel> orderedItems)
+    {
+        var wrapColumns = IsFixedSize
+            ? Math.Max(1, _sizeMode.Columns)
+            : Math.Max(4, _occupiedColumns);
+        var positions = new Dictionary<Guid, (int Column, int Row)>(orderedItems.Count);
+        for (var index = 0; index < orderedItems.Count; index++)
+        {
+            var column = index % wrapColumns;
+            var row = index / wrapColumns;
+            if (IsFixedSize)
+            {
+                // 超出容量的历史数据退化为边界内重叠（保持可见可选中）。
+                column = Math.Min(column, _sizeMode.Columns - 1);
+                row = Math.Min(row, _sizeMode.Rows - 1);
+            }
+
+            positions[orderedItems[index].Id] = (column, row);
+        }
+
+        return positions;
     }
 
     private Dictionary<Guid, (int Column, int Row)> ResolveItemPositions(IReadOnlyList<DrawerItem> items)
@@ -1346,30 +1428,53 @@ public sealed class DesktopBoxViewModel : ObservableObject
         OnPropertyChanged(nameof(DrawerContentHeight));
     }
 
-    public async Task LoadDrawerSortModeAsync()
+    public async Task LoadSortModeAsync()
     {
-        if (!IsDrawerBox)
+        if (!SupportsSorting)
         {
             return;
         }
 
-        var saved = await _drawerService.GetSettingAsync(GetDrawerSortModeSettingKey(BoxId));
+        var saved = await _drawerService.GetSettingAsync(GetBoxSortModeSettingKey(BoxId));
+        if (saved is null && IsDrawerBox)
+        {
+            // 迁移抽屉盒旧的 DrawerSortMode: 设置值。
+            saved = await _drawerService.GetSettingAsync(GetDrawerSortModeSettingKey(BoxId));
+        }
+
         ApplyDrawerSortMode(
             Enum.TryParse<DrawerItemSortMode>(saved, ignoreCase: true, out var sortMode)
                 ? sortMode
-                : DrawerItemSortMode.Name);
+                : DrawerItemSortMode.Free);
     }
 
-    public void ApplyDrawerSortMode(DrawerItemSortMode sortMode)
+    /// <summary>
+    /// 应用排序模式；返回是否有变化。变化时调用方应触发重新加载以重排显示。
+    /// </summary>
+    public bool ApplyDrawerSortMode(DrawerItemSortMode sortMode)
     {
         if (_drawerItemSortMode == sortMode)
         {
-            return;
+            return false;
         }
 
         _drawerItemSortMode = sortMode;
         OnPropertyChanged(nameof(DrawerItemSortMode));
+        OnPropertyChanged(nameof(IsFreeSort));
+        return true;
     }
+
+    /// <summary>
+    /// 自由排序：显示顺序 = 格位/导入顺序（网格盒可拖拽摆放）。
+    /// 非自由模式：显示顺序由排序键决定，盒内拖拽换位与格位写入均被禁用，
+    /// 因此切回自由时自由布局原样恢复（天然有记忆）。
+    /// </summary>
+    public bool IsFreeSort => _drawerItemSortMode == DrawerItemSortMode.Free;
+
+    /// <summary>
+    /// 排序（自由/名称/大小/类型/修改日期）适用于所有收纳类盒型；待办盒有自己的排序语义。
+    /// </summary>
+    public bool SupportsSorting => Type is BoxType.Normal or BoxType.Pixel or BoxType.Mapping or BoxType.Drawer;
 
     public Task SaveDrawerCoverSizeAsync()
     {
@@ -1390,6 +1495,9 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     internal static string GetDrawerSortModeSettingKey(Guid boxId) =>
         $"{DrawerSortModeSettingPrefix}{boxId:N}";
+
+    internal static string GetBoxSortModeSettingKey(Guid boxId) =>
+        $"BoxSortMode:{boxId:N}";
 
     internal static bool TryParseDrawerCoverSize(
         string? value,
@@ -1463,14 +1571,12 @@ public sealed class DesktopBoxViewModel : ObservableObject
             1,
             coverHeight - (isTitleVisible ? DrawerTitleHeightCompensation : 0));
 
-    public async Task ApplyDrawerItemSortAsync(DrawerItemSortMode sortMode)
+    /// <summary>
+    /// 展开抽屉二级弹窗前调用：弹窗顺序与盒内显示顺序（Items，已按排序模式排好）保持一致。
+    /// </summary>
+    public void SyncDrawerSecondaryFromItems()
     {
-        var snapshot = Items.ToArray();
-        var sortedItems = await Task.Run(() => SortDrawerItems(snapshot, sortMode));
-
-        ApplyDrawerSortMode(sortMode);
-
-        DrawerSecondaryItems.ReplaceAll(sortedItems);
+        DrawerSecondaryItems.ReplaceAll(Items.ToArray());
 
         OnPropertyChanged(nameof(DrawerSecondaryColumns));
         OnPropertyChanged(nameof(DrawerSecondaryRows));
@@ -1486,6 +1592,8 @@ public sealed class DesktopBoxViewModel : ObservableObject
         var entries = items.Select(CreateDrawerSortEntry).ToArray();
         IOrderedEnumerable<DrawerSortEntry> ordered = sortMode switch
         {
+            // 自由排序：保持原顺序（格位/导入序），排序键不参与。
+            DrawerItemSortMode.Free => entries.OrderBy(entry => 0),
             DrawerItemSortMode.Size => entries
                 .OrderBy(entry => entry.Size)
                 .ThenBy(entry => entry.Name, StringComparer.CurrentCultureIgnoreCase),

@@ -12,7 +12,7 @@ public sealed partial class BoxViewModel : ObservableObject
     private BoxVisualStyle _visualStyle;
     private bool _isPositionLocked;
     private bool _isTitleVisible = true;
-    private DrawerItemSortMode _drawerItemSortMode = DrawerItemSortMode.Name;
+    private DrawerItemSortMode _drawerItemSortMode = DrawerItemSortMode.Free;
 
     public BoxViewModel(
         Box model,
@@ -66,6 +66,13 @@ public sealed partial class BoxViewModel : ObservableObject
     internal static string GetDrawerSortModeSettingKey(Guid boxId) =>
         $"DrawerSortMode:{boxId:N}";
 
+    /// <summary>
+    /// 统一排序设置的 key（所有收纳盒型共用）。读取时抽屉盒会回退迁移
+    /// <see cref="GetDrawerSortModeSettingKey"/> 的旧值。
+    /// </summary>
+    internal static string GetBoxSortModeSettingKey(Guid boxId) =>
+        $"BoxSortMode:{boxId:N}";
+
     public DesktopBoxLayoutSettings LayoutSettings { get; }
     
     public Box Model { get; }
@@ -85,6 +92,11 @@ public sealed partial class BoxViewModel : ObservableObject
     /// </summary>
     public bool SupportsFixedSize => Type is BoxType.Normal or BoxType.Pixel;
 
+    /// <summary>
+    /// 排序（自由/名称/大小/类型/修改日期）适用于所有收纳类盒型；待办盒有自己的排序语义。
+    /// </summary>
+    public bool SupportsSorting => Type is BoxType.Normal or BoxType.Pixel or BoxType.Mapping or BoxType.Drawer;
+
     public bool IsTitleVisible => _isTitleVisible;
 
     public string TitleVisibilityToolTip => IsTitleVisible ? "隐藏桌面收纳盒名称" : "显示桌面收纳盒名称";
@@ -93,8 +105,11 @@ public sealed partial class BoxViewModel : ObservableObject
 
     public DrawerItemSortMode DrawerItemSortMode => _drawerItemSortMode;
 
+    public bool IsFreeSort => DrawerItemSortMode == DrawerItemSortMode.Free;
+
     public string DrawerSortModeLabel => DrawerItemSortMode switch
     {
+        DrawerItemSortMode.Free => "自由",
         DrawerItemSortMode.Size => "大小",
         DrawerItemSortMode.ItemType => "项目类型",
         DrawerItemSortMode.ModifiedDate => "修改日期",
@@ -220,13 +235,13 @@ public sealed partial class BoxViewModel : ObservableObject
     [CommunityToolkit.Mvvm.Input.RelayCommand]
     private async Task ApplyDrawerSortModeAsync(DrawerItemSortMode sortMode)
     {
-        if (!IsDrawerBox || _drawerItemSortMode == sortMode)
+        if (!SupportsSorting || _drawerItemSortMode == sortMode)
         {
             return;
         }
 
         await _drawerService.SetSettingAsync(
-            GetDrawerSortModeSettingKey(Id),
+            GetBoxSortModeSettingKey(Id),
             sortMode.ToString());
         ApplyDrawerSortMode(sortMode);
         WeakReferenceMessenger.Default.Send(new DrawerSortModeChangedMessage(Id, sortMode));
@@ -234,16 +249,22 @@ public sealed partial class BoxViewModel : ObservableObject
 
     internal async Task LoadDrawerSortModeAsync()
     {
-        if (!IsDrawerBox)
+        if (!SupportsSorting)
         {
             return;
         }
 
-        var saved = await _drawerService.GetSettingAsync(GetDrawerSortModeSettingKey(Id));
+        var saved = await _drawerService.GetSettingAsync(GetBoxSortModeSettingKey(Id));
+        if (saved is null && IsDrawerBox)
+        {
+            // 迁移抽屉盒旧的 DrawerSortMode: 设置值。
+            saved = await _drawerService.GetSettingAsync(GetDrawerSortModeSettingKey(Id));
+        }
+
         ApplyDrawerSortMode(
             Enum.TryParse<DrawerItemSortMode>(saved, ignoreCase: true, out var sortMode)
                 ? sortMode
-                : DrawerItemSortMode.Name);
+                : DrawerItemSortMode.Free);
     }
 
     private void ApplyDrawerSortMode(DrawerItemSortMode sortMode)
@@ -253,6 +274,7 @@ public sealed partial class BoxViewModel : ObservableObject
             return;
         }
 
+        OnPropertyChanged(nameof(IsFreeSort));
         OnPropertyChanged(nameof(IsDrawerSortByName));
         OnPropertyChanged(nameof(IsDrawerSortBySize));
         OnPropertyChanged(nameof(IsDrawerSortByItemType));

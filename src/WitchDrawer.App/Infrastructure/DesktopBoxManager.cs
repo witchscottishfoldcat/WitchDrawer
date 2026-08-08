@@ -139,7 +139,7 @@ public sealed class DesktopBoxManager
                         layoutSettings);
                     await viewModel.LoadDrawerCoverSizeAsync();
                     await viewModel.LoadTitleVisibilityAsync();
-                    await viewModel.LoadDrawerSortModeAsync();
+                    await viewModel.LoadSortModeAsync();
                     await viewModel.LoadSizeModeAsync();
                     viewModel.ItemsChanged += (_, _) => ItemsChanged?.Invoke(
                         this,
@@ -510,9 +510,11 @@ public sealed class DesktopBoxManager
 
     private void ApplyDrawerSortMode(DrawerSortModeChangedMessage message)
     {
-        if (_windows.TryGetValue(message.BoxId, out var window))
+        if (_windows.TryGetValue(message.BoxId, out var window)
+            && window.ViewModel.ApplyDrawerSortMode(message.SortMode))
         {
-            window.ViewModel.ApplyDrawerSortMode(message.SortMode);
+            // 排序模式变化：重排盒内显示（自由模式则从 DB 恢复记忆布局）。
+            _ = window.ViewModel.LoadAsync();
         }
     }
 
