@@ -87,6 +87,132 @@ public sealed class SafeFileOpsTests
         Assert.Equal("existing", File.ReadAllText(target));
     }
 
+    [Fact]
+    public void Move_SameVolumeReadOnlyFile_RenamesSourceAway()
+    {
+        // 同卷 rename 不校验只读位：这条路径本来就不受只读影响。
+        using var workspace = new TempWorkspace();
+        var source = workspace.WriteFile("readonly-source.txt", "hello");
+        File.SetAttributes(source, FileAttributes.ReadOnly);
+        var target = Path.Combine(workspace.Root, "target.txt");
+        try
+        {
+            SafeFileOps.Move(source, target, isDirectory: false);
+
+            Assert.False(File.Exists(source));
+            Assert.True(File.Exists(target));
+        }
+        finally
+        {
+            if (File.Exists(source))
+            {
+                File.SetAttributes(source, FileAttributes.Normal);
+            }
+
+            if (File.Exists(target))
+            {
+                File.SetAttributes(target, FileAttributes.Normal);
+            }
+        }
+    }
+
+    [Fact]
+    public void CopyThenDelete_ReadOnlyFile_RemovesSourceAndKeepsCopyReadOnly()
+    {
+        // 跨卷回退路径（copy+delete）：File.Copy 保留只读位，而 File.Delete
+        // 遇到只读源会抛 UnauthorizedAccessException——删除普通盒子时
+        // "Access to the path is denied" 的复现。
+        using var workspace = new TempWorkspace();
+        var source = workspace.WriteFile("readonly-source.txt", "payload");
+        File.SetAttributes(source, FileAttributes.ReadOnly);
+        var target = Path.Combine(workspace.Root, "readonly-target.txt");
+        try
+        {
+            SafeFileOps.CopyThenDelete(source, target, isDirectory: false, CancellationToken.None);
+
+            Assert.False(File.Exists(source));
+            Assert.True(File.Exists(target));
+            Assert.Equal("payload", File.ReadAllText(target));
+            Assert.True((File.GetAttributes(target) & FileAttributes.ReadOnly) != 0);
+        }
+        finally
+        {
+            if (File.Exists(source))
+            {
+                File.SetAttributes(source, FileAttributes.Normal);
+            }
+
+            if (File.Exists(target))
+            {
+                File.SetAttributes(target, FileAttributes.Normal);
+            }
+        }
+    }
+
+    [Fact]
+    public void CopyThenDelete_DirectoryWithReadOnlyFile_RemovesSourceTree()
+    {
+        // Directory.Delete(recursive) 遇到树内只读文件同样抛 UnauthorizedAccessException。
+        using var workspace = new TempWorkspace();
+        var sourceDir = workspace.CreateDirectory("readonly-dir");
+        var innerFile = Path.Combine(sourceDir, "inner.txt");
+        File.WriteAllText(innerFile, "inner");
+        File.SetAttributes(innerFile, FileAttributes.ReadOnly);
+        var targetDir = Path.Combine(workspace.Root, "copied-dir");
+        var copiedInner = Path.Combine(targetDir, "inner.txt");
+        try
+        {
+            SafeFileOps.CopyThenDelete(sourceDir, targetDir, isDirectory: true, CancellationToken.None);
+
+            Assert.False(Directory.Exists(sourceDir));
+            Assert.True(File.Exists(copiedInner));
+            Assert.Equal("inner", File.ReadAllText(copiedInner));
+        }
+        finally
+        {
+            if (File.Exists(innerFile))
+            {
+                File.SetAttributes(innerFile, FileAttributes.Normal);
+            }
+
+            if (File.Exists(copiedInner))
+            {
+                File.SetAttributes(copiedInner, FileAttributes.Normal);
+            }
+        }
+    }
+
+    [Fact]
+    public void CopyThenDelete_SourceDeleteFails_RollbackRemovesReadOnlyCopy()
+    {
+        // 源被占用（无法删除）时回滚必须连只读副本一起清掉，否则目标位置残留重复文件。
+        using var workspace = new TempWorkspace();
+        var source = workspace.WriteFile("locked-readonly.txt", "payload");
+        File.SetAttributes(source, FileAttributes.ReadOnly);
+        var target = Path.Combine(workspace.Root, "target.txt");
+        try
+        {
+            using var lockStream = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read);
+
+            Assert.Throws<IOException>(
+                () => SafeFileOps.CopyThenDelete(source, target, isDirectory: false, CancellationToken.None));
+            Assert.True(File.Exists(source));
+            Assert.False(File.Exists(target));
+        }
+        finally
+        {
+            if (File.Exists(source))
+            {
+                File.SetAttributes(source, FileAttributes.Normal);
+            }
+
+            if (File.Exists(target))
+            {
+                File.SetAttributes(target, FileAttributes.Normal);
+            }
+        }
+    }
+
     private sealed class TempWorkspace : IDisposable
     {
         public TempWorkspace()

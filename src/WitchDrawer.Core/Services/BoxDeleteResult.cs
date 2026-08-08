@@ -17,8 +17,13 @@ public sealed record BoxDeleteResult(
         {
             if (!BoxRemoved)
             {
+                // 带出首条失败明细（项目名 + 原因），用户反馈时可直接定位，
+                // 不再只有"N 项还原失败"这种无法排查的计数。
+                var detail = FailedCount > 0 && Failures.Count > 0
+                    ? $"（{Failures[0]}）"
+                    : string.Empty;
                 return FailedCount > 0
-                    ? $"删除未完成：{FailedCount} 项还原失败，收纳盒已保留"
+                    ? $"删除未完成：{FailedCount} 项还原失败{detail}，收纳盒已保留"
                     : $"删除未完成，收纳盒已保留";
             }
 

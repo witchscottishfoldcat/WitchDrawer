@@ -614,6 +614,8 @@ public sealed class DrawerServiceTests
         Assert.False(result.BoxRemoved);
         Assert.Equal(1, result.RestoredCount);
         Assert.Equal(1, result.FailedCount);
+        // 失败消息要带首条明细（项目名），否则用户反馈时无法定位是哪一项。
+        Assert.Contains("fail.txt", result.StatusMessage);
         Assert.Contains(boxes, box => box.Id == normalBox.Id);
         Assert.True(File.Exists(keepSource));
         Assert.False(File.Exists(keepItem.StoredPath));

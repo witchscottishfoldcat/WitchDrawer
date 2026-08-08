@@ -118,6 +118,9 @@ internal static class SafeFileOps
 
             try
             {
+                // 只读文件会挡住 Directory.Delete（UnauthorizedAccessException），
+                // 跨卷移动必须像资源管理器一样先清只读位再删；副本仍保留只读属性。
+                ClearReadOnlyAttributesRecursively(sourcePath);
                 Directory.Delete(sourcePath, recursive: true);
             }
             catch
@@ -132,6 +135,9 @@ internal static class SafeFileOps
         File.Copy(sourcePath, destinationPath, overwrite: false);
         try
         {
+            // File.Copy 会把只读位带到副本上；File.Delete 拒绝只读文件，
+            // 只清源文件的只读位（源随即被删，副本保持只读不变）。
+            ClearReadOnlyAttribute(sourcePath);
             File.Delete(sourcePath);
         }
         catch
@@ -160,12 +166,48 @@ internal static class SafeFileOps
         }
     }
 
+    /// <summary>
+    /// 清除单个文件的只读位；交接点/符号链接跳过（链接目标不属于被移动的树）。
+    /// </summary>
+    private static void ClearReadOnlyAttribute(string filePath)
+    {
+        var attributes = File.GetAttributes(filePath);
+        if ((attributes & (FileAttributes.ReadOnly | FileAttributes.ReparsePoint)) == FileAttributes.ReadOnly)
+        {
+            File.SetAttributes(filePath, attributes & ~FileAttributes.ReadOnly);
+        }
+    }
+
+    /// <summary>
+    /// 递归清除目录树内所有文件的只读位。遍历方式与 <see cref="CopyDirectory"/>
+    /// 保持一致，但不跟进交接点目录，避免改动链接目标里的文件。
+    /// </summary>
+    private static void ClearReadOnlyAttributesRecursively(string directoryPath)
+    {
+        foreach (var file in Directory.GetFiles(directoryPath))
+        {
+            ClearReadOnlyAttribute(file);
+        }
+
+        foreach (var directory in Directory.GetDirectories(directoryPath))
+        {
+            if ((File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0)
+            {
+                continue;
+            }
+
+            ClearReadOnlyAttributesRecursively(directory);
+        }
+    }
+
     private static void TryDeleteFile(string path)
     {
         try
         {
             if (File.Exists(path))
             {
+                // 副本可能继承了只读位，回滚删除前同样要清掉。
+                ClearReadOnlyAttribute(path);
                 File.Delete(path);
             }
         }
@@ -181,6 +223,7 @@ internal static class SafeFileOps
         {
             if (Directory.Exists(path))
             {
+                ClearReadOnlyAttributesRecursively(path);
                 Directory.Delete(path, recursive: true);
             }
         }
