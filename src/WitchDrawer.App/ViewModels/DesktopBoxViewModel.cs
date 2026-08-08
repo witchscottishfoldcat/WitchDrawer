@@ -455,8 +455,9 @@ public sealed class DesktopBoxViewModel : ObservableObject
             // 画布刚因预览扩展而改尺寸后的极短窗口内，指针坐标读取处于布局过渡态，
             // 会读出瞬时错位值：此时直接保持当前预览格，等布局稳定后再跟随指针。
             // 否则扩展帧与错位帧交替 → 扩展/收缩来回打摆（空盒上表现为疯狂频闪）。
+            // 50ms ≈ 60Hz 下 3 帧 / 120Hz 下 6 帧，足够覆盖过渡态又不会影响跟随手感。
             if (IsDragPreviewVisible
-                && (DateTime.UtcNow - _lastCanvasSizeChangedUtc).TotalMilliseconds < 120)
+                && (DateTime.UtcNow - _lastCanvasSizeChangedUtc).TotalMilliseconds < 50)
             {
                 return (_previewColumn, _previewRow);
             }
