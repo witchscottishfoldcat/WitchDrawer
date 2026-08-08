@@ -350,6 +350,12 @@ public sealed class DesktopBoxViewModel : ObservableObject
         private set => SetProperty(ref _gridCanvasWidth, value);
     }
 
+    /// <summary>
+    /// 映射盒列表模式的文件区域宽度：与普通盒网格区域同宽（网格画布宽 + 列表内边距），
+    /// 下限对齐普通盒由标题栏决定的基础宽度。这样同内容的普通盒与映射盒窗口同尺寸。
+    /// </summary>
+    public double FileListWidth => Math.Max(170, GridCanvasWidth + 4);
+
     public double GridCanvasHeight
     {
         get => _gridCanvasHeight;
@@ -1300,6 +1306,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
             _lastCanvasSizeChangedUtc = DateTime.UtcNow;
         }
 
+        OnPropertyChanged(nameof(FileListWidth));
         OnPropertyChanged(nameof(DragPreviewWidth));
         OnPropertyChanged(nameof(DragPreviewHeight));
     }

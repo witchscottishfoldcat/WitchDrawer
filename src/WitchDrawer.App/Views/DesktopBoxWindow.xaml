@@ -602,7 +602,7 @@
             <ListBox x:Name="FileList"
                      Grid.Row="1"
                      Panel.ZIndex="1"
-                      Width="{Binding LayoutSettings.MappingListWidth}"
+                      Width="{Binding FileListWidth}"
                       MinHeight="{Binding LayoutSettings.MappingListMinHeight}"
                       MaxHeight="{Binding LayoutSettings.MappingListMaxHeight}"
                       Margin="{Binding LayoutSettings.MappingListMargin}"
