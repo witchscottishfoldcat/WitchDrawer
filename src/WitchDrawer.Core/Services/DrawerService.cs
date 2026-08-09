@@ -19,6 +19,7 @@ public sealed class DrawerService
     {
         _paths.EnsureCreated();
         await _repository.InitializeAsync(cancellationToken);
+        await RepairStoredPathsAsync(cancellationToken);
         await EnsureDefaultBoxesAsync(cancellationToken);
     }
 
@@ -683,6 +684,55 @@ public sealed class DrawerService
         return !string.IsNullOrWhiteSpace(item.StoredPath)
             && !File.Exists(item.StoredPath)
             && !Directory.Exists(item.StoredPath);
+    }
+
+    private async Task RepairStoredPathsAsync(CancellationToken cancellationToken)
+    {
+        var boxes = await _repository.GetBoxesAsync(cancellationToken);
+        foreach (var box in boxes.Where(box => box.Type is BoxType.Normal or BoxType.Pixel or BoxType.Drawer))
+        {
+            var expectedStoragePath = Path.Combine(_paths.BoxesDirectory, box.Id.ToString("N"));
+            if (!Directory.Exists(expectedStoragePath))
+            {
+                continue;
+            }
+
+            if (!string.Equals(
+                    Path.GetFullPath(box.StoragePath ?? expectedStoragePath),
+                    Path.GetFullPath(expectedStoragePath),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                await _repository.UpdateBoxStoragePathAsync(
+                    box.Id,
+                    expectedStoragePath,
+                    cancellationToken);
+            }
+
+            var items = await _repository.GetItemsAsync(box.Id, cancellationToken);
+            foreach (var item in items.Where(item => !string.IsNullOrWhiteSpace(item.StoredPath)))
+            {
+                var name = Path.GetFileName(item.StoredPath);
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    continue;
+                }
+
+                var expectedStoredPath = Path.Combine(expectedStoragePath, name);
+                if ((!File.Exists(expectedStoredPath) && !Directory.Exists(expectedStoredPath))
+                    || string.Equals(
+                        Path.GetFullPath(item.StoredPath!),
+                        Path.GetFullPath(expectedStoredPath),
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                await _repository.UpdateItemStoredPathAsync(
+                    item.Id,
+                    expectedStoredPath,
+                    cancellationToken);
+            }
+        }
     }
 
     private async Task EnsureDefaultBoxesAsync(CancellationToken cancellationToken)

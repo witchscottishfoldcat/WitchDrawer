@@ -12,6 +12,7 @@ using WitchDrawer.Core.Abstractions;
 using WitchDrawer.Core.Logging;
 using WitchDrawer.Core.Models;
 using WitchDrawer.Core.Services;
+using WitchDrawer.Native.Files;
 
 namespace WitchDrawer.App.ViewModels;
 
@@ -1013,6 +1014,9 @@ public sealed class DesktopBoxViewModel : ObservableObject
             }
 
             var exportedPath = await _drawerService.ExportItemToDirectoryAsync(item.Id, desktopDirectory);
+            ShellChangeNotifier.NotifyFolderItemCreated(
+                exportedPath,
+                item.Model.ItemKind == ItemKind.Directory);
             await LoadAsync();
             StatusText = $"已移到桌面：{Path.GetFileName(exportedPath)}";
             ItemsChanged?.Invoke(this, EventArgs.Empty);

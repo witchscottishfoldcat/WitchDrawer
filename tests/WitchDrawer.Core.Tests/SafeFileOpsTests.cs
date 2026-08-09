@@ -76,6 +76,24 @@ public sealed class SafeFileOpsTests
     }
 
     [Fact]
+    public void CopyThenDelete_File_LandsAtFinalNameWithoutStagingArtifacts()
+    {
+        // 文件直接复制到最终名，桌面图标能立刻出现：不应残留 .tmp 暂存文件。
+        using var workspace = new TempWorkspace();
+        var source = workspace.WriteFile("source.lnk", "shortcut-payload");
+        var target = Path.Combine(workspace.Root, "exported.lnk");
+
+        SafeFileOps.CopyThenDelete(source, target, isDirectory: false, CancellationToken.None);
+
+        Assert.False(File.Exists(source));
+        Assert.True(File.Exists(target));
+        Assert.Equal("shortcut-payload", File.ReadAllText(target));
+
+        var stagingArtifacts = Directory.GetFiles(workspace.Root, "*.witchdrawer-*.tmp");
+        Assert.Empty(stagingArtifacts);
+    }
+
+    [Fact]
     public void Move_DirectoryIntoOwnDescendant_IsRejectedWithoutCreatingDestination()
     {
         using var workspace = new TempWorkspace();

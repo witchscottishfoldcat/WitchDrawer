@@ -198,6 +198,31 @@ public sealed class DrawerRepository
         }
     }
 
+    public async Task UpdateBoxStoragePathAsync(
+        Guid boxId,
+        string storagePath,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            UPDATE Boxes
+            SET StoragePath = $storagePath, UpdatedAt = $updatedAt
+            WHERE Id = $id;
+            """;
+        command.Parameters.AddWithValue("$id", boxId.ToString());
+        command.Parameters.AddWithValue("$storagePath", storagePath);
+        command.Parameters.AddWithValue("$updatedAt", ToDb(DateTimeOffset.UtcNow));
+
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+        {
+            throw new InvalidOperationException("Box does not exist.");
+        }
+    }
+
     public async Task UpdateBoxSortOrdersAsync(
         IReadOnlyList<Guid> orderedBoxIds,
         CancellationToken cancellationToken = default)
@@ -365,6 +390,31 @@ public sealed class DrawerRepository
         command.Parameters.AddWithValue("$updatedAt", ToDb(item.UpdatedAt));
 
         await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task UpdateItemStoredPathAsync(
+        Guid itemId,
+        string storedPath,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            UPDATE Items
+            SET StoredPath = $storedPath, UpdatedAt = $updatedAt
+            WHERE Id = $id;
+            """;
+        command.Parameters.AddWithValue("$id", itemId.ToString());
+        command.Parameters.AddWithValue("$storedPath", storedPath);
+        command.Parameters.AddWithValue("$updatedAt", ToDb(DateTimeOffset.UtcNow));
+
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+        {
+            throw new InvalidOperationException("Item does not exist.");
+        }
     }
 
     public async Task UpdateItemGridPositionAsync(

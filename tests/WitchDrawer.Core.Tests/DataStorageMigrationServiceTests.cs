@@ -82,6 +82,46 @@ public sealed class DataStorageMigrationServiceTests
     }
 
     [Fact]
+    public async Task MigrateAsync_ReopenedServiceRepairsStoredPathsAndCanExportItem()
+    {
+        var sourceRoot = CreateTempDirectory();
+        var bootstrapRoot = CreateTempDirectory();
+        var targetRoot = Path.Combine(Path.GetTempPath(), "WitchDrawer.Tests", Guid.NewGuid().ToString("N"));
+        var exportRoot = CreateTempDirectory();
+        try
+        {
+            var paths = new AppPaths(sourceRoot);
+            var repository = new DrawerRepository(paths.DatabasePath);
+            var service = new DrawerService(paths, repository);
+            await service.InitializeAsync();
+            var normalBox = (await service.GetBoxesAsync()).Single(
+                box => box.Type == WitchDrawer.Core.Models.BoxType.Normal);
+            var sourceFile = Path.Combine(sourceRoot, "source.txt");
+            await File.WriteAllTextAsync(sourceFile, "payload");
+            var item = await service.ImportPathAsync(normalBox.Id, sourceFile);
+
+            var store = new StorageLocationStore(
+                Path.Combine(bootstrapRoot, StorageLocationStore.ConfigFileName));
+            var migration = new DataStorageMigrationService(paths, repository, store);
+            var newPaths = await migration.MigrateAsync(targetRoot);
+            var reopened = new DrawerService(newPaths, new DrawerRepository(newPaths.DatabasePath));
+            await reopened.InitializeAsync();
+
+            var exportedPath = await reopened.ExportItemToDirectoryAsync(item.Id, exportRoot);
+
+            Assert.Equal("payload", await File.ReadAllTextAsync(exportedPath));
+            Assert.StartsWith(Path.GetFullPath(exportRoot), exportedPath, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            DeleteDirectory(sourceRoot);
+            DeleteDirectory(bootstrapRoot);
+            DeleteDirectory(targetRoot);
+            DeleteDirectory(exportRoot);
+        }
+    }
+
+    [Fact]
     public async Task MigrateAsync_RejectsNonEmptyTarget()
     {
         var sourceRoot = CreateTempDirectory();

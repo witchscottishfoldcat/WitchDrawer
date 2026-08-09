@@ -26,7 +26,6 @@ internal static class SafeFileOps
 
         sourcePath = Path.GetFullPath(sourcePath);
         destinationPath = Path.GetFullPath(destinationPath);
-        ValidateNoReparsePoints(sourcePath, isDirectory);
         ValidateDestinationParent(Path.GetDirectoryName(destinationPath));
 
         if (string.Equals(sourcePath, destinationPath, StringComparison.OrdinalIgnoreCase))
@@ -50,6 +49,8 @@ internal static class SafeFileOps
         {
             throw new FileNotFoundException("Source file does not exist.", sourcePath);
         }
+
+        ValidateEntryIsNotReparsePoint(sourcePath);
 
         if (File.Exists(destinationPath) || Directory.Exists(destinationPath))
         {
@@ -110,7 +111,7 @@ internal static class SafeFileOps
         cancellationToken.ThrowIfCancellationRequested();
         sourcePath = Path.GetFullPath(sourcePath);
         destinationPath = Path.GetFullPath(destinationPath);
-        ValidateNoReparsePoints(sourcePath, isDirectory);
+        ValidateEntryIsNotReparsePoint(sourcePath);
         ValidateDestinationParent(Path.GetDirectoryName(destinationPath));
 
         if (isDirectory && IsSameOrDescendant(destinationPath, sourcePath))
@@ -123,31 +124,28 @@ internal static class SafeFileOps
             throw new IOException($"Destination already exists: {destinationPath}");
         }
 
+        // Files copy directly to their final name: small desktop exports (.lnk, documents)
+        // then appear in Explorer the moment the bytes land, instead of being hidden behind a
+        // ".name.witchdrawer-{guid}.tmp" staging file that only renames to the real name at the
+        // very end. Directories still stage atomically because recursive tree promotion is more
+        // involved and is not on the interactive export hot path.
+        if (!isDirectory)
+        {
+            CopyFileThenDelete(sourcePath, destinationPath, cancellationToken);
+            return;
+        }
+
         var stagingPath = CreateStagingPath(destinationPath);
         try
         {
-            if (isDirectory)
-            {
-                CopyDirectory(sourcePath, stagingPath, cancellationToken);
-            }
-            else
-            {
-                File.Copy(sourcePath, stagingPath, overwrite: false);
-            }
+            CopyDirectory(sourcePath, stagingPath, cancellationToken);
 
             cancellationToken.ThrowIfCancellationRequested();
             var sourceAttributes = CaptureAttributes(sourcePath, isDirectory);
             try
             {
                 ClearReadOnlyAttributes(sourcePath, isDirectory);
-                if (isDirectory)
-                {
-                    Directory.Delete(sourcePath, recursive: true);
-                }
-                else
-                {
-                    File.Delete(sourcePath);
-                }
+                Directory.Delete(sourcePath, recursive: true);
             }
             catch
             {
@@ -157,14 +155,7 @@ internal static class SafeFileOps
 
             try
             {
-                if (isDirectory)
-                {
-                    Directory.Move(stagingPath, destinationPath);
-                }
-                else
-                {
-                    File.Move(stagingPath, destinationPath);
-                }
+                Directory.Move(stagingPath, destinationPath);
             }
             catch
             {
@@ -181,6 +172,36 @@ internal static class SafeFileOps
         }
     }
 
+    private static void CopyFileThenDelete(
+        string sourcePath,
+        string destinationPath,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        // Copy straight to the final destination. If a concurrent writer creates the target
+        // between our existence check and the copy, File.Copy(overwrite:false) surfaces that
+        // as IOException, which the caller is expected to handle.
+        File.Copy(sourcePath, destinationPath, overwrite: false);
+
+        cancellationToken.ThrowIfCancellationRequested();
+        var sourceAttributes = CaptureAttributes(sourcePath, isDirectory: false);
+        try
+        {
+            ClearReadOnlyAttributes(sourcePath, isDirectory: false);
+            File.Delete(sourcePath);
+        }
+        catch
+        {
+            RestoreAttributes(sourceAttributes);
+
+            // The destination already holds a valid copy; roll it back so the user is not left
+            // with a duplicate when the source could not be removed.
+            TryDelete(destinationPath, isDirectory: false);
+            throw;
+        }
+    }
+
     private static string CreateStagingPath(string destinationPath)
     {
         var directory = Path.GetDirectoryName(destinationPath)
@@ -192,13 +213,13 @@ internal static class SafeFileOps
 
     private static void CopyDirectory(string sourceDir, string destinationDir, CancellationToken cancellationToken)
     {
-        ValidateNoReparsePoints(sourceDir, isDirectory: true);
+        ValidateEntryIsNotReparsePoint(sourceDir);
         Directory.CreateDirectory(destinationDir);
 
         foreach (var file in Directory.GetFiles(sourceDir))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            ValidateNoReparsePoints(file, isDirectory: false);
+            ValidateEntryIsNotReparsePoint(file);
             var targetFile = Path.Combine(destinationDir, Path.GetFileName(file));
             File.Copy(file, targetFile, overwrite: false);
         }
@@ -206,7 +227,7 @@ internal static class SafeFileOps
         foreach (var directory in Directory.GetDirectories(sourceDir))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            ValidateNoReparsePoints(directory, isDirectory: true);
+            ValidateEntryIsNotReparsePoint(directory);
             var targetSubDir = Path.Combine(destinationDir, Path.GetFileName(directory));
             CopyDirectory(directory, targetSubDir, cancellationToken);
         }
@@ -258,21 +279,11 @@ internal static class SafeFileOps
         }
     }
 
-    private static void ValidateNoReparsePoints(string path, bool isDirectory)
+    private static void ValidateEntryIsNotReparsePoint(string path)
     {
         if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
         {
             throw new IOException($"Reparse points are not supported: {path}");
-        }
-
-        if (!isDirectory)
-        {
-            return;
-        }
-
-        foreach (var entry in Directory.EnumerateFileSystemEntries(path))
-        {
-            ValidateNoReparsePoints(entry, Directory.Exists(entry));
         }
     }
 
