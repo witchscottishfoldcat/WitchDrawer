@@ -192,7 +192,10 @@ public sealed class DrawerRepository
         command.Parameters.AddWithValue("$name", newName);
         command.Parameters.AddWithValue("$updatedAt", ToDb(DateTimeOffset.UtcNow));
 
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+        {
+            throw new InvalidOperationException("Box does not exist.");
+        }
     }
 
     public async Task UpdateBoxSortOrdersAsync(
@@ -247,7 +250,10 @@ public sealed class DrawerRepository
         removeBoxCommand.Transaction = (SqliteTransaction)transaction;
         removeBoxCommand.CommandText = "DELETE FROM Boxes WHERE Id = $id;";
         removeBoxCommand.Parameters.AddWithValue("$id", boxId.ToString());
-        await removeBoxCommand.ExecuteNonQueryAsync(cancellationToken);
+        if (await removeBoxCommand.ExecuteNonQueryAsync(cancellationToken) != 1)
+        {
+            throw new InvalidOperationException("Box does not exist.");
+        }
 
         await transaction.CommitAsync(cancellationToken);
     }
@@ -384,7 +390,10 @@ public sealed class DrawerRepository
         command.Parameters.AddWithValue("$gridRow", (object?)gridRow ?? DBNull.Value);
         command.Parameters.AddWithValue("$updatedAt", ToDb(DateTimeOffset.UtcNow));
 
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+        {
+            throw new InvalidOperationException("Item does not exist.");
+        }
     }
 
     public async Task MoveItemToBoxAsync(
@@ -425,7 +434,10 @@ public sealed class DrawerRepository
         command.Parameters.AddWithValue("$gridRow", (object?)gridRow ?? DBNull.Value);
         command.Parameters.AddWithValue("$updatedAt", ToDb(DateTimeOffset.UtcNow));
 
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+        {
+            throw new InvalidOperationException("Item does not exist.");
+        }
     }
 
     public async Task RemoveItemAsync(Guid itemId, CancellationToken cancellationToken = default)
@@ -437,7 +449,10 @@ public sealed class DrawerRepository
         command.CommandText = "DELETE FROM Items WHERE Id = $id;";
         command.Parameters.AddWithValue("$id", itemId.ToString());
 
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+        {
+            throw new InvalidOperationException("Item does not exist.");
+        }
     }
 
     public async Task<IReadOnlyList<TodoItem>> GetTodosAsync(
@@ -605,7 +620,10 @@ public sealed class DrawerRepository
             archivedAt is null ? DBNull.Value : ToDb(archivedAt.Value));
         command.Parameters.AddWithValue("$updatedAt", ToDb(updatedAt));
 
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+        {
+            throw new InvalidOperationException("Todo does not exist.");
+        }
     }
 
     public async Task UpdateTodoCompletionAsync(
@@ -634,7 +652,10 @@ public sealed class DrawerRepository
             completedAt is null ? DBNull.Value : ToDb(completedAt.Value));
         command.Parameters.AddWithValue("$updatedAt", ToDb(updatedAt));
 
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+        {
+            throw new InvalidOperationException("Todo does not exist.");
+        }
     }
 
     public async Task RemoveTodoAsync(Guid todoId, CancellationToken cancellationToken = default)
@@ -646,7 +667,10 @@ public sealed class DrawerRepository
         command.CommandText = "DELETE FROM Todos WHERE Id = $id;";
         command.Parameters.AddWithValue("$id", todoId.ToString());
 
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+        {
+            throw new InvalidOperationException("Todo does not exist.");
+        }
     }
 
     public async Task<string?> GetSettingAsync(string key, CancellationToken cancellationToken = default)

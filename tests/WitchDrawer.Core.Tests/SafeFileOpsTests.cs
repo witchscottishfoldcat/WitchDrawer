@@ -76,6 +76,22 @@ public sealed class SafeFileOpsTests
     }
 
     [Fact]
+    public void Move_DirectoryIntoOwnDescendant_IsRejectedWithoutCreatingDestination()
+    {
+        using var workspace = new TempWorkspace();
+        var source = workspace.CreateDirectory("source");
+        File.WriteAllText(Path.Combine(source, "payload.txt"), "payload");
+        var destination = Path.Combine(source, "child");
+
+        Assert.Throws<InvalidOperationException>(() =>
+            SafeFileOps.Move(source, destination, isDirectory: true));
+
+        Assert.True(Directory.Exists(source));
+        Assert.False(Directory.Exists(destination));
+        Assert.Equal("payload", File.ReadAllText(Path.Combine(source, "payload.txt")));
+    }
+
+    [Fact]
     public void Move_ThrowsWhenDestinationExists()
     {
         using var workspace = new TempWorkspace();
@@ -197,6 +213,7 @@ public sealed class SafeFileOpsTests
             Assert.Throws<IOException>(
                 () => SafeFileOps.CopyThenDelete(source, target, isDirectory: false, CancellationToken.None));
             Assert.True(File.Exists(source));
+            Assert.True((File.GetAttributes(source) & FileAttributes.ReadOnly) != 0);
             Assert.False(File.Exists(target));
         }
         finally
@@ -264,16 +281,17 @@ public sealed class SafeFileOpsRollbackTests
         Directory.CreateDirectory(Path.Combine(sourceDir, "child"));
         File.WriteAllText(Path.Combine(sourceDir, "child", "nested.txt"), "nested");
 
-        // 预置冲突文件让复制在中途（子目录阶段）失败：根文件已复制、子目录复制抛错。
+        // 预置最终目标：操作必须在复制前拒绝它，并保护其中已有内容。
         var targetDir = Path.Combine(workspace.Root, "copied-dir");
         Directory.CreateDirectory(Path.Combine(targetDir, "child"));
-        File.WriteAllText(Path.Combine(targetDir, "child", "nested.txt"), "conflict");
+        var sentinel = Path.Combine(targetDir, "child", "nested.txt");
+        File.WriteAllText(sentinel, "conflict");
 
         Assert.Throws<IOException>(() =>
             SafeFileOps.CopyThenDelete(sourceDir, targetDir, isDirectory: true, CancellationToken.None));
 
-        // 回滚：目标处的半成品目录树（含本次复制的 root.txt）必须被清理，源目录保持完整。
-        Assert.False(Directory.Exists(targetDir));
+        Assert.True(Directory.Exists(targetDir));
+        Assert.Equal("conflict", File.ReadAllText(sentinel));
         Assert.True(File.Exists(Path.Combine(sourceDir, "root.txt")));
         Assert.True(File.Exists(Path.Combine(sourceDir, "child", "nested.txt")));
     }

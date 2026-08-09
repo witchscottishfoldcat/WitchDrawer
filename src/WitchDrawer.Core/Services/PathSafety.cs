@@ -20,14 +20,48 @@ internal static class PathSafety
 
     public static void EnsureChildPath(string rootDirectory, string candidatePath)
     {
-        var root = Path.GetFullPath(rootDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-            + Path.DirectorySeparatorChar;
+        var root = Path.GetFullPath(rootDirectory)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         var candidate = Path.GetFullPath(candidatePath);
+        var prefix = root + Path.DirectorySeparatorChar;
 
-        if (!candidate.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+        if (!candidate.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException($"Target path is outside the allowed storage root: {candidate}");
         }
+
+        EnsureNoReparsePoints(root);
+        EnsureNoReparsePointsAlongExistingPath(candidate, root);
+    }
+
+    public static void EnsureNoReparsePoints(string path)
+    {
+        if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+        {
+            throw new InvalidOperationException($"Reparse points are not supported in storage paths: {path}");
+        }
+    }
+
+    private static void EnsureNoReparsePointsAlongExistingPath(string candidate, string root)
+    {
+        var relative = Path.GetRelativePath(root, candidate);
+        var current = root;
+        if (relative == ".")
+        {
+            return;
+        }
+
+        foreach (var segment in relative.Split(
+                     [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
+                     StringSplitOptions.RemoveEmptyEntries))
+        {
+            current = Path.Combine(current, segment);
+            if (!File.Exists(current) && !Directory.Exists(current))
+            {
+                break;
+            }
+
+            EnsureNoReparsePoints(current);
+        }
     }
 }
-

@@ -652,6 +652,26 @@ public sealed class DrawerServiceTests
     }
 
     [Fact]
+    public async Task RepositoryMutations_RejectMissingRows()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var missing = Guid.NewGuid();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => workspace.Repository.UpdateBoxNameAsync(missing, "missing"));
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => workspace.Repository.RemoveBoxAsync(missing));
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => workspace.Repository.UpdateItemGridPositionAsync(missing, 1, 1));
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => workspace.Repository.RemoveItemAsync(missing));
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => workspace.Repository.UpdateTodoCompletionAsync(missing, true, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => workspace.Repository.RemoveTodoAsync(missing));
+    }
+
+    [Fact]
     public async Task ImportPathAsync_DirectoryMovesIntoStorage()
     {
         using var workspace = await TestWorkspace.CreateAsync();

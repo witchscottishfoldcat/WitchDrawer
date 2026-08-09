@@ -26,10 +26,17 @@ internal static class SafeFileOps
 
         sourcePath = Path.GetFullPath(sourcePath);
         destinationPath = Path.GetFullPath(destinationPath);
+        ValidateNoReparsePoints(sourcePath, isDirectory);
+        ValidateDestinationParent(Path.GetDirectoryName(destinationPath));
 
         if (string.Equals(sourcePath, destinationPath, StringComparison.OrdinalIgnoreCase))
         {
             return;
+        }
+
+        if (isDirectory && IsSameOrDescendant(destinationPath, sourcePath))
+        {
+            throw new InvalidOperationException("A directory cannot be moved into itself.");
         }
 
         if (isDirectory)
@@ -101,59 +108,97 @@ internal static class SafeFileOps
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        sourcePath = Path.GetFullPath(sourcePath);
+        destinationPath = Path.GetFullPath(destinationPath);
+        ValidateNoReparsePoints(sourcePath, isDirectory);
+        ValidateDestinationParent(Path.GetDirectoryName(destinationPath));
 
-        if (isDirectory)
+        if (isDirectory && IsSameOrDescendant(destinationPath, sourcePath))
         {
-            try
-            {
-                CopyDirectory(sourcePath, destinationPath, cancellationToken);
-            }
-            catch
-            {
-                // 复制中途失败（磁盘满/取消/无权限）时清掉半成品目录树，
-                // 与文件分支和删除失败分支的回滚行为保持一致。
-                TryDeleteDirectory(destinationPath);
-                throw;
-            }
-
-            try
-            {
-                // 只读文件会挡住 Directory.Delete（UnauthorizedAccessException），
-                // 跨卷移动必须像资源管理器一样先清只读位再删；副本仍保留只读属性。
-                ClearReadOnlyAttributesRecursively(sourcePath);
-                Directory.Delete(sourcePath, recursive: true);
-            }
-            catch
-            {
-                TryDeleteDirectory(destinationPath);
-                throw;
-            }
-
-            return;
+            throw new InvalidOperationException("A directory cannot be moved into itself.");
         }
 
-        File.Copy(sourcePath, destinationPath, overwrite: false);
+        if (File.Exists(destinationPath) || Directory.Exists(destinationPath))
+        {
+            throw new IOException($"Destination already exists: {destinationPath}");
+        }
+
+        var stagingPath = CreateStagingPath(destinationPath);
         try
         {
-            // File.Copy 会把只读位带到副本上；File.Delete 拒绝只读文件，
-            // 只清源文件的只读位（源随即被删，副本保持只读不变）。
-            ClearReadOnlyAttribute(sourcePath);
-            File.Delete(sourcePath);
+            if (isDirectory)
+            {
+                CopyDirectory(sourcePath, stagingPath, cancellationToken);
+            }
+            else
+            {
+                File.Copy(sourcePath, stagingPath, overwrite: false);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            var sourceAttributes = CaptureAttributes(sourcePath, isDirectory);
+            try
+            {
+                ClearReadOnlyAttributes(sourcePath, isDirectory);
+                if (isDirectory)
+                {
+                    Directory.Delete(sourcePath, recursive: true);
+                }
+                else
+                {
+                    File.Delete(sourcePath);
+                }
+            }
+            catch
+            {
+                RestoreAttributes(sourceAttributes);
+                throw;
+            }
+
+            try
+            {
+                if (isDirectory)
+                {
+                    Directory.Move(stagingPath, destinationPath);
+                }
+                else
+                {
+                    File.Move(stagingPath, destinationPath);
+                }
+            }
+            catch
+            {
+                // Never remove the final destination here: another operation may own it.
+                // Best effort restore keeps the operation atomic when the target is free.
+                TryMoveBack(stagingPath, sourcePath, isDirectory);
+                throw;
+            }
         }
         catch
         {
-            TryDeleteFile(destinationPath);
+            TryDelete(stagingPath, isDirectory);
             throw;
         }
     }
 
+    private static string CreateStagingPath(string destinationPath)
+    {
+        var directory = Path.GetDirectoryName(destinationPath)
+            ?? throw new InvalidOperationException("Destination directory is unavailable.");
+        return Path.Combine(
+            directory,
+            $".{Path.GetFileName(destinationPath)}.witchdrawer-{Guid.NewGuid():N}.tmp");
+    }
+
     private static void CopyDirectory(string sourceDir, string destinationDir, CancellationToken cancellationToken)
     {
+        ValidateNoReparsePoints(sourceDir, isDirectory: true);
         Directory.CreateDirectory(destinationDir);
 
         foreach (var file in Directory.GetFiles(sourceDir))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            ValidateNoReparsePoints(file, isDirectory: false);
             var targetFile = Path.Combine(destinationDir, Path.GetFileName(file));
             File.Copy(file, targetFile, overwrite: false);
         }
@@ -161,75 +206,172 @@ internal static class SafeFileOps
         foreach (var directory in Directory.GetDirectories(sourceDir))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            ValidateNoReparsePoints(directory, isDirectory: true);
             var targetSubDir = Path.Combine(destinationDir, Path.GetFileName(directory));
             CopyDirectory(directory, targetSubDir, cancellationToken);
         }
     }
 
-    /// <summary>
-    /// 清除单个文件的只读位；交接点/符号链接跳过（链接目标不属于被移动的树）。
-    /// </summary>
-    private static void ClearReadOnlyAttribute(string filePath)
+    private static bool IsSameOrDescendant(string candidate, string ancestor)
     {
-        var attributes = File.GetAttributes(filePath);
-        if ((attributes & (FileAttributes.ReadOnly | FileAttributes.ReparsePoint)) == FileAttributes.ReadOnly)
-        {
-            File.SetAttributes(filePath, attributes & ~FileAttributes.ReadOnly);
-        }
+        var fullCandidate = Path.GetFullPath(candidate)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var fullAncestor = Path.GetFullPath(ancestor)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        return string.Equals(fullCandidate, fullAncestor, StringComparison.OrdinalIgnoreCase)
+            || fullCandidate.StartsWith(fullAncestor + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>
-    /// 递归清除目录树内所有文件的只读位。遍历方式与 <see cref="CopyDirectory"/>
-    /// 保持一致，但不跟进交接点目录，避免改动链接目标里的文件。
-    /// </summary>
-    private static void ClearReadOnlyAttributesRecursively(string directoryPath)
+    private static void ValidateDestinationParent(string? directory)
     {
-        foreach (var file in Directory.GetFiles(directoryPath))
+        if (string.IsNullOrWhiteSpace(directory))
         {
-            ClearReadOnlyAttribute(file);
+            throw new InvalidOperationException("Destination directory is unavailable.");
         }
 
-        foreach (var directory in Directory.GetDirectories(directoryPath))
+        var current = Path.GetFullPath(directory);
+        while (!Directory.Exists(current))
         {
-            if ((File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0)
+            var parent = Path.GetDirectoryName(current);
+            if (string.IsNullOrEmpty(parent) || string.Equals(parent, current, StringComparison.OrdinalIgnoreCase))
             {
-                continue;
+                return;
             }
 
-            ClearReadOnlyAttributesRecursively(directory);
+            current = parent;
+        }
+
+        while (!string.IsNullOrEmpty(current))
+        {
+            if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+            {
+                throw new IOException($"Destination path contains an unsupported reparse point: {current}");
+            }
+
+            var parent = Path.GetDirectoryName(current);
+            if (string.IsNullOrEmpty(parent) || string.Equals(parent, current, StringComparison.OrdinalIgnoreCase))
+            {
+                break;
+            }
+
+            current = parent;
         }
     }
 
-    private static void TryDeleteFile(string path)
+    private static void ValidateNoReparsePoints(string path, bool isDirectory)
+    {
+        if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+        {
+            throw new IOException($"Reparse points are not supported: {path}");
+        }
+
+        if (!isDirectory)
+        {
+            return;
+        }
+
+        foreach (var entry in Directory.EnumerateFileSystemEntries(path))
+        {
+            ValidateNoReparsePoints(entry, Directory.Exists(entry));
+        }
+    }
+
+    private static Dictionary<string, FileAttributes> CaptureAttributes(string path, bool isDirectory)
+    {
+        var entries = isDirectory
+            ? Directory.EnumerateFileSystemEntries(path, "*", SearchOption.AllDirectories).Prepend(path)
+            : new[] { path };
+        return entries
+            .Where(entry => (File.GetAttributes(entry) & FileAttributes.ReparsePoint) == 0)
+            .ToDictionary(entry => entry, File.GetAttributes, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static void ClearReadOnlyAttributes(string path, bool isDirectory)
+    {
+        if (!isDirectory)
+        {
+            ClearReadOnlyAttribute(path);
+            return;
+        }
+
+        foreach (var entry in Directory.EnumerateFileSystemEntries(path, "*", SearchOption.AllDirectories).Prepend(path))
+        {
+            ClearReadOnlyAttribute(entry);
+        }
+    }
+
+    private static void ClearReadOnlyAttribute(string path)
+    {
+        var attributes = File.GetAttributes(path);
+        if ((attributes & (FileAttributes.ReadOnly | FileAttributes.ReparsePoint)) == FileAttributes.ReadOnly)
+        {
+            File.SetAttributes(path, attributes & ~FileAttributes.ReadOnly);
+        }
+    }
+
+    private static void RestoreAttributes(Dictionary<string, FileAttributes> attributes)
+    {
+        foreach (var pair in attributes)
+        {
+            RestoreAttribute(pair.Key, pair.Value);
+        }
+    }
+
+    private static void RestoreAttribute(string path, FileAttributes attributes)
     {
         try
         {
-            if (File.Exists(path))
+            if (File.Exists(path) || Directory.Exists(path))
             {
-                // 副本可能继承了只读位，回滚删除前同样要清掉。
+                File.SetAttributes(path, attributes);
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static void TryMoveBack(string source, string destination, bool isDirectory)
+    {
+        try
+        {
+            if (isDirectory)
+            {
+                if (Directory.Exists(source) && !Directory.Exists(destination) && !File.Exists(destination))
+                {
+                    Directory.Move(source, destination);
+                }
+            }
+            else if (File.Exists(source) && !File.Exists(destination) && !Directory.Exists(destination))
+            {
+                File.Move(source, destination);
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static void TryDelete(string path, bool isDirectory)
+    {
+        try
+        {
+            if (isDirectory)
+            {
+                if (Directory.Exists(path))
+                {
+                    ClearReadOnlyAttributes(path, isDirectory: true);
+                    Directory.Delete(path, recursive: true);
+                }
+            }
+            else if (File.Exists(path))
+            {
                 ClearReadOnlyAttribute(path);
                 File.Delete(path);
             }
         }
         catch
         {
-            // Best-effort rollback only.
-        }
-    }
-
-    private static void TryDeleteDirectory(string path)
-    {
-        try
-        {
-            if (Directory.Exists(path))
-            {
-                ClearReadOnlyAttributesRecursively(path);
-                Directory.Delete(path, recursive: true);
-            }
-        }
-        catch
-        {
-            // Best-effort rollback only.
         }
     }
 }

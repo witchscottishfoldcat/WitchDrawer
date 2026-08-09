@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Threading;
 using System.Windows;
 using CommunityToolkit.Mvvm.Messaging;
@@ -259,7 +260,7 @@ public sealed class DesktopBoxManager
         foreach (var (boxId, window) in _windows)
         {
             var key = BoxPositionSettingPrefix + boxId.ToString("N");
-            var value = $"{window.Left}{PositionSeparator}{window.Top}";
+            var value = SerializePosition(window.Left, window.Top);
             await _drawerService.SetSettingAsync(key, value);
         }
     }
@@ -583,22 +584,31 @@ public sealed class DesktopBoxManager
         return true;
     }
 
-    private static bool TryParsePosition(string? raw, out double left, out double top)
+    internal static string SerializePosition(double left, double top) =>
+        string.Create(
+            CultureInfo.InvariantCulture,
+            $"{left:R}{PositionSeparator}{top:R}");
+
+    internal static bool TryParsePosition(string? raw, out double left, out double top)
     {
         left = 0;
         top = 0;
-        if (string.IsNullOrEmpty(raw))
+        if (string.IsNullOrWhiteSpace(raw))
         {
             return false;
         }
 
-        var parts = raw.Split(PositionSeparator);
-        if (parts.Length != 2)
+        var parts = raw.Split(PositionSeparator, StringSplitOptions.TrimEntries);
+        if (parts.Length != 2
+            || !double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out left)
+            || !double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out top))
         {
+            left = 0;
+            top = 0;
             return false;
         }
 
-        return double.TryParse(parts[0], out left) && double.TryParse(parts[1], out top);
+        return double.IsFinite(left) && double.IsFinite(top);
     }
 
     private static void PlaceNewWindow(Window window, int index)
@@ -625,37 +635,31 @@ public sealed class DesktopBoxManager
     /// </summary>
     private void ResolveWindowOverlaps()
     {
-        var placed = new List<Rect>();
-        foreach (var window in _windows.Values.Where(w => w.IsVisible))
+        var entries = _windows.Values
+            .Where(window => window.IsVisible)
+            .OfType<DesktopBoxWindow>()
+            .Select(window => (Window: window, Bounds: window.GetVisibleBounds()))
+            .Where(entry => entry.Bounds.Width > 0 && entry.Bounds.Height > 0)
+            .ToArray();
+
+        // Restored positions are authoritative obstacles regardless of database order.
+        var placed = entries
+            .Where(entry => !_overlapResolutionBoxIds.Contains(entry.Window.ViewModel.BoxId))
+            .Select(entry => entry.Bounds)
+            .ToList();
+
+        foreach (var entry in entries.Where(entry => _overlapResolutionBoxIds.Contains(entry.Window.ViewModel.BoxId)))
         {
-            if (window is not DesktopBoxWindow boxWindow)
-            {
-                continue;
-            }
+            var bounds = entry.Bounds;
+            var resolved = ResolveOverlapCascade(
+                bounds,
+                placed,
+                entry.Window.GetWorkAreaDip());
 
-            var bounds = boxWindow.GetVisibleBounds();
-            if (bounds.Width <= 0 || bounds.Height <= 0)
-            {
-                continue;
-            }
-
-            if (!_overlapResolutionBoxIds.Contains(boxWindow.ViewModel.BoxId))
-            {
-                placed.Add(bounds);
-                continue;
-            }
-
-            // 级联换行与钳制都用盒子自己所在显示器的工作区；
-            // SystemParameters.WorkArea 只有主屏，会把副屏上的盒子错搬回主屏。
-            var workArea = boxWindow.GetWorkAreaDip();
-            var resolved = ResolveOverlapCascade(bounds, placed, workArea);
-
-            // 比较与写回都必须在可视区域坐标系中进行：bounds 是可视区域矩形，
-            // 而窗口 Left/Top 包含阴影留白 Margin，混用会让窗口每次消解都平移一圈。
             if (Math.Abs(bounds.Left - resolved.Left) > 0.5
                 || Math.Abs(bounds.Top - resolved.Top) > 0.5)
             {
-                boxWindow.MoveToVisibleOrigin(resolved.Left, resolved.Top);
+                entry.Window.MoveToVisibleOrigin(resolved.Left, resolved.Top);
             }
 
             placed.Add(resolved);

@@ -144,6 +144,7 @@ public sealed class DrawerService
             var targetPath = FileNameService.GetUniqueDestinationPath(storageRoot, displayName, isDirectory);
             PathSafety.EnsureChildPath(storageRoot, targetPath);
 
+            cancellationToken.ThrowIfCancellationRequested();
             await SafeFileOps.MoveAsync(fullSourcePath, targetPath, isDirectory, cancellationToken);
 
             item = new DrawerItem(
@@ -161,11 +162,11 @@ public sealed class DrawerService
 
             try
             {
-                await _repository.AddItemAsync(item, cancellationToken);
+                await _repository.AddItemAsync(item, CancellationToken.None);
             }
             catch
             {
-                await TryCompensateMoveAsync(targetPath, fullSourcePath, isDirectory, cancellationToken);
+                await TryCompensateMoveAsync(targetPath, fullSourcePath, isDirectory);
                 throw;
             }
 
@@ -265,11 +266,11 @@ public sealed class DrawerService
                     targetSortOrder,
                     gridColumn,
                     gridRow,
-                    cancellationToken);
+                    CancellationToken.None);
             }
             catch
             {
-                await TryCompensateMoveAsync(targetPath, fullSourcePath, isDirectory, cancellationToken);
+                await TryCompensateMoveAsync(targetPath, fullSourcePath, isDirectory);
                 throw;
             }
 
@@ -314,15 +315,16 @@ public sealed class DrawerService
         var targetPath = FileNameService.GetUniqueDestinationPath(fullTargetDirectory, displayName, isDirectory);
         PathSafety.EnsureChildPath(fullTargetDirectory, targetPath);
 
+        cancellationToken.ThrowIfCancellationRequested();
         await SafeFileOps.MoveAsync(sourcePath, targetPath, isDirectory, cancellationToken);
 
         try
         {
-            await _repository.RemoveItemAsync(itemId, cancellationToken);
+            await _repository.RemoveItemAsync(itemId, CancellationToken.None);
         }
         catch
         {
-            await TryCompensateMoveAsync(targetPath, sourcePath, isDirectory, cancellationToken);
+            await TryCompensateMoveAsync(targetPath, sourcePath, isDirectory);
             throw;
         }
 
@@ -343,7 +345,7 @@ public sealed class DrawerService
         var restore = await RestoreStoredItemAsync(item, reservedTargets: null, cancellationToken);
         try
         {
-            await _repository.RemoveItemAsync(itemId, cancellationToken);
+            await _repository.RemoveItemAsync(itemId, CancellationToken.None);
         }
         catch
         {
@@ -351,7 +353,7 @@ public sealed class DrawerService
             if (!string.IsNullOrWhiteSpace(item.StoredPath) && !string.IsNullOrWhiteSpace(restore.RestoredPath))
             {
                 var isDirectory = item.ItemKind == ItemKind.Directory;
-                await TryCompensateMoveAsync(restore.RestoredPath, item.StoredPath, isDirectory, cancellationToken);
+                await TryCompensateMoveAsync(restore.RestoredPath, item.StoredPath, isDirectory);
             }
 
             throw;
@@ -393,9 +395,14 @@ public sealed class DrawerService
 
             try
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 await RestoreStoredItemAsync(item, reservedTargets, cancellationToken);
-                await _repository.RemoveItemAsync(item.Id, cancellationToken);
+                await _repository.RemoveItemAsync(item.Id, CancellationToken.None);
                 restoredCount++;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
             }
             catch (Exception exception)
             {
@@ -571,7 +578,7 @@ public sealed class DrawerService
         {
             var candidate = Path.Combine(directory, $"{nameWithoutExtension} ({index}){extension}");
             var normalizedCandidate = Path.GetFullPath(candidate);
-            if ((isDirectory ? Directory.Exists(candidate) : File.Exists(candidate))
+            if ((File.Exists(candidate) || Directory.Exists(candidate))
                 || !reservedTargets.Add(normalizedCandidate))
             {
                 continue;
@@ -693,14 +700,13 @@ public sealed class DrawerService
     private static async Task TryCompensateMoveAsync(
         string movedPath,
         string originalPath,
-        bool isDirectory,
-        CancellationToken cancellationToken)
+        bool isDirectory)
     {
         try
         {
             if ((isDirectory && Directory.Exists(movedPath)) || (!isDirectory && File.Exists(movedPath)))
             {
-                await SafeFileOps.MoveAsync(movedPath, originalPath, isDirectory, cancellationToken);
+                await SafeFileOps.MoveAsync(movedPath, originalPath, isDirectory, CancellationToken.None);
             }
         }
         catch

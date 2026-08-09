@@ -29,7 +29,7 @@ internal static class FileNameService
 
     private static bool Exists(string path, bool isDirectory)
     {
-        return isDirectory ? Directory.Exists(path) : File.Exists(path);
+        return File.Exists(path) || Directory.Exists(path);
     }
 }
 

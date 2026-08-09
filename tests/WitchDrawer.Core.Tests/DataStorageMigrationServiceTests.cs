@@ -58,6 +58,30 @@ public sealed class DataStorageMigrationServiceTests
     }
 
     [Fact]
+    public async Task MigrateAsync_SourceNameMatchingLegacyTempSuffix_DoesNotDeleteSource()
+    {
+        var parent = CreateTempDirectory();
+        var sourceRoot = Path.Combine(parent, "data.tmp-migrating");
+        var targetRoot = Path.Combine(parent, "data");
+        Directory.CreateDirectory(sourceRoot);
+        try
+        {
+            var migration = await CreateMigrationAsync(sourceRoot);
+            var sentinel = Path.Combine(sourceRoot, "sentinel.txt");
+            await File.WriteAllTextAsync(sentinel, "keep");
+
+            await migration.MigrateAsync(targetRoot);
+
+            Assert.True(File.Exists(sentinel));
+            Assert.Equal("keep", await File.ReadAllTextAsync(sentinel));
+        }
+        finally
+        {
+            DeleteDirectory(parent);
+        }
+    }
+
+    [Fact]
     public async Task MigrateAsync_RejectsNonEmptyTarget()
     {
         var sourceRoot = CreateTempDirectory();
