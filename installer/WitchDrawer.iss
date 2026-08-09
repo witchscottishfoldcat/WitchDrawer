@@ -16,11 +16,11 @@
 ; updater.bat handles it via xcopy with /y).
 
 #ifndef MyAppVersion
-  #define MyAppVersion "1.2.2"
+  #define MyAppVersion "1.2.5"
 #endif
 
 #ifndef PublishDir
-  #define PublishDir "..\publish\v1.2.2"
+  #define PublishDir "..\publish\v1.2.5"
 #endif
 
 #define MyAppName "WitchDrawer"
