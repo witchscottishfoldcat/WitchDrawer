@@ -1576,11 +1576,16 @@ public sealed class DesktopBoxViewModel : ObservableObject
             coverHeight - (isTitleVisible ? DrawerTitleHeightCompensation : 0));
 
     /// <summary>
-    /// 展开抽屉二级弹窗前调用：弹窗顺序与盒内显示顺序（Items，已按排序模式排好）保持一致。
+    /// 展开抽屉二级弹窗前调用：弹窗只展示外层封面装不下的溢出项（顺序与盒内显示顺序
+    /// Items，已按排序模式排好保持一致），避免封面已显示的图标在弹窗里重复出现。
     /// </summary>
     public void SyncDrawerSecondaryFromItems()
     {
-        DrawerSecondaryItems.ReplaceAll(Items.ToArray());
+        // 封面已占据前 DrawerDirectItemCount 个位置；弹窗只承接其后的溢出项。
+        // DrawerDirectItemCount 在有溢出时为 封面容量-1（留一格给展开按钮），所以这里的
+        // Skip 结果必非空；无溢出时根本没有展开按钮，不会走到这里。
+        var overflowItems = Items.Skip(DrawerDirectItemCount).ToArray();
+        DrawerSecondaryItems.ReplaceAll(overflowItems);
 
         OnPropertyChanged(nameof(DrawerSecondaryColumns));
         OnPropertyChanged(nameof(DrawerSecondaryRows));
