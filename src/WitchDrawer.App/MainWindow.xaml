@@ -1091,10 +1091,10 @@
                                         CornerRadius="14"
                                         Padding="14,3"
                                         Margin="0">
-                                    <!-- MinHeight 固定为两行展开后的高度（38 + 2 + 32）：盒子尺寸行按盒型显隐时
-                                         卡片高度保持恒定，PrimaryPanel 垂直居中，避免下方内容区瞬间移位（页面抖动）。 -->
+                                    <!-- Height 固定为两行展开后的高度（38 + 2 + 32）：盒子尺寸行按盒型显隐时
+                                         卡片高度保持恒定，PrimaryPanel 垂直居中，避免下方"文件"栏随盒型上下移位。 -->
                                     <Grid x:Name="BoxControlsPageHost"
-                                          MinHeight="72"
+                                          Height="72"
                                           ClipToBounds="True">
                                         <VisualStateManager.VisualStateGroups>
                                             <VisualStateGroup x:Name="BoxControlsPageStates">
