@@ -3,7 +3,7 @@
 ; Produces a Windows installer (-Setup.exe) alongside the portable zip.
 ;
 ; Preprocessor vars:
-;   MyAppVersion   — passed via /DMyAppVersion=1.1.10 (matches Directory.Build.props)
+;   MyAppVersion   — passed via /DMyAppVersion=1.2.6 (matches Directory.Build.props)
 ;   PublishDir     — the dotnet publish output folder containing WitchDrawer.App.exe
 ;
 ; NOTE: Only the main exe + pdbs ship in the installer; the app is a
@@ -16,11 +16,11 @@
 ; updater.bat handles it via xcopy with /y).
 
 #ifndef MyAppVersion
-  #define MyAppVersion "1.2.5"
+  #define MyAppVersion "1.2.6"
 #endif
 
 #ifndef PublishDir
-  #define PublishDir "..\publish\v1.2.5"
+  #define PublishDir "..\publish\v1.2.6"
 #endif
 
 #define MyAppName "WitchDrawer"
