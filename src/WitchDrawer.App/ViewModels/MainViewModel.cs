@@ -10,6 +10,7 @@ using WitchDrawer.Core.Abstractions;
 using WitchDrawer.Core.Logging;
 using WitchDrawer.Core.Models;
 using WitchDrawer.Core.Services;
+using WitchDrawer.Native.Windows;
 
 namespace WitchDrawer.App.ViewModels;
 
@@ -44,6 +45,7 @@ public sealed class MainViewModel : ObservableObject
     private AppTheme _currentTheme;
     private bool _isTransparentCrystalBoxes;
     private bool _launchOnStartup;
+    private bool _areDesktopIconsHidden;
     private string _updateStatusText = string.Empty;
     private bool _isCheckingUpdate;
     private string? _pendingUpdateSha256;
@@ -106,6 +108,7 @@ public sealed class MainViewModel : ObservableObject
         ApplyGlassThemeCommand = new AsyncRelayCommand(() => ApplyThemeAsync(AppTheme.Glass));
         ApplyCrystalThemeCommand = new AsyncRelayCommand(ApplyCrystalThemeAsync);
         ToggleLaunchOnStartupCommand = new AsyncRelayCommand(ToggleLaunchOnStartupAsync);
+        ToggleDesktopIconsCommand = new RelayCommand(ToggleDesktopIcons);
         CheckForUpdateCommand = new AsyncRelayCommand(CheckForUpdateAsync);
         ShowDashboardCommand = new RelayCommand(() =>
         {
@@ -117,6 +120,7 @@ public sealed class MainViewModel : ObservableObject
         ShowSettingsCommand = new RelayCommand(() =>
         {
             SelectedBox = null;
+            AreDesktopIconsHidden = DesktopIconVisibility.IsHidden();
             IsArchivePage = false;
             IsSettingsPage = true;
             IsAboutPage = false;
@@ -195,6 +199,8 @@ public sealed class MainViewModel : ObservableObject
     public IAsyncRelayCommand ApplyCrystalThemeCommand { get; }
 
     public IAsyncRelayCommand ToggleLaunchOnStartupCommand { get; }
+
+    public IRelayCommand ToggleDesktopIconsCommand { get; }
 
     public IAsyncRelayCommand CheckForUpdateCommand { get; }
 
@@ -296,6 +302,12 @@ public sealed class MainViewModel : ObservableObject
         private set => SetProperty(ref _launchOnStartup, value);
     }
 
+    public bool AreDesktopIconsHidden
+    {
+        get => _areDesktopIconsHidden;
+        private set => SetProperty(ref _areDesktopIconsHidden, value);
+    }
+
     public string UpdateStatusText
     {
         get => _updateStatusText;
@@ -369,6 +381,7 @@ public sealed class MainViewModel : ObservableObject
             await SelectBoxAsync(Boxes.FirstOrDefault(box => box.Id == existingSelection) ?? Boxes.FirstOrDefault());
 
             LaunchOnStartup = ReadStartupRegistry();
+            AreDesktopIconsHidden = DesktopIconVisibility.IsHidden();
             await RestoreCrystalBoxTransparencyAsync();
 
             StatusText = $"{Boxes.Count} 个收纳盒已同步到桌面";
@@ -1073,6 +1086,22 @@ public sealed class MainViewModel : ObservableObject
         catch (Exception exception)
         {
             _logger.Error(exception, "Failed to toggle startup registry key.");
+            StatusText = exception.Message;
+        }
+    }
+
+    private void ToggleDesktopIcons()
+    {
+        try
+        {
+            var hidden = !AreDesktopIconsHidden;
+            DesktopIconVisibility.SetHidden(hidden);
+            AreDesktopIconsHidden = hidden;
+            StatusText = hidden ? "已隐藏 Windows 桌面图标" : "已显示 Windows 桌面图标";
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to toggle Windows desktop icons.");
             StatusText = exception.Message;
         }
     }
