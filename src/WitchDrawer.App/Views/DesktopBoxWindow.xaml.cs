@@ -37,10 +37,7 @@ public partial class DesktopBoxWindow : Window
     private double _drawerResizeStartWidth;
     private double _drawerResizeStartHeight;
     private NativePoint _drawerResizeStartCursor;
-    private double _drawerMoveStartLeft;
-    private double _drawerMoveStartTop;
     private bool _suppressDrawerItemClick;
-    private bool _drawerPositionChanged;
 
     internal sealed class DesktopBoxDragPayload(Guid dragId, Guid itemId, Guid sourceBoxId)
     {
@@ -155,7 +152,21 @@ public partial class DesktopBoxWindow : Window
 
     public void SetPositionLocked(bool isPositionLocked)
     {
+        if (_isPositionLocked == isPositionLocked)
+        {
+            return;
+        }
+
         _isPositionLocked = isPositionLocked;
+
+        // A lock transition must never leave a control holding mouse capture.
+        // In particular, the old drawer-cover Thumb path could keep a completed
+        // locked gesture around and make the next unlocked gesture appear inert.
+        if (Mouse.Captured is DependencyObject captured
+            && (ReferenceEquals(captured, this) || IsAncestorOf(captured)))
+        {
+            Mouse.Capture(null);
+        }
     }
 
     public nint NativeHandle => _nativeWindow?.Handle ?? nint.Zero;
@@ -476,57 +487,6 @@ public partial class DesktopBoxWindow : Window
         catch (InvalidOperationException)
         {
         }
-    }
-
-    private void OnDrawerMoveStarted(object sender, DragStartedEventArgs e)
-    {
-        _drawerMoveStartLeft = Left;
-        _drawerMoveStartTop = Top;
-        e.Handled = true;
-    }
-
-    private void OnDrawerMoveDelta(object sender, DragDeltaEventArgs e)
-    {
-        if (_isPositionLocked)
-        {
-            return;
-        }
-
-        Left += e.HorizontalChange;
-        Top += e.VerticalChange;
-        _drawerPositionChanged = true;
-        e.Handled = true;
-    }
-
-    private void OnDrawerMoveCompleted(object sender, DragCompletedEventArgs e)
-    {
-        if (e.Canceled)
-        {
-            // 拖拽被取消（如捕获丢失/Alt+Tab 切走）：弹回拖拽前的位置，不保存。
-            if (_drawerPositionChanged)
-            {
-                _drawerPositionChanged = false;
-                Left = _drawerMoveStartLeft;
-                Top = _drawerMoveStartTop;
-            }
-
-            e.Handled = true;
-            return;
-        }
-
-        if (!_drawerPositionChanged)
-        {
-            return;
-        }
-
-        _drawerPositionChanged = false;
-        QueueSendToBottom();
-        if (_positionChangedCallback is not null)
-        {
-            _ = _positionChangedCallback(ViewModel.BoxId);
-        }
-
-        e.Handled = true;
     }
 
     private async void OnDrawerIconPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)

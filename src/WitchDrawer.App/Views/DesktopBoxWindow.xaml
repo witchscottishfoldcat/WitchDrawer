@@ -433,8 +433,8 @@
                      Padding="2"
                      Width="{Binding GridViewportWidth}"
                      Height="{Binding GridViewportHeight}"
-                     MaxWidth="{Binding LayoutSettings.GridViewportMaxWidth}"
-                     MaxHeight="{Binding LayoutSettings.GridViewportMaxHeight}"
+                     MaxWidth="{Binding GridViewportMaxWidth}"
+                     MaxHeight="{Binding GridViewportMaxHeight}"
                      HorizontalAlignment="Left"
                      VerticalAlignment="Top"
                      BorderThickness="0"
@@ -1053,16 +1053,6 @@
                   PreviewMouseMove="OnDrawerIconMouseMove"
                   PreviewMouseLeftButtonDown="OnDrawerSurfacePreviewMouseLeftButtonDown"
                   Visibility="{Binding IsDrawerCollapsed, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <Thumb Cursor="SizeAll"
-                       DragStarted="OnDrawerMoveStarted"
-                       DragDelta="OnDrawerMoveDelta"
-                       DragCompleted="OnDrawerMoveCompleted">
-                    <Thumb.Template>
-                        <ControlTemplate TargetType="{x:Type Thumb}">
-                            <Border Background="Transparent" />
-                        </ControlTemplate>
-                    </Thumb.Template>
-                </Thumb>
                 <Grid>
                     <Grid.Style>
                         <Style TargetType="{x:Type Grid}">

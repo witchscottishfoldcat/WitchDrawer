@@ -7,8 +7,11 @@ namespace WitchDrawer.App.ViewModels;
 public sealed record BoxSizeModeState(bool IsFixed, int Columns, int Rows)
 {
     public const int MinCells = 1;
-    public const int MaxColumns = 12;
-    public const int MaxRows = 8;
+    // The old 12 x 8 values are viewport limits, not valid fixed-layout limits.
+    // Keep only a remote safety ceiling for corrupted/manual settings; ordinary
+    // users can keep increasing the fixed grid while the window stays virtualized.
+    public const int MaxColumns = 1000;
+    public const int MaxRows = 1000;
 
     public static BoxSizeModeState Adaptive { get; } = new(IsFixed: false, Columns: 4, Rows: 4);
 

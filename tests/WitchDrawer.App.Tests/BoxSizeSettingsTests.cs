@@ -29,9 +29,17 @@ public sealed class BoxSizeSettingsTests
     [Fact]
     public void SizeModeState_ClampsOutOfRangeValues()
     {
-        var parsed = BoxSizeModeState.Parse("Fixed:99:0");
+        var parsed = BoxSizeModeState.Parse("Fixed:1001:0");
 
         Assert.Equal(new BoxSizeModeState(true, BoxSizeModeState.MaxColumns, BoxSizeModeState.MinCells), parsed);
+    }
+
+    [Fact]
+    public void SizeModeState_PreservesValuesBeyondLegacyViewportLimits()
+    {
+        Assert.Equal(
+            new BoxSizeModeState(true, 13, 9),
+            BoxSizeModeState.Parse("Fixed:13:9"));
     }
 
     [Fact]
@@ -41,6 +49,48 @@ public sealed class BoxSizeSettingsTests
         Assert.False(new BoxSizeModeState(true, 2, 2).FitsExtent(3, 2));
         Assert.False(new BoxSizeModeState(true, 3, 1).FitsExtent(3, 2));
         Assert.True(BoxSizeModeState.Adaptive.FitsExtent(12, 8));
+    }
+
+    [Fact]
+    public async Task SizeSettingsViewModel_CanGrowPastLegacyTwelveByEightViewport()
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var (drawerService, _) = await CreateDrawerServiceAsync(root);
+            var box = new Box(
+                Guid.NewGuid(),
+                "普通收纳盒",
+                BoxType.Normal,
+                Path.Combine(root, "box"),
+                0,
+                DateTimeOffset.UtcNow,
+                DateTimeOffset.UtcNow);
+            await drawerService.SetSettingAsync(
+                BoxViewModel.GetSizeModeSettingKey(box.Id),
+                "Fixed:12:8");
+            var viewModel = new BoxSizeSettingsViewModel(drawerService, new RecordingLogger());
+
+            viewModel.SetTargetBox(
+                new BoxViewModel(box, drawerService, BoxVisualStyle.Modern, false));
+            await Task.Delay(200);
+
+            Assert.True(viewModel.CanIncreaseColumns);
+            Assert.True(viewModel.CanIncreaseRows);
+
+            await viewModel.IncreaseColumnsCommand.ExecuteAsync(null);
+            await viewModel.IncreaseRowsCommand.ExecuteAsync(null);
+
+            Assert.Equal(13, viewModel.FixedColumns);
+            Assert.Equal(9, viewModel.FixedRows);
+            Assert.Equal(
+                "Fixed:13:9",
+                await drawerService.GetSettingAsync(BoxViewModel.GetSizeModeSettingKey(box.Id)));
+        }
+        finally
+        {
+            CleanupTempRoot(root);
+        }
     }
 
     [Fact]
@@ -69,24 +119,30 @@ public sealed class BoxSizeSettingsTests
             Assert.False(viewModel.IsFixedSize);
             Assert.True(double.IsNaN(viewModel.GridViewportWidth));
             Assert.True(double.IsNaN(viewModel.GridViewportHeight));
+            Assert.Equal(viewModel.LayoutSettings.GridViewportMaxWidth, viewModel.GridViewportMaxWidth);
+            Assert.Equal(viewModel.LayoutSettings.GridViewportMaxHeight, viewModel.GridViewportMaxHeight);
 
-            viewModel.ApplySizeMode(new BoxSizeModeState(true, 3, 2));
+            viewModel.ApplySizeMode(new BoxSizeModeState(true, 13, 9));
 
             // 固定模式将视口与画布硬性固定为 m×n 网格的真实物理尺寸。
             Assert.True(viewModel.IsFixedSize);
             var slotWidth = viewModel.LayoutSettings.ItemSlotWidth;
             var slotHeight = viewModel.LayoutSettings.ItemSlotHeight;
-            Assert.Equal((3 * slotWidth) + DesktopBoxLayoutSettings.GridViewportFixedChromeInset, viewModel.GridViewportWidth);
-            Assert.Equal((2 * slotHeight) + DesktopBoxLayoutSettings.GridViewportFixedChromeInset, viewModel.GridViewportHeight);
-            Assert.Equal(3 * slotWidth, viewModel.GridCanvasWidth);
-            Assert.Equal(2 * slotHeight, viewModel.GridCanvasHeight);
+            Assert.Equal((13 * slotWidth) + DesktopBoxLayoutSettings.GridViewportFixedChromeInset, viewModel.GridViewportWidth);
+            Assert.Equal((9 * slotHeight) + DesktopBoxLayoutSettings.GridViewportFixedChromeInset, viewModel.GridViewportHeight);
+            Assert.Equal(viewModel.GridViewportWidth, viewModel.GridViewportMaxWidth);
+            Assert.Equal(viewModel.GridViewportHeight, viewModel.GridViewportMaxHeight);
+            Assert.Equal(13 * slotWidth, viewModel.GridCanvasWidth);
+            Assert.Equal(9 * slotHeight, viewModel.GridCanvasHeight);
 
             var clamped = viewModel.GetGridSlot(slotWidth * 10, slotHeight * 10);
-            Assert.Equal((2, 1), clamped);
+            Assert.Equal((10, 8), clamped);
 
             viewModel.ApplySizeMode(BoxSizeModeState.Adaptive);
 
             Assert.False(viewModel.IsFixedSize);
+            Assert.Equal(viewModel.LayoutSettings.GridViewportMaxWidth, viewModel.GridViewportMaxWidth);
+            Assert.Equal(viewModel.LayoutSettings.GridViewportMaxHeight, viewModel.GridViewportMaxHeight);
             var unclamped = viewModel.GetGridSlot(slotWidth * 10, slotHeight * 10);
             Assert.Equal((10, 10), unclamped);
         }

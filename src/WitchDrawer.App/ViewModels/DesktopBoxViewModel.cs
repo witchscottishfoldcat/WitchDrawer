@@ -171,6 +171,18 @@ public sealed class DesktopBoxViewModel : ObservableObject
         : double.NaN;
 
     /// <summary>
+    /// 自适应模式继续限制最大可见范围并通过滚动查看内容；固定模式的上限必须
+    /// 跟随用户选择的真实行列尺寸，否则 12 × 8 之后只会变化数字而窗口不增长。
+    /// </summary>
+    public double GridViewportMaxWidth => IsFixedSize
+        ? GridViewportWidth
+        : LayoutSettings.GridViewportMaxWidth;
+
+    public double GridViewportMaxHeight => IsFixedSize
+        ? GridViewportHeight
+        : LayoutSettings.GridViewportMaxHeight;
+
+    /// <summary>
     /// 固定模式下禁用滚动条（硬约束：放不下就拒绝拖入，而不是滚动查看）。
     /// </summary>
     public ScrollBarVisibility GridHorizontalScrollBarVisibility =>
@@ -1345,6 +1357,8 @@ public sealed class DesktopBoxViewModel : ObservableObject
         OnPropertyChanged(nameof(IsFixedSize));
         OnPropertyChanged(nameof(GridViewportWidth));
         OnPropertyChanged(nameof(GridViewportHeight));
+        OnPropertyChanged(nameof(GridViewportMaxWidth));
+        OnPropertyChanged(nameof(GridViewportMaxHeight));
         OnPropertyChanged(nameof(FixedCapacity));
         OnPropertyChanged(nameof(GridHorizontalScrollBarVisibility));
         OnPropertyChanged(nameof(GridVerticalScrollBarVisibility));
@@ -1707,6 +1721,8 @@ public sealed class DesktopBoxViewModel : ObservableObject
         OnPropertyChanged(nameof(HeaderRowHeight));
         OnPropertyChanged(nameof(GridViewportWidth));
         OnPropertyChanged(nameof(GridViewportHeight));
+        OnPropertyChanged(nameof(GridViewportMaxWidth));
+        OnPropertyChanged(nameof(GridViewportMaxHeight));
         if (IsDrawerBox && e.PropertyName is nameof(DesktopBoxLayoutSettings.CurrentPreset))
         {
             ResizeDrawerCover(
