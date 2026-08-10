@@ -767,6 +767,22 @@
                                                                       Direction="270" />
                                                 </Border.Effect>
                                                 <StackPanel>
+                                                    <Button Click="OnShowDesktopBoxClicked"
+                                                            Style="{StaticResource GhostButtonStyle}"
+                                                            AutomationProperties.Name="显示桌面收纳盒"
+                                                            Padding="10,8"
+                                                            HorizontalContentAlignment="Left">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="&#xE890;"
+                                                                       Width="20"
+                                                                       FontFamily="Segoe Fluent Icons"
+                                                                       FontSize="13"
+                                                                       Foreground="{DynamicResource TextMutedBrush}" />
+                                                            <TextBlock Text="显示桌面收纳盒"
+                                                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                                                       FontSize="12" />
+                                                        </StackPanel>
+                                                    </Button>
                                                     <Button Command="{Binding ToggleSelectedBoxPositionLockCommand}"
                                                             Click="OnBoxActionMenuItemClicked"
                                                             Style="{StaticResource GhostButtonStyle}"
@@ -797,6 +813,24 @@
                                                                        FontSize="13"
                                                                        Foreground="{DynamicResource TextMutedBrush}" />
                                                             <TextBlock Text="{Binding SelectedBox.TitleVisibilityAutomationName}"
+                                                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                                                       FontSize="12" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                    <Button Command="{Binding SelectedBox.ToggleFileNameVisibilityCommand}"
+                                                            Click="OnBoxActionMenuItemClicked"
+                                                            Style="{StaticResource GhostButtonStyle}"
+                                                            Visibility="{Binding SelectedBox.SupportsFileNameVisibility, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                            AutomationProperties.Name="{Binding SelectedBox.FileNameVisibilityAutomationName}"
+                                                            Padding="10,8"
+                                                            HorizontalContentAlignment="Left">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="&#xE8D2;"
+                                                                       Width="20"
+                                                                       FontFamily="Segoe Fluent Icons"
+                                                                       FontSize="13"
+                                                                       Foreground="{DynamicResource TextMutedBrush}" />
+                                                            <TextBlock Text="{Binding SelectedBox.FileNameVisibilityAutomationName}"
                                                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                                                        FontSize="12" />
                                                         </StackPanel>

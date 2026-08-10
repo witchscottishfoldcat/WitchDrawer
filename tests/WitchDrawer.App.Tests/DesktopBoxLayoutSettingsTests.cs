@@ -23,6 +23,23 @@ public sealed class DesktopBoxLayoutSettingsTests
     }
 
     [Fact]
+    public void FileNameVisibility_ReservesOnlyTheRequiredRowHeight()
+    {
+        var settings = new DesktopBoxLayoutSettings();
+        var visibleHeight = settings.ItemSlotHeight;
+
+        Assert.True(settings.IsFileNameVisible);
+
+        settings.IsFileNameVisible = false;
+
+        Assert.Equal(visibleHeight - settings.IconTextMaxHeight, settings.ItemSlotHeight);
+
+        settings.IsFileNameVisible = true;
+
+        Assert.Equal(visibleHeight, settings.ItemSlotHeight);
+    }
+
+    [Fact]
     public void MappingListDimensions_FollowIconDensityPreset()
     {
         var settings = new DesktopBoxLayoutSettings();
@@ -97,7 +114,7 @@ public sealed class DesktopBoxLayoutSettingsTests
     [InlineData("4x4")]
     [InlineData("5x5")]
     [InlineData("6x6")]
-    public void IconFrame_FitsInsideItemContentArea(string preset)
+    public void IconAndFileName_FitInsideItemContentArea(string preset)
     {
         var settings = new DesktopBoxLayoutSettings();
         settings.ApplyPresetWithoutCallback(preset);
@@ -116,8 +133,8 @@ public sealed class DesktopBoxLayoutSettingsTests
             settings.IconFrameSize <= contentWidth,
             $"{preset}: IconFrameSize {settings.IconFrameSize} 超出内容区宽度 {contentWidth}");
         Assert.True(
-            settings.IconFrameSize <= contentHeight,
-            $"{preset}: IconFrameSize {settings.IconFrameSize} 超出内容区高度 {contentHeight}");
+            settings.IconFrameSize + settings.IconTextMaxHeight <= contentHeight,
+            $"{preset}: 图标和文件名高度超出内容区高度 {contentHeight}");
     }
 
     [Theory]

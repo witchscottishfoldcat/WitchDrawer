@@ -27,6 +27,7 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
     private double _iconFontSize = 9;
     private TextWrapping _iconTextWrapping = TextWrapping.NoWrap;
     private double _iconTextMaxHeight = 14;
+    private bool _isFileNameVisible = true;
     private CornerRadius _itemCornerRadius = new CornerRadius(8);
     private CornerRadius _iconCornerRadius = new CornerRadius(6);
     private int _columns = 5;
@@ -66,7 +67,7 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
 
     public double ItemSlotHeight
     {
-        get => _itemSlotHeight;
+        get => _itemSlotHeight + (IsFileNameVisible ? IconTextMaxHeight : 0);
         set => SetProperty(ref _itemSlotHeight, value);
     }
 
@@ -91,7 +92,25 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
     public double IconTextMaxHeight
     {
         get => _iconTextMaxHeight;
-        set => SetProperty(ref _iconTextMaxHeight, value);
+        set
+        {
+            if (SetProperty(ref _iconTextMaxHeight, value) && IsFileNameVisible)
+            {
+                OnPropertyChanged(nameof(ItemSlotHeight));
+            }
+        }
+    }
+
+    public bool IsFileNameVisible
+    {
+        get => _isFileNameVisible;
+        set
+        {
+            if (SetProperty(ref _isFileNameVisible, value))
+            {
+                OnPropertyChanged(nameof(ItemSlotHeight));
+            }
+        }
     }
 
     public CornerRadius ItemCornerRadius
