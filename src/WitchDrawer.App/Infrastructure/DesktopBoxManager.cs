@@ -352,12 +352,42 @@ public sealed class DesktopBoxManager
             return;
         }
 
-        foreach (var window in _windows.Values.Where(window => !window.IsVisible))
+        await _refreshGate.WaitAsync();
+        try
         {
-            await window.ViewModel.LoadAsync();
-            window.Show();
-            window.QueueSendToBottom();
+            if (_closing)
+            {
+                return;
+            }
+
+            var hiddenWindows = SnapshotHiddenWindows(
+                _windows.Values,
+                static window => window.IsVisible);
+            foreach (var window in hiddenWindows)
+            {
+                await window.ViewModel.LoadAsync();
+                if (_closing)
+                {
+                    return;
+                }
+
+                window.Show();
+                window.QueueSendToBottom();
+            }
         }
+        finally
+        {
+            _refreshGate.Release();
+        }
+    }
+
+    internal static TWindow[] SnapshotHiddenWindows<TWindow>(
+        IEnumerable<TWindow> windows,
+        Func<TWindow, bool> isVisible)
+    {
+        ArgumentNullException.ThrowIfNull(windows);
+        ArgumentNullException.ThrowIfNull(isVisible);
+        return windows.Where(window => !isVisible(window)).ToArray();
     }
 
     public async Task SavePositionAsync(Guid boxId)

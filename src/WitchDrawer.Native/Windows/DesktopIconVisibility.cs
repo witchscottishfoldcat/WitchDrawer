@@ -24,6 +24,20 @@ public static class DesktopIconVisibility
         return IsHiddenRegistryValue(key?.GetValue(HideIconsValueName));
     }
 
+    public static Task SetHiddenAsync(
+        bool hidden,
+        CancellationToken cancellationToken = default) =>
+        RunSetHiddenAsync(SetHidden, hidden, cancellationToken);
+
+    internal static Task RunSetHiddenAsync(
+        Action<bool> setHidden,
+        bool hidden,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(setHidden);
+        return Task.Run(() => setHidden(hidden), cancellationToken);
+    }
+
     public static void SetHidden(bool hidden)
     {
         using var key = Registry.CurrentUser.CreateSubKey(

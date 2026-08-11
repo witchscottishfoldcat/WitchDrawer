@@ -108,7 +108,7 @@ public sealed class MainViewModel : ObservableObject
         ApplyGlassThemeCommand = new AsyncRelayCommand(() => ApplyThemeAsync(AppTheme.Glass));
         ApplyCrystalThemeCommand = new AsyncRelayCommand(ApplyCrystalThemeAsync);
         ToggleLaunchOnStartupCommand = new AsyncRelayCommand(ToggleLaunchOnStartupAsync);
-        ToggleDesktopIconsCommand = new RelayCommand(ToggleDesktopIcons);
+        ToggleDesktopIconsCommand = new AsyncRelayCommand(ToggleDesktopIconsAsync);
         CheckForUpdateCommand = new AsyncRelayCommand(CheckForUpdateAsync);
         ShowDashboardCommand = new RelayCommand(() =>
         {
@@ -200,7 +200,7 @@ public sealed class MainViewModel : ObservableObject
 
     public IAsyncRelayCommand ToggleLaunchOnStartupCommand { get; }
 
-    public IRelayCommand ToggleDesktopIconsCommand { get; }
+    public IAsyncRelayCommand ToggleDesktopIconsCommand { get; }
 
     public IAsyncRelayCommand CheckForUpdateCommand { get; }
 
@@ -1090,12 +1090,12 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
-    private void ToggleDesktopIcons()
+    private async Task ToggleDesktopIconsAsync()
     {
         try
         {
             var hidden = !AreDesktopIconsHidden;
-            DesktopIconVisibility.SetHidden(hidden);
+            await DesktopIconVisibility.SetHiddenAsync(hidden);
             AreDesktopIconsHidden = hidden;
             StatusText = hidden ? "已隐藏 Windows 桌面图标" : "已显示 Windows 桌面图标";
         }
