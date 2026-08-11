@@ -2344,30 +2344,43 @@
                                     <Style TargetType="{x:Type ScrollBar}"
                                            BasedOn="{StaticResource DrawerScrollBarStyle}" />
                                     <Style x:Key="SettingsToggleButtonStyle"
-                                           TargetType="{x:Type Button}"
-                                           BasedOn="{StaticResource {x:Type Button}}">
-                                        <Setter Property="Height" Value="28" />
-                                        <Setter Property="MinWidth" Value="52" />
-                                        <Setter Property="Padding" Value="12,0" />
-                                        <Setter Property="Content" Value="已关闭" />
-                                        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+                                           TargetType="{x:Type ToggleButton}">
+                                        <Setter Property="Width" Value="44" />
+                                        <Setter Property="Height" Value="24" />
+                                        <Setter Property="Cursor" Value="Hand" />
                                         <Setter Property="Background" Value="{DynamicResource PanelAltBrush}" />
                                         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushSoft}" />
                                         <Setter Property="Template">
                                             <Setter.Value>
-                                                <ControlTemplate TargetType="{x:Type Button}">
-                                                    <Border x:Name="Root"
-                                                            Background="{TemplateBinding Background}"
-                                                            BorderBrush="{TemplateBinding BorderBrush}"
-                                                            BorderThickness="1"
-                                                            CornerRadius="9"
-                                                            Padding="{TemplateBinding Padding}">
-                                                        <ContentPresenter HorizontalAlignment="Center"
-                                                                          VerticalAlignment="Center" />
-                                                    </Border>
+                                                <ControlTemplate TargetType="{x:Type ToggleButton}">
+                                                    <Grid x:Name="Root">
+                                                        <Border x:Name="Track"
+                                                                Background="{TemplateBinding Background}"
+                                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                                BorderThickness="1"
+                                                                CornerRadius="12" />
+                                                        <Ellipse x:Name="Thumb"
+                                                                 Width="18"
+                                                                 Height="18"
+                                                                 Margin="3"
+                                                                 HorizontalAlignment="Left"
+                                                                 Fill="{DynamicResource TextPrimaryBrush}" />
+                                                    </Grid>
                                                     <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsChecked" Value="True">
+                                                            <Setter TargetName="Track" Property="Background" Value="{DynamicResource AccentBrush}" />
+                                                            <Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                                            <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right" />
+                                                            <Setter TargetName="Thumb" Property="Fill" Value="White" />
+                                                        </Trigger>
                                                         <Trigger Property="IsMouseOver" Value="True">
                                                             <Setter TargetName="Root" Property="Opacity" Value="0.85" />
+                                                        </Trigger>
+                                                        <Trigger Property="IsKeyboardFocused" Value="True">
+                                                            <Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                                        </Trigger>
+                                                        <Trigger Property="IsEnabled" Value="False">
+                                                            <Setter TargetName="Root" Property="Opacity" Value="0.5" />
                                                         </Trigger>
                                                     </ControlTemplate.Triggers>
                                                 </ControlTemplate>
@@ -2674,23 +2687,13 @@
                                                    FontSize="11.5"
                                                    Foreground="{DynamicResource TextMutedBrush}" />
                                     </StackPanel>
-                                    <Button Grid.Column="1"
-                                            Command="{Binding ToggleLaunchOnStartupCommand}"
-                                            VerticalAlignment="Center">
-                                        <Button.Style>
-                                            <Style TargetType="{x:Type Button}"
-                                                   BasedOn="{StaticResource SettingsToggleButtonStyle}">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding LaunchOnStartup}" Value="True">
-                                                        <Setter Property="Content" Value="已开启" />
-                                                        <Setter Property="Foreground" Value="White" />
-                                                        <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
-                                                        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Button.Style>
-                                    </Button>
+                                    <ToggleButton Grid.Column="1"
+                                                  Margin="12,0,0,0"
+                                                  VerticalAlignment="Center"
+                                                  Style="{StaticResource SettingsToggleButtonStyle}"
+                                                  IsChecked="{Binding LaunchOnStartup, Mode=OneWay}"
+                                                  Command="{Binding ToggleLaunchOnStartupCommand}"
+                                                  AutomationProperties.Name="开机自启动" />
                                 </Grid>
                                 </Border>
 
@@ -2717,23 +2720,13 @@
                                                        TextWrapping="Wrap"
                                                        Foreground="{DynamicResource TextMutedBrush}" />
                                         </StackPanel>
-                                        <Button Grid.Column="1"
-                                                Command="{Binding ToggleDesktopIconsCommand}"
-                                                VerticalAlignment="Center">
-                                            <Button.Style>
-                                                <Style TargetType="{x:Type Button}"
-                                                       BasedOn="{StaticResource SettingsToggleButtonStyle}">
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding AreDesktopIconsHidden}" Value="True">
-                                                            <Setter Property="Content" Value="已开启" />
-                                                            <Setter Property="Foreground" Value="White" />
-                                                            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
-                                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Button.Style>
-                                        </Button>
+                                        <ToggleButton Grid.Column="1"
+                                                      Margin="12,0,0,0"
+                                                      VerticalAlignment="Center"
+                                                      Style="{StaticResource SettingsToggleButtonStyle}"
+                                                      IsChecked="{Binding AreDesktopIconsHidden, Mode=OneWay}"
+                                                      Command="{Binding ToggleDesktopIconsCommand}"
+                                                      AutomationProperties.Name="隐藏桌面图标" />
                                     </Grid>
                                 </Border>
 
