@@ -56,6 +56,22 @@ public sealed class DesktopDoubleClickDetector
         return false;
     }
 
+    public bool RegisterButtonDown(
+        int screenX,
+        int screenY,
+        uint timestamp,
+        GlobalMouseButton button,
+        bool isDesktopBackground)
+    {
+        if (button != GlobalMouseButton.Left)
+        {
+            Reset();
+            return false;
+        }
+
+        return RegisterClick(screenX, screenY, timestamp, isDesktopBackground);
+    }
+
     public void Reset()
     {
         _hasFirstClick = false;
