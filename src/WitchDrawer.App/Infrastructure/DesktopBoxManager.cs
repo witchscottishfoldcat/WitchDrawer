@@ -75,6 +75,9 @@ public sealed class DesktopBoxManager
         WeakReferenceMessenger.Default.Register<DesktopBoxManager, BoxTitleVisibilityChangedMessage>(
             this,
             static (recipient, message) => recipient.ApplyTitleVisibility(message));
+        WeakReferenceMessenger.Default.Register<DesktopBoxManager, BoxFileNameVisibilityChangedMessage>(
+            this,
+            static (recipient, message) => recipient.ApplyFileNameVisibility(message));
         WeakReferenceMessenger.Default.Register<DesktopBoxManager, DrawerSortModeChangedMessage>(
             this,
             static (recipient, message) => recipient.ApplyDrawerSortMode(message));
@@ -154,6 +157,7 @@ public sealed class DesktopBoxManager
                         layoutSettings);
                     await viewModel.LoadDrawerCoverSizeAsync();
                     await viewModel.LoadTitleVisibilityAsync();
+                    await viewModel.LoadFileNameVisibilityAsync();
                     await viewModel.LoadSortModeAsync();
                     await viewModel.LoadSizeModeAsync();
                     viewModel.ItemsChanged += (_, _) => ItemsChanged?.Invoke(
@@ -323,10 +327,14 @@ public sealed class DesktopBoxManager
             return false;
         }
 
-        if (_windows.TryGetValue(boxId, out var window) && !window.IsVisible)
+        if (_windows.TryGetValue(boxId, out var window))
         {
-            await window.ViewModel.LoadAsync();
-            window.Show();
+            if (!window.IsVisible)
+            {
+                await window.ViewModel.LoadAsync();
+                window.Show();
+            }
+
             window.QueueSendToBottom();
             return true;
         }
@@ -335,6 +343,21 @@ public sealed class DesktopBoxManager
         // refresh so the box window is recreated for the current box set.
         await RefreshAsync();
         return _windows.TryGetValue(boxId, out var refreshed) && refreshed.IsVisible;
+    }
+
+    public async Task ShowAllAsync()
+    {
+        if (_closing)
+        {
+            return;
+        }
+
+        foreach (var window in _windows.Values.Where(window => !window.IsVisible))
+        {
+            await window.ViewModel.LoadAsync();
+            window.Show();
+            window.QueueSendToBottom();
+        }
     }
 
     public async Task SavePositionAsync(Guid boxId)
@@ -539,6 +562,15 @@ public sealed class DesktopBoxManager
         if (_windows.TryGetValue(message.BoxId, out var window))
         {
             window.ViewModel.ApplyTitleVisibility(message.IsVisible);
+        }
+    }
+
+    private void ApplyFileNameVisibility(
+        BoxFileNameVisibilityChangedMessage message)
+    {
+        if (_windows.TryGetValue(message.BoxId, out var window))
+        {
+            window.ViewModel.ApplyFileNameVisibility(message.IsVisible);
         }
     }
 

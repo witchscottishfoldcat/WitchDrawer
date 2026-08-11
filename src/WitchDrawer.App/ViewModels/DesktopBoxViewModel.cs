@@ -27,6 +27,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private const string DrawerCoverSizeSettingPrefix = "DrawerCoverSize:";
     private const string TitleVisibilitySettingPrefix = "BoxTitleVisible:";
     private const string LegacyDrawerTitleVisibilitySettingPrefix = "DrawerTitleVisible:";
+    private const string FileNameVisibilitySettingPrefix = "BoxFileNameVisible:";
     private const string DrawerSortModeSettingPrefix = "DrawerSortMode:";
     private const double DefaultDrawerCoverWidth = 180;
     private const double DefaultDrawerCoverHeight = 112;
@@ -61,6 +62,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private double _iconDpiScaleY = 1;
     private bool _isDrawerExpanded;
     private bool _isTitleVisible = true;
+    private bool _isFileNameVisible = true;
     private double _drawerCoverWidth = DefaultDrawerCoverWidth;
     private double _drawerCoverHeight = DefaultDrawerCoverHeight;
     private int _drawerCoverColumns = 3;
@@ -213,6 +215,8 @@ public sealed class DesktopBoxViewModel : ObservableObject
     public bool IsDrawerCollapsed => IsDrawerBox && !IsDrawerExpanded;
 
     public bool IsTitleVisible => _isTitleVisible;
+
+    public bool IsFileNameVisible => _isFileNameVisible;
 
     public bool IsHeaderVisible => ShouldShowHeader(
         IsDrawerBox,
@@ -425,6 +429,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
         OnPropertyChanged(nameof(IsDrawerExpanded));
         OnPropertyChanged(nameof(IsDrawerCollapsed));
         OnPropertyChanged(nameof(IsTitleVisible));
+        OnPropertyChanged(nameof(IsFileNameVisible));
         OnPropertyChanged(nameof(IsHeaderVisible));
         OnPropertyChanged(nameof(HeaderRowHeight));
         OnPropertyChanged(nameof(DrawerContentHeight));
@@ -1446,6 +1451,21 @@ public sealed class DesktopBoxViewModel : ObservableObject
         OnPropertyChanged(nameof(DrawerContentHeight));
     }
 
+    public async Task LoadFileNameVisibilityAsync()
+    {
+        var saved = await _drawerService.GetSettingAsync(GetFileNameVisibilitySettingKey(BoxId));
+        ApplyFileNameVisibility(!bool.TryParse(saved, out var isVisible) || isVisible);
+    }
+
+    public void ApplyFileNameVisibility(bool isVisible)
+    {
+        LayoutSettings.IsFileNameVisible = isVisible;
+        SetProperty(
+            ref _isFileNameVisible,
+            isVisible,
+            nameof(IsFileNameVisible));
+    }
+
     public async Task LoadSortModeAsync()
     {
         if (!SupportsSorting)
@@ -1510,6 +1530,9 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     internal static string GetLegacyDrawerTitleVisibilitySettingKey(Guid boxId) =>
         $"{LegacyDrawerTitleVisibilitySettingPrefix}{boxId:N}";
+
+    internal static string GetFileNameVisibilitySettingKey(Guid boxId) =>
+        $"{FileNameVisibilitySettingPrefix}{boxId:N}";
 
     internal static string GetDrawerSortModeSettingKey(Guid boxId) =>
         $"{DrawerSortModeSettingPrefix}{boxId:N}";

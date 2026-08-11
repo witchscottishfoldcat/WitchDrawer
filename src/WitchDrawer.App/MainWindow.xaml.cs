@@ -828,6 +828,15 @@ public partial class MainWindow : Window
         BoxActionsPopup.IsOpen = false;
     }
 
+    private void OnShowDesktopBoxClicked(object sender, RoutedEventArgs e)
+    {
+        BoxActionsPopup.IsOpen = false;
+        if (ViewModel.SelectedBox is { } box)
+        {
+            ReopenBoxRequested?.Invoke(this, box.Id);
+        }
+    }
+
     private void OnMainWindowPreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
         if (!BoxActionsPopup.IsOpen || e.OriginalSource is not DependencyObject source)

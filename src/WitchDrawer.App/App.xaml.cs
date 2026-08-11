@@ -363,14 +363,15 @@ public partial class App : Application
             var menu = CreatePopupMenu();
             var showOrHideText = _mainWindow.IsVisible ? "隐藏主窗口" : "显示主窗口";
             AppendMenuW(menu, 0, 1, showOrHideText);
-            AppendMenuW(menu, 0, 2, "退出 WitchDrawer");
+            AppendMenuW(menu, 0, 2, "显示全部收纳盒");
+            AppendMenuW(menu, 0, 3, "退出 WitchDrawer");
 
             var pt = GetCursorPosition();
             _taskbarIcon.ShowContextMenu(menu, pt.X, pt.Y);
             DestroyMenu(menu);
         };
 
-        _taskbarIcon.MenuCommand += (_, e) =>
+        _taskbarIcon.MenuCommand += async (_, e) =>
         {
             switch (e.CommandId)
             {
@@ -390,6 +391,15 @@ public partial class App : Application
                     }
                     break;
                 case 2:
+                    if (_desktopBoxManager is not null)
+                    {
+                        await GuardRefreshAsync(
+                            () => _desktopBoxManager.ShowAllAsync(),
+                            "ShowAllAsync",
+                            logger);
+                    }
+                    break;
+                case 3:
                     PerformShutdown();
                     break;
             }

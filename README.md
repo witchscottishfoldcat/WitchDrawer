@@ -29,6 +29,7 @@ English: WitchDrawer is a lightweight Windows desktop file drawer built with nat
 - **桌面浮动窗口** — 每个收纳盒显示为精美的浮动桌面窗口，支持自由拖放定位
 - **窗口位置记忆** — 自动记住每个收纳盒在桌面上的位置
 - **系统图标** — 拖入的文件显示系统原生图标
+- **文件名显示** — 网格视图可按收纳盒显示或隐藏文件名
 - **拖出支持** — 可以将项目从收纳盒中拖出作为文件放置
 - **跨盒拖放** — 支持在收纳盒之间拖放移动图标
 - **快捷面板** — 按 `Ctrl+Alt+W` 跨所有收纳盒搜索并打开项目
@@ -37,6 +38,8 @@ English: WitchDrawer is a lightweight Windows desktop file drawer built with nat
 - **开机自启动** — 可在设置中开启/关闭
 - **检查更新** — 自动检测 GitHub Releases 新版本
 - **原位还原删除** — 删除收纳项或收纳盒时，普通/像素盒文件恢复到原来的位置；原位置不可用则回退到桌面，重名自动加后缀；映射盒只删除引用
+- **窗口恢复** — 可从主页收纳盒菜单恢复单个窗口，或从系统托盘显示全部收纳盒
+- **桌面图标隐藏** — 可在设置中隐藏 Windows 桌面文件、文件夹和快捷方式，不移动或删除文件
 - **系统托盘** — 最小化到系统托盘，不占用任务栏
 - **单实例运行** — 防止重复启动
 
@@ -75,6 +78,22 @@ tests/
 ```powershell
 dotnet build WitchDrawer.sln
 ```
+
+也可以在仓库根目录执行快捷脚本：
+
+```powershell
+.\build.ps1
+```
+
+该脚本使用 `Release` 配置构建完整解决方案。
+
+## 本地开发
+
+```powershell
+.\dev.ps1
+```
+
+该脚本使用 `Debug` 配置构建并启动 WPF 应用。
 
 Debug 可执行文件位于：
 

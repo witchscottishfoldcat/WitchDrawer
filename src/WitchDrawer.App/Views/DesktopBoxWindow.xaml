@@ -365,6 +365,7 @@
                         Click="OnCloseClick"
                         Width="12"
                         Height="12"
+                        ToolTip="隐藏收纳盒"
                         Focusable="False">
                     <Button.Style>
                         <Style TargetType="{x:Type Button}">
@@ -555,7 +556,7 @@
                 </ListBox.ItemContainerStyle>
                 <ListBox.ItemTemplate>
                     <DataTemplate>
-                        <Grid ToolTip="{Binding PathLabel}">
+                        <StackPanel ToolTip="{Binding PathLabel}">
                             <!-- 图标卡片背景 -->
                             <Border x:Name="IconBorder"
                                     Width="{Binding DataContext.LayoutSettings.IconFrameSize, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
@@ -588,7 +589,17 @@
                                                Visibility="{Binding HasIcon, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
                                 </Grid>
                             </Border>
-                        </Grid>
+                            <TextBlock Text="{Binding DisplayName}"
+                                       Margin="1,1,1,0"
+                                       MaxHeight="{Binding DataContext.LayoutSettings.IconTextMaxHeight, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
+                                       HorizontalAlignment="Stretch"
+                                       TextAlignment="Center"
+                                       TextWrapping="{Binding DataContext.LayoutSettings.IconTextWrapping, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
+                                       TextTrimming="CharacterEllipsis"
+                                       FontSize="{Binding DataContext.LayoutSettings.IconFontSize, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       Visibility="{Binding DataContext.IsFileNameVisible, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        </StackPanel>
                         <DataTemplate.Triggers>
                             <DataTrigger Binding="{Binding DataContext.IsPixelStyle, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" Value="True">
                                 <Setter TargetName="IconBorder" Property="CornerRadius" Value="4" />

@@ -767,6 +767,22 @@
                                                                       Direction="270" />
                                                 </Border.Effect>
                                                 <StackPanel>
+                                                    <Button Click="OnShowDesktopBoxClicked"
+                                                            Style="{StaticResource GhostButtonStyle}"
+                                                            AutomationProperties.Name="显示桌面收纳盒"
+                                                            Padding="10,8"
+                                                            HorizontalContentAlignment="Left">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="&#xE890;"
+                                                                       Width="20"
+                                                                       FontFamily="Segoe Fluent Icons"
+                                                                       FontSize="13"
+                                                                       Foreground="{DynamicResource TextMutedBrush}" />
+                                                            <TextBlock Text="显示桌面收纳盒"
+                                                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                                                       FontSize="12" />
+                                                        </StackPanel>
+                                                    </Button>
                                                     <Button Command="{Binding ToggleSelectedBoxPositionLockCommand}"
                                                             Click="OnBoxActionMenuItemClicked"
                                                             Style="{StaticResource GhostButtonStyle}"
@@ -797,6 +813,24 @@
                                                                        FontSize="13"
                                                                        Foreground="{DynamicResource TextMutedBrush}" />
                                                             <TextBlock Text="{Binding SelectedBox.TitleVisibilityAutomationName}"
+                                                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                                                       FontSize="12" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                    <Button Command="{Binding SelectedBox.ToggleFileNameVisibilityCommand}"
+                                                            Click="OnBoxActionMenuItemClicked"
+                                                            Style="{StaticResource GhostButtonStyle}"
+                                                            Visibility="{Binding SelectedBox.SupportsFileNameVisibility, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                            AutomationProperties.Name="{Binding SelectedBox.FileNameVisibilityAutomationName}"
+                                                            Padding="10,8"
+                                                            HorizontalContentAlignment="Left">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="&#xE8D2;"
+                                                                       Width="20"
+                                                                       FontFamily="Segoe Fluent Icons"
+                                                                       FontSize="13"
+                                                                       Foreground="{DynamicResource TextMutedBrush}" />
+                                                            <TextBlock Text="{Binding SelectedBox.FileNameVisibilityAutomationName}"
                                                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                                                        FontSize="12" />
                                                         </StackPanel>
@@ -2309,6 +2343,37 @@
                                 <ScrollViewer.Resources>
                                     <Style TargetType="{x:Type ScrollBar}"
                                            BasedOn="{StaticResource DrawerScrollBarStyle}" />
+                                    <Style x:Key="SettingsToggleButtonStyle"
+                                           TargetType="{x:Type Button}"
+                                           BasedOn="{StaticResource {x:Type Button}}">
+                                        <Setter Property="Height" Value="28" />
+                                        <Setter Property="MinWidth" Value="52" />
+                                        <Setter Property="Padding" Value="12,0" />
+                                        <Setter Property="Content" Value="已关闭" />
+                                        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+                                        <Setter Property="Background" Value="{DynamicResource PanelAltBrush}" />
+                                        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushSoft}" />
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="{x:Type Button}">
+                                                    <Border x:Name="Root"
+                                                            Background="{TemplateBinding Background}"
+                                                            BorderBrush="{TemplateBinding BorderBrush}"
+                                                            BorderThickness="1"
+                                                            CornerRadius="9"
+                                                            Padding="{TemplateBinding Padding}">
+                                                        <ContentPresenter HorizontalAlignment="Center"
+                                                                          VerticalAlignment="Center" />
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="Root" Property="Opacity" Value="0.85" />
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
                                 </ScrollViewer.Resources>
                             <StackPanel Margin="0,0,4,0"
                                         HorizontalAlignment="Stretch"
@@ -2610,63 +2675,66 @@
                                                    Foreground="{DynamicResource TextMutedBrush}" />
                                     </StackPanel>
                                     <Button Grid.Column="1"
-                                             Command="{Binding ToggleLaunchOnStartupCommand}"
-                                             VerticalAlignment="Center"
-                                             Height="28"
-                                            MinWidth="52"
-                                            Padding="12,0">
+                                            Command="{Binding ToggleLaunchOnStartupCommand}"
+                                            VerticalAlignment="Center">
                                         <Button.Style>
-                                            <Style TargetType="{x:Type Button}" BasedOn="{StaticResource {x:Type Button}}">
-                                                <Setter Property="Content" Value="已关闭" />
-                                                <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
-                                                <Setter Property="Template">
-                                                    <Setter.Value>
-                                                        <ControlTemplate TargetType="{x:Type Button}">
-                                                            <Border x:Name="Root"
-                                                                    Background="{DynamicResource PanelAltBrush}"
-                                                                    BorderBrush="{DynamicResource BorderBrushSoft}"
-                                                                    BorderThickness="1"
-                                                                    CornerRadius="9"
-                                                                    Padding="{TemplateBinding Padding}">
-                                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                                            </Border>
-                                                            <ControlTemplate.Triggers>
-                                                                <Trigger Property="IsMouseOver" Value="True">
-                                                                    <Setter TargetName="Root" Property="Opacity" Value="0.85" />
-                                                                </Trigger>
-                                                            </ControlTemplate.Triggers>
-                                                        </ControlTemplate>
-                                                    </Setter.Value>
-                                                </Setter>
+                                            <Style TargetType="{x:Type Button}"
+                                                   BasedOn="{StaticResource SettingsToggleButtonStyle}">
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding LaunchOnStartup}" Value="True">
                                                         <Setter Property="Content" Value="已开启" />
                                                         <Setter Property="Foreground" Value="White" />
-                                                        <Setter Property="Template">
-                                                            <Setter.Value>
-                                                                <ControlTemplate TargetType="{x:Type Button}">
-                                                                    <Border x:Name="Root"
-                                                                            Background="{DynamicResource AccentBrush}"
-                                                                            BorderBrush="{DynamicResource AccentBrush}"
-                                                                            BorderThickness="1"
-                                                                            CornerRadius="9"
-                                                                            Padding="{TemplateBinding Padding}">
-                                                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                                                    </Border>
-                                                                    <ControlTemplate.Triggers>
-                                                                        <Trigger Property="IsMouseOver" Value="True">
-                                                                            <Setter TargetName="Root" Property="Opacity" Value="0.85" />
-                                                                        </Trigger>
-                                                                    </ControlTemplate.Triggers>
-                                                                </ControlTemplate>
-                                                            </Setter.Value>
-                                                        </Setter>
+                                                        <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                                                        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </Button.Style>
                                     </Button>
                                 </Grid>
+                                </Border>
+
+                                <!-- Windows Desktop Icons Card -->
+                                <Border Background="{DynamicResource PanelBrush}"
+                                        BorderBrush="{DynamicResource BorderBrushSoft}"
+                                        BorderThickness="1"
+                                        CornerRadius="12"
+                                        Padding="10"
+                                        Margin="0,0,0,6">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="隐藏桌面图标"
+                                                       FontWeight="SemiBold"
+                                                       FontSize="13"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                                            <TextBlock Text="隐藏 Windows 桌面上的文件、文件夹、快捷方式和系统图标，不会删除文件"
+                                                       Margin="0,2,12,0"
+                                                       FontSize="11.5"
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource TextMutedBrush}" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1"
+                                                Command="{Binding ToggleDesktopIconsCommand}"
+                                                VerticalAlignment="Center">
+                                            <Button.Style>
+                                                <Style TargetType="{x:Type Button}"
+                                                       BasedOn="{StaticResource SettingsToggleButtonStyle}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding AreDesktopIconsHidden}" Value="True">
+                                                            <Setter Property="Content" Value="已开启" />
+                                                            <Setter Property="Foreground" Value="White" />
+                                                            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+                                    </Grid>
                                 </Border>
 
                                 <!-- Custom Widget Rules Card -->
