@@ -142,7 +142,8 @@ public partial class App : Application
                 launcher,
                 logger,
                 boxVisualStyleStore,
-                boxPositionLockStateStore);
+                boxPositionLockStateStore,
+                () => mainViewModel.IsDesktopDoubleClickEnabled);
             _mainWindow = new MainWindow(
                 mainViewModel,
                 quickPanel,
@@ -162,6 +163,13 @@ public partial class App : Application
                     () => mainViewModel.ReloadItemsFromDesktopAsync(eventArgs.BoxId),
                     "ReloadItemsFromDesktopAsync",
                     logger);
+            _desktopBoxManager.DesktopBackgroundDoubleClicked += (_, _) =>
+            {
+                if (mainViewModel.ToggleDesktopIconsCommand.CanExecute(null))
+                {
+                    mainViewModel.ToggleDesktopIconsCommand.Execute(null);
+                }
+            };
             _mainWindow.ReopenBoxRequested += async (_, boxId) => await _desktopBoxManager.ShowAsync(boxId);
             _mainWindow.DesktopShellRestarted += async (_, _) =>
                 await _desktopBoxManager.RecoverDesktopHostsAsync();

@@ -19,6 +19,7 @@ public sealed class MainViewModel : ObservableObject
     private const double ItemIconSizeDip = 19;
     private const string ThemeSettingKey = "Theme";
     private const string CrystalBoxTransparencySettingKey = "CrystalBoxTransparency";
+    internal const string DesktopDoubleClickSettingKey = "DesktopDoubleClickToggle";
     private const string StartupRegistryKeyName = "WitchDrawer";
 
     private readonly DrawerService _drawerService;
@@ -46,6 +47,7 @@ public sealed class MainViewModel : ObservableObject
     private bool _isTransparentCrystalBoxes;
     private bool _launchOnStartup;
     private bool _areDesktopIconsHidden;
+    private bool _isDesktopDoubleClickEnabled;
     private string _updateStatusText = string.Empty;
     private bool _isCheckingUpdate;
     private string? _pendingUpdateSha256;
@@ -109,6 +111,7 @@ public sealed class MainViewModel : ObservableObject
         ApplyCrystalThemeCommand = new AsyncRelayCommand(ApplyCrystalThemeAsync);
         ToggleLaunchOnStartupCommand = new AsyncRelayCommand(ToggleLaunchOnStartupAsync);
         ToggleDesktopIconsCommand = new AsyncRelayCommand(ToggleDesktopIconsAsync);
+        ToggleDesktopDoubleClickCommand = new AsyncRelayCommand(ToggleDesktopDoubleClickAsync);
         CheckForUpdateCommand = new AsyncRelayCommand(CheckForUpdateAsync);
         ShowDashboardCommand = new RelayCommand(() =>
         {
@@ -201,6 +204,8 @@ public sealed class MainViewModel : ObservableObject
     public IAsyncRelayCommand ToggleLaunchOnStartupCommand { get; }
 
     public IAsyncRelayCommand ToggleDesktopIconsCommand { get; }
+
+    public IAsyncRelayCommand ToggleDesktopDoubleClickCommand { get; }
 
     public IAsyncRelayCommand CheckForUpdateCommand { get; }
 
@@ -308,6 +313,12 @@ public sealed class MainViewModel : ObservableObject
         private set => SetProperty(ref _areDesktopIconsHidden, value);
     }
 
+    public bool IsDesktopDoubleClickEnabled
+    {
+        get => _isDesktopDoubleClickEnabled;
+        private set => SetProperty(ref _isDesktopDoubleClickEnabled, value);
+    }
+
     public string UpdateStatusText
     {
         get => _updateStatusText;
@@ -382,6 +393,11 @@ public sealed class MainViewModel : ObservableObject
 
             LaunchOnStartup = ReadStartupRegistry();
             AreDesktopIconsHidden = DesktopIconVisibility.IsHidden();
+            var desktopDoubleClickSetting =
+                await _drawerService.GetSettingAsync(DesktopDoubleClickSettingKey);
+            IsDesktopDoubleClickEnabled =
+                bool.TryParse(desktopDoubleClickSetting, out var desktopDoubleClickEnabled)
+                && desktopDoubleClickEnabled;
             await RestoreCrystalBoxTransparencyAsync();
 
             StatusText = $"{Boxes.Count} 个收纳盒已同步到桌面";
@@ -1102,6 +1118,25 @@ public sealed class MainViewModel : ObservableObject
         catch (Exception exception)
         {
             _logger.Error(exception, "Failed to toggle Windows desktop icons.");
+            StatusText = exception.Message;
+        }
+    }
+
+    private async Task ToggleDesktopDoubleClickAsync()
+    {
+        try
+        {
+            var enabled = !IsDesktopDoubleClickEnabled;
+            await _drawerService.SetSettingAsync(
+                DesktopDoubleClickSettingKey,
+                enabled.ToString());
+            IsDesktopDoubleClickEnabled = enabled;
+            StatusText = enabled ? "已开启桌面双击切换图标" : "已关闭桌面双击切换图标";
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to save desktop double-click setting.");
+            OnPropertyChanged(nameof(IsDesktopDoubleClickEnabled));
             StatusText = exception.Message;
         }
     }

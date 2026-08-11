@@ -38,4 +38,16 @@ public sealed class DesktopIconVisibilityTests
     {
         Assert.Equal(expected, DesktopIconVisibility.IsHiddenRegistryValue(value));
     }
+
+    [Theory]
+    [InlineData("Progman", true)]
+    [InlineData("WorkerW", true)]
+    [InlineData("SHELLDLL_DefView", true)]
+    [InlineData("SysListView32", false)]
+    [InlineData("WitchDrawer", false)]
+    [InlineData(null, false)]
+    public void IsDesktopHostClass_RecognizesOnlyDesktopHosts(string? className, bool expected)
+    {
+        Assert.Equal(expected, DesktopIconVisibility.IsDesktopHostClass(className));
+    }
 }

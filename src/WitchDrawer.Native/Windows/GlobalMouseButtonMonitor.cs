@@ -44,6 +44,8 @@ public sealed class GlobalMouseButtonMonitor : IDisposable
     /// </summary>
     public event Action<int, int>? MouseButtonDown;
 
+    public event Action<int, int, uint>? LeftMouseButtonDown;
+
     public bool IsActive => _hook != nint.Zero;
 
     /// <summary>
@@ -85,6 +87,10 @@ public sealed class GlobalMouseButtonMonitor : IDisposable
             {
                 var data = Marshal.PtrToStructure<MouseHookStruct>(longParameter);
                 MouseButtonDown?.Invoke(data.X, data.Y);
+                if ((int)wordParameter == LeftButtonDown)
+                {
+                    LeftMouseButtonDown?.Invoke(data.X, data.Y, data.Time);
+                }
             }
             catch
             {
@@ -111,7 +117,7 @@ public sealed class GlobalMouseButtonMonitor : IDisposable
         public int Y;
         public int MouseData;
         public int Flags;
-        public int Time;
+        public uint Time;
         public nint ExtraInfo;
     }
 
