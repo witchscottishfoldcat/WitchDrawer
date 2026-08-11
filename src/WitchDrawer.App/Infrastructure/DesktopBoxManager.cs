@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Threading;
+using System.Threading.Channels;
 using System.Windows;
 using CommunityToolkit.Mvvm.Messaging;
 using WitchDrawer.App.Messages;
@@ -26,6 +27,16 @@ public sealed class DesktopBoxManager
     private readonly Dictionary<Guid, DesktopBoxWindow> _windows = [];
     private readonly ForegroundWindowMonitor _foregroundWindowMonitor;
     private readonly GlobalMouseButtonMonitor _mouseButtonMonitor;
+    private readonly DesktopDoubleClickDetector _desktopDoubleClickDetector = new();
+    private readonly Channel<DesktopMouseButtonEvent> _desktopMouseButtonEvents =
+        Channel.CreateUnbounded<DesktopMouseButtonEvent>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            SingleWriter = true,
+            AllowSynchronousContinuations = false
+        });
+    private readonly Task _desktopMouseButtonProcessor;
+    private readonly Func<bool> _isDesktopDoubleClickEnabled;
     private readonly HashSet<Guid> _overlapResolutionBoxIds = [];
     private bool _closing;
     private bool _desktopIsForeground;
@@ -40,7 +51,8 @@ public sealed class DesktopBoxManager
         IFileLauncher launcher,
         IAppLogger logger,
         BoxVisualStyleStore boxVisualStyleStore,
-        BoxPositionLockStateStore boxPositionLockStateStore)
+        BoxPositionLockStateStore boxPositionLockStateStore,
+        Func<bool> isDesktopDoubleClickEnabled)
     {
         _drawerService = drawerService;
         _todoService = todoService;
@@ -48,6 +60,7 @@ public sealed class DesktopBoxManager
         _logger = logger;
         _boxVisualStyleStore = boxVisualStyleStore;
         _boxPositionLockStateStore = boxPositionLockStateStore;
+        _isDesktopDoubleClickEnabled = isDesktopDoubleClickEnabled;
         _foregroundWindowMonitor = new ForegroundWindowMonitor();
         _foregroundWindowMonitor.ForegroundWindowChanged += OnForegroundWindowChanged;
         _desktopIsForeground = ForegroundWindowMonitor.IsDesktopWindow(
@@ -61,6 +74,9 @@ public sealed class DesktopBoxManager
         // 事件，选中框无法自动清除。全局鼠标钩子补上"外部点击"信号。
         _mouseButtonMonitor = new GlobalMouseButtonMonitor();
         _mouseButtonMonitor.MouseButtonDown += OnGlobalMouseButtonDown;
+        _mouseButtonMonitor.MouseButtonPressed += OnGlobalMouseButtonPressed;
+        // One background consumer preserves click order without blocking the WPF dispatcher.
+        _desktopMouseButtonProcessor = Task.Run(ProcessDesktopMouseButtonEventsAsync);
         if (!_mouseButtonMonitor.IsActive)
         {
             _logger.Info("Global mouse monitoring is unavailable; outside clicks will not clear box selection.");
@@ -87,6 +103,8 @@ public sealed class DesktopBoxManager
     }
 
     public event EventHandler<BoxItemsChangedEventArgs>? ItemsChanged;
+
+    public event EventHandler? DesktopBackgroundDoubleClicked;
 
     private int _refreshVersion;
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
@@ -420,7 +438,10 @@ public sealed class DesktopBoxManager
         _foregroundWindowMonitor.ForegroundWindowChanged -= OnForegroundWindowChanged;
         _foregroundWindowMonitor.Dispose();
         _mouseButtonMonitor.MouseButtonDown -= OnGlobalMouseButtonDown;
+        _mouseButtonMonitor.MouseButtonPressed -= OnGlobalMouseButtonPressed;
         _mouseButtonMonitor.Dispose();
+        _desktopMouseButtonEvents.Writer.TryComplete();
+        await _desktopMouseButtonProcessor;
 
         _verticalGuide?.Close();
         _verticalGuide = null;
@@ -453,6 +474,77 @@ public sealed class DesktopBoxManager
             {
                 window.ClearSelectionFromOutside();
             }
+        }
+    }
+
+    private void OnGlobalMouseButtonPressed(
+        int screenX,
+        int screenY,
+        uint timestamp,
+        GlobalMouseButton button)
+    {
+        if (_closing)
+        {
+            return;
+        }
+
+        _desktopMouseButtonEvents.Writer.TryWrite(new DesktopMouseButtonEvent(
+            screenX,
+            screenY,
+            timestamp,
+            button,
+            _isDesktopDoubleClickEnabled()));
+    }
+
+    private async Task ProcessDesktopMouseButtonEventsAsync()
+    {
+        await foreach (var mouseEvent in _desktopMouseButtonEvents.Reader.ReadAllAsync()
+                           .ConfigureAwait(false))
+        {
+            if (_closing || !mouseEvent.IsDesktopDoubleClickEnabled)
+            {
+                _desktopDoubleClickDetector.Reset();
+                continue;
+            }
+
+            bool isBlankDesktopPoint;
+            try
+            {
+                isBlankDesktopPoint = mouseEvent.Button == GlobalMouseButton.Left
+                    && DesktopIconVisibility.IsBlankDesktopPoint(
+                        mouseEvent.ScreenX,
+                        mouseEvent.ScreenY);
+            }
+            catch (Exception exception)
+            {
+                _logger.Error(exception, "Failed to test the desktop click target.");
+                _desktopDoubleClickDetector.Reset();
+                continue;
+            }
+
+            if (!_desktopDoubleClickDetector.RegisterButtonDown(
+                    mouseEvent.ScreenX,
+                    mouseEvent.ScreenY,
+                    mouseEvent.Timestamp,
+                    mouseEvent.Button,
+                    isBlankDesktopPoint))
+            {
+                continue;
+            }
+
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher is null)
+            {
+                continue;
+            }
+
+            _ = dispatcher.BeginInvoke(() =>
+            {
+                if (!_closing && _isDesktopDoubleClickEnabled())
+                {
+                    DesktopBackgroundDoubleClicked?.Invoke(this, EventArgs.Empty);
+                }
+            });
         }
     }
 
@@ -515,6 +607,13 @@ public sealed class DesktopBoxManager
             }
         }
     }
+
+    private readonly record struct DesktopMouseButtonEvent(
+        int ScreenX,
+        int ScreenY,
+        uint Timestamp,
+        GlobalMouseButton Button,
+        bool IsDesktopDoubleClickEnabled);
 
     private void ApplyForegroundWindow(nint windowHandle)
     {

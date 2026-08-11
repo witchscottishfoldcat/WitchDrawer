@@ -2,6 +2,13 @@ using System.Runtime.InteropServices;
 
 namespace WitchDrawer.Native.Windows;
 
+public enum GlobalMouseButton
+{
+    Left,
+    Right,
+    Middle
+}
+
 /// <summary>
 /// Reports system-wide mouse button presses via WH_MOUSE_LL without polling.
 /// The callback runs on the installing thread's message loop, so construct this
@@ -44,6 +51,11 @@ public sealed class GlobalMouseButtonMonitor : IDisposable
     /// </summary>
     public event Action<int, int>? MouseButtonDown;
 
+    /// <summary>
+    /// Raised for every supported button press, including the button and hook timestamp.
+    /// </summary>
+    public event Action<int, int, uint, GlobalMouseButton>? MouseButtonPressed;
+
     public bool IsActive => _hook != nint.Zero;
 
     /// <summary>
@@ -67,24 +79,27 @@ public sealed class GlobalMouseButtonMonitor : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    private static bool IsButtonDownMessage(int message)
+    internal static GlobalMouseButton? GetMouseButton(int message)
     {
-        return message is LeftButtonDown
-            or NonClientLeftButtonDown
-            or RightButtonDown
-            or NonClientRightButtonDown
-            or MiddleButtonDown
-            or NonClientMiddleButtonDown;
+        return message switch
+        {
+            LeftButtonDown or NonClientLeftButtonDown => GlobalMouseButton.Left,
+            RightButtonDown or NonClientRightButtonDown => GlobalMouseButton.Right,
+            MiddleButtonDown or NonClientMiddleButtonDown => GlobalMouseButton.Middle,
+            _ => null
+        };
     }
 
     private nint OnHookCallback(int code, nint wordParameter, nint longParameter)
     {
-        if (code >= 0 && IsButtonDownMessage((int)wordParameter))
+        var button = GetMouseButton((int)wordParameter);
+        if (code >= 0 && button is not null)
         {
             try
             {
                 var data = Marshal.PtrToStructure<MouseHookStruct>(longParameter);
                 MouseButtonDown?.Invoke(data.X, data.Y);
+                MouseButtonPressed?.Invoke(data.X, data.Y, data.Time, button.Value);
             }
             catch
             {
@@ -111,7 +126,7 @@ public sealed class GlobalMouseButtonMonitor : IDisposable
         public int Y;
         public int MouseData;
         public int Flags;
-        public int Time;
+        public uint Time;
         public nint ExtraInfo;
     }
 
