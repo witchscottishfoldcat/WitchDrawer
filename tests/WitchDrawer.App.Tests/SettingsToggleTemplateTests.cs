@@ -26,6 +26,9 @@ public sealed class SettingsToggleTemplateTests
         Assert.Contains(toggles, element =>
             (string?)element.Attribute("IsChecked") == "{Binding AreDesktopIconsHidden, Mode=OneWay}" &&
             (string?)element.Attribute("Command") == "{Binding ToggleDesktopIconsCommand}");
+        Assert.Contains(toggles, element =>
+            (string?)element.Attribute("IsChecked") == "{Binding IsDesktopDoubleClickEnabled, Mode=OneWay}" &&
+            (string?)element.Attribute("Command") == "{Binding ToggleDesktopDoubleClickCommand}");
     }
 
     private static string GetMainWindowXamlPath() =>

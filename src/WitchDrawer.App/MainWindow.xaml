@@ -2730,6 +2730,39 @@
                                     </Grid>
                                 </Border>
 
+                                <!-- Desktop Double-click Card -->
+                                <Border Background="{DynamicResource PanelBrush}"
+                                        BorderBrush="{DynamicResource BorderBrushSoft}"
+                                        BorderThickness="1"
+                                        CornerRadius="12"
+                                        Padding="10"
+                                        Margin="0,0,0,6">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="双击桌面切换图标"
+                                                       FontWeight="SemiBold"
+                                                       FontSize="13"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                                            <TextBlock Text="双击桌面空白区域，快速隐藏或显示 Windows 桌面图标"
+                                                       Margin="0,2,12,0"
+                                                       FontSize="11.5"
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource TextMutedBrush}" />
+                                        </StackPanel>
+                                        <ToggleButton Grid.Column="1"
+                                                      Margin="12,0,0,0"
+                                                      VerticalAlignment="Center"
+                                                      Style="{StaticResource SettingsToggleButtonStyle}"
+                                                      IsChecked="{Binding IsDesktopDoubleClickEnabled, Mode=OneWay}"
+                                                      Command="{Binding ToggleDesktopDoubleClickCommand}"
+                                                      AutomationProperties.Name="双击桌面切换图标" />
+                                    </Grid>
+                                </Border>
+
                                 <!-- Custom Widget Rules Card -->
                                 <Border Background="{DynamicResource PanelBrush}"
                                     BorderBrush="{DynamicResource BorderBrushSoft}"

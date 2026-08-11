@@ -26,6 +26,8 @@ public sealed class DesktopBoxManager
     private readonly Dictionary<Guid, DesktopBoxWindow> _windows = [];
     private readonly ForegroundWindowMonitor _foregroundWindowMonitor;
     private readonly GlobalMouseButtonMonitor _mouseButtonMonitor;
+    private readonly DesktopDoubleClickDetector _desktopDoubleClickDetector = new();
+    private readonly Func<bool> _isDesktopDoubleClickEnabled;
     private readonly HashSet<Guid> _overlapResolutionBoxIds = [];
     private bool _closing;
     private bool _desktopIsForeground;
@@ -40,7 +42,8 @@ public sealed class DesktopBoxManager
         IFileLauncher launcher,
         IAppLogger logger,
         BoxVisualStyleStore boxVisualStyleStore,
-        BoxPositionLockStateStore boxPositionLockStateStore)
+        BoxPositionLockStateStore boxPositionLockStateStore,
+        Func<bool> isDesktopDoubleClickEnabled)
     {
         _drawerService = drawerService;
         _todoService = todoService;
@@ -48,6 +51,7 @@ public sealed class DesktopBoxManager
         _logger = logger;
         _boxVisualStyleStore = boxVisualStyleStore;
         _boxPositionLockStateStore = boxPositionLockStateStore;
+        _isDesktopDoubleClickEnabled = isDesktopDoubleClickEnabled;
         _foregroundWindowMonitor = new ForegroundWindowMonitor();
         _foregroundWindowMonitor.ForegroundWindowChanged += OnForegroundWindowChanged;
         _desktopIsForeground = ForegroundWindowMonitor.IsDesktopWindow(
@@ -61,6 +65,7 @@ public sealed class DesktopBoxManager
         // 事件，选中框无法自动清除。全局鼠标钩子补上"外部点击"信号。
         _mouseButtonMonitor = new GlobalMouseButtonMonitor();
         _mouseButtonMonitor.MouseButtonDown += OnGlobalMouseButtonDown;
+        _mouseButtonMonitor.LeftMouseButtonDown += OnGlobalLeftMouseButtonDown;
         if (!_mouseButtonMonitor.IsActive)
         {
             _logger.Info("Global mouse monitoring is unavailable; outside clicks will not clear box selection.");
@@ -87,6 +92,8 @@ public sealed class DesktopBoxManager
     }
 
     public event EventHandler<BoxItemsChangedEventArgs>? ItemsChanged;
+
+    public event EventHandler? DesktopBackgroundDoubleClicked;
 
     private int _refreshVersion;
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
@@ -420,6 +427,7 @@ public sealed class DesktopBoxManager
         _foregroundWindowMonitor.ForegroundWindowChanged -= OnForegroundWindowChanged;
         _foregroundWindowMonitor.Dispose();
         _mouseButtonMonitor.MouseButtonDown -= OnGlobalMouseButtonDown;
+        _mouseButtonMonitor.LeftMouseButtonDown -= OnGlobalLeftMouseButtonDown;
         _mouseButtonMonitor.Dispose();
 
         _verticalGuide?.Close();
@@ -454,6 +462,33 @@ public sealed class DesktopBoxManager
                 window.ClearSelectionFromOutside();
             }
         }
+    }
+
+    private void OnGlobalLeftMouseButtonDown(int screenX, int screenY, uint timestamp)
+    {
+        if (_closing || !_isDesktopDoubleClickEnabled())
+        {
+            _desktopDoubleClickDetector.Reset();
+            return;
+        }
+
+        Application.Current.Dispatcher.BeginInvoke(() =>
+        {
+            if (_closing || !_isDesktopDoubleClickEnabled())
+            {
+                _desktopDoubleClickDetector.Reset();
+                return;
+            }
+
+            if (_desktopDoubleClickDetector.RegisterClick(
+                    screenX,
+                    screenY,
+                    timestamp,
+                    DesktopIconVisibility.IsBlankDesktopPoint(screenX, screenY)))
+            {
+                DesktopBackgroundDoubleClicked?.Invoke(this, EventArgs.Empty);
+            }
+        });
     }
 
     private void OnForegroundWindowChanged(nint windowHandle)
