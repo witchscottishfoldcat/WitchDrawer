@@ -26,17 +26,17 @@ public sealed class DesktopBoxLayoutSettingsTests
     public void FileNameVisibility_ReservesOnlyTheRequiredRowHeight()
     {
         var settings = new DesktopBoxLayoutSettings();
-        var visibleHeight = settings.ItemSlotHeight;
+        var hiddenHeight = settings.ItemSlotHeight;
 
-        Assert.True(settings.IsFileNameVisible);
-
-        settings.IsFileNameVisible = false;
-
-        Assert.Equal(visibleHeight - settings.IconTextMaxHeight, settings.ItemSlotHeight);
+        Assert.False(settings.IsFileNameVisible);
 
         settings.IsFileNameVisible = true;
 
-        Assert.Equal(visibleHeight, settings.ItemSlotHeight);
+        Assert.Equal(hiddenHeight + settings.IconTextMaxHeight, settings.ItemSlotHeight);
+
+        settings.IsFileNameVisible = false;
+
+        Assert.Equal(hiddenHeight, settings.ItemSlotHeight);
     }
 
     [Fact]
@@ -118,6 +118,7 @@ public sealed class DesktopBoxLayoutSettingsTests
     {
         var settings = new DesktopBoxLayoutSettings();
         settings.ApplyPresetWithoutCallback(preset);
+        settings.IsFileNameVisible = true;
 
         // 项内容区 = 槽位 − 两侧 ItemMargin − 两侧(容器边框 + ItemPadding)。
         // 图标框一旦超出内容区，其 1px 描边会在溢出侧（水平居中→左右，垂直顶对齐→下）被裁掉，

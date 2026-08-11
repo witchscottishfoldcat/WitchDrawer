@@ -27,7 +27,7 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
     private double _iconFontSize = 9;
     private TextWrapping _iconTextWrapping = TextWrapping.NoWrap;
     private double _iconTextMaxHeight = 14;
-    private bool _isFileNameVisible = true;
+    private bool _isFileNameVisible;
     private CornerRadius _itemCornerRadius = new CornerRadius(8);
     private CornerRadius _iconCornerRadius = new CornerRadius(6);
     private int _columns = 5;

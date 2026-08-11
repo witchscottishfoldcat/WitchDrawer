@@ -64,7 +64,7 @@ public sealed class StyledNormalBoxCreationTests
             await selectedBox.LoadTitleVisibilityAsync();
             Assert.True(selectedBox.IsTitleVisible);
             await selectedBox.LoadFileNameVisibilityAsync();
-            Assert.True(selectedBox.IsFileNameVisible);
+            Assert.False(selectedBox.IsFileNameVisible);
             Assert.Equal(
                 BoxViewModel.GetFileNameVisibilitySettingKey(createdBox.Id),
                 DesktopBoxViewModel.GetFileNameVisibilitySettingKey(createdBox.Id));
@@ -77,9 +77,9 @@ public sealed class StyledNormalBoxCreationTests
                 bool.FalseString,
                 await drawerService.GetSettingAsync(
                     BoxViewModel.GetTitleVisibilitySettingKey(createdBox.Id)));
-            Assert.False(selectedBox.IsFileNameVisible);
+            Assert.True(selectedBox.IsFileNameVisible);
             Assert.Equal(
-                bool.FalseString,
+                bool.TrueString,
                 await drawerService.GetSettingAsync(
                     BoxViewModel.GetFileNameVisibilitySettingKey(createdBox.Id)));
         }

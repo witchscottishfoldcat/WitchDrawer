@@ -62,7 +62,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private double _iconDpiScaleY = 1;
     private bool _isDrawerExpanded;
     private bool _isTitleVisible = true;
-    private bool _isFileNameVisible = true;
+    private bool _isFileNameVisible;
     private double _drawerCoverWidth = DefaultDrawerCoverWidth;
     private double _drawerCoverHeight = DefaultDrawerCoverHeight;
     private int _drawerCoverColumns = 3;
@@ -1454,7 +1454,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
     public async Task LoadFileNameVisibilityAsync()
     {
         var saved = await _drawerService.GetSettingAsync(GetFileNameVisibilitySettingKey(BoxId));
-        ApplyFileNameVisibility(!bool.TryParse(saved, out var isVisible) || isVisible);
+        ApplyFileNameVisibility(bool.TryParse(saved, out var isVisible) && isVisible);
     }
 
     public void ApplyFileNameVisibility(bool isVisible)

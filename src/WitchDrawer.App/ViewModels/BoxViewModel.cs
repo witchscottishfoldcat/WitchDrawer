@@ -12,7 +12,7 @@ public sealed partial class BoxViewModel : ObservableObject
     private BoxVisualStyle _visualStyle;
     private bool _isPositionLocked;
     private bool _isTitleVisible = true;
-    private bool _isFileNameVisible = true;
+    private bool _isFileNameVisible;
     private DrawerItemSortMode _drawerItemSortMode = DrawerItemSortMode.Free;
 
     public BoxViewModel(
@@ -265,7 +265,7 @@ public sealed partial class BoxViewModel : ObservableObject
     internal async Task LoadFileNameVisibilityAsync()
     {
         var saved = await _drawerService.GetSettingAsync(GetFileNameVisibilitySettingKey(Id));
-        ApplyFileNameVisibility(!bool.TryParse(saved, out var isVisible) || isVisible);
+        ApplyFileNameVisibility(bool.TryParse(saved, out var isVisible) && isVisible);
     }
 
     [CommunityToolkit.Mvvm.Input.RelayCommand]
