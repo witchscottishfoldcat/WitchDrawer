@@ -47,6 +47,39 @@ public static class DesktopIconVisibility
 
     public static void SetHidden(bool hidden)
     {
+        ApplyHiddenState(
+            hidden,
+            WriteHiddenRegistry,
+            FindDesktopListView,
+            SetDesktopListViewHidden,
+            NotifyDesktopIconSettingChanged);
+    }
+
+    internal static void ApplyHiddenState(
+        bool hidden,
+        Action<bool> writeRegistry,
+        Func<nint> findDesktopListView,
+        Action<nint, bool> setDesktopListViewHidden,
+        Action notifySettingChanged)
+    {
+        ArgumentNullException.ThrowIfNull(writeRegistry);
+        ArgumentNullException.ThrowIfNull(findDesktopListView);
+        ArgumentNullException.ThrowIfNull(setDesktopListViewHidden);
+        ArgumentNullException.ThrowIfNull(notifySettingChanged);
+
+        writeRegistry(hidden);
+
+        var desktopListView = findDesktopListView();
+        if (desktopListView != nint.Zero)
+        {
+            setDesktopListViewHidden(desktopListView, hidden);
+        }
+
+        notifySettingChanged();
+    }
+
+    private static void WriteHiddenRegistry(bool hidden)
+    {
         using var key = Registry.CurrentUser.CreateSubKey(
             ExplorerAdvancedRegistryPath,
             writable: true)
@@ -55,26 +88,25 @@ public static class DesktopIconVisibility
             HideIconsValueName,
             hidden ? 1 : 0,
             RegistryValueKind.DWord);
+    }
 
-        SendMessageTimeoutW(
-            BroadcastWindow,
-            WindowMessageSettingChange,
-            nint.Zero,
-            ExplorerAdvancedRegistryPath,
-            SendMessageAbortIfHung,
-            1000,
-            out _);
+    private static void SetDesktopListViewHidden(nint desktopListView, bool hidden)
+    {
+        ShowWindow(desktopListView, hidden ? ShowWindowHide : ShowWindowShow);
+    }
+
+    private static void NotifyDesktopIconSettingChanged()
+    {
         SHChangeNotify(
             ShellChangeAssociationChanged,
             ShellNotifyFlushNoWait,
             nint.Zero,
             nint.Zero);
-
-        var desktopListView = FindDesktopListView();
-        if (desktopListView != nint.Zero)
-        {
-            ShowWindow(desktopListView, hidden ? ShowWindowHide : ShowWindowShow);
-        }
+        SendNotifyMessageW(
+            BroadcastWindow,
+            WindowMessageSettingChange,
+            nint.Zero,
+            nint.Zero);
     }
 
     public static bool IsBlankDesktopPoint(int screenX, int screenY)
@@ -261,15 +293,13 @@ public static class DesktopIconVisibility
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool ShowWindow(nint window, int command);
 
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    private static extern nint SendMessageTimeoutW(
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SendNotifyMessageW(
         nint window,
         uint message,
         nint wParam,
-        string lParam,
-        uint flags,
-        uint timeout,
-        out nint result);
+        nint lParam);
 
     [DllImport("user32.dll", EntryPoint = "SendMessageTimeoutW")]
     private static extern nint SendMessageTimeoutPointer(

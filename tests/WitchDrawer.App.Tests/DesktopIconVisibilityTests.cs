@@ -5,6 +5,47 @@ namespace WitchDrawer.App.Tests;
 public sealed class DesktopIconVisibilityTests
 {
     [Fact]
+    public void ApplyHiddenState_UpdatesDesktopBeforeSendingNotifications()
+    {
+        var calls = new List<string>();
+        var desktopListView = new nint(42);
+
+        DesktopIconVisibility.ApplyHiddenState(
+            hidden: true,
+            hidden => calls.Add($"registry:{hidden}"),
+            () =>
+            {
+                calls.Add("find");
+                return desktopListView;
+            },
+            (window, hidden) => calls.Add($"window:{window}:{hidden}"),
+            () => calls.Add("notify"));
+
+        Assert.Equal(
+            ["registry:True", "find", "window:42:True", "notify"],
+            calls);
+    }
+
+    [Fact]
+    public void ApplyHiddenState_StillNotifiesWhenDesktopListViewIsUnavailable()
+    {
+        var calls = new List<string>();
+
+        DesktopIconVisibility.ApplyHiddenState(
+            hidden: false,
+            hidden => calls.Add($"registry:{hidden}"),
+            () =>
+            {
+                calls.Add("find");
+                return nint.Zero;
+            },
+            (_, _) => calls.Add("window"),
+            () => calls.Add("notify"));
+
+        Assert.Equal(["registry:False", "find", "notify"], calls);
+    }
+
+    [Fact]
     public async Task RunSetHiddenAsync_DoesNotBlockCallerWhileNativeUpdateIsPending()
     {
         using var nativeUpdateStarted = new ManualResetEventSlim();
