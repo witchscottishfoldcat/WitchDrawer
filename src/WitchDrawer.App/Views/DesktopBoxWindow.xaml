@@ -40,6 +40,9 @@
                     <Setter Property="MinWidth" Value="0" />
                     <Setter Property="MinHeight" Value="0" />
                 </DataTrigger>
+                <DataTrigger Binding="{Binding IsRolledUp}" Value="True">
+                    <Setter Property="MinHeight" Value="0" />
+                </DataTrigger>
             </Style.Triggers>
         </Style>
     </Window.Style>
@@ -235,11 +238,11 @@
         <Grid Background="Transparent" MouseLeftButtonDown="OnSurfaceMouseLeftButtonDown">
             <Grid.RowDefinitions>
                 <RowDefinition Height="{Binding HeaderRowHeight}" />
-                <RowDefinition Height="*" />
+                <RowDefinition Height="{Binding ContentRowHeight}" />
             </Grid.RowDefinitions>
 
             <!-- 顶部标题栏与 macOS 关闭小红点 -->
-            <!-- 三列布局：左侧名称 / 右侧视图切换 / 关闭按钮。 -->
+            <!-- 左侧名称 / 视图切换 / 卷起 / 关闭。 -->
             <Grid Grid.Row="0"
                   Background="Transparent"
                   Visibility="{Binding IsHeaderVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -247,11 +250,12 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
                 <TextBlock Grid.Column="0"
                            Text="{Binding Name}"
-                           Visibility="{Binding IsTitleVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
+                           Visibility="{Binding IsHeaderTitleVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
                            FontSize="12"
                            FontWeight="SemiBold"
                            VerticalAlignment="Center"
@@ -360,8 +364,53 @@
                           Stretch="Uniform" />
                 </Button>
 
-                <!-- 关闭小按钮 (悬浮变亮红，自带微过渡，像素模式下自动方块化) -->
                 <Button Grid.Column="2"
+                        Width="18"
+                        Height="18"
+                        MinWidth="0"
+                        MinHeight="0"
+                        Margin="0,0,8,0"
+                        Padding="0"
+                        Click="OnToggleRollUpClick"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Cursor="Hand">
+                    <Button.Style>
+                        <Style TargetType="{x:Type Button}" BasedOn="{StaticResource MappingModeButtonStyle}">
+                            <Setter Property="ToolTip" Value="卷起" />
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SupportsRollUp}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsRolledUp}" Value="True">
+                                    <Setter Property="ToolTip" Value="展开" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                    <Path Stroke="{DynamicResource TextMutedBrush}"
+                          StrokeThickness="1.5"
+                          StrokeStartLineCap="Round"
+                          StrokeEndLineCap="Round"
+                          Width="12"
+                          Height="8"
+                          Stretch="Uniform">
+                        <Path.Style>
+                            <Style TargetType="{x:Type Path}">
+                                <Setter Property="Data" Value="M 2,6 L 6,2 L 10,6" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsRolledUp}" Value="True">
+                                        <Setter Property="Data" Value="M 2,2 L 6,6 L 10,2" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Path.Style>
+                    </Path>
+                </Button>
+
+                <!-- 关闭小按钮 (悬浮变亮红，自带微过渡，像素模式下自动方块化) -->
+                <Button Grid.Column="3"
                         Click="OnCloseClick"
                         Width="12"
                         Height="12"
