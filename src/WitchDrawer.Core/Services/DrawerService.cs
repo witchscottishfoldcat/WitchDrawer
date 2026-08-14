@@ -679,11 +679,33 @@ public sealed class DrawerService
         }
     }
 
-    private static bool IsMissingStoredItem(DrawerItem item)
+    private bool IsMissingStoredItem(DrawerItem item)
     {
-        return !string.IsNullOrWhiteSpace(item.StoredPath)
-            && !File.Exists(item.StoredPath)
-            && !Directory.Exists(item.StoredPath);
+        if (string.IsNullOrWhiteSpace(item.StoredPath))
+        {
+            return false;
+        }
+
+        try
+        {
+            var storedPath = Path.GetFullPath(item.StoredPath);
+            PathSafety.EnsureChildPath(_paths.BoxesDirectory, storedPath);
+
+            // A missing or inaccessible parent can mean an offline volume, a temporarily
+            // unavailable box directory, or a stale pre-migration path. Preserve the database
+            // record unless the containing directory is definitely reachable.
+            var parentDirectory = Path.GetDirectoryName(storedPath);
+            if (string.IsNullOrWhiteSpace(parentDirectory) || !Directory.Exists(parentDirectory))
+            {
+                return false;
+            }
+
+            return !File.Exists(storedPath) && !Directory.Exists(storedPath);
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private async Task RepairStoredPathsAsync(CancellationToken cancellationToken)

@@ -66,4 +66,60 @@ public sealed class DrawerServicePruneTests
             }
         }
     }
+
+    [Fact]
+    public async Task GetItemsAsync_WhenSingleBoxDirectoryUnavailable_KeepsItemRecords()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "WitchDrawer.PruneTests", Guid.NewGuid().ToString("N"));
+        string? storageDirectory = null;
+        string? offlineDirectory = null;
+        try
+        {
+            var paths = new AppPaths(root);
+            var repository = new DrawerRepository(paths.DatabasePath);
+            var service = new DrawerService(paths, repository);
+            await service.InitializeAsync();
+
+            var box = (await service.GetBoxesAsync()).First(candidate => candidate.Type == BoxType.Normal);
+            var sourceDirectory = Path.Combine(root, "sources");
+            Directory.CreateDirectory(sourceDirectory);
+            var sourceFile = Path.Combine(sourceDirectory, "file.txt");
+            File.WriteAllText(sourceFile, "payload");
+            var item = await service.ImportPathAsync(box.Id, sourceFile);
+
+            storageDirectory = Path.GetDirectoryName(item.StoredPath!)!;
+            offlineDirectory = storageDirectory + ".offline";
+            Directory.Move(storageDirectory, offlineDirectory);
+
+            var items = await service.GetItemsAsync(box.Id);
+
+            Assert.Contains(items, candidate => candidate.Id == item.Id);
+
+            Directory.Move(offlineDirectory, storageDirectory);
+            offlineDirectory = null;
+            var itemsAfterReconnect = await service.GetItemsAsync(box.Id);
+            Assert.Contains(itemsAfterReconnect, candidate => candidate.Id == item.Id);
+        }
+        finally
+        {
+            if (!string.IsNullOrWhiteSpace(offlineDirectory)
+                && !string.IsNullOrWhiteSpace(storageDirectory)
+                && Directory.Exists(offlineDirectory)
+                && !Directory.Exists(storageDirectory))
+            {
+                Directory.Move(offlineDirectory, storageDirectory);
+            }
+
+            if (Directory.Exists(root))
+            {
+                try
+                {
+                    Directory.Delete(root, recursive: true);
+                }
+                catch (IOException)
+                {
+                }
+            }
+        }
+    }
 }

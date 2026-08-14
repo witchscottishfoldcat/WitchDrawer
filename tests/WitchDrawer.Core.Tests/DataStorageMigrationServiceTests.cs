@@ -144,6 +144,36 @@ public sealed class DataStorageMigrationServiceTests
     }
 
     [Fact]
+    public void PromoteStagedDirectory_TargetChangedAfterValidation_PreservesForeignFiles()
+    {
+        var parent = CreateTempDirectory();
+        var stagingRoot = Path.Combine(parent, "target.tmp-migrating-test");
+        var targetRoot = Path.Combine(parent, "target");
+        Directory.CreateDirectory(stagingRoot);
+        Directory.CreateDirectory(targetRoot);
+        var stagedFile = Path.Combine(stagingRoot, "copied.txt");
+        var foreignFile = Path.Combine(targetRoot, "late-arrival.txt");
+        File.WriteAllText(stagedFile, "copied");
+        File.WriteAllText(foreignFile, "must-survive");
+
+        try
+        {
+            var exception = Assert.Throws<InvalidOperationException>(
+                () => DataStorageMigrationService.PromoteStagedDirectory(stagingRoot, targetRoot));
+
+            Assert.Contains("preserved", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.True(File.Exists(foreignFile));
+            Assert.Equal("must-survive", File.ReadAllText(foreignFile));
+            Assert.True(File.Exists(stagedFile));
+            Assert.Equal("copied", File.ReadAllText(stagedFile));
+        }
+        finally
+        {
+            DeleteDirectory(parent);
+        }
+    }
+
+    [Fact]
     public async Task MigrateAsync_RejectsSameOrNestedTarget()
     {
         var sourceRoot = CreateTempDirectory();

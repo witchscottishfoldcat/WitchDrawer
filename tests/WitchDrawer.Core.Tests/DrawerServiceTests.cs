@@ -142,6 +142,27 @@ public sealed class DrawerServiceTests
     }
 
     [Fact]
+    public async Task ImportPathAsync_DirectoryContainsLockedFile_PreservesSourceAndAddsNoRecord()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var sourceDirectory = workspace.CreateSourceDirectory("locked-source", "a.txt", "ordinary");
+        var lockedFile = Path.Combine(sourceDirectory, "locked.txt");
+        File.WriteAllText(lockedFile, "locked");
+        var normalBox = await workspace.GetBoxAsync(BoxType.Normal);
+
+        using var lockStream = new FileStream(lockedFile, FileMode.Open, FileAccess.Read, FileShare.Read);
+        await Assert.ThrowsAsync<IOException>(
+            () => workspace.Service.ImportPathAsync(normalBox.Id, sourceDirectory));
+
+        Assert.Equal("ordinary", File.ReadAllText(Path.Combine(sourceDirectory, "a.txt")));
+        Assert.Equal("locked", File.ReadAllText(lockedFile));
+        Assert.Empty(await workspace.Repository.GetItemsAsync(normalBox.Id));
+        Assert.Empty(Directory.GetDirectories(
+            normalBox.StoragePath!,
+            ".locked-source.witchdrawer-*.tmp"));
+    }
+
+    [Fact]
     public async Task ImportPathAsync_PersistsGridPosition()
     {
         using var workspace = await TestWorkspace.CreateAsync();
@@ -420,6 +441,32 @@ public sealed class DrawerServiceTests
         Assert.True(File.Exists(exportedPath));
         Assert.False(File.Exists(oldStoredPath));
         Assert.Null(remainingItem);
+    }
+
+    [Fact]
+    public async Task ExportItemToDirectoryAsync_DirectoryContainsLockedFile_PreservesStoredItemAndRecord()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var sourceDirectory = workspace.CreateSourceDirectory("locked-export", "a.txt", "ordinary");
+        var lockedSourceFile = Path.Combine(sourceDirectory, "locked.txt");
+        File.WriteAllText(lockedSourceFile, "locked");
+        var normalBox = await workspace.GetBoxAsync(BoxType.Normal);
+        var item = await workspace.Service.ImportPathAsync(normalBox.Id, sourceDirectory);
+        var storedDirectory = item.StoredPath!;
+        var storedLockedFile = Path.Combine(storedDirectory, "locked.txt");
+        var exportDirectory = Path.Combine(workspace.Root, "desktop");
+
+        using var lockStream = new FileStream(storedLockedFile, FileMode.Open, FileAccess.Read, FileShare.Read);
+        await Assert.ThrowsAsync<IOException>(
+            () => workspace.Service.ExportItemToDirectoryAsync(item.Id, exportDirectory));
+
+        Assert.Equal("ordinary", File.ReadAllText(Path.Combine(storedDirectory, "a.txt")));
+        Assert.Equal("locked", File.ReadAllText(storedLockedFile));
+        Assert.NotNull(await workspace.Repository.GetItemAsync(item.Id));
+        Assert.False(Directory.Exists(Path.Combine(exportDirectory, item.DisplayName)));
+        Assert.Empty(Directory.GetDirectories(
+            exportDirectory,
+            $".{item.DisplayName}.witchdrawer-*.tmp"));
     }
 
     [Fact]

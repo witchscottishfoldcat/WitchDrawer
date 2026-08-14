@@ -85,12 +85,7 @@ public sealed class DataStorageMigrationService
                 throw new InvalidOperationException("迁移失败：数据库文件未能复制到目标文件夹。");
             }
 
-            if (Directory.Exists(targetRoot))
-            {
-                Directory.Delete(targetRoot, recursive: true);
-            }
-
-            Directory.Move(tempRoot, targetRoot);
+            PromoteStagedDirectory(tempRoot, targetRoot);
         }
         catch
         {
@@ -170,6 +165,25 @@ public sealed class DataStorageMigrationService
         {
             throw new IOException($"迁移不支持链接或其他 reparse point: {path}");
         }
+    }
+
+    internal static void PromoteStagedDirectory(string tempRoot, string targetRoot)
+    {
+        if (Directory.Exists(targetRoot))
+        {
+            EnsureNoReparsePoint(targetRoot);
+            if (Directory.EnumerateFileSystemEntries(targetRoot).Any())
+            {
+                throw new InvalidOperationException(
+                    "The migration target changed while data was being copied. Existing files were preserved.");
+            }
+
+            // Never recursively delete a user-selected target. A file can arrive after the
+            // emptiness check; non-recursive deletion then fails safely instead of erasing it.
+            Directory.Delete(targetRoot, recursive: false);
+        }
+
+        Directory.Move(tempRoot, targetRoot);
     }
 
     private static void TryDeleteDirectory(string directory)

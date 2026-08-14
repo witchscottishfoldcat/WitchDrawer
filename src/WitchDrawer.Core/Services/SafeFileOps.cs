@@ -135,39 +135,52 @@ internal static class SafeFileOps
             return;
         }
 
+        var sourceSnapshot = CaptureDirectorySnapshot(sourcePath, cancellationToken);
         var stagingPath = CreateStagingPath(destinationPath);
+        string? heldSourcePath = null;
+        var sourceMovedToHolding = false;
         try
         {
             CopyDirectory(sourcePath, stagingPath, cancellationToken);
 
             cancellationToken.ThrowIfCancellationRequested();
-            var sourceAttributes = CaptureAttributes(sourcePath, isDirectory);
-            try
-            {
-                ClearReadOnlyAttributes(sourcePath, isDirectory);
-                Directory.Delete(sourcePath, recursive: true);
-            }
-            catch
-            {
-                RestoreAttributes(sourceAttributes);
-                throw;
-            }
+            var sourceAfterCopy = CaptureDirectorySnapshot(sourcePath, cancellationToken);
+            EnsureSourceUnchanged(sourceSnapshot, sourceAfterCopy);
+            EnsureDirectoryCopyComplete(sourceAfterCopy, CaptureDirectorySnapshot(stagingPath, cancellationToken));
+
+            // Rename on the source volume first. New files created at the original path after
+            // this point belong to a new directory and must never be consumed by this move.
+            heldSourcePath = CreateHeldSourcePath(sourcePath);
+            Directory.Move(sourcePath, heldSourcePath);
+            sourceMovedToHolding = true;
+
+            var heldSourceSnapshot = CaptureDirectorySnapshot(heldSourcePath, cancellationToken);
+            EnsureSourceUnchanged(sourceAfterCopy, heldSourceSnapshot);
+
+            // Promotion is an atomic same-volume rename on the destination. The complete copy
+            // becomes durable before any source entry is removed.
+            Directory.Move(stagingPath, destinationPath);
 
             try
             {
-                Directory.Move(stagingPath, destinationPath);
+                DeleteVerifiedSourceTree(heldSourcePath, heldSourceSnapshot);
             }
             catch
             {
-                // Never remove the final destination here: another operation may own it.
-                // Best effort restore keeps the operation atomic when the target is free.
-                TryMoveBack(stagingPath, sourcePath, isDirectory);
-                throw;
+                // The destination already contains the verified complete tree. Put any changed
+                // or undeletable remnants back at the original path when possible; preserving a
+                // duplicate is safer than deleting data that arrived during the move.
+                TryMoveBack(heldSourcePath, sourcePath, isDirectory: true);
             }
         }
         catch
         {
-            TryDelete(stagingPath, isDirectory);
+            RestoreHeldSourceOrPreserveStaging(
+                sourcePath,
+                heldSourcePath,
+                stagingPath,
+                sourceMovedToHolding);
+
             throw;
         }
     }
@@ -211,6 +224,15 @@ internal static class SafeFileOps
             $".{Path.GetFileName(destinationPath)}.witchdrawer-{Guid.NewGuid():N}.tmp");
     }
 
+    private static string CreateHeldSourcePath(string sourcePath)
+    {
+        var directory = Path.GetDirectoryName(sourcePath)
+            ?? throw new InvalidOperationException("Source directory is unavailable.");
+        return Path.Combine(
+            directory,
+            $".{Path.GetFileName(sourcePath)}.witchdrawer-{Guid.NewGuid():N}.moving");
+    }
+
     private static void CopyDirectory(string sourceDir, string destinationDir, CancellationToken cancellationToken)
     {
         ValidateEntryIsNotReparsePoint(sourceDir);
@@ -231,6 +253,131 @@ internal static class SafeFileOps
             var targetSubDir = Path.Combine(destinationDir, Path.GetFileName(directory));
             CopyDirectory(directory, targetSubDir, cancellationToken);
         }
+    }
+
+    private static DirectorySnapshot CaptureDirectorySnapshot(
+        string rootPath,
+        CancellationToken cancellationToken)
+    {
+        ValidateEntryIsNotReparsePoint(rootPath);
+        var files = new Dictionary<string, FileSnapshot>(StringComparer.OrdinalIgnoreCase);
+        var directories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var entry in Directory.EnumerateFileSystemEntries(rootPath, "*", SearchOption.AllDirectories))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var attributes = File.GetAttributes(entry);
+            if ((attributes & FileAttributes.ReparsePoint) != 0)
+            {
+                throw new IOException($"Reparse points are not supported: {entry}");
+            }
+
+            var relativePath = Path.GetRelativePath(rootPath, entry);
+            if ((attributes & FileAttributes.Directory) != 0)
+            {
+                directories.Add(relativePath);
+                continue;
+            }
+
+            var fileInfo = new FileInfo(entry);
+            files.Add(
+                relativePath,
+                new FileSnapshot(fileInfo.Length, fileInfo.LastWriteTimeUtc));
+        }
+
+        return new DirectorySnapshot(files, directories);
+    }
+
+    private static void EnsureSourceUnchanged(DirectorySnapshot before, DirectorySnapshot after)
+    {
+        if (!before.Directories.SetEquals(after.Directories)
+            || before.Files.Count != after.Files.Count
+            || before.Files.Any(pair =>
+                !after.Files.TryGetValue(pair.Key, out var current)
+                || current != pair.Value))
+        {
+            throw new IOException(
+                "Source directory changed while it was being moved. No source files were deleted.");
+        }
+    }
+
+    private static void EnsureDirectoryCopyComplete(DirectorySnapshot source, DirectorySnapshot copy)
+    {
+        if (!source.Directories.SetEquals(copy.Directories)
+            || source.Files.Count != copy.Files.Count
+            || source.Files.Any(pair =>
+                !copy.Files.TryGetValue(pair.Key, out var copied)
+                || copied.Length != pair.Value.Length))
+        {
+            throw new IOException(
+                "Directory copy verification failed. No source files were deleted.");
+        }
+    }
+
+    private static void DeleteVerifiedSourceTree(string rootPath, DirectorySnapshot snapshot)
+    {
+        foreach (var pair in snapshot.Files)
+        {
+            var filePath = Path.Combine(rootPath, pair.Key);
+            var fileInfo = new FileInfo(filePath);
+            if (!fileInfo.Exists
+                || fileInfo.Length != pair.Value.Length
+                || fileInfo.LastWriteTimeUtc != pair.Value.LastWriteTimeUtc)
+            {
+                throw new IOException($"Source file changed while it was being moved: {filePath}");
+            }
+
+            ClearReadOnlyAttribute(filePath);
+            File.Delete(filePath);
+        }
+
+        foreach (var relativePath in snapshot.Directories.OrderByDescending(GetPathDepth))
+        {
+            var directoryPath = Path.Combine(rootPath, relativePath);
+            ClearReadOnlyAttribute(directoryPath);
+            Directory.Delete(directoryPath, recursive: false);
+        }
+
+        ClearReadOnlyAttribute(rootPath);
+        Directory.Delete(rootPath, recursive: false);
+    }
+
+    private static int GetPathDepth(string path)
+    {
+        return path.Count(character =>
+            character == Path.DirectorySeparatorChar
+            || character == Path.AltDirectorySeparatorChar);
+    }
+
+    private sealed record FileSnapshot(long Length, DateTime LastWriteTimeUtc);
+
+    private sealed record DirectorySnapshot(
+        IReadOnlyDictionary<string, FileSnapshot> Files,
+        HashSet<string> Directories);
+
+    internal static bool RestoreHeldSourceOrPreserveStaging(
+        string sourcePath,
+        string? heldSourcePath,
+        string stagingPath,
+        bool sourceMovedToHolding)
+    {
+        var sourceRestored = !sourceMovedToHolding;
+        if (sourceMovedToHolding
+            && !string.IsNullOrWhiteSpace(heldSourcePath)
+            && Directory.Exists(heldSourcePath))
+        {
+            sourceRestored = TryMoveBack(heldSourcePath, sourcePath, isDirectory: true);
+        }
+
+        // If the held source cannot be returned (for example another process recreated the
+        // original path), keep the verified staging copy as a second recovery path. Never
+        // clean both locations when neither copy is available at the original path.
+        if (sourceRestored)
+        {
+            TryDelete(stagingPath, isDirectory: true);
+        }
+
+        return sourceRestored;
     }
 
     private static bool IsSameOrDescendant(string candidate, string ancestor)
@@ -342,7 +489,7 @@ internal static class SafeFileOps
         }
     }
 
-    private static void TryMoveBack(string source, string destination, bool isDirectory)
+    private static bool TryMoveBack(string source, string destination, bool isDirectory)
     {
         try
         {
@@ -351,16 +498,20 @@ internal static class SafeFileOps
                 if (Directory.Exists(source) && !Directory.Exists(destination) && !File.Exists(destination))
                 {
                     Directory.Move(source, destination);
+                    return true;
                 }
             }
             else if (File.Exists(source) && !File.Exists(destination) && !Directory.Exists(destination))
             {
                 File.Move(source, destination);
+                return true;
             }
         }
         catch
         {
         }
+
+        return false;
     }
 
     private static void TryDelete(string path, bool isDirectory)

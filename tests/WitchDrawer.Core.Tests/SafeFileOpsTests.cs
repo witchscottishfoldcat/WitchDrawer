@@ -73,6 +73,46 @@ public sealed class SafeFileOpsTests
         Assert.True(File.Exists(Path.Combine(targetDir, "root.txt")));
         Assert.True(File.Exists(Path.Combine(targetDir, "child", "nested.txt")));
         Assert.Equal("nested", File.ReadAllText(Path.Combine(targetDir, "child", "nested.txt")));
+        Assert.Empty(Directory.GetDirectories(workspace.Root, "*.witchdrawer-*.tmp"));
+        Assert.Empty(Directory.GetDirectories(workspace.Root, "*.witchdrawer-*.moving"));
+    }
+
+    [Fact]
+    public async Task CopyThenDelete_DirectoryChangesDuringCopy_PreservesUncopiedFiles()
+    {
+        using var workspace = new TempWorkspace();
+        var sourceDir = workspace.CreateDirectory("source-dir");
+        var busyChild = Path.Combine(sourceDir, "busy-child");
+        Directory.CreateDirectory(busyChild);
+        for (var index = 0; index < 1_000; index++)
+        {
+            File.WriteAllText(Path.Combine(busyChild, $"payload-{index:D4}.txt"), $"payload-{index}");
+        }
+
+        var targetDir = Path.Combine(workspace.Root, "target-dir");
+        var moveTask = Task.Run(
+            () => SafeFileOps.CopyThenDelete(
+                sourceDir,
+                targetDir,
+                isDirectory: true,
+                CancellationToken.None));
+
+        var stagingChildAppeared = await WaitForConditionAsync(
+            () => Directory
+                .GetDirectories(workspace.Root, ".target-dir.witchdrawer-*.tmp")
+                .Any(staging => Directory.Exists(Path.Combine(staging, "busy-child"))),
+            TimeSpan.FromSeconds(10));
+        Assert.True(stagingChildAppeared, "The cross-volume staging directory was not observed.");
+
+        var lateFile = Path.Combine(sourceDir, "late-arrival.txt");
+        File.WriteAllText(lateFile, "must-not-be-lost");
+
+        await Assert.ThrowsAsync<IOException>(() => moveTask);
+        Assert.True(File.Exists(lateFile));
+        Assert.Equal("must-not-be-lost", File.ReadAllText(lateFile));
+        Assert.False(Directory.Exists(targetDir));
+        Assert.Empty(Directory.GetDirectories(workspace.Root, "*.witchdrawer-*.tmp"));
+        Assert.Empty(Directory.GetDirectories(workspace.Root, "*.witchdrawer-*.moving"));
     }
 
     [Fact]
@@ -217,6 +257,34 @@ public sealed class SafeFileOpsTests
     }
 
     [Fact]
+    public void Move_DirectoryWithLockedFile_PreservesEntireSourceAndRemovesStaging()
+    {
+        using var workspace = new TempWorkspace();
+        var sourceDir = workspace.CreateDirectory("locked-dir");
+        var ordinaryFile = Path.Combine(sourceDir, "a.txt");
+        var sourceFile = Path.Combine(sourceDir, "locked.txt");
+        File.WriteAllText(ordinaryFile, "ordinary-must-survive");
+        File.WriteAllText(sourceFile, "must-survive");
+        var targetDir = Path.Combine(workspace.Root, "copied-dir");
+
+        using var lockStream = new FileStream(sourceFile, FileMode.Open, FileAccess.Read, FileShare.Read);
+        Assert.Throws<IOException>(
+            () => SafeFileOps.Move(
+                sourceDir,
+                targetDir,
+                isDirectory: true,
+                CancellationToken.None));
+
+        Assert.True(File.Exists(ordinaryFile));
+        Assert.Equal("ordinary-must-survive", File.ReadAllText(ordinaryFile));
+        Assert.True(File.Exists(sourceFile));
+        Assert.Equal("must-survive", File.ReadAllText(sourceFile));
+        Assert.False(Directory.Exists(targetDir));
+        Assert.Empty(Directory.GetDirectories(workspace.Root, ".copied-dir.witchdrawer-*.tmp"));
+        Assert.Empty(Directory.GetDirectories(workspace.Root, ".locked-dir.witchdrawer-*.moving"));
+    }
+
+    [Fact]
     public void CopyThenDelete_SourceDeleteFails_RollbackRemovesReadOnlyCopy()
     {
         // 源被占用（无法删除）时回滚必须连只读副本一起清掉，否则目标位置残留重复文件。
@@ -286,6 +354,22 @@ public sealed class SafeFileOpsTests
             }
         }
     }
+
+    private static async Task<bool> WaitForConditionAsync(Func<bool> condition, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            if (condition())
+            {
+                return true;
+            }
+
+            await Task.Delay(1);
+        }
+
+        return condition();
+    }
 }
 
 public sealed class SafeFileOpsRollbackTests
@@ -312,6 +396,50 @@ public sealed class SafeFileOpsRollbackTests
         Assert.Equal("conflict", File.ReadAllText(sentinel));
         Assert.True(File.Exists(Path.Combine(sourceDir, "root.txt")));
         Assert.True(File.Exists(Path.Combine(sourceDir, "child", "nested.txt")));
+    }
+
+    [Fact]
+    public void RestoreHeldSource_SourcePathWasRecreated_PreservesBothRecoveryCopies()
+    {
+        using var workspace = new TempWorkspace();
+        var sourceDir = workspace.CreateDirectory("source-dir");
+        var heldSourceDir = workspace.CreateDirectory(".source-dir.witchdrawer-test.moving");
+        var stagingDir = workspace.CreateDirectory(".target-dir.witchdrawer-test.tmp");
+        File.WriteAllText(Path.Combine(sourceDir, "foreign.txt"), "do-not-overwrite");
+        File.WriteAllText(Path.Combine(heldSourceDir, "original.txt"), "original");
+        File.WriteAllText(Path.Combine(stagingDir, "original.txt"), "original");
+
+        var restored = SafeFileOps.RestoreHeldSourceOrPreserveStaging(
+            sourceDir,
+            heldSourceDir,
+            stagingDir,
+            sourceMovedToHolding: true);
+
+        Assert.False(restored);
+        Assert.Equal("do-not-overwrite", File.ReadAllText(Path.Combine(sourceDir, "foreign.txt")));
+        Assert.Equal("original", File.ReadAllText(Path.Combine(heldSourceDir, "original.txt")));
+        Assert.Equal("original", File.ReadAllText(Path.Combine(stagingDir, "original.txt")));
+    }
+
+    [Fact]
+    public void RestoreHeldSource_HeldPathDisappeared_PreservesVerifiedStagingCopy()
+    {
+        using var workspace = new TempWorkspace();
+        var sourceDir = Path.Combine(workspace.Root, "source-dir");
+        var heldSourceDir = Path.Combine(workspace.Root, ".source-dir.witchdrawer-test.moving");
+        var stagingDir = workspace.CreateDirectory(".target-dir.witchdrawer-test.tmp");
+        var stagedFile = Path.Combine(stagingDir, "original.txt");
+        File.WriteAllText(stagedFile, "last-known-complete-copy");
+
+        var restored = SafeFileOps.RestoreHeldSourceOrPreserveStaging(
+            sourceDir,
+            heldSourceDir,
+            stagingDir,
+            sourceMovedToHolding: true);
+
+        Assert.False(restored);
+        Assert.True(File.Exists(stagedFile));
+        Assert.Equal("last-known-complete-copy", File.ReadAllText(stagedFile));
     }
 
     private sealed class TempWorkspace : IDisposable
