@@ -127,7 +127,7 @@ public sealed partial class BoxSizeSettingsViewModel : ObservableObject
         !HasSelection
             ? string.Empty
             : IsFixedMode
-                ? $"固定 {FixedColumns} × {FixedRows} 格，超出内容在盒内滚动"
+                ? $"固定 {FixedColumns} × {FixedRows} 格，达到容量后停止导入"
                 : "窗口随内容自动撑开";
 
     public bool CanDecreaseColumns =>

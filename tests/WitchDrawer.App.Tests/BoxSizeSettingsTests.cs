@@ -119,8 +119,6 @@ public sealed class BoxSizeSettingsTests
             Assert.False(viewModel.IsFixedSize);
             Assert.True(double.IsNaN(viewModel.GridViewportWidth));
             Assert.True(double.IsNaN(viewModel.GridViewportHeight));
-            Assert.Equal(viewModel.LayoutSettings.GridViewportMaxWidth, viewModel.GridViewportMaxWidth);
-            Assert.Equal(viewModel.LayoutSettings.GridViewportMaxHeight, viewModel.GridViewportMaxHeight);
 
             viewModel.ApplySizeMode(new BoxSizeModeState(true, 13, 9));
 
@@ -130,8 +128,6 @@ public sealed class BoxSizeSettingsTests
             var slotHeight = viewModel.LayoutSettings.ItemSlotHeight;
             Assert.Equal((13 * slotWidth) + DesktopBoxLayoutSettings.GridViewportFixedChromeInset, viewModel.GridViewportWidth);
             Assert.Equal((9 * slotHeight) + DesktopBoxLayoutSettings.GridViewportFixedChromeInset, viewModel.GridViewportHeight);
-            Assert.Equal(viewModel.GridViewportWidth, viewModel.GridViewportMaxWidth);
-            Assert.Equal(viewModel.GridViewportHeight, viewModel.GridViewportMaxHeight);
             Assert.Equal(13 * slotWidth, viewModel.GridCanvasWidth);
             Assert.Equal(9 * slotHeight, viewModel.GridCanvasHeight);
 
@@ -141,8 +137,6 @@ public sealed class BoxSizeSettingsTests
             viewModel.ApplySizeMode(BoxSizeModeState.Adaptive);
 
             Assert.False(viewModel.IsFixedSize);
-            Assert.Equal(viewModel.LayoutSettings.GridViewportMaxWidth, viewModel.GridViewportMaxWidth);
-            Assert.Equal(viewModel.LayoutSettings.GridViewportMaxHeight, viewModel.GridViewportMaxHeight);
             var unclamped = viewModel.GetGridSlot(slotWidth * 10, slotHeight * 10);
             Assert.Equal((10, 10), unclamped);
         }

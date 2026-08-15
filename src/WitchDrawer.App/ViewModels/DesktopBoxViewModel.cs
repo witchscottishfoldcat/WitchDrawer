@@ -3,7 +3,6 @@ using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Windows;
-using System.Windows.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
@@ -174,27 +173,6 @@ public sealed class DesktopBoxViewModel : ObservableObject
     public double GridViewportHeight => IsFixedSize
         ? (SizeMode.Rows * LayoutSettings.ItemSlotHeight) + DesktopBoxLayoutSettings.GridViewportFixedChromeInset
         : double.NaN;
-
-    /// <summary>
-    /// 自适应模式继续限制最大可见范围并通过滚动查看内容；固定模式的上限必须
-    /// 跟随用户选择的真实行列尺寸，否则 12 × 8 之后只会变化数字而窗口不增长。
-    /// </summary>
-    public double GridViewportMaxWidth => IsFixedSize
-        ? GridViewportWidth
-        : LayoutSettings.GridViewportMaxWidth;
-
-    public double GridViewportMaxHeight => IsFixedSize
-        ? GridViewportHeight
-        : LayoutSettings.GridViewportMaxHeight;
-
-    /// <summary>
-    /// 固定模式下禁用滚动条（硬约束：放不下就拒绝拖入，而不是滚动查看）。
-    /// </summary>
-    public ScrollBarVisibility GridHorizontalScrollBarVisibility =>
-        IsFixedSize ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto;
-
-    public ScrollBarVisibility GridVerticalScrollBarVisibility =>
-        IsFixedSize ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto;
 
     public int OccupiedColumns => _occupiedColumns;
 
@@ -1381,11 +1359,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
         OnPropertyChanged(nameof(IsFixedSize));
         OnPropertyChanged(nameof(GridViewportWidth));
         OnPropertyChanged(nameof(GridViewportHeight));
-        OnPropertyChanged(nameof(GridViewportMaxWidth));
-        OnPropertyChanged(nameof(GridViewportMaxHeight));
         OnPropertyChanged(nameof(FixedCapacity));
-        OnPropertyChanged(nameof(GridHorizontalScrollBarVisibility));
-        OnPropertyChanged(nameof(GridVerticalScrollBarVisibility));
         UpdateGridCanvasSize();
     }
 
@@ -1798,8 +1772,6 @@ public sealed class DesktopBoxViewModel : ObservableObject
         OnPropertyChanged(nameof(HeaderRowHeight));
         OnPropertyChanged(nameof(GridViewportWidth));
         OnPropertyChanged(nameof(GridViewportHeight));
-        OnPropertyChanged(nameof(GridViewportMaxWidth));
-        OnPropertyChanged(nameof(GridViewportMaxHeight));
         if (IsDrawerBox && e.PropertyName is nameof(DesktopBoxLayoutSettings.CurrentPreset))
         {
             ResizeDrawerCover(

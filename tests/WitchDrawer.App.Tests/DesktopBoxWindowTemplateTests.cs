@@ -31,6 +31,25 @@ public sealed class DesktopBoxWindowTemplateTests
     }
 
     [Fact]
+    public void IconGrid_GrowsWithAdaptiveContentWithoutScrollBars()
+    {
+        var document = XDocument.Load(GetDesktopBoxWindowXamlPath());
+        var iconList = Assert.Single(
+            document.Descendants(PresentationNamespace + "ListBox"),
+            element =>
+                (string?)element.Attribute(XamlNamespace + "Name") == "IconList");
+
+        Assert.Null(iconList.Attribute("MaxWidth"));
+        Assert.Null(iconList.Attribute("MaxHeight"));
+        Assert.Equal(
+            "Disabled",
+            (string?)iconList.Attribute("ScrollViewer.HorizontalScrollBarVisibility"));
+        Assert.Equal(
+            "Disabled",
+            (string?)iconList.Attribute("ScrollViewer.VerticalScrollBarVisibility"));
+    }
+
+    [Fact]
     public void RollUpButton_KeepsHeaderAndCollapsesTheContentRow()
     {
         var document = XDocument.Load(GetDesktopBoxWindowXamlPath());

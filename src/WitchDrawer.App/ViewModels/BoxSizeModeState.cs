@@ -2,7 +2,7 @@ namespace WitchDrawer.App.ViewModels;
 
 /// <summary>
 /// 收纳盒尺寸模式：自适应（窗口随内容撑开）或固定 m×n 图标格。
-/// 固定模式下窗口尺寸锁定，超出内容在盒内滚动。
+/// 固定模式下窗口尺寸锁定，达到容量后拒绝继续导入。
 /// </summary>
 public sealed record BoxSizeModeState(bool IsFixed, int Columns, int Rows)
 {
