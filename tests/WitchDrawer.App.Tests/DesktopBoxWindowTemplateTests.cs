@@ -30,6 +30,24 @@ public sealed class DesktopBoxWindowTemplateTests
         Assert.Equal("Center", (string?)templateRoot.Attribute("VerticalAlignment"));
     }
 
+    [Fact]
+    public void RollUpButton_KeepsHeaderAndCollapsesTheContentRow()
+    {
+        var document = XDocument.Load(GetDesktopBoxWindowXamlPath());
+        var rootGrid = Assert.Single(
+            document.Descendants(PresentationNamespace + "Grid"),
+            element => (string?)element.Attribute("MouseLeftButtonDown") == "OnSurfaceMouseLeftButtonDown");
+        var rows = Assert.Single(rootGrid.Elements(PresentationNamespace + "Grid.RowDefinitions"));
+        var definitions = rows.Elements(PresentationNamespace + "RowDefinition").ToArray();
+        var button = Assert.Single(
+            rootGrid.Descendants(PresentationNamespace + "Button"),
+            element => (string?)element.Attribute("Click") == "OnToggleRollUpClick");
+
+        Assert.Equal("{Binding HeaderRowHeight}", (string?)definitions[0].Attribute("Height"));
+        Assert.Equal("{Binding ContentRowHeight}", (string?)definitions[1].Attribute("Height"));
+        Assert.Equal("2", (string?)button.Attribute("Grid.Column"));
+    }
+
     private static string GetDesktopBoxWindowXamlPath() =>
         Path.GetFullPath(
             Path.Combine(

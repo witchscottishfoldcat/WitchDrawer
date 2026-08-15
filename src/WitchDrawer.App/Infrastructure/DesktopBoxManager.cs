@@ -176,6 +176,7 @@ public sealed class DesktopBoxManager
                     await viewModel.LoadDrawerCoverSizeAsync();
                     await viewModel.LoadTitleVisibilityAsync();
                     await viewModel.LoadFileNameVisibilityAsync();
+                    await viewModel.LoadRollUpStateAsync();
                     await viewModel.LoadSortModeAsync();
                     await viewModel.LoadSizeModeAsync();
                     viewModel.ItemsChanged += (_, _) => ItemsChanged?.Invoke(

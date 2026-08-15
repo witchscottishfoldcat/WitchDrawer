@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.IO;
+using System.Windows;
 using System.Windows.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -28,6 +29,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private const string TitleVisibilitySettingPrefix = "BoxTitleVisible:";
     private const string LegacyDrawerTitleVisibilitySettingPrefix = "DrawerTitleVisible:";
     private const string FileNameVisibilitySettingPrefix = "BoxFileNameVisible:";
+    private const string RollUpSettingPrefix = "BoxRolledUp:";
     private const string DrawerSortModeSettingPrefix = "DrawerSortMode:";
     private const double DefaultDrawerCoverWidth = 180;
     private const double DefaultDrawerCoverHeight = 112;
@@ -63,6 +65,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private bool _isDrawerExpanded;
     private bool _isTitleVisible = true;
     private bool _isFileNameVisible;
+    private bool _isRolledUp;
     private double _drawerCoverWidth = DefaultDrawerCoverWidth;
     private double _drawerCoverHeight = DefaultDrawerCoverHeight;
     private int _drawerCoverColumns = 3;
@@ -218,10 +221,21 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     public bool IsFileNameVisible => _isFileNameVisible;
 
+    public bool SupportsRollUp => Type is BoxType.Normal or BoxType.Pixel or BoxType.Mapping;
+
+    public bool IsRolledUp => SupportsRollUp && _isRolledUp;
+
+    public bool IsHeaderTitleVisible => IsTitleVisible || IsRolledUp;
+
     public bool IsHeaderVisible => ShouldShowHeader(
         IsDrawerBox,
         IsDrawerExpanded,
-        IsTitleVisible);
+        IsTitleVisible,
+        IsRolledUp);
+
+    public GridLength ContentRowHeight => IsRolledUp
+        ? new GridLength(0)
+        : new GridLength(1, GridUnitType.Star);
 
     public double HeaderRowHeight => CalculateHeaderRowHeight(
         IsHeaderVisible,
@@ -320,8 +334,9 @@ public sealed class DesktopBoxViewModel : ObservableObject
     internal static bool ShouldShowHeader(
         bool isDrawerBox,
         bool isDrawerExpanded,
-        bool isTitleVisible) =>
-        isTitleVisible || (isDrawerBox && isDrawerExpanded);
+        bool isTitleVisible,
+        bool isRolledUp) =>
+        isRolledUp || isTitleVisible || (isDrawerBox && isDrawerExpanded);
 
     internal static double CalculateHeaderRowHeight(
         bool isHeaderVisible,
@@ -430,8 +445,12 @@ public sealed class DesktopBoxViewModel : ObservableObject
         OnPropertyChanged(nameof(IsDrawerCollapsed));
         OnPropertyChanged(nameof(IsTitleVisible));
         OnPropertyChanged(nameof(IsFileNameVisible));
+        OnPropertyChanged(nameof(SupportsRollUp));
+        OnPropertyChanged(nameof(IsRolledUp));
+        OnPropertyChanged(nameof(IsHeaderTitleVisible));
         OnPropertyChanged(nameof(IsHeaderVisible));
         OnPropertyChanged(nameof(HeaderRowHeight));
+        OnPropertyChanged(nameof(ContentRowHeight));
         OnPropertyChanged(nameof(DrawerContentHeight));
         OnPropertyChanged(nameof(IsMappingListMode));
         OnPropertyChanged(nameof(IsGridMode));
@@ -1447,8 +1466,40 @@ public sealed class DesktopBoxViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(IsHeaderVisible));
+        OnPropertyChanged(nameof(IsHeaderTitleVisible));
         OnPropertyChanged(nameof(HeaderRowHeight));
         OnPropertyChanged(nameof(DrawerContentHeight));
+    }
+
+    public async Task LoadRollUpStateAsync()
+    {
+        var saved = await _drawerService.GetSettingAsync(GetRollUpSettingKey(BoxId));
+        ApplyRollUpState(bool.TryParse(saved, out var isRolledUp) && isRolledUp);
+    }
+
+    internal void ApplyRollUpState(bool isRolledUp)
+    {
+        if (!SetProperty(ref _isRolledUp, SupportsRollUp && isRolledUp, nameof(IsRolledUp)))
+        {
+            return;
+        }
+
+        OnPropertyChanged(nameof(IsHeaderTitleVisible));
+        OnPropertyChanged(nameof(IsHeaderVisible));
+        OnPropertyChanged(nameof(HeaderRowHeight));
+        OnPropertyChanged(nameof(ContentRowHeight));
+    }
+
+    public async Task SaveRollUpStateAsync()
+    {
+        try
+        {
+            await _drawerService.SetSettingAsync(GetRollUpSettingKey(BoxId), IsRolledUp.ToString());
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to save desktop box roll-up state.");
+        }
     }
 
     public async Task LoadFileNameVisibilityAsync()
@@ -1533,6 +1584,9 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     internal static string GetFileNameVisibilitySettingKey(Guid boxId) =>
         $"{FileNameVisibilitySettingPrefix}{boxId:N}";
+
+    internal static string GetRollUpSettingKey(Guid boxId) =>
+        $"{RollUpSettingPrefix}{boxId:N}";
 
     internal static string GetDrawerSortModeSettingKey(Guid boxId) =>
         $"{DrawerSortModeSettingPrefix}{boxId:N}";

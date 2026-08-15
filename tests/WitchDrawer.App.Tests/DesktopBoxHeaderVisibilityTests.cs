@@ -28,15 +28,17 @@ public sealed class DesktopBoxHeaderVisibilityTests
     }
 
     [Theory]
-    [InlineData(false, false, true, true)]
-    [InlineData(false, false, false, false)]
-    [InlineData(true, false, true, true)]
-    [InlineData(true, false, false, false)]
-    [InlineData(true, true, false, true)]
+    [InlineData(false, false, true, false, true)]
+    [InlineData(false, false, false, false, false)]
+    [InlineData(true, false, true, false, true)]
+    [InlineData(true, false, false, false, false)]
+    [InlineData(true, true, false, false, true)]
+    [InlineData(false, false, false, true, true)]
     public void ShouldShowHeader_AdaptsToTitleAndExpandedDrawerState(
         bool isDrawerBox,
         bool isDrawerExpanded,
         bool isTitleVisible,
+        bool isRolledUp,
         bool expected)
     {
         Assert.Equal(
@@ -44,6 +46,7 @@ public sealed class DesktopBoxHeaderVisibilityTests
             DesktopBoxViewModel.ShouldShowHeader(
                 isDrawerBox,
                 isDrawerExpanded,
-                isTitleVisible));
+                isTitleVisible,
+                isRolledUp));
     }
 }

@@ -29,6 +29,7 @@ public partial class DesktopBoxWindow : Window
     private DrawerItemViewModel? _keyboardDeleteTarget;
     private Func<Guid, Task>? _positionChangedCallback;
     private bool _isMappingViewTransitioning;
+    private bool _isRollTransitioning;
     private bool _restoreAfterMinimizeQueued;
     private bool _desktopIsForeground;
     private bool _isPositionLocked;
@@ -812,6 +813,53 @@ public partial class DesktopBoxWindow : Window
     private void OnCloseClick(object sender, RoutedEventArgs e)
     {
         Close();
+    }
+
+    private async void OnToggleRollUpClick(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (_isRollTransitioning || _isMappingViewTransitioning || !ViewModel.SupportsRollUp)
+        {
+            return;
+        }
+
+        _isRollTransitioning = true;
+        var rollUp = !ViewModel.IsRolledUp;
+        try
+        {
+            var startWidth = ActualWidth;
+            var startHeight = ActualHeight;
+            SizeToContent = SizeToContent.Manual;
+            MinHeight = 0;
+            Width = startWidth;
+            Height = startHeight;
+
+            ViewModel.ApplyRollUpState(rollUp);
+            await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
+            WindowBorder.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            var targetHeight = WindowBorder.DesiredSize.Height;
+
+            if (rollUp)
+            {
+                ViewModel.ApplyRollUpState(false);
+                await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
+            }
+
+            await AnimateWindowSizeAsync(startWidth, startHeight, startWidth, targetHeight);
+            ViewModel.ApplyRollUpState(rollUp);
+            await ViewModel.SaveRollUpStateAsync();
+        }
+        finally
+        {
+            BeginAnimation(WidthProperty, null);
+            BeginAnimation(HeightProperty, null);
+            SizeToContent = SizeToContent.WidthAndHeight;
+            ClearValue(MinHeightProperty);
+            ClearValue(WidthProperty);
+            ClearValue(HeightProperty);
+            _isRollTransitioning = false;
+            QueueSendToBottom();
+        }
     }
 
     private void OnTodoTitlePreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
