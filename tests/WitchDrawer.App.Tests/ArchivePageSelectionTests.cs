@@ -12,6 +12,57 @@ namespace WitchDrawer.App.Tests;
 public sealed class ArchivePageSelectionTests
 {
     [Fact]
+    public async Task LoadAsync_FirstLaunchShowsAboutPageAndRemembersIt()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "WitchDrawerTests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            var paths = new AppPaths(root);
+            var repository = new DrawerRepository(paths.DatabasePath);
+            var drawerService = new DrawerService(paths, repository);
+            await drawerService.InitializeAsync();
+            var logger = new RecordingLogger();
+            var launcher = new NoOpFileLauncher();
+            var visualStyleStore = new BoxVisualStyleStore(drawerService, logger);
+            var quickPanel = new QuickPanelViewModel(drawerService, launcher, logger, visualStyleStore);
+            var viewModel = new MainViewModel(
+                drawerService,
+                new TodoService(repository),
+                launcher,
+                logger,
+                quickPanel,
+                new UpdateService(logger),
+                visualStyleStore,
+                new BoxPositionLockStateStore(drawerService, logger),
+                paths,
+                new DataStorageMigrationService(
+                    paths,
+                    repository,
+                    new StorageLocationStore(Path.Combine(root, "storage-location.json"))));
+
+            await viewModel.LoadAsync();
+
+            Assert.True(viewModel.IsAboutPage);
+            Assert.Null(viewModel.SelectedBox);
+            Assert.Equal(
+                bool.TrueString,
+                await drawerService.GetSettingAsync(MainViewModel.AboutPageShownSettingKey));
+
+            viewModel.ShowDashboardCommand.Execute(null);
+            await viewModel.LoadAsync();
+
+            Assert.False(viewModel.IsAboutPage);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task ShowArchiveCommand_ClearsSelectedBox()
     {
         var root = Path.Combine(Path.GetTempPath(), "WitchDrawerTests", Guid.NewGuid().ToString("N"));

@@ -20,6 +20,7 @@ public sealed class MainViewModel : ObservableObject
     private const string ThemeSettingKey = "Theme";
     private const string CrystalBoxTransparencySettingKey = "CrystalBoxTransparency";
     internal const string DesktopDoubleClickSettingKey = "DesktopDoubleClickToggle";
+    internal const string AboutPageShownSettingKey = "AboutPageShown";
     private const string StartupRegistryKeyName = "WitchDrawer";
 
     private readonly DrawerService _drawerService;
@@ -390,6 +391,22 @@ public sealed class MainViewModel : ObservableObject
             }
 
             await SelectBoxAsync(Boxes.FirstOrDefault(box => box.Id == existingSelection) ?? Boxes.FirstOrDefault());
+
+            var aboutPageShown = await _drawerService.GetSettingAsync(AboutPageShownSettingKey);
+            if (!bool.TryParse(aboutPageShown, out var hasShownAboutPage) || !hasShownAboutPage)
+            {
+                ShowAboutCommand.Execute(null);
+                try
+                {
+                    await _drawerService.SetSettingAsync(AboutPageShownSettingKey, bool.TrueString);
+                }
+                catch (Exception exception)
+                {
+                    // The guide is still useful if the preference cannot be persisted;
+                    // try again on the next launch instead of failing startup.
+                    _logger.Error(exception, "Failed to persist first-launch about-page preference.");
+                }
+            }
 
             LaunchOnStartup = ReadStartupRegistry();
             AreDesktopIconsHidden = DesktopIconVisibility.IsHidden();

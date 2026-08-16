@@ -29,6 +29,7 @@ public partial class App : Application
     private MainWindow? _mainWindow;
     private DesktopBoxManager? _desktopBoxManager;
     private IAppLogger? _logger;
+    private int _shutdownStarted;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -173,8 +174,6 @@ public partial class App : Application
             _mainWindow.ReopenBoxRequested += async (_, boxId) => await _desktopBoxManager.ShowAsync(boxId);
             _mainWindow.DesktopShellRestarted += async (_, _) =>
                 await _desktopBoxManager.RecoverDesktopHostsAsync();
-            _mainWindow.Closed += async (_, _) => await _desktopBoxManager.CloseAllAsync();
-
             mainViewModel.UpdateRequested += async (_, result) =>
             {
                 var versionText = $"v{result.LatestVersion.Major}.{result.LatestVersion.Minor}.{result.LatestVersion.Build}";
@@ -190,9 +189,9 @@ public partial class App : Application
                 }
             };
 
-            mainViewModel.UpdateConfirmed += (_, _) =>
+            mainViewModel.UpdateConfirmed += async (_, _) =>
             {
-                PerformShutdown();
+                await PerformShutdownAsync();
             };
 
             InitializeTaskbarIcon(paths, logger);
@@ -408,7 +407,7 @@ public partial class App : Application
                     }
                     break;
                 case 3:
-                    PerformShutdown();
+                    await PerformShutdownAsync();
                     break;
             }
         };
@@ -416,15 +415,41 @@ public partial class App : Application
         _taskbarIcon.Show();
     }
 
-    private void PerformShutdown()
+    private async Task PerformShutdownAsync()
     {
+        if (Interlocked.Exchange(ref _shutdownStarted, 1) != 0)
+        {
+            return;
+        }
+
         _taskbarIcon?.Dispose();
         _taskbarIcon = null;
-        _desktopBoxManager?.CloseAllAsync().GetAwaiter().GetResult();
+
+        var desktopBoxManager = _desktopBoxManager;
+        _desktopBoxManager = null;
+        if (desktopBoxManager is not null)
+        {
+            try
+            {
+                // Keep the dispatcher free while positions are saved and desktop windows close.
+                // A synchronous wait here deadlocks because CloseAllAsync resumes on the UI thread.
+                await desktopBoxManager.CloseAllAsync().WaitAsync(TimeSpan.FromSeconds(10));
+            }
+            catch (TimeoutException exception)
+            {
+                _logger?.Error(exception, "Timed out while closing desktop boxes during shutdown.");
+            }
+            catch (Exception exception)
+            {
+                // Shutdown must remain available even if position persistence or native cleanup fails.
+                _logger?.Error(exception, "Failed to close desktop boxes during shutdown.");
+            }
+        }
 
         if (_mainWindow is not null)
         {
             _mainWindow.ForceClose();
+            _mainWindow = null;
         }
 
         Shutdown(0);
@@ -433,9 +458,9 @@ public partial class App : Application
     /// <summary>
     /// 数据目录迁移后的重启：先布置一个分离的"等待当前进程退出再启动"的辅助进程，
     /// 再走完整关闭流程。直接启动新进程会被单实例检测吸收（新实例信号旧实例后自行退出），
-    /// 导致重启落空；绕过 PerformShutdown 又可能丢掉位置保存等收尾工作。
+    /// 导致重启落空；绕过 PerformShutdownAsync 又可能丢掉位置保存等收尾工作。
     /// </summary>
-    internal void RestartApplication()
+    internal async Task RestartApplicationAsync()
     {
         try
         {
@@ -463,7 +488,7 @@ public partial class App : Application
             _logger?.Error(exception, "Failed to schedule application restart after migration.");
         }
 
-        PerformShutdown();
+        await PerformShutdownAsync();
     }
 
     protected override void OnExit(ExitEventArgs e)

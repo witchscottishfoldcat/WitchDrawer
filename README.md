@@ -5,7 +5,7 @@
 <h1 align="center">WitchDrawer</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.3.3-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.3.4-blue" alt="Version" />
   <img src="https://img.shields.io/badge/license-CC%20BY--NC--SA%204.0-green" alt="License" />
   <img src="https://img.shields.io/badge/.NET-10.0-purple" alt=".NET" />
   <img src="https://img.shields.io/badge/platform-Windows-blue" alt="Platform" />
@@ -44,6 +44,14 @@ English: WitchDrawer is a lightweight Windows desktop file drawer built with nat
 - **系统托盘** — 最小化到系统托盘，不占用任务栏
 - **单实例运行** — 防止重复启动
 
+## 使用说明
+
+- 将文件或文件夹直接拖入收纳盒即可开始使用。
+- **普通收纳盒**会把文件或文件夹实际移动到 WitchDrawer 的数据目录，适合由应用统一管理的临时文件。
+- **映射收纳盒**只保存源文件的绝对路径，不移动、复制或删除源文件，适合项目目录、工作目录以及经常被其他程序使用的文件。
+- 建议文件夹尽量使用映射收纳盒，避免移动大量文件或正在使用的文件；需要保留文件原位置时，请优先选择映射收纳盒。
+- Windows 10 暂时可能有部分功能不兼容，建议优先使用 Windows 11。
+
 ## 技术栈
 
 | 技术 | 说明 |
@@ -73,6 +81,8 @@ tests/
 
 - Windows 10/11
 - .NET SDK `10.0.300` 或兼容的 .NET 10 SDK
+
+> Windows 10 暂时可能有部分功能不兼容，建议优先使用 Windows 11。
 
 ## 构建
 

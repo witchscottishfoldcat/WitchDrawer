@@ -2805,10 +2805,13 @@
                                        FontWeight="SemiBold" />
                         </StackPanel>
 
-                            <StackPanel Grid.Row="1"
-                                        Margin="0"
-                                        HorizontalAlignment="Stretch"
-                                        VerticalAlignment="Top">
+                            <ScrollViewer Grid.Row="1"
+                                          Margin="0"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          VerticalScrollBarVisibility="Auto"
+                                          CanContentScroll="True">
+                                <StackPanel HorizontalAlignment="Stretch"
+                                            VerticalAlignment="Top">
                                 <!-- App Info Card -->
                                 <Border Background="{DynamicResource AccentBrush}"
                                     CornerRadius="16"
@@ -2840,6 +2843,51 @@
                                         </StackPanel>
                                     </StackPanel>
                                 </Grid>
+                                </Border>
+
+                                <!-- Usage Guide Card -->
+                                <Border Background="{DynamicResource PanelBrush}"
+                                    BorderBrush="{DynamicResource BorderBrushSoft}"
+                                    BorderThickness="1"
+                                    CornerRadius="14"
+                                    Padding="12"
+                                    Margin="0,0,0,8">
+                                <StackPanel>
+                                    <TextBlock Text="使用说明"
+                                               FontWeight="Bold"
+                                               FontSize="14"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               Margin="0,0,0,6" />
+                                    <TextBlock Text="将文件或文件夹直接拖入收纳盒即可开始使用。"
+                                               TextWrapping="Wrap"
+                                               FontSize="12.5"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               Margin="0,0,0,5" />
+                                    <TextBlock Text="普通收纳盒：会把文件或文件夹实际移动到 WitchDrawer 的数据目录，适合由应用统一管理的临时文件。"
+                                               TextWrapping="Wrap"
+                                               FontSize="12.5"
+                                               Foreground="{DynamicResource TextMutedBrush}"
+                                               Margin="0,0,0,5" />
+                                    <TextBlock Text="映射收纳盒：只保存原路径，不移动、复制或删除源文件，适合项目目录、工作目录以及经常被其他程序使用的文件。"
+                                               TextWrapping="Wrap"
+                                               FontSize="12.5"
+                                               Foreground="{DynamicResource TextMutedBrush}"
+                                               Margin="0,0,0,7" />
+                                    <Border Background="{DynamicResource AccentSoftBrush}"
+                                            CornerRadius="8"
+                                            Padding="8,6"
+                                            Margin="0,0,0,7">
+                                        <TextBlock Text="建议：文件夹请尽量使用“映射收纳盒”，避免移动大量文件或正在使用的文件；需要保留原位置时，请优先选择映射收纳盒。"
+                                                   TextWrapping="Wrap"
+                                                   FontSize="12.5"
+                                                   Foreground="{DynamicResource AccentBrush}"
+                                                   FontWeight="SemiBold" />
+                                    </Border>
+                                    <TextBlock Text="兼容性提示：Windows 10 暂时可能有部分功能不兼容，建议优先使用 Windows 11。"
+                                               TextWrapping="Wrap"
+                                               FontSize="12.5"
+                                               Foreground="{DynamicResource TextMutedBrush}" />
+                                </StackPanel>
                                 </Border>
 
                                 <!-- Author Card -->
@@ -2963,7 +3011,8 @@
                                             Padding="12,0" />
                                 </Grid>
                                 </Border>
-                            </StackPanel>
+                                </StackPanel>
+                            </ScrollViewer>
                     </Grid>
                 </Grid>
             </Grid>

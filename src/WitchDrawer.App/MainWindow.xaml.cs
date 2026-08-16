@@ -262,7 +262,7 @@ public partial class MainWindow : Window
         // 交给 App 统一编排：布置"等本进程退出后再启动"的辅助进程，然后走完整关闭流程。
         if (Application.Current is App app)
         {
-            app.RestartApplication();
+            await app.RestartApplicationAsync();
             return;
         }
 
