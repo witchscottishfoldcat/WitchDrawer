@@ -163,11 +163,7 @@ public sealed class VirtualizingCanvas : VirtualizingPanel, IScrollInfo
         var visibleSet = visibleIndices.ToHashSet();
         RemoveInvisibleContainers(visibleSet);
 
-        foreach (var itemIndex in visibleIndices)
-        {
-            var child = RealizeContainer(itemIndex);
-            child?.Measure(itemSize);
-        }
+        RealizeContainers(visibleIndices, itemSize);
 
         return new Size(
             Math.Min(_extent.Width, _viewport.Width),
@@ -304,33 +300,67 @@ public sealed class VirtualizingCanvas : VirtualizingPanel, IScrollInfo
             itemRect.Height);
     }
 
-    private UIElement? RealizeContainer(int itemIndex)
+    private void RealizeContainers(IReadOnlyList<int> itemIndices, Size itemSize)
+    {
+        if (itemIndices.Count == 0)
+        {
+            return;
+        }
+
+        var rangeStart = 0;
+        while (rangeStart < itemIndices.Count)
+        {
+            var rangeEnd = rangeStart;
+            while (rangeEnd + 1 < itemIndices.Count
+                   && itemIndices[rangeEnd + 1] == itemIndices[rangeEnd] + 1)
+            {
+                rangeEnd++;
+            }
+
+            RealizeContiguousRange(itemIndices, rangeStart, rangeEnd, itemSize);
+            rangeStart = rangeEnd + 1;
+        }
+    }
+
+    private void RealizeContiguousRange(
+        IReadOnlyList<int> itemIndices,
+        int rangeStart,
+        int rangeEnd,
+        Size itemSize)
     {
         var generator = ItemContainerGenerator;
-        var position = generator.GeneratorPositionFromIndex(itemIndex);
+        var position = generator.GeneratorPositionFromIndex(itemIndices[rangeStart]);
         var childIndex = position.Offset == 0 ? position.Index : position.Index + 1;
         using (generator.StartAt(position, GeneratorDirection.Forward, allowStartAtRealizedItem: true))
         {
-            if (generator.GenerateNext(out var newlyRealized) is not UIElement child)
+            for (var index = rangeStart; index <= rangeEnd; index++, childIndex++)
             {
-                return null;
-            }
-
-            if (newlyRealized)
-            {
-                if (childIndex >= InternalChildren.Count)
+                if (generator.GenerateNext(out var newlyRealized) is not UIElement child)
                 {
-                    AddInternalChild(child);
-                }
-                else
-                {
-                    InsertInternalChild(childIndex, child);
+                    continue;
                 }
 
-                generator.PrepareItemContainer(child);
-            }
+                // Recycling can return an already-associated container that is currently
+                // detached from this panel. This occurs after a rolled-up box shrinks the
+                // viewport and then expands it again. Reattach based on visual-tree state;
+                // newlyRealized alone is not sufficient.
+                var isAttached = InternalChildren.IndexOf(child) >= 0;
+                if (newlyRealized || !isAttached)
+                {
+                    if (childIndex >= InternalChildren.Count)
+                    {
+                        AddInternalChild(child);
+                    }
+                    else
+                    {
+                        InsertInternalChild(childIndex, child);
+                    }
 
-            return child;
+                    generator.PrepareItemContainer(child);
+                }
+
+                child.Measure(itemSize);
+            }
         }
     }
 

@@ -88,6 +88,95 @@ public sealed class PerformanceVirtualizationTests
         Assert.InRange(realizedCount, 1, 10);
     }
 
+    [Fact]
+    public void VirtualizingCanvas_ReattachesRecycledRowsAfterViewportExpands()
+    {
+        Exception? threadException = null;
+        var thread = new Thread(() =>
+        {
+            Window? window = null;
+            try
+            {
+                const double cellSize = 40;
+                const int columns = 10;
+                const int rows = 4;
+                var panelFactory = new FrameworkElementFactory(typeof(VirtualizingCanvas));
+                panelFactory.SetValue(VirtualizingCanvas.ItemWidthProperty, cellSize);
+                panelFactory.SetValue(VirtualizingCanvas.ItemHeightProperty, cellSize);
+                panelFactory.SetValue(VirtualizingCanvas.ContentWidthProperty, columns * cellSize);
+                panelFactory.SetValue(VirtualizingCanvas.ContentHeightProperty, rows * cellSize);
+                var listBox = new ListBox
+                {
+                    ItemsPanel = new ItemsPanelTemplate(panelFactory),
+                    ItemsSource = Enumerable.Range(0, columns * rows)
+                        .Select(index => new TestCanvasItem(
+                            (index % columns) * cellSize,
+                            (index / columns) * cellSize))
+                };
+                listBox.SetValue(ScrollViewer.CanContentScrollProperty, true);
+                listBox.SetValue(
+                    ScrollViewer.HorizontalScrollBarVisibilityProperty,
+                    ScrollBarVisibility.Disabled);
+                listBox.SetValue(
+                    ScrollViewer.VerticalScrollBarVisibilityProperty,
+                    ScrollBarVisibility.Disabled);
+                listBox.SetValue(VirtualizingPanel.IsVirtualizingProperty, true);
+                listBox.SetValue(
+                    VirtualizingPanel.VirtualizationModeProperty,
+                    VirtualizationMode.Recycling);
+
+                var root = new Grid();
+                root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(30) });
+                root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+                Grid.SetRow(listBox, 1);
+                root.Children.Add(listBox);
+                window = new Window
+                {
+                    Width = columns * cellSize,
+                    Height = 30 + (rows * cellSize),
+                    Left = -10000,
+                    Top = -10000,
+                    ShowInTaskbar = false,
+                    WindowStyle = WindowStyle.None,
+                    Content = root
+                };
+                window.Show();
+                root.UpdateLayout();
+
+                var panel = FindVisualChild<VirtualizingCanvas>(listBox);
+                Assert.NotNull(panel);
+                Assert.Equal(columns * rows, VisualTreeHelper.GetChildrenCount(panel));
+
+                // A roll-up animation constrains the viewport and recycles the lower rows.
+                window.Height = 30 + (2 * cellSize);
+                root.UpdateLayout();
+                Assert.True(VisualTreeHelper.GetChildrenCount(panel) < columns * rows);
+
+                // Expanding must reattach all recycled containers, not merely update extent.
+                window.Height = 30 + (rows * cellSize);
+                panel.InvalidateMeasure();
+                listBox.InvalidateMeasure();
+                root.InvalidateMeasure();
+                root.UpdateLayout();
+
+                Assert.Equal(columns * rows, VisualTreeHelper.GetChildrenCount(panel));
+            }
+            catch (Exception exception)
+            {
+                threadException = exception;
+            }
+            finally
+            {
+                window?.Close();
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+
+        Assert.Null(threadException);
+    }
+
     [Theory]
     [InlineData(80, 5, 50, 150, 5, 29)]
     [InlineData(4, 3, 50, 500, 0, 3)]
