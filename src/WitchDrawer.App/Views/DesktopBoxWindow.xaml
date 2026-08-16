@@ -235,7 +235,10 @@
             </Style>
         </Border.Style>
         
-        <Grid Background="Transparent" MouseLeftButtonDown="OnSurfaceMouseLeftButtonDown">
+        <Grid Background="Transparent"
+              PreviewMouseLeftButtonDown="OnSurfaceMouseLeftButtonDown"
+              PreviewMouseLeftButtonUp="OnSurfaceMouseLeftButtonUp"
+              PreviewMouseMove="OnWindowMouseMove">
             <Grid.RowDefinitions>
                 <RowDefinition Height="{Binding HeaderRowHeight}" />
                 <RowDefinition Height="{Binding ContentRowHeight}" />
@@ -687,9 +690,15 @@
                     <Style TargetType="{x:Type ListBox}" BasedOn="{StaticResource {x:Type ListBox}}">
                         <Setter Property="Visibility" Value="Collapsed" />
                         <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsMappingListMode}" Value="True">
+                            <!-- 标准平铺列表：Mapping 盒的列表模式（未开启详细功能或未进入详细态时）。
+                                 详细展开态由 DetailList 接管。 -->
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding IsMappingListMode}" Value="True" />
+                                    <Condition Binding="{Binding IsDetailViewMode}" Value="False" />
+                                </MultiDataTrigger.Conditions>
                                 <Setter Property="Visibility" Value="Visible" />
-                            </DataTrigger>
+                            </MultiDataTrigger>
                         </Style.Triggers>
                     </Style>
                 </ListBox.Style>
@@ -762,6 +771,117 @@
                                        Text="{Binding DisplayName}"
                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                        FontSize="{Binding DataContext.LayoutSettings.MappingListFontSize, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
+                                       VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis" />
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <!-- 映射盒「详细功能」：放大详细视图（两级展开后的最终状态） -->
+            <ListBox x:Name="DetailList"
+                     Grid.Row="1"
+                     Panel.ZIndex="1"
+                     Width="{Binding LayoutSettings.DetailListWidth}"
+                     MinHeight="{Binding LayoutSettings.DetailListMinHeight}"
+                     MaxHeight="{Binding LayoutSettings.DetailListMaxHeight}"
+                     Margin="{Binding LayoutSettings.DetailListMargin}"
+                     Padding="{Binding LayoutSettings.DetailListPadding}"
+                     HorizontalAlignment="Left"
+                     VerticalAlignment="Top"
+                     BorderThickness="0"
+                     Background="Transparent"
+                     Focusable="True"
+                     FocusVisualStyle="{x:Null}"
+                     ItemsSource="{Binding Items}"
+                     SelectionMode="Single"
+                     ScrollViewer.CanContentScroll="True"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     VirtualizingPanel.IsVirtualizing="True"
+                     VirtualizingPanel.VirtualizationMode="Recycling"
+                     SelectionChanged="OnItemsSelectionChanged"
+                     MouseDoubleClick="OnDetailListMouseDoubleClick">
+                <ListBox.Style>
+                    <Style TargetType="{x:Type ListBox}" BasedOn="{StaticResource {x:Type ListBox}}">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsDetailViewMode}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ListBox.Style>
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="{x:Type ListBoxItem}">
+                        <Setter Property="Height" Value="{Binding DataContext.LayoutSettings.DetailListRowHeight, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" />
+                        <Setter Property="Padding" Value="{Binding DataContext.LayoutSettings.DetailListItemPadding, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" />
+                        <Setter Property="Margin" Value="{Binding DataContext.LayoutSettings.DetailListItemMargin, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" />
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="{x:Type ListBoxItem}">
+                                    <Border x:Name="Root"
+                                            Background="Transparent"
+                                            BorderBrush="Transparent"
+                                            BorderThickness="1"
+                                            CornerRadius="6"
+                                            Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource HoverBrush}" />
+                                        </Trigger>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+                                            <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </ListBox.ItemContainerStyle>
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Grid ToolTip="{Binding PathLabel}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="{Binding DataContext.LayoutSettings.DetailListIconColumnWidth, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border Width="{Binding DataContext.LayoutSettings.DetailListIconFrameSize, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
+                                    Height="{Binding DataContext.LayoutSettings.DetailListIconFrameSize, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    CornerRadius="{Binding DataContext.LayoutSettings.IconCornerRadius, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
+                                    Background="{DynamicResource GlassInnerBrush}"
+                                    BorderBrush="{DynamicResource GlassStrokeBrush}"
+                                    BorderThickness="1">
+                                <Grid>
+                                    <Image Source="{Binding IconImage}"
+                                           infrastructure:DeferredIconLoad.IsEnabled="True"
+                                           Width="{Binding DataContext.LayoutSettings.DetailListIconSize, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
+                                           Height="{Binding DataContext.LayoutSettings.DetailListIconSize, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
+                                           Stretch="Uniform"
+                                           RenderOptions.BitmapScalingMode="HighQuality"
+                                           UseLayoutRounding="True"
+                                           SnapsToDevicePixels="True"
+                                           Visibility="{Binding HasIcon, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                    <TextBlock Text="{Binding FallbackIconText}"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               FontSize="{Binding DataContext.LayoutSettings.FallbackIconFontSize, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
+                                               FontWeight="Bold"
+                                               Foreground="{DynamicResource AccentBrush}"
+                                               Visibility="{Binding HasIcon, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                                </Grid>
+                            </Border>
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding DisplayName}"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       FontSize="{Binding DataContext.LayoutSettings.DetailListFontSize, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
                                        VerticalAlignment="Center"
                                        TextTrimming="CharacterEllipsis" />
                         </Grid>

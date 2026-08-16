@@ -187,6 +187,17 @@ public sealed class DrawerService
         return _repository.UpdateItemGridPositionAsync(itemId, gridColumn, gridRow, cancellationToken);
     }
 
+    public Task SwapItemGridPositionsAsync(
+        Guid firstItemId, int? firstGridColumn, int? firstGridRow,
+        Guid secondItemId, int? secondGridColumn, int? secondGridRow,
+        CancellationToken cancellationToken = default)
+    {
+        return _repository.SwapItemGridPositionsAsync(
+            firstItemId, firstGridColumn, firstGridRow,
+            secondItemId, secondGridColumn, secondGridRow,
+            cancellationToken);
+    }
+
     public async Task MoveItemToBoxAsync(
         Guid itemId,
         Guid targetBoxId,

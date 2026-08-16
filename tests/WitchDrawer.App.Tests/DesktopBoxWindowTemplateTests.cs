@@ -31,6 +31,25 @@ public sealed class DesktopBoxWindowTemplateTests
     }
 
     [Fact]
+    public void Surface_ReceivesMouseGesturesBeforeChildLists()
+    {
+        var document = XDocument.Load(GetDesktopBoxWindowXamlPath());
+        var surface = Assert.Single(
+            document.Descendants(PresentationNamespace + "Grid"),
+            element => (string?)element.Attribute("Background") == "Transparent"
+                       && (string?)element.Attribute("PreviewMouseMove") == "OnWindowMouseMove");
+
+        Assert.Equal(
+            "OnSurfaceMouseLeftButtonDown",
+            (string?)surface.Attribute("PreviewMouseLeftButtonDown"));
+        Assert.Equal(
+            "OnSurfaceMouseLeftButtonUp",
+            (string?)surface.Attribute("PreviewMouseLeftButtonUp"));
+        Assert.Null(surface.Attribute("MouseLeftButtonDown"));
+        Assert.Null(surface.Attribute("MouseLeftButtonUp"));
+    }
+
+    [Fact]
     public void IconGrid_GrowsWithAdaptiveContentWithoutScrollBars()
     {
         var document = XDocument.Load(GetDesktopBoxWindowXamlPath());
@@ -55,7 +74,7 @@ public sealed class DesktopBoxWindowTemplateTests
         var document = XDocument.Load(GetDesktopBoxWindowXamlPath());
         var rootGrid = Assert.Single(
             document.Descendants(PresentationNamespace + "Grid"),
-            element => (string?)element.Attribute("MouseLeftButtonDown") == "OnSurfaceMouseLeftButtonDown");
+            element => (string?)element.Attribute("PreviewMouseLeftButtonDown") == "OnSurfaceMouseLeftButtonDown");
         var rows = Assert.Single(rootGrid.Elements(PresentationNamespace + "Grid.RowDefinitions"));
         var definitions = rows.Elements(PresentationNamespace + "RowDefinition").ToArray();
         var button = Assert.Single(

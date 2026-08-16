@@ -13,6 +13,8 @@ public sealed partial class BoxViewModel : ObservableObject
     private bool _isPositionLocked;
     private bool _isTitleVisible = true;
     private bool _isFileNameVisible;
+    private bool _isDetailExpandEnabled;
+    private bool _isDetailOpenSingle = true;
     private DrawerItemSortMode _drawerItemSortMode = DrawerItemSortMode.Free;
 
     public BoxViewModel(
@@ -47,6 +49,8 @@ public sealed partial class BoxViewModel : ObservableObject
         _ = LoadTitleVisibilityAsync();
         _ = LoadFileNameVisibilityAsync();
         _ = LoadDrawerSortModeAsync();
+        _ = LoadDetailExpandAsync();
+        _ = LoadDetailOpenModeAsync();
     }
 
     private async Task LoadPresetAsync()
@@ -67,6 +71,13 @@ public sealed partial class BoxViewModel : ObservableObject
 
     internal static string GetFileNameVisibilitySettingKey(Guid boxId) =>
         $"BoxFileNameVisible:{boxId:N}";
+
+    internal static string GetDetailExpandSettingKey(Guid boxId) =>
+        $"BoxDetailExpand:{boxId:N}";
+
+    /// <summary>详细视图打开方式（单击/双击展开）设置键，仅映射盒有意义。</summary>
+    internal static string GetDetailOpenModeSettingKey(Guid boxId) =>
+        $"BoxDetailOpenMode:{boxId:N}";
 
     internal static string GetDrawerSortModeSettingKey(Guid boxId) =>
         $"DrawerSortMode:{boxId:N}";
@@ -92,6 +103,8 @@ public sealed partial class BoxViewModel : ObservableObject
 
     public bool IsDrawerBox => Type == BoxType.Drawer;
 
+    public bool IsMappingBox => Type == BoxType.Mapping;
+
     /// <summary>
     /// 固定 m×n 格尺寸仅适用于普通网格收纳盒；其余盒型始终自适应。
     /// </summary>
@@ -115,6 +128,22 @@ public sealed partial class BoxViewModel : ObservableObject
 
     public string FileNameVisibilityAutomationName =>
         IsFileNameVisible ? "隐藏文件名" : "显示文件名";
+
+    /// <summary>
+    /// 映射盒「详细功能」开关（按盒持久化）。开启后获得单击空白两级展开预览与拖拽交换能力。
+    /// </summary>
+    public bool IsDetailExpandEnabled => _isDetailExpandEnabled;
+
+    public string DetailExpandAutomationName =>
+        IsDetailExpandEnabled ? "关闭详细功能" : "开启详细功能";
+
+    /// <summary>详细视图打开方式：true=单击空白展开（默认），false=双击空白展开。按盒持久化。</summary>
+    public bool IsDetailOpenSingle => _isDetailOpenSingle;
+
+    /// <summary>打开方式短标签（用于开关卡片内单选按钮）。</summary>
+    public string DetailOpenModeLabel => _isDetailOpenSingle ? "单击" : "双击";
+
+    public bool IsDetailOpenDoubleClick => !_isDetailOpenSingle;
 
     public DrawerItemSortMode DrawerItemSortMode => _drawerItemSortMode;
 
@@ -266,6 +295,172 @@ public sealed partial class BoxViewModel : ObservableObject
     {
         var saved = await _drawerService.GetSettingAsync(GetFileNameVisibilitySettingKey(Id));
         ApplyFileNameVisibility(bool.TryParse(saved, out var isVisible) && isVisible);
+    }
+
+    [CommunityToolkit.Mvvm.Input.RelayCommand(AllowConcurrentExecutions = false)]
+    private Task ToggleDetailExpandAsync() =>
+        ToggleDetailExpandCoreAsync((key, value) => _drawerService.SetSettingAsync(key, value));
+
+    /// <summary>
+    /// 带持久化委托重载：供单元测试注入可控时序的写盘，确定性验证命令并发重入（审查 Q1）。
+    /// 命令级已禁用并发执行，执行中再次触发会被忽略。
+    /// </summary>
+    internal async Task ToggleDetailExpandCoreAsync(Func<string, string, Task> persistSetting)
+    {
+        if (!IsMappingBox)
+        {
+            return;
+        }
+
+        var isEnabled = !IsDetailExpandEnabled;
+        try
+        {
+            await persistSetting(GetDetailExpandSettingKey(Id), isEnabled.ToString());
+        }
+        catch
+        {
+            // 持久化失败时不更新 UI 状态，避免开关显示与磁盘状态不一致。
+            return;
+        }
+
+        ApplyDetailExpand(isEnabled);
+        WeakReferenceMessenger.Default.Send(
+            new BoxDetailExpandChangedMessage(Id, isEnabled));
+    }
+
+    internal Task LoadDetailExpandAsync() =>
+        LoadDetailExpandAsync(() => _drawerService.GetSettingAsync(GetDetailExpandSettingKey(Id)));
+
+    /// <summary>
+    /// 带读取委托重载：供单元测试注入可控时序的读取，确定性验证加载竞态。
+    /// 加载期间若用户已切换开关（最后写入者胜），丢弃过期加载结果，
+    /// 避免异步读回写旧值覆盖用户操作（审查 F2）。
+    /// </summary>
+    internal async Task LoadDetailExpandAsync(Func<Task<string?>> readSetting)
+    {
+        if (!IsMappingBox)
+        {
+            return;
+        }
+
+        try
+        {
+            var snapshot = _isDetailExpandEnabled;
+            var saved = await readSetting();
+            if (_isDetailExpandEnabled != snapshot)
+            {
+                // 加载期间用户切换过开关，读到的旧值已过期，丢弃。
+                return;
+            }
+
+            ApplyDetailExpand(bool.TryParse(saved, out var isEnabled) && isEnabled);
+        }
+        catch
+        {
+            // 读取失败时保持默认关闭，避免 fire-and-forget 加载路径产生未观察异常。
+        }
+    }
+
+    private void ApplyDetailExpand(bool isEnabled)
+    {
+        if (!SetProperty(
+                ref _isDetailExpandEnabled,
+                isEnabled,
+                nameof(IsDetailExpandEnabled)))
+        {
+            return;
+        }
+
+        OnPropertyChanged(nameof(DetailExpandAutomationName));
+    }
+
+    /// <summary>
+    /// 设置详细视图打开方式（"Single"=单击空白展开 / "Double"=双击空白展开）。
+    /// 持久化失败时不更新 UI 状态，避免开关显示与磁盘状态不一致。
+    /// </summary>
+    [CommunityToolkit.Mvvm.Input.RelayCommand(AllowConcurrentExecutions = false)]
+    private Task SetDetailOpenModeAsync(string? mode) =>
+        SetDetailOpenModeCoreAsync(mode, (key, value) => _drawerService.SetSettingAsync(key, value));
+
+    /// <summary>
+    /// 带持久化委托重载：供单元测试注入可控时序的写盘，确定性验证命令并发重入（审查 Q1）。
+    /// 命令级已禁用并发执行，执行中再次触发会被忽略。
+    /// </summary>
+    internal async Task SetDetailOpenModeCoreAsync(
+        string? mode,
+        Func<string, string, Task> persistSetting)
+    {
+        if (!IsMappingBox)
+        {
+            return;
+        }
+
+        var isSingleClick = !string.Equals(mode, "Double", StringComparison.OrdinalIgnoreCase);
+        if (isSingleClick == _isDetailOpenSingle)
+        {
+            return;
+        }
+
+        try
+        {
+            await persistSetting(GetDetailOpenModeSettingKey(Id), isSingleClick ? "Single" : "Double");
+        }
+        catch
+        {
+            // 持久化失败时不更新 UI 状态，避免开关显示与磁盘状态不一致。
+            return;
+        }
+
+        ApplyDetailOpenMode(isSingleClick);
+        WeakReferenceMessenger.Default.Send(
+            new BoxDetailOpenModeChangedMessage(Id, isSingleClick));
+    }
+
+    internal Task LoadDetailOpenModeAsync() =>
+        LoadDetailOpenModeAsync(() => _drawerService.GetSettingAsync(GetDetailOpenModeSettingKey(Id)));
+
+    /// <summary>
+    /// 带读取委托重载：供单元测试注入可控时序的读取，确定性验证加载竞态。
+    /// 加载期间若用户已切换打开方式（最后写入者胜），丢弃过期加载结果，
+    /// 避免异步读回写旧值覆盖用户操作（审查 F2）。
+    /// </summary>
+    internal async Task LoadDetailOpenModeAsync(Func<Task<string?>> readSetting)
+    {
+        if (!IsMappingBox)
+        {
+            return;
+        }
+
+        try
+        {
+            var snapshot = _isDetailOpenSingle;
+            var saved = await readSetting();
+            if (_isDetailOpenSingle != snapshot)
+            {
+                // 加载期间用户切换过打开方式，读到的旧值已过期，丢弃。
+                return;
+            }
+
+            ApplyDetailOpenMode(!string.Equals(saved, "Double", StringComparison.OrdinalIgnoreCase));
+        }
+        catch
+        {
+            // 读取失败时保持默认单击展开，避免 fire-and-forget 加载路径产生未观察异常。
+        }
+    }
+
+    private void ApplyDetailOpenMode(bool isSingleClick)
+    {
+        if (!SetProperty(
+                ref _isDetailOpenSingle,
+                isSingleClick,
+                nameof(IsDetailOpenSingle)))
+        {
+            return;
+        }
+
+        OnPropertyChanged(nameof(DetailOpenModeLabel));
+        OnPropertyChanged(nameof(IsDetailOpenDoubleClick));
     }
 
     [CommunityToolkit.Mvvm.Input.RelayCommand]

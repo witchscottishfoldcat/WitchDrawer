@@ -446,6 +446,52 @@ public sealed class DrawerRepository
         }
     }
 
+    public async Task SwapItemGridPositionsAsync(
+        Guid firstItemId, int? firstGridColumn, int? firstGridRow,
+        Guid secondItemId, int? secondGridColumn, int? secondGridRow,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        var command = connection.CreateCommand();
+        command.Transaction = (SqliteTransaction)transaction;
+        command.CommandText =
+            """
+            UPDATE Items
+            SET GridColumn = $gridColumn,
+                GridRow = $gridRow,
+                UpdatedAt = $updatedAt
+            WHERE Id = $id;
+            """;
+        var idParameter = command.Parameters.Add("$id", SqliteType.Text);
+        var gridColumnParameter = command.Parameters.Add("$gridColumn", SqliteType.Integer);
+        var gridRowParameter = command.Parameters.Add("$gridRow", SqliteType.Integer);
+        var updatedAt = ToDb(DateTimeOffset.UtcNow);
+        command.Parameters.AddWithValue("$updatedAt", updatedAt);
+
+        // 第一条
+        idParameter.Value = firstItemId.ToString();
+        gridColumnParameter.Value = (object?)firstGridColumn ?? DBNull.Value;
+        gridRowParameter.Value = (object?)firstGridRow ?? DBNull.Value;
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+        {
+            throw new InvalidOperationException("Item does not exist.");
+        }
+
+        // 第二条
+        idParameter.Value = secondItemId.ToString();
+        gridColumnParameter.Value = (object?)secondGridColumn ?? DBNull.Value;
+        gridRowParameter.Value = (object?)secondGridRow ?? DBNull.Value;
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+        {
+            throw new InvalidOperationException("Item does not exist.");
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
     public async Task MoveItemToBoxAsync(
         DrawerItem item,
         Guid targetBoxId,
