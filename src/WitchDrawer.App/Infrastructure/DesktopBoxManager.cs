@@ -176,6 +176,8 @@ public sealed class DesktopBoxManager
                     await viewModel.LoadDrawerCoverSizeAsync();
                     await viewModel.LoadTitleVisibilityAsync();
                     await viewModel.LoadFileNameVisibilityAsync();
+                    await viewModel.LoadDetailExpandAsync();
+                    await viewModel.LoadDetailOpenModeAsync();
                     await viewModel.LoadRollUpStateAsync();
                     await viewModel.LoadSortModeAsync();
                     await viewModel.LoadSizeModeAsync();
@@ -183,7 +185,7 @@ public sealed class DesktopBoxManager
                         this,
                         new BoxItemsChangedEventArgs(viewModel.BoxId));
 
-                    window = new DesktopBoxWindow(viewModel);
+                    window = new DesktopBoxWindow(viewModel, _logger);
                     if (await PlaceWindowAsync(window, box.Id, index))
                     {
                         _overlapResolutionBoxIds.Add(box.Id);

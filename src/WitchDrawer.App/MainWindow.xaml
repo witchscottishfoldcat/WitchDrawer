@@ -1067,6 +1067,7 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -2079,7 +2080,125 @@
                                  </DockPanel>
                              </Border>
 
+                            <!-- 查看详细信息开关（映射盒）：与"收纳方式""文件"同一层级，置于文件卡片下方 -->
                             <Border Grid.Row="2"
+                                    MinHeight="54"
+                                    Margin="0,0,0,12"
+                                    Background="{DynamicResource PanelBrush}"
+                                    BorderBrush="{DynamicResource BorderBrushSoft}"
+                                    BorderThickness="1"
+                                    CornerRadius="14"
+                                    Visibility="{Binding SelectedBox.IsMappingBox, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <Grid Margin="14,6">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <Border Width="36"
+                                            Height="36"
+                                            Background="{DynamicResource AccentSoftBrush}"
+                                            CornerRadius="10"
+                                            VerticalAlignment="Center">
+                                        <TextBlock Text="&#xE8A7;"
+                                                   FontFamily="Segoe Fluent Icons"
+                                                   Foreground="{DynamicResource AccentBrush}"
+                                                   FontSize="13"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
+                                    </Border>
+
+                                    <StackPanel Grid.Column="1"
+                                                Margin="10,0,12,0"
+                                                VerticalAlignment="Center">
+                                        <TextBlock Text="查看详细信息"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                   FontSize="13"
+                                                   FontWeight="SemiBold" />
+                                        <TextBlock Text="开启后可选单击或双击打开详细视图"
+                                                   Margin="0,2,0,0"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                   FontSize="11" />
+                                    </StackPanel>
+
+                                    <Button Grid.Column="2"
+                                            Command="{Binding SelectedBox.ToggleDetailExpandCommand}"
+                                            Style="{StaticResource GhostButtonStyle}"
+                                            AutomationProperties.Name="{Binding SelectedBox.DetailExpandAutomationName}"
+                                            Content="{Binding SelectedBox.DetailExpandAutomationName}"
+                                            Padding="12,6"
+                                            VerticalAlignment="Center" />
+
+                                    <!-- 打开方式子行：仅详细功能开启后显示，按盒持久化 -->
+                                    <StackPanel Grid.Row="1"
+                                                Grid.Column="0"
+                                                Grid.ColumnSpan="3"
+                                                Orientation="Horizontal"
+                                                Margin="46,8,0,2"
+                                                Visibility="{Binding SelectedBox.IsDetailExpandEnabled, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <TextBlock Text="打开方式"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                   FontSize="10.5"
+                                                   FontWeight="SemiBold"
+                                                   VerticalAlignment="Center" />
+                                        <Button Content="单击"
+                                                Command="{Binding SelectedBox.SetDetailOpenModeCommand}"
+                                                CommandParameter="Single"
+                                                Margin="10,0,4,0"
+                                                Padding="10,4"
+                                                VerticalAlignment="Center"
+                                                AutomationProperties.Name="单击打开详细视图">
+                                            <Button.Style>
+                                                <Style TargetType="{x:Type Button}" BasedOn="{StaticResource GhostButtonStyle}">
+                                                    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+                                                    <Setter Property="FontSize" Value="10.5" />
+                                                    <Setter Property="FontWeight" Value="Medium" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding SelectedBox.IsDetailOpenSingle}" Value="True">
+                                                            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                                                            <Setter Property="FontWeight" Value="SemiBold" />
+                                                            <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                                            <Setter Property="BorderThickness" Value="1" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+                                        <Button Content="双击"
+                                                Command="{Binding SelectedBox.SetDetailOpenModeCommand}"
+                                                CommandParameter="Double"
+                                                Margin="4,0,0,0"
+                                                Padding="10,4"
+                                                VerticalAlignment="Center"
+                                                AutomationProperties.Name="双击打开详细视图">
+                                            <Button.Style>
+                                                <Style TargetType="{x:Type Button}" BasedOn="{StaticResource GhostButtonStyle}">
+                                                    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+                                                    <Setter Property="FontSize" Value="10.5" />
+                                                    <Setter Property="FontWeight" Value="Medium" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding SelectedBox.IsDetailOpenSingle}" Value="False">
+                                                            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                                                            <Setter Property="FontWeight" Value="SemiBold" />
+                                                            <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                                            <Setter Property="BorderThickness" Value="1" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <Border Grid.Row="3"
                                     MinHeight="54"
                                     Background="{DynamicResource PanelBrush}"
                                     BorderBrush="{DynamicResource BorderBrushSoft}"

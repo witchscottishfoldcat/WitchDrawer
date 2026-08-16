@@ -277,6 +277,77 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
 
     public Thickness MappingListWindowMargin => new(Math.Round(4 * MappingListScale, 1));
 
+    // ---- 「详细功能」详细视图（放大平铺）尺寸 ----
+
+    /// <summary>详细视图放大系数（与 MappingListScale 相同）。internal 供窗口动画使用。</summary>
+    internal double DetailScaleFactor => MappingListScale;
+
+    /// <summary>详细视图宽度 = 标准平铺宽度 × 放大系数。</summary>
+    public double DetailListWidth => Math.Round(MappingListWidth * MappingListScale, 1);
+
+    /// <summary>详细视图行高（图标 + 文件名，更大行距）。</summary>
+    public double DetailListRowHeight => Math.Round(40 * MappingListScale, 1);
+
+    /// <summary>详细视图图标尺寸 = 当前预设的网格图标尺寸（放大 1 级）。</summary>
+    public double DetailListIconSize => IconSize;
+
+    /// <summary>详细视图图标框尺寸。</summary>
+    public double DetailListIconFrameSize => IconFrameSize;
+
+    /// <summary>详细视图图标列宽。</summary>
+    public double DetailListIconColumnWidth => DetailListIconFrameSize + 8;
+
+    /// <summary>详细视图文件名字体大小。</summary>
+    public double DetailListFontSize => _currentPreset switch
+    {
+        "3x3" => 15.6,
+        "4x4" => 14.6,
+        "5x5" => 13.5,
+        _ => 12.5
+    };
+
+    /// <summary>详细视图项内边距。</summary>
+    public Thickness DetailListItemPadding => _currentPreset switch
+    {
+        "3x3" => new Thickness(6, 4, 8, 4),
+        "4x4" => new Thickness(5, 3, 7, 3),
+        "5x5" => new Thickness(4, 2.5, 6, 2.5),
+        _ => new Thickness(3, 2, 5, 2)
+    };
+
+    /// <summary>详细视图列表内边距。</summary>
+    public Thickness DetailListPadding => _currentPreset switch
+    {
+        "3x3" => new Thickness(8, 5, 8, 5),
+        "4x4" => new Thickness(7, 4, 7, 4),
+        "5x5" => new Thickness(6, 3.5, 6, 3.5),
+        _ => new Thickness(5, 3, 5, 3)
+    };
+
+    /// <summary>详细视图列表外边距。</summary>
+    public Thickness DetailListMargin => _currentPreset switch
+    {
+        "3x3" => new Thickness(0, 2, 0, 8),
+        "4x4" => new Thickness(0, 1.5, 0, 7),
+        "5x5" => new Thickness(0, 1, 0, 6),
+        _ => new Thickness(0, 0.5, 0, 5)
+    };
+
+    /// <summary>详细视图项外边距。</summary>
+    public Thickness DetailListItemMargin => _currentPreset switch
+    {
+        "3x3" => new Thickness(0, 2, 0, 2),
+        "4x4" => new Thickness(0, 1.5, 0, 1.5),
+        "5x5" => new Thickness(0, 1, 0, 1),
+        _ => new Thickness(0, 0.75, 0, 0.75)
+    };
+
+    /// <summary>详细视图最小高度。</summary>
+    public double DetailListMinHeight => Math.Round(80 * MappingListScale, 1);
+
+    /// <summary>详细视图最大高度（不超过工作区 70%）。</summary>
+    public double DetailListMaxHeight => Math.Round(SystemParameters.WorkArea.Height * 0.7, 1);
+
     public DesktopBoxLayoutSettings(bool isDrawerMode = false)
     {
         _isDrawerMode = isDrawerMode;
@@ -349,6 +420,18 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
         OnPropertyChanged(nameof(MappingListMargin));
         OnPropertyChanged(nameof(MappingListItemMargin));
         OnPropertyChanged(nameof(MappingListWindowMargin));
+        OnPropertyChanged(nameof(DetailListWidth));
+        OnPropertyChanged(nameof(DetailListRowHeight));
+        OnPropertyChanged(nameof(DetailListIconSize));
+        OnPropertyChanged(nameof(DetailListIconFrameSize));
+        OnPropertyChanged(nameof(DetailListIconColumnWidth));
+        OnPropertyChanged(nameof(DetailListFontSize));
+        OnPropertyChanged(nameof(DetailListItemPadding));
+        OnPropertyChanged(nameof(DetailListPadding));
+        OnPropertyChanged(nameof(DetailListMargin));
+        OnPropertyChanged(nameof(DetailListItemMargin));
+        OnPropertyChanged(nameof(DetailListMinHeight));
+        OnPropertyChanged(nameof(DetailListMaxHeight));
         return true;
     }
 
@@ -435,5 +518,17 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
         OnPropertyChanged(nameof(MappingListMargin));
         OnPropertyChanged(nameof(MappingListItemMargin));
         OnPropertyChanged(nameof(MappingListWindowMargin));
+        OnPropertyChanged(nameof(DetailListWidth));
+        OnPropertyChanged(nameof(DetailListRowHeight));
+        OnPropertyChanged(nameof(DetailListIconSize));
+        OnPropertyChanged(nameof(DetailListIconFrameSize));
+        OnPropertyChanged(nameof(DetailListIconColumnWidth));
+        OnPropertyChanged(nameof(DetailListFontSize));
+        OnPropertyChanged(nameof(DetailListItemPadding));
+        OnPropertyChanged(nameof(DetailListPadding));
+        OnPropertyChanged(nameof(DetailListMargin));
+        OnPropertyChanged(nameof(DetailListItemMargin));
+        OnPropertyChanged(nameof(DetailListMinHeight));
+        OnPropertyChanged(nameof(DetailListMaxHeight));
     }
 }

@@ -10,6 +10,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using WitchDrawer.App.Infrastructure;
 using WitchDrawer.App.ViewModels;
+using WitchDrawer.Core.Logging;
 using WitchDrawer.Native.Windows;
 
 namespace WitchDrawer.App.Views;
@@ -29,6 +30,15 @@ public partial class DesktopBoxWindow : Window
     private DrawerItemViewModel? _keyboardDeleteTarget;
     private Func<Guid, Task>? _positionChangedCallback;
     private bool _isMappingViewTransitioning;
+    private bool _isDetailViewExpanded;
+    private bool _isDetailAnimating;
+    private Point _lastExpandClickPoint;
+    private Point? _expandOriginPosition;
+    private Size? _expandOriginSize;
+    private bool? _expandOriginMode; // 展开前的 IsMappingListMode；null 表示未记录
+    private Point? _surfaceDragStartPoint;
+    private bool _surfaceDragStarted;
+    private bool _detailExpansionTriggeredOnMouseDown;
     private bool _isRollTransitioning;
     private bool _restoreAfterMinimizeQueued;
     private bool _desktopIsForeground;
@@ -39,6 +49,7 @@ public partial class DesktopBoxWindow : Window
     private double _drawerResizeStartHeight;
     private NativePoint _drawerResizeStartCursor;
     private bool _suppressDrawerItemClick;
+    private readonly IAppLogger _logger;
 
     internal sealed class DesktopBoxDragPayload(Guid dragId, Guid itemId, Guid sourceBoxId)
     {
@@ -65,8 +76,9 @@ public partial class DesktopBoxWindow : Window
         }
     }
 
-    public DesktopBoxWindow(DesktopBoxViewModel viewModel)
+    public DesktopBoxWindow(DesktopBoxViewModel viewModel, IAppLogger logger)
     {
+        _logger = logger;
         DataContext = viewModel;
         InitializeComponent();
         SourceInitialized += OnSourceInitialized;
@@ -82,6 +94,7 @@ public partial class DesktopBoxWindow : Window
         // Window.Deactivated therefore never runs after an external drop selection; clear when
         // the whole app loses foreground so a desktop click removes the selected-item chrome.
         Application.Current.Deactivated += OnApplicationDeactivated;
+        viewModel.DetailExpandDisabled += OnDetailExpandDisabled;
     }
 
     public DesktopBoxViewModel ViewModel => (DesktopBoxViewModel)DataContext;
@@ -186,7 +199,7 @@ public partial class DesktopBoxWindow : Window
         SendToBottom();
     }
 
-    private ListBox ActiveItemsList => ViewModel.IsMappingListMode ? FileList : IconList;
+    private ListBox ActiveItemsList => ViewModel.IsDetailViewMode ? DetailList : ViewModel.IsMappingListMode ? FileList : IconList;
 
     public void SetPositionChangedCallback(Func<Guid, Task> callback)
     {
@@ -642,6 +655,7 @@ public partial class DesktopBoxWindow : Window
         Activated -= OnWindowActivated;
         Deactivated -= OnWindowDeactivated;
         StateChanged -= OnWindowStateChanged;
+        ViewModel.DetailExpandDisabled -= OnDetailExpandDisabled;
         _source?.RemoveHook(WindowMessageHook);
         _source = null;
         _nativeWindow = null;
@@ -767,15 +781,28 @@ public partial class DesktopBoxWindow : Window
 
     private void OnWindowDeactivated(object? sender, EventArgs e)
     {
+        // 失活时释放空白区域的鼠标捕获（若仍持有），避免鼠标事件被持续路由到本窗口。
+        // 注意：不复位 _surfaceDragStarted——若用户按下后失活再松开，应仍按"拖动结束"处理，
+        // 不能让它变成一次意外的展开。
+        ReleaseMouseCapture();
         ClearItemSelection();
         ResetDragVisualState();
+        if (_isDetailViewExpanded)
+        {
+            _ = CollapseDetailViewAsync();
+        }
         QueueSendToBottom();
     }
 
     private void OnApplicationDeactivated(object? sender, EventArgs e)
     {
+        ReleaseMouseCapture();
         ClearItemSelection();
         ResetDragVisualState();
+        if (_isDetailViewExpanded)
+        {
+            _ = CollapseDetailViewAsync();
+        }
     }
 
     /// <summary>
@@ -786,6 +813,10 @@ public partial class DesktopBoxWindow : Window
     internal void ClearSelectionFromOutside()
     {
         ClearItemSelection();
+        if (_isDetailViewExpanded)
+        {
+            _ = CollapseDetailViewAsync();
+        }
     }
 
     private void ClearItemSelection()
@@ -885,11 +916,23 @@ public partial class DesktopBoxWindow : Window
 
     private async void OnUseMappingGridModeClick(object sender, RoutedEventArgs e)
     {
+        if (_isDetailAnimating) // 展开/收缩动画期间忽略，避免双组 BeginAnimation 互抢
+        {
+            return;
+        }
+
+        ClearDetailViewState();
         await SwitchMappingViewModeAsync(useListMode: false);
     }
 
     private async void OnUseMappingListModeClick(object sender, RoutedEventArgs e)
     {
+        if (_isDetailAnimating) // 同上
+        {
+            return;
+        }
+
+        ClearDetailViewState();
         await SwitchMappingViewModeAsync(useListMode: true);
     }
 
@@ -984,6 +1027,373 @@ public partial class DesktopBoxWindow : Window
         BeginAnimation(HeightProperty, heightAnimation, HandoffBehavior.SnapshotAndReplace);
 
         return completion.Task;
+    }
+
+    private Task AnimateWindowPositionAsync(
+        double startLeft,
+        double startTop,
+        double targetLeft,
+        double targetTop)
+    {
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var duration = TimeSpan.FromMilliseconds(200);
+        var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
+
+        var leftAnimation = new DoubleAnimation(startLeft, targetLeft, duration)
+        {
+            EasingFunction = easing
+        };
+        var topAnimation = new DoubleAnimation(startTop, targetTop, duration)
+        {
+            EasingFunction = easing
+        };
+        topAnimation.Completed += (_, _) => completion.TrySetResult();
+
+        BeginAnimation(LeftProperty, leftAnimation, HandoffBehavior.SnapshotAndReplace);
+        BeginAnimation(TopProperty, topAnimation, HandoffBehavior.SnapshotAndReplace);
+
+        return completion.Task;
+    }
+
+    // ---- 映射盒「详细功能」：两级展开预览 ----
+
+    private async Task ExpandToDetailViewAsync()
+    {
+        if (_isDetailViewExpanded)
+        {
+            return;
+        }
+
+        if (_isDetailAnimating)
+        {
+            return;
+        }
+
+        if (ViewModel.Items.Count == 0)
+        {
+            // 诊断：空映射盒设计上不展开（HANDOFF 4.2）。若用户复现时盒内无条目，此日志为证。
+            _logger.Info($"Box {ViewModel.BoxId}: expand skipped, box has no items.");
+            return;
+        }
+
+        _isDetailAnimating = true;
+        // 记录展开前的原始位置与尺寸（用于收缩时回到原位）。
+        _expandOriginPosition = new Point(Left, Top);
+        _expandOriginSize = new Size(ActualWidth, ActualHeight);
+        _expandOriginMode = ViewModel.IsMappingListMode;
+
+        try
+        {
+            // 第一级：网格 → 标准平铺（复用现有动画）
+            await SwitchMappingViewModeAsync(useListMode: true);
+
+            // 第二级：标准平铺 → 放大详细视图。动画期间若「详细功能」被关闭
+            // （ClearDetailViewState 摘除动画并退出详细态），返回 false，不落放大态。
+            var expanded = await AnimateToDetailViewAsync();
+            if (expanded && ViewModel.IsDetailViewMode)
+            {
+                _isDetailViewExpanded = true;
+            }
+        }
+        finally
+        {
+            _isDetailAnimating = false;
+            // 动画期间视图已被外部重置（如切换按钮）：撤销详细态标志，避免状态漂移。
+            if (_isDetailViewExpanded && !ViewModel.IsDetailViewMode)
+            {
+                _isDetailViewExpanded = false;
+            }
+
+            // 展开流程被中途重置（_isDetailViewExpanded 未落位或详细态已退出）时，
+            // 动画可能已把 SizeToContent 冻结为 Manual 并写入了放大尺寸（Q3 竞态）：
+            // 恢复自动尺寸，避免窗口停留在放大几何上。
+            if (!_isDetailViewExpanded || !ViewModel.IsDetailViewMode)
+            {
+                SizeToContent = SizeToContent.WidthAndHeight;
+                ClearValue(WidthProperty);
+                ClearValue(HeightProperty);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 执行「标准平铺 → 放大详细视图」动画。返回 false 表示动画期间详细态被外部重置
+    /// （如动画中关闭「详细功能」开关 → ClearDetailViewState 摘除动画并退出详细态），
+    /// 此时不再回写放大几何，由调用方 finally 恢复尺寸一致性。
+    /// </summary>
+    private async Task<bool> AnimateToDetailViewAsync()
+    {
+        var startWidth = ActualWidth;
+        var startHeight = ActualHeight;
+        var layoutSettings = ViewModel.LayoutSettings;
+
+        // 计算放大后的尺寸
+        var targetWidth = layoutSettings.DetailListWidth
+            + layoutSettings.DetailListPadding.Left + layoutSettings.DetailListPadding.Right + 12;
+        var verticalPadding = layoutSettings.DetailListPadding.Top + layoutSettings.DetailListPadding.Bottom
+            + layoutSettings.DetailListMargin.Top + layoutSettings.DetailListMargin.Bottom
+            + ViewModel.HeaderRowHeight + 12;
+        var targetHeight = ExpandAnimationHelper.CalculateExpandedHeight(
+            ViewModel.Items.Count,
+            layoutSettings.DetailListRowHeight,
+            verticalPadding,
+            GetWorkAreaDip().Height);
+
+        // 冻结 SizeToContent，先设置当前尺寸，再切到详细态让 DetailList 可见。
+        SizeToContent = SizeToContent.Manual;
+        Width = startWidth;
+        Height = startHeight;
+
+        // 进入详细态：DetailList 显示（绑定 IsDetailViewMode），同时请求放大图标。
+        ViewModel.SetDetailViewMode(true);
+        DetailList.Opacity = 0;
+
+        // 四象限定位
+        var newPosition = ExpandAnimationHelper.CalculateExpandedPosition(
+            Left, Top,
+            _lastExpandClickPoint,
+            new Size(startWidth, startHeight),
+            new Size(targetWidth, targetHeight),
+            GetWorkAreaDip());
+
+        // 同步执行：窗口尺寸放大 + 位置移动 + 详细列表淡入
+        var duration = TimeSpan.FromMilliseconds(200);
+        var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
+
+        var sizeCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var widthAnim = new DoubleAnimation(startWidth, targetWidth, duration) { EasingFunction = easing };
+        var heightAnim = new DoubleAnimation(startHeight, targetHeight, duration) { EasingFunction = easing };
+        heightAnim.Completed += (_, _) => sizeCompletion.TrySetResult();
+        BeginAnimation(WidthProperty, widthAnim, HandoffBehavior.SnapshotAndReplace);
+        BeginAnimation(HeightProperty, heightAnim, HandoffBehavior.SnapshotAndReplace);
+
+        var posCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var leftAnim = new DoubleAnimation(Left, newPosition.X, duration) { EasingFunction = easing };
+        var topAnim = new DoubleAnimation(Top, newPosition.Y, duration) { EasingFunction = easing };
+        topAnim.Completed += (_, _) => posCompletion.TrySetResult();
+        BeginAnimation(LeftProperty, leftAnim, HandoffBehavior.SnapshotAndReplace);
+        BeginAnimation(TopProperty, topAnim, HandoffBehavior.SnapshotAndReplace);
+
+        DetailList.BeginAnimation(
+            OpacityProperty,
+            new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(150))
+            {
+                BeginTime = TimeSpan.FromMilliseconds(50),
+                EasingFunction = easing
+            });
+
+        // 动画被外部移除（如展开动画中关闭「详细功能」开关 → ClearDetailViewState 摘除动画）
+        // 时 Completed 不触发，必须超时兜底，否则 await 永久挂起、finally 不执行，
+        // _isDetailAnimating 卡 true 会导致之后所有展开/收缩被拒（无法打开）。
+        await Task.WhenAny(
+            Task.WhenAll(sizeCompletion.Task, posCompletion.Task),
+            Task.Delay(TimeSpan.FromSeconds(1)));
+
+        // 动画期间详细态已被外部重置（ClearDetailViewState 已摘除动画并退出详细态）：
+        // 不再回写放大几何，避免 1s 超时后把窗口强制放大（Q3 竞态）。
+        if (!ViewModel.IsDetailViewMode)
+        {
+            BeginAnimation(WidthProperty, null);
+            BeginAnimation(HeightProperty, null);
+            BeginAnimation(LeftProperty, null);
+            BeginAnimation(TopProperty, null);
+            DetailList.BeginAnimation(OpacityProperty, null);
+            DetailList.Opacity = 1;
+            return false;
+        }
+
+        // 清理动画
+        BeginAnimation(WidthProperty, null);
+        BeginAnimation(HeightProperty, null);
+        BeginAnimation(LeftProperty, null);
+        BeginAnimation(TopProperty, null);
+        DetailList.BeginAnimation(OpacityProperty, null);
+        DetailList.Opacity = 1;
+        Width = targetWidth;
+        Height = targetHeight;
+        Left = newPosition.X;
+        Top = newPosition.Y;
+        return true;
+    }
+
+    internal async Task CollapseDetailViewAsync()
+    {
+        if (!_isDetailViewExpanded || _isDetailAnimating)
+        {
+            return;
+        }
+
+        _isDetailAnimating = true;
+        try
+        {
+            _isDetailViewExpanded = false;
+
+            var startWidth = ActualWidth;
+            var startHeight = ActualHeight;
+            var startLeft = Left;
+            var startTop = Top;
+
+            // 退出详细态（DetailList 隐藏，图标尺寸回到网格档）。
+            ViewModel.SetDetailViewMode(false);
+
+            // 恢复展开前的视图模式（而不是强制网格），避免改写用户持久化偏好。
+            var restoreListMode = _expandOriginMode ?? false;
+            await (restoreListMode
+                ? ViewModel.UseMappingListModeCommand.ExecuteAsync(null)
+                : ViewModel.UseMappingGridModeCommand.ExecuteAsync(null));
+
+            await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
+
+            WindowBorder.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            var targetWidth = Math.Max(MinWidth, WindowBorder.DesiredSize.Width);
+            var targetHeight = Math.Max(MinHeight, WindowBorder.DesiredSize.Height);
+
+            SizeToContent = SizeToContent.Manual;
+            Width = startWidth;
+            Height = startHeight;
+
+            // 收缩动画（300ms 直接回网格），同时回到展开前的原始位置。
+            var duration = TimeSpan.FromMilliseconds(300);
+            var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
+            var sizeCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var widthAnim = new DoubleAnimation(startWidth, targetWidth, duration) { EasingFunction = easing };
+            var heightAnim = new DoubleAnimation(startHeight, targetHeight, duration) { EasingFunction = easing };
+            heightAnim.Completed += (_, _) => sizeCompletion.TrySetResult();
+            BeginAnimation(WidthProperty, widthAnim, HandoffBehavior.SnapshotAndReplace);
+            BeginAnimation(HeightProperty, heightAnim, HandoffBehavior.SnapshotAndReplace);
+
+            if (_expandOriginPosition is { } origin)
+            {
+                var posCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                var leftAnim = new DoubleAnimation(startLeft, origin.X, duration) { EasingFunction = easing };
+                var topAnim = new DoubleAnimation(startTop, origin.Y, duration) { EasingFunction = easing };
+                topAnim.Completed += (_, _) => posCompletion.TrySetResult();
+                BeginAnimation(LeftProperty, leftAnim, HandoffBehavior.SnapshotAndReplace);
+                BeginAnimation(TopProperty, topAnim, HandoffBehavior.SnapshotAndReplace);
+                await Task.WhenAny(
+                    Task.WhenAll(sizeCompletion.Task, posCompletion.Task),
+                    Task.Delay(TimeSpan.FromSeconds(1)));
+                BeginAnimation(LeftProperty, null);
+                BeginAnimation(TopProperty, null);
+                Left = origin.X;
+                Top = origin.Y;
+            }
+            else
+            {
+                await Task.WhenAny(sizeCompletion.Task, Task.Delay(TimeSpan.FromSeconds(1)));
+            }
+
+            BeginAnimation(WidthProperty, null);
+            BeginAnimation(HeightProperty, null);
+            SizeToContent = SizeToContent.WidthAndHeight;
+            ClearValue(WidthProperty);
+            ClearValue(HeightProperty);
+            _expandOriginPosition = null;
+            _expandOriginSize = null;
+            _expandOriginMode = null;
+        }
+        finally
+        {
+            _isDetailAnimating = false;
+            // 收缩动画期间被重新展开/重置的极端情况：以 ViewModel 详细态为准对齐标志。
+            if (!_isDetailViewExpanded && ViewModel.IsDetailViewMode)
+            {
+                ViewModel.SetDetailViewMode(false);
+            }
+            QueueSendToBottom();
+        }
+    }
+
+    private void OnDetailListMouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (TryGetDrawerItem(e.OriginalSource, out var drawerItem))
+        {
+            _ = ViewModel.OpenItemCommand.ExecuteAsync(drawerItem);
+            return;
+        }
+
+        // 双击详细视图空白处 → 收缩
+        _ = CollapseDetailViewAsync();
+    }
+
+    /// <summary>
+    /// 「详细功能」开关被关闭：若当前正处于详细态，走正常收缩动画回到展开前状态。
+    /// 动画进行中（_isDetailAnimating）时先强制复位状态再收缩，避免状态字段不一致卡死。
+    /// </summary>
+    private void OnDetailExpandDisabled(object? sender, EventArgs e)
+    {
+        if (!_isDetailViewExpanded)
+        {
+            return;
+        }
+
+        if (_isDetailAnimating)
+        {
+            ClearDetailViewState();
+            return;
+        }
+
+        _ = CollapseDetailViewAsync();
+    }
+
+    private void ClearDetailViewState()
+    {
+        _isDetailViewExpanded = false;
+        _isDetailAnimating = false;        // 防止动画异常中断后永久卡 true
+        _expandOriginPosition = null;
+        _expandOriginSize = null;
+        _expandOriginMode = null;
+        if (ViewModel.IsDetailViewMode)
+        {
+            ViewModel.SetDetailViewMode(false);
+        }
+        SizeToContent = SizeToContent.WidthAndHeight; // 退出详细动画冻结的 Manual
+        BeginAnimation(WidthProperty, null);          // 摘掉可能残留的窗口动画
+        BeginAnimation(HeightProperty, null);
+        BeginAnimation(LeftProperty, null);
+        BeginAnimation(TopProperty, null);
+    }
+
+    // ---- 映射盒「详细功能」：拖拽交换 ----
+
+    public async Task<bool> SwapItemsAsync(DrawerItemViewModel source, DrawerItemViewModel target)
+    {
+        if (source.Id == target.Id || !ViewModel.IsFreeSort)
+        {
+            return false;
+        }
+
+        // 记录原始位置（用于回滚）
+        var sourceOriginal = (source.GridColumn, source.GridRow);
+        var targetOriginal = (target.GridColumn, target.GridRow);
+
+        // 内存交换
+        source.SetGridPosition(targetOriginal.GridColumn, targetOriginal.GridRow, ViewModel.LayoutSettings);
+        target.SetGridPosition(sourceOriginal.GridColumn, sourceOriginal.GridRow, ViewModel.LayoutSettings);
+
+        // 持久化
+        try
+        {
+            await ViewModel.UpdateSwapPositionsAsync(source, target);
+        }
+        catch
+        {
+            // 回滚内存
+            source.SetGridPosition(sourceOriginal.GridColumn, sourceOriginal.GridRow, ViewModel.LayoutSettings);
+            target.SetGridPosition(targetOriginal.GridColumn, targetOriginal.GridRow, ViewModel.LayoutSettings);
+            // 单事务下正常不会出现半提交；补偿写仅兜底（best-effort）。
+            try
+            {
+                await ViewModel.UpdateSwapPositionsAsync(source, target);
+            }
+            catch (Exception compensationException)
+            {
+                _logger.Error(compensationException, "Failed to persist rollback positions after swap failure.");
+            }
+            throw;
+        }
+
+        return true;
     }
 
     private void OnPreviewDragOver(object sender, DragEventArgs e)
@@ -1175,6 +1585,14 @@ public partial class DesktopBoxWindow : Window
 
     private async void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
+        // 映射盒「详细功能」：Esc 关闭详细视图
+        if (e.Key == Key.Escape && ViewModel.IsDetailExpandActive && _isDetailViewExpanded)
+        {
+            e.Handled = true;
+            await CollapseDetailViewAsync();
+            return;
+        }
+
         if (e.Key != Key.Delete)
         {
             return;
@@ -1201,35 +1619,209 @@ public partial class DesktopBoxWindow : Window
         }
     }
 
+    private bool IsSurfaceMouseIgnoredSource(object? source)
+    {
+        if (ViewModel.IsDrawerCollapsed || source is not DependencyObject dependencyObject)
+        {
+            return true;
+        }
+
+        return TryGetDrawerItem(source, out _)
+            || FindVisualAncestor<Button>(dependencyObject) is not null
+            || FindVisualAncestor<ScrollBar>(dependencyObject) is not null
+            || FindVisualAncestor<Thumb>(dependencyObject) is not null
+            || FindVisualAncestor<TextBox>(dependencyObject) is not null;
+    }
+
     private void OnSurfaceMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (TryGetDrawerItem(e.OriginalSource, out _))
+        _surfaceDragStartPoint = null;
+        _surfaceDragStarted = false;
+        _detailExpansionTriggeredOnMouseDown = false;
+
+        if (IsSurfaceMouseIgnoredSource(e.OriginalSource))
         {
             return;
         }
 
         ClearItemSelection();
 
+        if (e.ButtonState != MouseButtonState.Pressed)
+        {
+            return;
+        }
+
+        if (e.ClickCount >= 2 && TryStartDetailExpansion(e))
+        {
+            _detailExpansionTriggeredOnMouseDown = true;
+            e.Handled = true;
+            return;
+        }
+
         if (_isPositionLocked)
         {
             return;
         }
 
-        if (e.ButtonState == MouseButtonState.Pressed)
+        // 详细态（放大预览）下窗口固定，禁用拖拽移动。
+        if (_isDetailViewExpanded)
         {
-            try
+            return;
+        }
+
+        // 开启「详细功能」的映射盒（网格态）：不立即 DragMove——DragMove 是系统级模态拖窗循环，
+        // 会捕获鼠标吞掉随后的 MouseLeftButtonUp，导致"单击空白展开"永远收不到 Up。
+        // 改为记录起点，由 OnWindowMouseMove 在移动超过阈值后才 DragMove；
+        // 按下不动、松开时由 OnSurfaceMouseLeftButtonUp 触发展开预览。
+        // 注意：不要在此处 CaptureMouse()——手动捕获后再 DragMove（内部模态消息循环）
+        // 会因捕获冲突导致循环无法退出、UI 线程永久冻结（进程卡死）。拖动结束由
+        // OnWindowMouseMove 的 finally 复位 _surfaceDragStarted 兜底（见 HANDOFF 4.1）。
+        if (ViewModel.IsDetailExpandActive)
+        {
+            _surfaceDragStartPoint = e.GetPosition(this);
+            return;
+        }
+
+        // 其他盒型：保持按下即拖窗口。
+        try
+        {
+            DragMove();
+            QueueSendToBottom();
+            if (_positionChangedCallback is not null)
             {
-                DragMove();
-                QueueSendToBottom();
-                if (_positionChangedCallback is not null)
-                {
-                    _ = _positionChangedCallback(ViewModel.BoxId);
-                }
-            }
-            catch (InvalidOperationException)
-            {
+                _ = _positionChangedCallback(ViewModel.BoxId);
             }
         }
+        catch (InvalidOperationException)
+        {
+        }
+    }
+    private void OnWindowMouseMove(object sender, MouseEventArgs e)
+    {
+        // 开启「详细功能」的映射盒（网格态）：按下空白后移动超过阈值 → 开始拖窗口。
+        if (_surfaceDragStartPoint is not { } start
+            || _surfaceDragStarted
+            || e.LeftButton != MouseButtonState.Pressed)
+        {
+            return;
+        }
+
+        var current = e.GetPosition(this);
+        if (Math.Abs(current.X - start.X) < 4 && Math.Abs(current.Y - start.Y) < 4)
+        {
+            return;
+        }
+
+        _surfaceDragStarted = true;
+        try
+        {
+            // DragMove 是系统级模态消息循环：阻塞 UI 线程直到鼠标松开（窗口内外均可结束）。
+            // 松开时 MouseUp 事件与模态循环退出在同一消息处理内触发——OnSurfaceMouseLeftButtonUp
+            // 执行时 _surfaceDragStarted 仍为 true，会走「拖动结束不展开」分支。
+            DragMove();
+            QueueSendToBottom();
+            if (_positionChangedCallback is not null)
+            {
+                _ = _positionChangedCallback(ViewModel.BoxId);
+            }
+        }
+        catch (InvalidOperationException)
+        {
+        }
+        finally
+        {
+            // DragMove 返回 = 拖动结束（无论鼠标在窗口内/外松开）。立即复位拖拽跟踪状态，
+            // 避免 _surfaceDragStarted 卡 true 导致之后所有空白单击/双击被拒（无法展开，
+            // HANDOFF 4.1）。手动 CaptureMouse 方案会与 DragMove 捕获冲突卡死 UI，故不采用。
+            _surfaceDragStarted = false;
+            _surfaceDragStartPoint = null;
+        }
+    }
+
+    private void OnSurfaceMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        // 释放按下时对空白区域的鼠标捕获（未捕获时无操作）。
+        // 必须在任何 return 之前执行：捕获若不释放，后续鼠标事件会一直被路由到本窗口。
+        if (IsSurfaceMouseIgnoredSource(e.OriginalSource))
+        {
+            return;
+        }
+        ReleaseMouseCapture();
+
+        if (_detailExpansionTriggeredOnMouseDown)
+        {
+            _detailExpansionTriggeredOnMouseDown = false;
+            return;
+        }
+
+        // 发生了拖动（窗口已移动）则不触发展开，仅复位拖拽跟踪状态。
+        if (_surfaceDragStarted)
+        {
+            _surfaceDragStartPoint = null;
+            _surfaceDragStarted = false;
+            if (ViewModel.IsDetailExpandActive)
+            {
+                // 诊断：拖拽结束后的一次松开（含窗口外松开被捕获路由回的情况）。
+                _logger.Info($"Box {ViewModel.BoxId}: blank release treated as drag end, expand skipped.");
+            }
+
+            return;
+        }
+        _surfaceDragStartPoint = null;
+
+        if (TryStartDetailExpansion(e))
+        {
+            e.Handled = true;
+        }
+    }
+
+    private bool TryStartDetailExpansion(MouseButtonEventArgs e)
+    {
+        if (!ShouldExpandDetailView(
+                ViewModel.IsDetailClickToOpen,
+                ViewModel.IsDetailDoubleClickToOpen,
+                e.ClickCount,
+                ViewModel.IsMappingListMode,
+                _isDetailViewExpanded,
+                _isDetailAnimating))
+        {
+            return false;
+        }
+
+        _lastExpandClickPoint = e.GetPosition(this);
+        _logger.Info(
+            $"Box {ViewModel.BoxId}: expand trigger clickCount={e.ClickCount} "
+            + $"mode={(ViewModel.IsDetailOpenSingle ? "single" : "double")}.");
+        _ = ExpandToDetailViewAsync();
+        return true;
+    }
+
+    /// <summary>
+    /// 空白点击是否应触发「详细视图」两级展开。
+    /// 单击/双击模式由 <paramref name="clickCount"/> 与模式标志互斥判定：
+    /// 单击模式 → 仅 ClickCount==1 展开；双击模式 → 仅 ClickCount&gt;=2 展开。
+    /// 由表面鼠标按下/抬起处理器调用，供单测覆盖模式×点击组合
+    /// （回归：双击模式下单击不得展开，见 review Q6）。
+    /// </summary>
+    internal static bool ShouldExpandDetailView(
+        bool isClickToOpen,
+        bool isDoubleClickToOpen,
+        int clickCount,
+        bool isListMode,
+        bool isExpanded,
+        bool isAnimating)
+    {
+        if (isListMode || isExpanded || isAnimating)
+        {
+            return false;
+        }
+
+        return clickCount switch
+        {
+            1 => isClickToOpen,
+            >= 2 => isDoubleClickToOpen,
+            _ => false
+        };
     }
 
     private void OnIconPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -1245,6 +1837,13 @@ public partial class DesktopBoxWindow : Window
 
     private async void OnIconMouseMove(object sender, MouseEventArgs e)
     {
+        // 详细态（放大预览）下禁用图标拖拽。
+        if (_isDetailViewExpanded)
+        {
+            ClearPendingIconDrag();
+            return;
+        }
+
         var itemList = sender as ListBox ?? ActiveItemsList;
         if (_dragStartPoint is null || _dragStartItem is null)
         {
@@ -1313,6 +1912,14 @@ public partial class DesktopBoxWindow : Window
             Math.Max(0, itemList.ActualWidth - padding.Left - padding.Right),
             Math.Max(0, itemList.ActualHeight - padding.Top - padding.Bottom));
 
+        // 「详细功能」交换场景：落点是格位而非空格。TryGetAvailableDropSlot 会把占用格
+        // 转成最近空格（为普通移动语义设计），导致交换分支永远拿不到占用格上的目标项；
+        // 这里直接返回原始格位——占用格落放走交换，空格落放交换分支自然 miss、走普通落位。
+        if (ViewModel.IsDetailExpandActive && ViewModel.IsFreeSort && movingItemId is not null)
+        {
+            return rawSlot;
+        }
+
         // 固定模式（硬约束）：盒内找不到空位时返回 null，调用方据此拒绝拖放。
         return ViewModel.TryGetAvailableDropSlot(rawSlot.Column, rawSlot.Row, movingItemId, out var slot)
             ? slot
@@ -1328,6 +1935,18 @@ public partial class DesktopBoxWindow : Window
             return;
         }
 
+        // 开启「详细功能」的映射盒：拖拽悬停时显示交换目标高亮（仅网格态；列表态下行内交换不落格位预览）。
+        if (ViewModel.IsDetailExpandActive && ViewModel.IsFreeSort && !ViewModel.IsMappingListMode && payload?.SourceBoxId == ViewModel.BoxId)
+        {
+            var targetItem = GetItemAtDragPosition(e);
+            if (targetItem is not null)
+            {
+                // 显示交换目标高亮（复用拖拽预览框架，定位到目标图标位置）
+                ViewModel.ShowDragPreview(targetItem.GridColumn, targetItem.GridRow);
+                return;
+            }
+        }
+
         var slot = GetDropSlot(e, payload);
         if (slot is null)
         {
@@ -1337,6 +1956,21 @@ public partial class DesktopBoxWindow : Window
         }
 
         ViewModel.ShowDragPreview(slot.Value.Column, slot.Value.Row);
+    }
+
+    private DrawerItemViewModel? GetItemAtDragPosition(DragEventArgs e)
+    {
+        var itemList = ActiveItemsList;
+        var point = e.GetPosition(itemList);
+        var padding = itemList.Padding;
+        var slot = ViewModel.GetGridSlot(
+            point.X - padding.Left,
+            point.Y - padding.Top,
+            Math.Max(0, itemList.ActualWidth - padding.Left - padding.Right),
+            Math.Max(0, itemList.ActualHeight - padding.Top - padding.Bottom));
+
+        return ViewModel.Items.FirstOrDefault(
+            item => item.GridColumn == slot.Column && item.GridRow == slot.Row);
     }
 
     private void ShowDrawerCoverDropPreview(Guid? movingItemId)
@@ -1408,12 +2042,40 @@ public partial class DesktopBoxWindow : Window
         var moved = false;
         try
         {
+            // 开启「详细功能」的映射盒：拖拽到已有图标位置 → 交换而非找空位
+            if (ViewModel.IsDetailExpandActive && payload.SourceBoxId == ViewModel.BoxId)
+            {
+                var sourceItem = ViewModel.Items.FirstOrDefault(item => item.Id == payload.ItemId);
+                var targetItem = ViewModel.Items.FirstOrDefault(
+                    item => item.Id != payload.ItemId
+                        && item.GridColumn == slot.Column
+                        && item.GridRow == slot.Row);
+
+                if (sourceItem is not null && targetItem is not null)
+                {
+                    if (await SwapItemsAsync(sourceItem, targetItem))
+                    {
+                        MarkDroppedInsideWitchDrawer(payload);
+                        SelectItem(payload.ItemId);
+                        moved = true;
+                        return;
+                    }
+                    // 非自由排序：交换不可用。落到下方普通落位逻辑，
+                    // 由 DropDrawerItemAsync 按排序键决定落点（盒内拖动为空操作）。
+                }
+            }
+
             moved = await ViewModel.DropDrawerItemAsync(payload.ItemId, slot.Column, slot.Row);
             if (moved)
             {
                 MarkDroppedInsideWitchDrawer(payload);
                 SelectItem(payload.ItemId);
             }
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to complete internal drop.");
+            ViewModel.ReportDropFailure();
         }
         finally
         {
@@ -1868,7 +2530,8 @@ public partial class DesktopBoxWindow : Window
         }
 
         var container = ItemsControl.ContainerFromElement(IconList, dependencyObject) as FrameworkElement
-            ?? ItemsControl.ContainerFromElement(FileList, dependencyObject) as FrameworkElement;
+            ?? ItemsControl.ContainerFromElement(FileList, dependencyObject) as FrameworkElement
+            ?? ItemsControl.ContainerFromElement(DetailList, dependencyObject) as FrameworkElement;
         if (container?.DataContext is not DrawerItemViewModel item)
         {
             return false;

@@ -58,6 +58,9 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private string _statusText = "拖入文件";
     private bool _isDragOver;
     private bool _isMappingListMode;
+    private bool _isDetailViewMode;
+    private bool _isDetailExpandEnabled;
+    private bool _isDetailOpenSingle = true;
     private string _newTodoTitle = string.Empty;
     private double _iconDpiScaleX = 1;
     private double _iconDpiScaleY = 1;
@@ -103,7 +106,32 @@ public sealed class DesktopBoxViewModel : ObservableObject
         DeleteTodoCommand = new AsyncRelayCommand<TodoItemViewModel?>(DeleteTodoAsync);
         UpdateGridCanvasSize();
         _ = LoadMappingViewModeAsync();
+
+        WeakReferenceMessenger.Default.Register<DesktopBoxViewModel, BoxDetailExpandChangedMessage>(
+            this,
+            static (recipient, message) =>
+            {
+                if (recipient.BoxId == message.BoxId)
+                {
+                    recipient.ApplyDetailExpand(message.IsEnabled);
+                }
+            });
+
+        WeakReferenceMessenger.Default.Register<DesktopBoxViewModel, BoxDetailOpenModeChangedMessage>(
+            this,
+            static (recipient, message) =>
+            {
+                if (recipient.BoxId == message.BoxId)
+                {
+                    recipient.ApplyDetailOpenMode(message.IsSingleClick);
+                }
+            });
     }
+
+    /// <summary>
+    /// 窗口层在「详细功能」被关闭时触发详细态回收的通知（订阅者：DesktopBoxWindow）。
+    /// </summary>
+    public event EventHandler? DetailExpandDisabled;
 
     public DesktopBoxLayoutSettings LayoutSettings => _layoutSettings;
 
@@ -148,6 +176,25 @@ public sealed class DesktopBoxViewModel : ObservableObject
     public bool IsPixelStyle => VisualStyle == BoxVisualStyle.Pixel;
 
     public bool IsMappingBox => Type == BoxType.Mapping;
+
+    /// <summary>
+    /// 「详细功能」开关是否已开启（按盒持久化；仅映射盒有意义）。
+    /// </summary>
+    public bool IsDetailExpandEnabled => _isDetailExpandEnabled;
+
+    /// <summary>
+    /// 「详细功能」开关生效中（映射盒且已开启）：单击空白两级展开、拖拽交换等增量能力可用。
+    /// </summary>
+    public bool IsDetailExpandActive => IsMappingBox && _isDetailExpandEnabled;
+
+    /// <summary>详细视图打开方式：true=单击空白展开（默认），false=双击空白展开。按盒持久化。</summary>
+    public bool IsDetailOpenSingle => _isDetailOpenSingle;
+
+    /// <summary>单击空白展开详细视图（当前打开方式为单击且详细功能生效）。</summary>
+    public bool IsDetailClickToOpen => IsDetailExpandActive && _isDetailOpenSingle;
+
+    /// <summary>双击空白展开详细视图（当前打开方式为双击且详细功能生效）。</summary>
+    public bool IsDetailDoubleClickToOpen => IsDetailExpandActive && !_isDetailOpenSingle;
 
     public bool IsTodoBox => Type == BoxType.Todo;
 
@@ -270,6 +317,29 @@ public sealed class DesktopBoxViewModel : ObservableObject
     public bool IsMappingListMode => IsMappingBox && _isMappingListMode;
 
     public bool IsGridMode => !IsMappingListMode;
+
+    /// <summary>
+    /// 映射盒「详细功能」的放大详细视图状态（第二级展开后激活）。
+    /// 由窗口层通过 SetDetailViewMode 在进入/退出详细态时显式维护。
+    /// </summary>
+    public bool IsDetailViewMode => IsDetailExpandActive && _isDetailViewMode;
+
+    internal void SetDetailViewMode(bool value)
+    {
+        if (SetProperty(ref _isDetailViewMode, value, nameof(IsDetailViewMode)))
+        {
+            OnPropertyChanged(nameof(HeaderRowHeight));
+            UpdateItemIconSizes();
+        }
+    }
+
+    /// <summary>
+    /// 供窗口层在拖拽持久化失败时给出状态栏提示（StatusText setter 为 private）。
+    /// </summary>
+    internal void ReportDropFailure()
+    {
+        StatusText = "移动失败，位置已还原";
+    }
 
     public string TypeLabel => _box.Type switch
     {
@@ -417,6 +487,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
         OnPropertyChanged(nameof(VisualStyle));
         OnPropertyChanged(nameof(IsPixelStyle));
         OnPropertyChanged(nameof(IsMappingBox));
+        OnPropertyChanged(nameof(IsDetailExpandActive));
         OnPropertyChanged(nameof(IsTodoBox));
         OnPropertyChanged(nameof(IsDrawerBox));
         OnPropertyChanged(nameof(IsDrawerExpanded));
@@ -432,6 +503,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
         OnPropertyChanged(nameof(DrawerContentHeight));
         OnPropertyChanged(nameof(IsMappingListMode));
         OnPropertyChanged(nameof(IsGridMode));
+        OnPropertyChanged(nameof(IsDetailViewMode));
         OnPropertyChanged(nameof(TypeLabel));
         OnPropertyChanged(nameof(Description));
         OnPropertyChanged(nameof(IsEmpty));
@@ -1011,6 +1083,17 @@ public sealed class DesktopBoxViewModel : ObservableObject
         return DeleteItemAsync(item);
     }
 
+    /// <summary>
+    /// 持久化两个项目的交换位置。
+    /// </summary>
+    internal async Task UpdateSwapPositionsAsync(DrawerItemViewModel source, DrawerItemViewModel target)
+    {
+        await _drawerService.SwapItemGridPositionsAsync(
+            source.Id, source.GridColumn, source.GridRow,
+            target.Id, target.GridColumn, target.GridRow);
+        UpdateGridCanvasSize();
+    }
+
     public async Task<bool> ExportItemToDesktopAsync(DrawerItemViewModel? item)
     {
         if (item is null || IsBusy)
@@ -1482,6 +1565,112 @@ public sealed class DesktopBoxViewModel : ObservableObject
         ApplyFileNameVisibility(bool.TryParse(saved, out var isVisible) && isVisible);
     }
 
+    public Task LoadDetailExpandAsync() =>
+        LoadDetailExpandAsync(() => _drawerService.GetSettingAsync(
+            BoxViewModel.GetDetailExpandSettingKey(BoxId)));
+
+    /// <summary>
+    /// 带读取委托重载：供单元测试注入可控时序的读取，确定性验证加载竞态。
+    /// 加载期间若已收到消息同步的状态变更（最后写入者胜），丢弃过期加载结果，
+    /// 避免异步读回写旧值覆盖用户操作（审查 F2）。
+    /// </summary>
+    internal async Task LoadDetailExpandAsync(Func<Task<string?>> readSetting)
+    {
+        if (!IsMappingBox)
+        {
+            return;
+        }
+
+        try
+        {
+            var snapshot = _isDetailExpandEnabled;
+            var saved = await readSetting();
+            if (_isDetailExpandEnabled != snapshot)
+            {
+                // 加载期间状态已被（消息）变更，读到的旧值已过期，丢弃。
+                return;
+            }
+
+            ApplyDetailExpand(bool.TryParse(saved, out var isEnabled) && isEnabled);
+        }
+        catch
+        {
+            // 读取失败时保持默认关闭，避免单盒加载失败拖垮整轮 RefreshAsync（审查 F4）。
+        }
+    }
+
+    public Task LoadDetailOpenModeAsync() =>
+        LoadDetailOpenModeAsync(() => _drawerService.GetSettingAsync(
+            BoxViewModel.GetDetailOpenModeSettingKey(BoxId)));
+
+    /// <summary>
+    /// 带读取委托重载：供单元测试注入可控时序的读取，确定性验证加载竞态。
+    /// 加载期间若已收到消息同步的状态变更（最后写入者胜），丢弃过期加载结果，
+    /// 避免异步读回写旧值覆盖用户操作（审查 F2）。
+    /// </summary>
+    internal async Task LoadDetailOpenModeAsync(Func<Task<string?>> readSetting)
+    {
+        if (!IsMappingBox)
+        {
+            return;
+        }
+
+        try
+        {
+            var snapshot = _isDetailOpenSingle;
+            var saved = await readSetting();
+            if (_isDetailOpenSingle != snapshot)
+            {
+                // 加载期间状态已被（消息）变更，读到的旧值已过期，丢弃。
+                return;
+            }
+
+            ApplyDetailOpenMode(!string.Equals(saved, "Double", StringComparison.OrdinalIgnoreCase));
+        }
+        catch
+        {
+            // 读取失败时保持默认单击展开，避免单盒加载失败拖垮整轮 RefreshAsync（审查 F4）。
+        }
+    }
+
+    public void ApplyDetailOpenMode(bool isSingleClick)
+    {
+        if (!SetProperty(
+                ref _isDetailOpenSingle,
+                isSingleClick,
+                nameof(IsDetailOpenSingle)))
+        {
+            return;
+        }
+
+        OnPropertyChanged(nameof(IsDetailClickToOpen));
+        OnPropertyChanged(nameof(IsDetailDoubleClickToOpen));
+    }
+
+    /// <summary>
+    /// 应用「详细功能」开关状态。关闭时若正处于详细态，通知窗口层执行动画回收。
+    /// </summary>
+    public void ApplyDetailExpand(bool isEnabled)
+    {
+        if (!SetProperty(
+                ref _isDetailExpandEnabled,
+                isEnabled && IsMappingBox,
+                nameof(IsDetailExpandEnabled)))
+        {
+            return;
+        }
+
+        OnPropertyChanged(nameof(IsDetailExpandActive));
+        OnPropertyChanged(nameof(IsDetailViewMode));
+        OnPropertyChanged(nameof(HeaderRowHeight));
+        UpdateItemIconSizes();
+
+        if (!IsDetailExpandActive)
+        {
+            DetailExpandDisabled?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
     public void ApplyFileNameVisibility(bool isVisible)
     {
         LayoutSettings.IsFileNameVisible = isVisible;
@@ -1799,11 +1988,13 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     private int GetIconPixelSize(bool isPixelated)
     {
-        var displaySizeDip = IsMappingListMode
-            ? LayoutSettings.MappingListIconSize
-            : IsDrawerBox
-                ? Math.Max(LayoutSettings.IconSize, LayoutSettings.DrawerPrimaryIconSize)
-                : LayoutSettings.IconSize;
+        var displaySizeDip = IsDetailViewMode
+            ? LayoutSettings.DetailListIconSize
+            : IsMappingListMode
+                ? LayoutSettings.MappingListIconSize
+                : IsDrawerBox
+                    ? Math.Max(LayoutSettings.IconSize, LayoutSettings.DrawerPrimaryIconSize)
+                    : LayoutSettings.IconSize;
 
         return DpiAwareIconSize.Calculate(
             displaySizeDip,

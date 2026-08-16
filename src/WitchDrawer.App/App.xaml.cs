@@ -415,7 +415,9 @@ public partial class App : Application
         _taskbarIcon.Show();
     }
 
-    private async Task PerformShutdownAsync()
+    private static readonly TimeSpan ShutdownGracePeriod = TimeSpan.FromSeconds(3);
+
+    internal async Task PerformShutdownAsync()
     {
         if (Interlocked.Exchange(ref _shutdownStarted, 1) != 0)
         {
@@ -425,23 +427,32 @@ public partial class App : Application
         _taskbarIcon?.Dispose();
         _taskbarIcon = null;
 
-        var desktopBoxManager = _desktopBoxManager;
-        _desktopBoxManager = null;
-        if (desktopBoxManager is not null)
+        if (_desktopBoxManager is not null)
         {
+            // 必须在 UI 线程 await（禁止 sync-over-async）：CloseAllAsync 内部的
+            // await 续体会回到 UI 线程执行，若用 GetAwaiter().GetResult() 同步阻塞
+            // UI 线程会形成死锁，导致进程残留、二次启动被单实例互斥锁挡住。
+            var closeTask = _desktopBoxManager.CloseAllAsync();
+            var completedTask = await Task.WhenAny(closeTask, Task.Delay(ShutdownGracePeriod));
+            if (completedTask != closeTask)
+            {
+                _logger?.Error(
+                    new TimeoutException(
+                        $"Desktop box close exceeded the {ShutdownGracePeriod.TotalSeconds}s grace period."),
+                    "Shutdown grace period exceeded; forcing process exit.");
+                Environment.Exit(0);
+                return;
+            }
+
+            // WhenAny 返回 closeTask 不代表其成功完成：不再次 await 的话，
+            // CloseAllAsync 内部异常（位置保存、监控器清理失败）会成为
+            // UnobservedTaskException 被静默吞掉，按成功路径退出且无任何记录。
             try
             {
-                // Keep the dispatcher free while positions are saved and desktop windows close.
-                // A synchronous wait here deadlocks because CloseAllAsync resumes on the UI thread.
-                await desktopBoxManager.CloseAllAsync().WaitAsync(TimeSpan.FromSeconds(10));
-            }
-            catch (TimeoutException exception)
-            {
-                _logger?.Error(exception, "Timed out while closing desktop boxes during shutdown.");
+                await closeTask;
             }
             catch (Exception exception)
             {
-                // Shutdown must remain available even if position persistence or native cleanup fails.
                 _logger?.Error(exception, "Failed to close desktop boxes during shutdown.");
             }
         }
