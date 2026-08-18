@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -19,6 +20,9 @@ public sealed class MainViewModel : ObservableObject
     private const double ItemIconSizeDip = 19;
     private const string ThemeSettingKey = "Theme";
     private const string CrystalBoxTransparencySettingKey = "CrystalBoxTransparency";
+    internal const string ThemeBoxOpacitySettingKeyPrefix = "ThemeBoxOpacity.";
+    internal const string ThemeBoxOpacityMigrationVersionSettingKey = "ThemeBoxOpacityVersion";
+    private const string ThemeBoxOpacityMigrationVersion = "1";
     internal const string DesktopDoubleClickSettingKey = "DesktopDoubleClickToggle";
     internal const string AboutPageShownSettingKey = "AboutPageShown";
     private const string StartupRegistryKeyName = "WitchDrawer";
@@ -33,6 +37,7 @@ public sealed class MainViewModel : ObservableObject
     private readonly BoxPositionLockStateStore _boxPositionLockStateStore;
     private readonly AppPaths _appPaths;
     private readonly DataStorageMigrationService _dataStorageMigrationService;
+    private readonly bool _hadExistingDatabase;
     private BoxViewModel? _selectedBox;
     private CancellationTokenSource? _itemsLoadCts;
     private int _itemsLoadVersion;
@@ -45,7 +50,10 @@ public sealed class MainViewModel : ObservableObject
     private string _statusText = "准备就绪";
     private string _themeLabel = "清透雅致";
     private AppTheme _currentTheme;
-    private bool _isTransparentCrystalBoxes;
+    private double _themeTransparencyPercent = (1 - AppThemeManager.DefaultBoxOpacity) * 100;
+    private readonly object _themeOpacitySaveLock = new();
+    private readonly Dictionary<AppTheme, CancellationTokenSource> _themeOpacitySaveDelays = [];
+    private bool _isSynchronizingThemeTransparency;
     private bool _launchOnStartup;
     private bool _areDesktopIconsHidden;
     private bool _isDesktopDoubleClickEnabled;
@@ -65,7 +73,8 @@ public sealed class MainViewModel : ObservableObject
         BoxVisualStyleStore boxVisualStyleStore,
         BoxPositionLockStateStore boxPositionLockStateStore,
         AppPaths appPaths,
-        DataStorageMigrationService dataStorageMigrationService)
+        DataStorageMigrationService dataStorageMigrationService,
+        bool hadExistingDatabase = false)
     {
         _drawerService = drawerService;
         _todoService = todoService;
@@ -77,6 +86,7 @@ public sealed class MainViewModel : ObservableObject
         _boxPositionLockStateStore = boxPositionLockStateStore;
         _appPaths = appPaths;
         _dataStorageMigrationService = dataStorageMigrationService;
+        _hadExistingDatabase = hadExistingDatabase;
         TodoBoxDetail = new TodoBoxDetailViewModel(todoService, logger);
         TodoBoxDetail.ItemsChanged += OnTodoBoxDetailItemsChanged;
         BoxSizeSettings = new BoxSizeSettingsViewModel(drawerService, logger);
@@ -109,7 +119,7 @@ public sealed class MainViewModel : ObservableObject
 
         ApplyMoeThemeCommand = new AsyncRelayCommand(() => ApplyThemeAsync(AppTheme.Moe));
         ApplyGlassThemeCommand = new AsyncRelayCommand(() => ApplyThemeAsync(AppTheme.Glass));
-        ApplyCrystalThemeCommand = new AsyncRelayCommand(ApplyCrystalThemeAsync);
+        ApplyCrystalThemeCommand = new AsyncRelayCommand(() => ApplyThemeAsync(AppTheme.Crystal));
         ToggleLaunchOnStartupCommand = new AsyncRelayCommand(ToggleLaunchOnStartupAsync);
         ToggleDesktopIconsCommand = new AsyncRelayCommand(ToggleDesktopIconsAsync);
         ToggleDesktopDoubleClickCommand = new AsyncRelayCommand(ToggleDesktopDoubleClickAsync);
@@ -290,17 +300,29 @@ public sealed class MainViewModel : ObservableObject
 
     public bool IsCrystalTheme => CurrentTheme == AppTheme.Crystal;
 
-    public bool IsTransparentCrystalBoxes
+    public double ThemeTransparencyPercent
     {
-        get => _isTransparentCrystalBoxes;
-        private set
+        get => _themeTransparencyPercent;
+        set
         {
-            if (SetProperty(ref _isTransparentCrystalBoxes, value))
+            var normalized = Math.Clamp(
+                Math.Round(value),
+                0,
+                (1 - AppThemeManager.MinimumBoxOpacity) * 100);
+            if (SetProperty(ref _themeTransparencyPercent, normalized))
             {
-                UpdateThemeLabel();
+                OnPropertyChanged(nameof(ThemeTransparencyLabel));
+                var opacity = 1 - (normalized / 100);
+                AppThemeManager.SetBoxOpacity(CurrentTheme, opacity);
+                if (!_isSynchronizingThemeTransparency)
+                {
+                    QueueThemeOpacitySave(CurrentTheme, opacity);
+                }
             }
         }
     }
+
+    public string ThemeTransparencyLabel => $"{ThemeTransparencyPercent:0}%";
 
     public bool LaunchOnStartup
     {
@@ -392,6 +414,10 @@ public sealed class MainViewModel : ObservableObject
 
             await SelectBoxAsync(Boxes.FirstOrDefault(box => box.Id == existingSelection) ?? Boxes.FirstOrDefault());
 
+            // 必须在首次启动标记写入前判断是否为旧安装，才能让新用户使用二段透明度，
+            // 同时让升级用户保留旧主题原本的视觉效果。
+            await RestoreThemeBoxOpacitiesAsync();
+
             var aboutPageShown = await _drawerService.GetSettingAsync(AboutPageShownSettingKey);
             if (!bool.TryParse(aboutPageShown, out var hasShownAboutPage) || !hasShownAboutPage)
             {
@@ -415,8 +441,6 @@ public sealed class MainViewModel : ObservableObject
             IsDesktopDoubleClickEnabled =
                 bool.TryParse(desktopDoubleClickSetting, out var desktopDoubleClickEnabled)
                 && desktopDoubleClickEnabled;
-            await RestoreCrystalBoxTransparencyAsync();
-
             StatusText = $"{Boxes.Count} 个收纳盒已同步到桌面";
             BoxesChanged?.Invoke(this, EventArgs.Empty);
         });
@@ -1024,11 +1048,6 @@ public sealed class MainViewModel : ObservableObject
     {
         try
         {
-            if (theme != AppTheme.Crystal)
-            {
-                await SetCrystalBoxTransparencyAsync(false);
-            }
-
             AppThemeManager.Apply(theme);
             SetCurrentTheme(theme);
             await _drawerService.SetSettingAsync(ThemeSettingKey, theme.ToString());
@@ -1041,34 +1060,10 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
-    private async Task ApplyCrystalThemeAsync()
-    {
-        if (CurrentTheme == AppTheme.Crystal)
-        {
-            var useTransparentBoxes = !IsTransparentCrystalBoxes;
-            await SetCrystalBoxTransparencyAsync(useTransparentBoxes);
-            StatusText = useTransparentBoxes
-                ? "桌面收纳盒已切换为透明水晶"
-                : "桌面收纳盒已切换为清晰水晶";
-            return;
-        }
-
-        await SetCrystalBoxTransparencyAsync(false);
-        await ApplyThemeAsync(AppTheme.Crystal);
-    }
-
-    private async Task SetCrystalBoxTransparencyAsync(bool enabled)
-    {
-        IsTransparentCrystalBoxes = enabled;
-        AppThemeManager.SetCrystalBoxTransparency(enabled);
-        await _drawerService.SetSettingAsync(
-            CrystalBoxTransparencySettingKey,
-            enabled.ToString());
-    }
-
     private void SetCurrentTheme(AppTheme theme)
     {
         CurrentTheme = theme;
+        SynchronizeThemeTransparency();
         UpdateThemeLabel();
     }
 
@@ -1077,7 +1072,6 @@ public sealed class MainViewModel : ObservableObject
         ThemeLabel = CurrentTheme switch
         {
             AppTheme.Glass => "暗黑曜石",
-            AppTheme.Crystal when IsTransparentCrystalBoxes => "全透水晶 · 透明盒",
             AppTheme.Crystal => "全透水晶",
             _ => "清透雅致"
         };
@@ -1197,14 +1191,147 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
-    private async Task RestoreCrystalBoxTransparencyAsync()
+    private async Task RestoreThemeBoxOpacitiesAsync()
     {
-        var savedValue = await _drawerService.GetSettingAsync(CrystalBoxTransparencySettingKey);
-        var enabled = CurrentTheme == AppTheme.Crystal
-            && bool.TryParse(savedValue, out var savedEnabled)
-            && savedEnabled;
-        IsTransparentCrystalBoxes = enabled;
-        AppThemeManager.SetCrystalBoxTransparency(enabled);
+        var migrationVersion =
+            await _drawerService.GetSettingAsync(ThemeBoxOpacityMigrationVersionSettingKey);
+        if (string.Equals(
+                migrationVersion,
+                ThemeBoxOpacityMigrationVersion,
+                StringComparison.Ordinal))
+        {
+            foreach (var theme in Enum.GetValues<AppTheme>())
+            {
+                var savedOpacity = await _drawerService.GetSettingAsync(GetThemeBoxOpacitySettingKey(theme));
+                AppThemeManager.SetBoxOpacity(theme, ParseSavedOpacity(savedOpacity));
+            }
+
+            SynchronizeThemeTransparency();
+            return;
+        }
+
+        var legacyTheme = await _drawerService.GetSettingAsync(ThemeSettingKey);
+        var legacyAboutPageShown = await _drawerService.GetSettingAsync(AboutPageShownSettingKey);
+        var legacyCrystalTransparency =
+            await _drawerService.GetSettingAsync(CrystalBoxTransparencySettingKey);
+        var isExistingInstallation = _hadExistingDatabase
+            || legacyTheme is not null
+            || legacyAboutPageShown is not null
+            || legacyCrystalTransparency is not null;
+
+        foreach (var theme in Enum.GetValues<AppTheme>())
+        {
+            var opacity = isExistingInstallation
+                ? AppThemeManager.MaximumBoxOpacity
+                : AppThemeManager.DefaultBoxOpacity;
+            if (theme == AppTheme.Crystal
+                && bool.TryParse(legacyCrystalTransparency, out var usedTransparentCrystalBoxes)
+                && usedTransparentCrystalBoxes)
+            {
+                opacity = AppThemeManager.DefaultBoxOpacity;
+            }
+
+            AppThemeManager.SetBoxOpacity(theme, opacity);
+            await _drawerService.SetSettingAsync(
+                GetThemeBoxOpacitySettingKey(theme),
+                FormatOpacity(opacity));
+        }
+
+        await _drawerService.SetSettingAsync(
+            ThemeBoxOpacityMigrationVersionSettingKey,
+            ThemeBoxOpacityMigrationVersion);
+        SynchronizeThemeTransparency();
+    }
+
+    private void SynchronizeThemeTransparency()
+    {
+        _isSynchronizingThemeTransparency = true;
+        try
+        {
+            ThemeTransparencyPercent =
+                Math.Round((1 - AppThemeManager.GetBoxOpacity(CurrentTheme)) * 100);
+        }
+        finally
+        {
+            _isSynchronizingThemeTransparency = false;
+        }
+    }
+
+    private void QueueThemeOpacitySave(AppTheme theme, double opacity)
+    {
+        CancellationTokenSource delay;
+        lock (_themeOpacitySaveLock)
+        {
+            if (_themeOpacitySaveDelays.TryGetValue(theme, out var previousDelay))
+            {
+                previousDelay.Cancel();
+            }
+
+            delay = new CancellationTokenSource();
+            _themeOpacitySaveDelays[theme] = delay;
+        }
+
+        _ = PersistThemeOpacityAfterDelayAsync(theme, opacity, delay);
+    }
+
+    private async Task PersistThemeOpacityAfterDelayAsync(
+        AppTheme theme,
+        double opacity,
+        CancellationTokenSource delay)
+    {
+        try
+        {
+            await Task.Delay(250, delay.Token);
+            await _drawerService.SetSettingAsync(
+                GetThemeBoxOpacitySettingKey(theme),
+                FormatOpacity(opacity),
+                delay.Token);
+        }
+        catch (OperationCanceledException) when (delay.IsCancellationRequested)
+        {
+            // 连续拖动时只保存停止后的最终值。
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, $"Failed to persist {theme} box opacity.");
+        }
+        finally
+        {
+            lock (_themeOpacitySaveLock)
+            {
+                if (_themeOpacitySaveDelays.TryGetValue(theme, out var currentDelay)
+                    && ReferenceEquals(currentDelay, delay))
+                {
+                    _themeOpacitySaveDelays.Remove(theme);
+                }
+            }
+
+            delay.Dispose();
+        }
+    }
+
+    internal static string GetThemeBoxOpacitySettingKey(AppTheme theme)
+    {
+        return ThemeBoxOpacitySettingKeyPrefix + theme;
+    }
+
+    private static string FormatOpacity(double opacity)
+    {
+        return opacity.ToString("0.00", CultureInfo.InvariantCulture);
+    }
+
+    private static double ParseSavedOpacity(string? value)
+    {
+        return double.TryParse(
+                value,
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out var opacity)
+            ? Math.Clamp(
+                opacity,
+                AppThemeManager.MinimumBoxOpacity,
+                AppThemeManager.MaximumBoxOpacity)
+            : AppThemeManager.DefaultBoxOpacity;
     }
 
     private async Task CheckForUpdateAsync()

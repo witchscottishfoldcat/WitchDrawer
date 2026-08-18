@@ -2399,6 +2399,99 @@
                                     Padding="10"
                                     Margin="0,0,0,6">
                                 <Grid>
+                                    <Grid.Resources>
+                                        <Style x:Key="ThemeOpacityTrackButtonStyle"
+                                               TargetType="{x:Type RepeatButton}">
+                                            <Setter Property="Focusable" Value="False" />
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="{x:Type RepeatButton}">
+                                                        <Border Height="4"
+                                                                VerticalAlignment="Center"
+                                                                Background="{TemplateBinding Background}"
+                                                                CornerRadius="2"
+                                                                SnapsToDevicePixels="True" />
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                        <Style x:Key="ThemeOpacityThumbStyle"
+                                               TargetType="{x:Type Thumb}">
+                                            <Setter Property="Width" Value="16" />
+                                            <Setter Property="Height" Value="16" />
+                                            <Setter Property="Focusable" Value="False" />
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="{x:Type Thumb}">
+                                                        <Border x:Name="ThumbRoot"
+                                                                Background="{DynamicResource AccentBrush}"
+                                                                BorderBrush="{DynamicResource GlassSurfaceBrush}"
+                                                                BorderThickness="2"
+                                                                CornerRadius="8"
+                                                                SnapsToDevicePixels="True">
+                                                            <Border.Effect>
+                                                                <DropShadowEffect BlurRadius="5"
+                                                                                  ShadowDepth="1"
+                                                                                  Direction="270"
+                                                                                  Color="#66000000"
+                                                                                  Opacity="0.45" />
+                                                            </Border.Effect>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="ThumbRoot"
+                                                                        Property="BorderBrush"
+                                                                        Value="White" />
+                                                            </Trigger>
+                                                            <Trigger Property="IsDragging" Value="True">
+                                                                <Setter TargetName="ThumbRoot"
+                                                                        Property="Background"
+                                                                        Value="{DynamicResource AccentHoverBrush}" />
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                        <Style x:Key="ThemeOpacitySliderStyle"
+                                               TargetType="{x:Type Slider}">
+                                            <Setter Property="Height" Value="24" />
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="{x:Type Slider}">
+                                                        <Grid Background="Transparent">
+                                                            <Track x:Name="PART_Track"
+                                                                   Margin="1,0"
+                                                                   VerticalAlignment="Center">
+                                                                <Track.DecreaseRepeatButton>
+                                                                    <RepeatButton Command="{x:Static Slider.DecreaseLarge}"
+                                                                                  Background="{DynamicResource AccentBrush}"
+                                                                                  Style="{StaticResource ThemeOpacityTrackButtonStyle}" />
+                                                                </Track.DecreaseRepeatButton>
+                                                                <Track.Thumb>
+                                                                    <Thumb Style="{StaticResource ThemeOpacityThumbStyle}" />
+                                                                </Track.Thumb>
+                                                                <Track.IncreaseRepeatButton>
+                                                                    <RepeatButton Command="{x:Static Slider.IncreaseLarge}"
+                                                                                  Background="{DynamicResource BorderBrushSoft}"
+                                                                                  Style="{StaticResource ThemeOpacityTrackButtonStyle}" />
+                                                                </Track.IncreaseRepeatButton>
+                                                            </Track>
+                                                        </Grid>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsEnabled" Value="False">
+                                                                <Setter Property="Opacity" Value="0.45" />
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </Grid.Resources>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
@@ -2507,21 +2600,6 @@
                                                         <Setter Property="Foreground" Value="White" />
                                                         <Setter Property="FontWeight" Value="SemiBold" />
                                                     </DataTrigger>
-                                                    <DataTrigger Binding="{Binding IsTransparentCrystalBoxes}" Value="True">
-                                                        <Setter Property="Background">
-                                                            <Setter.Value>
-                                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                                                    <GradientStop Color="#FF0EA5E9" Offset="0" />
-                                                                    <GradientStop Color="#FF0EA5E9" Offset="0.48" />
-                                                                    <GradientStop Color="#730EA5E9" Offset="0.52" />
-                                                                    <GradientStop Color="#260EA5E9" Offset="1" />
-                                                                </LinearGradientBrush>
-                                                            </Setter.Value>
-                                                        </Setter>
-                                                        <Setter Property="BorderBrush" Value="#990EA5E9" />
-                                                        <Setter Property="Foreground" Value="White" />
-                                                        <Setter Property="FontWeight" Value="SemiBold" />
-                                                    </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </UniformGrid.Resources>
@@ -2537,6 +2615,35 @@
                                                 Command="{Binding ApplyCrystalThemeCommand}"
                                                 Style="{StaticResource CrystalThemeChoiceButtonStyle}" />
                                     </UniformGrid>
+                                    <Grid Grid.Row="1"
+                                          Grid.ColumnSpan="2"
+                                          Margin="0,10,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="42" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="桌面盒子透明度"
+                                                   VerticalAlignment="Center"
+                                                   FontSize="11.5"
+                                                   Foreground="{DynamicResource TextMutedBrush}" />
+                                        <Slider Grid.Column="1"
+                                                Margin="12,0,10,0"
+                                                Minimum="0"
+                                                Maximum="90"
+                                                SmallChange="1"
+                                                LargeChange="10"
+                                                Style="{StaticResource ThemeOpacitySliderStyle}"
+                                                VerticalAlignment="Center"
+                                                Value="{Binding ThemeTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding ThemeTransparencyLabel}"
+                                                   HorizontalAlignment="Right"
+                                                   VerticalAlignment="Center"
+                                                   FontSize="11.5"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                                    </Grid>
                                 </Grid>
                                 </Border>
 

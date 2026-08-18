@@ -50,6 +50,58 @@ public sealed class DesktopBoxWindowTemplateTests
     }
 
     [Fact]
+    public void SelectedIcon_UsesAnOuterOutlineWithoutRecoloringTheIconBorder()
+    {
+        var document = XDocument.Load(GetDesktopBoxWindowXamlPath());
+        var outline = Assert.Single(
+            document.Descendants(PresentationNamespace + "Border"),
+            element => (string?)element.Attribute(XamlNamespace + "Name") == "SelectionOutline");
+        var selectedTrigger = Assert.Single(
+            document.Descendants(PresentationNamespace + "Trigger"),
+            element =>
+                (string?)element.Attribute("Property") == "IsSelected"
+                && (string?)element.Attribute("Value") == "True"
+                && element.Elements(PresentationNamespace + "Setter").Any(
+                    setter => (string?)setter.Attribute("TargetName") == "SelectionOutline"));
+
+        Assert.Equal("False", (string?)outline.Attribute("SnapsToDevicePixels"));
+        Assert.Contains(
+            selectedTrigger.Elements(PresentationNamespace + "Setter"),
+            setter =>
+                (string?)setter.Attribute("TargetName") == "SelectionOutline"
+                && (string?)setter.Attribute("Property") == "BorderBrush");
+        Assert.DoesNotContain(
+            document.Descendants(PresentationNamespace + "Setter"),
+            setter =>
+                (string?)setter.Attribute("TargetName") == "IconBorder"
+                && (string?)setter.Attribute("Property") == "BorderBrush");
+    }
+
+    [Fact]
+    public void DrawerSelection_UsesTheSameOuterOutlineAsTheIconGrid()
+    {
+        var document = XDocument.Load(GetDesktopBoxWindowXamlPath());
+        var outline = Assert.Single(
+            document.Descendants(PresentationNamespace + "Border"),
+            element => (string?)element.Attribute(XamlNamespace + "Name") == "DrawerSelectionOutline");
+        var selectedTrigger = Assert.Single(
+            document.Descendants(PresentationNamespace + "DataTrigger"),
+            element =>
+                (string?)element.Attribute("Binding") == "{Binding IsSelected}"
+                && (string?)element.Attribute("Value") == "True"
+                && element.Elements(PresentationNamespace + "Setter").Any(
+                    setter => (string?)setter.Attribute("TargetName") == "DrawerSelectionOutline"));
+
+        Assert.Equal("1.2", (string?)outline.Attribute("BorderThickness"));
+        Assert.Equal("False", (string?)outline.Attribute("SnapsToDevicePixels"));
+        Assert.Contains(
+            selectedTrigger.Elements(PresentationNamespace + "Setter"),
+            setter =>
+                (string?)setter.Attribute("TargetName") == "DrawerSelectionOutline"
+                && (string?)setter.Attribute("Property") == "BorderBrush");
+    }
+
+    [Fact]
     public void RollUpButton_KeepsHeaderAndCollapsesTheContentRow()
     {
         var document = XDocument.Load(GetDesktopBoxWindowXamlPath());
@@ -80,4 +132,5 @@ public sealed class DesktopBoxWindowTemplateTests
                 "WitchDrawer.App",
                 "Views",
                 "DesktopBoxWindow.xaml"));
+
 }

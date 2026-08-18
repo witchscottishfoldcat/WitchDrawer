@@ -193,13 +193,7 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
     /// </summary>
     public const double GridViewportFixedChromeInset = 6;
 
-    public Thickness DrawerHoverMargin => _currentPreset switch
-    {
-        "3x3" => new Thickness(5),
-        "4x4" => new Thickness(2.5),
-        "5x5" => new Thickness(2),
-        _ => new Thickness(1.5)
-    };
+    public Thickness DrawerHoverMargin => ItemMargin;
 
     // Mapping list mode uses the small preset as its visual baseline. Each larger
     // step grows by 15% so switching sizes does not make the horizontal box jump.

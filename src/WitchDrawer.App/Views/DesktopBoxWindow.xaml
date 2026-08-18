@@ -179,17 +179,30 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type Button}">
-                        <Border x:Name="DrawerButtonRoot"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="{Binding DataContext.LayoutSettings.ItemCornerRadius, RelativeSource={RelativeSource AncestorType=Window}}"
-                                RenderTransformOrigin="0.5,0.5">
-                            <Border.RenderTransform>
-                                <ScaleTransform x:Name="DrawerButtonScale" />
-                            </Border.RenderTransform>
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
+                        <Grid>
+                            <Border x:Name="DrawerButtonRoot"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="{Binding DataContext.LayoutSettings.ItemCornerRadius, RelativeSource={RelativeSource AncestorType=Window}}"
+                                    RenderTransformOrigin="0.5,0.5">
+                                <Border.RenderTransform>
+                                    <ScaleTransform x:Name="DrawerButtonScale" />
+                                </Border.RenderTransform>
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <Border x:Name="DrawerSelectionOutline"
+                                    Background="Transparent"
+                                    BorderBrush="Transparent"
+                                    BorderThickness="1.2"
+                                    CornerRadius="{Binding CornerRadius, ElementName=DrawerButtonRoot}"
+                                    IsHitTestVisible="False"
+                                    SnapsToDevicePixels="False">
+                                <Border.RenderTransform>
+                                    <TranslateTransform X="-0.30" Y="-0.30" />
+                                </Border.RenderTransform>
+                            </Border>
+                        </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="DrawerButtonRoot" Property="Background" Value="{DynamicResource HoverBrush}" />
@@ -197,6 +210,10 @@
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="DrawerButtonRoot" Property="Opacity" Value="0.72" />
                             </Trigger>
+                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                <Setter TargetName="DrawerButtonRoot" Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+                                <Setter TargetName="DrawerSelectionOutline" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            </DataTrigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
@@ -539,24 +556,36 @@
                         <Setter Property="Template">
                             <Setter.Value>
                                 <ControlTemplate TargetType="{x:Type ListBoxItem}">
-                                    <Border x:Name="Root"
-                                            Background="Transparent"
-                                            BorderBrush="Transparent"
-                                            BorderThickness="1.2"
-                                            Margin="{Binding DataContext.LayoutSettings.ItemMargin, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
-                                            Padding="{TemplateBinding Padding}">
-                                        <Border.Style>
-                                            <Style TargetType="Border">
-                                                <Setter Property="CornerRadius" Value="{Binding DataContext.LayoutSettings.ItemCornerRadius, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding DataContext.IsPixelStyle, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" Value="True">
-                                                        <Setter Property="CornerRadius" Value="6" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Border.Style>
-                                        <ContentPresenter x:Name="ItemContent" />
-                                    </Border>
+                                    <Grid Margin="{Binding DataContext.LayoutSettings.ItemMargin, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}">
+                                        <Border x:Name="Root"
+                                                Background="Transparent"
+                                                BorderBrush="Transparent"
+                                                BorderThickness="1.2"
+                                                Padding="{TemplateBinding Padding}">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="CornerRadius" Value="{Binding DataContext.LayoutSettings.ItemCornerRadius, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding DataContext.IsPixelStyle, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" Value="True">
+                                                            <Setter Property="CornerRadius" Value="6" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <ContentPresenter x:Name="ItemContent" />
+                                        </Border>
+                                        <Border x:Name="SelectionOutline"
+                                                Background="Transparent"
+                                                BorderBrush="Transparent"
+                                                BorderThickness="1.2"
+                                                CornerRadius="{Binding CornerRadius, ElementName=Root}"
+                                                IsHitTestVisible="False"
+                                                SnapsToDevicePixels="False">
+                                            <Border.RenderTransform>
+                                                <TranslateTransform X="-0.30" Y="-0.30" />
+                                            </Border.RenderTransform>
+                                        </Border>
+                                    </Grid>
                                     <ControlTemplate.Triggers>
                                         <!-- Normal hover -->
                                         <MultiDataTrigger>
@@ -588,11 +617,12 @@
 
                                         <Trigger Property="IsSelected" Value="True">
                                             <Setter TargetName="Root" Property="Background" Value="{DynamicResource AccentSoftBrush}" />
-                                            <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                            <Setter TargetName="SelectionOutline" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                                         </Trigger>
                                         <DataTrigger Binding="{Binding IsDragSource}" Value="True">
                                             <Setter TargetName="Root" Property="Background" Value="Transparent" />
                                             <Setter TargetName="Root" Property="BorderBrush" Value="Transparent" />
+                                            <Setter TargetName="SelectionOutline" Property="BorderBrush" Value="Transparent" />
                                             <Setter TargetName="ItemContent" Property="Opacity" Value="0.38" />
                                         </DataTrigger>
                                     </ControlTemplate.Triggers>
@@ -1142,20 +1172,9 @@
                                         <Border Width="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType=Window}}"
                                                 Height="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType=Window}}"
                                                 CornerRadius="{Binding DataContext.LayoutSettings.IconCornerRadius, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                Background="{DynamicResource GlassInnerBrush}"
+                                                BorderBrush="{DynamicResource GlassStrokeBrush}"
                                                 BorderThickness="1">
-                                            <Border.Style>
-                                                <Style TargetType="Border">
-                                                    <Setter Property="Background" Value="{DynamicResource GlassInnerBrush}" />
-                                                    <Setter Property="BorderBrush" Value="{DynamicResource GlassStrokeBrush}" />
-                                                    <Style.Triggers>
-                                                        <!-- 与图标网格同一套选中视觉：柔蓝底 + 蓝框 -->
-                                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                                            <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
-                                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Border.Style>
                                             <Grid DataContext="{Binding Item}">
                                                 <Image Width="{Binding DataContext.LayoutSettings.DrawerPrimaryIconSize, RelativeSource={RelativeSource AncestorType=Window}}"
                                                        infrastructure:DeferredIconLoad.IsEnabled="True"

@@ -40,6 +40,7 @@ public partial class DesktopBoxWindow : Window
     private double _drawerResizeStartHeight;
     private NativePoint _drawerResizeStartCursor;
     private bool _suppressDrawerItemClick;
+    private bool _isBoxOpacityRefreshQueued;
 
     internal sealed class DesktopBoxDragPayload(Guid dragId, Guid itemId, Guid sourceBoxId)
     {
@@ -75,7 +76,7 @@ public partial class DesktopBoxWindow : Window
         DpiChanged += OnDpiChanged;
         SizeChanged += OnWindowSizeChanged;
         AppThemeManager.ThemeChanged += OnThemeChanged;
-        AppThemeManager.CrystalBoxTransparencyChanged += OnCrystalBoxTransparencyChanged;
+        AppThemeManager.BoxOpacityChanged += OnBoxOpacityChanged;
         Activated += OnWindowActivated;
         Deactivated += OnWindowDeactivated;
         StateChanged += OnWindowStateChanged;
@@ -639,7 +640,7 @@ public partial class DesktopBoxWindow : Window
         Loaded -= OnLoaded;
         DpiChanged -= OnDpiChanged;
         AppThemeManager.ThemeChanged -= OnThemeChanged;
-        AppThemeManager.CrystalBoxTransparencyChanged -= OnCrystalBoxTransparencyChanged;
+        AppThemeManager.BoxOpacityChanged -= OnBoxOpacityChanged;
         Activated -= OnWindowActivated;
         Deactivated -= OnWindowDeactivated;
         StateChanged -= OnWindowStateChanged;
@@ -750,9 +751,21 @@ public partial class DesktopBoxWindow : Window
         ApplyThemeAppearance();
     }
 
-    private void OnCrystalBoxTransparencyChanged(object? sender, bool enabled)
+    private void OnBoxOpacityChanged(object? sender, ThemeBoxOpacityChangedEventArgs e)
     {
-        ApplyThemeAppearance();
+        if (e.Theme != AppThemeManager.CurrentTheme || _isBoxOpacityRefreshQueued)
+        {
+            return;
+        }
+
+        _isBoxOpacityRefreshQueued = true;
+        _ = Dispatcher.BeginInvoke(
+            DispatcherPriority.Background,
+            () =>
+            {
+                _isBoxOpacityRefreshQueued = false;
+                AppThemeManager.ApplyDesktopBoxResources(Resources);
+            });
     }
 
     private void ApplyThemeAppearance()
