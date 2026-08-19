@@ -98,7 +98,6 @@ public partial class App : Application
                 logger.Error(exception, "Failed to update a legacy startup shortcut.");
             }
 
-            var hadExistingDatabase = File.Exists(paths.DatabasePath);
             var repository = new DrawerRepository(paths.DatabasePath);
             var drawerService = new DrawerService(paths, repository);
             var launcher = new ShellFileLauncher();
@@ -137,8 +136,7 @@ public partial class App : Application
                 boxVisualStyleStore,
                 boxPositionLockStateStore,
                 paths,
-                dataStorageMigrationService,
-                hadExistingDatabase);
+                dataStorageMigrationService);
             _desktopBoxManager = new DesktopBoxManager(
                 drawerService,
                 todoService,

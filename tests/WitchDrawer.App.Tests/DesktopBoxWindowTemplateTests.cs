@@ -50,55 +50,77 @@ public sealed class DesktopBoxWindowTemplateTests
     }
 
     [Fact]
-    public void SelectedIcon_UsesAnOuterOutlineWithoutRecoloringTheIconBorder()
+    public void SelectedIcon_UsesTheLayoutRoundedRootBorderWithoutManualOffset()
     {
         var document = XDocument.Load(GetDesktopBoxWindowXamlPath());
-        var outline = Assert.Single(
-            document.Descendants(PresentationNamespace + "Border"),
-            element => (string?)element.Attribute(XamlNamespace + "Name") == "SelectionOutline");
+        var iconList = Assert.Single(
+            document.Descendants(PresentationNamespace + "ListBox"),
+            element => (string?)element.Attribute(XamlNamespace + "Name") == "IconList");
+        var root = Assert.Single(
+            iconList.Descendants(PresentationNamespace + "Border"),
+            element => (string?)element.Attribute(XamlNamespace + "Name") == "Root");
         var selectedTrigger = Assert.Single(
-            document.Descendants(PresentationNamespace + "Trigger"),
+            iconList.Descendants(PresentationNamespace + "Trigger"),
             element =>
                 (string?)element.Attribute("Property") == "IsSelected"
                 && (string?)element.Attribute("Value") == "True"
                 && element.Elements(PresentationNamespace + "Setter").Any(
-                    setter => (string?)setter.Attribute("TargetName") == "SelectionOutline"));
+                    setter =>
+                        (string?)setter.Attribute("TargetName") == "Root"
+                        && (string?)setter.Attribute("Property") == "BorderBrush"));
 
-        Assert.Equal("False", (string?)outline.Attribute("SnapsToDevicePixels"));
-        Assert.Contains(
-            selectedTrigger.Elements(PresentationNamespace + "Setter"),
-            setter =>
-                (string?)setter.Attribute("TargetName") == "SelectionOutline"
-                && (string?)setter.Attribute("Property") == "BorderBrush");
+        Assert.Equal(
+            "{Binding DataContext.LayoutSettings.ItemMargin, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}",
+            (string?)root.Attribute("Margin"));
         Assert.DoesNotContain(
-            document.Descendants(PresentationNamespace + "Setter"),
-            setter =>
-                (string?)setter.Attribute("TargetName") == "IconBorder"
-                && (string?)setter.Attribute("Property") == "BorderBrush");
+            iconList.Descendants(PresentationNamespace + "Border"),
+            element => (string?)element.Attribute(XamlNamespace + "Name") == "SelectionOutline");
+        Assert.DoesNotContain(
+            selectedTrigger.Ancestors(PresentationNamespace + "ControlTemplate")
+                .Descendants(PresentationNamespace + "TranslateTransform"),
+            transform =>
+                (string?)transform.Attribute("X") == "-0.30"
+                || (string?)transform.Attribute("Y") == "-0.30");
     }
 
     [Fact]
-    public void DrawerSelection_UsesTheSameOuterOutlineAsTheIconGrid()
+    public void DrawerSelection_UsesTheOuterLayoutRoundedFrameLikeNormalItems()
     {
         var document = XDocument.Load(GetDesktopBoxWindowXamlPath());
-        var outline = Assert.Single(
-            document.Descendants(PresentationNamespace + "Border"),
-            element => (string?)element.Attribute(XamlNamespace + "Name") == "DrawerSelectionOutline");
+        var drawerStyle = Assert.Single(
+            document.Descendants(PresentationNamespace + "Style"),
+            element => (string?)element.Attribute(XamlNamespace + "Key") == "DrawerTileButtonStyle");
+        var borderThickness = Assert.Single(
+            drawerStyle.Elements(PresentationNamespace + "Setter"),
+            setter => (string?)setter.Attribute("Property") == "BorderThickness");
         var selectedTrigger = Assert.Single(
-            document.Descendants(PresentationNamespace + "DataTrigger"),
+            drawerStyle.Descendants(PresentationNamespace + "DataTrigger"),
             element =>
                 (string?)element.Attribute("Binding") == "{Binding IsSelected}"
-                && (string?)element.Attribute("Value") == "True"
-                && element.Elements(PresentationNamespace + "Setter").Any(
-                    setter => (string?)setter.Attribute("TargetName") == "DrawerSelectionOutline"));
+                && (string?)element.Attribute("Value") == "True");
 
-        Assert.Equal("1.2", (string?)outline.Attribute("BorderThickness"));
-        Assert.Equal("False", (string?)outline.Attribute("SnapsToDevicePixels"));
+        Assert.Equal("1.2", (string?)borderThickness.Attribute("Value"));
         Assert.Contains(
             selectedTrigger.Elements(PresentationNamespace + "Setter"),
             setter =>
-                (string?)setter.Attribute("TargetName") == "DrawerSelectionOutline"
+                (string?)setter.Attribute("TargetName") == "DrawerButtonRoot"
                 && (string?)setter.Attribute("Property") == "BorderBrush");
+        Assert.DoesNotContain(
+            document.Descendants(PresentationNamespace + "Border"),
+            element => (string?)element.Attribute(XamlNamespace + "Name") == "DrawerSelectionOutline");
+        Assert.DoesNotContain(
+            drawerStyle.Descendants(PresentationNamespace + "TranslateTransform"),
+            transform =>
+                (string?)transform.Attribute("X") == "-0.30"
+                || (string?)transform.Attribute("Y") == "-0.30");
+
+        var coverItems = Assert.Single(
+            document.Descendants(PresentationNamespace + "ItemsControl"),
+            element => (string?)element.Attribute(XamlNamespace + "Name") == "DrawerCoverItems");
+        Assert.DoesNotContain(
+            coverItems.Descendants(PresentationNamespace + "Border")
+                .Descendants(PresentationNamespace + "DataTrigger"),
+            trigger => (string?)trigger.Attribute("Binding") == "{Binding IsSelected}");
     }
 
     [Fact]
@@ -132,5 +154,4 @@ public sealed class DesktopBoxWindowTemplateTests
                 "WitchDrawer.App",
                 "Views",
                 "DesktopBoxWindow.xaml"));
-
 }

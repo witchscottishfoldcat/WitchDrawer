@@ -15,11 +15,13 @@ public static class AppThemeManager
     public const double DefaultBoxOpacity = 0.40;
     public const double MinimumBoxOpacity = 0.10;
     public const double MaximumBoxOpacity = 1.00;
+    private const double LegacyGlassBoxOpacity = 0.82;
+    private const double LegacyCrystalBoxOpacity = 0.94;
 
     private static AppTheme _currentTheme = AppTheme.Moe;
 
     private static readonly Dictionary<AppTheme, double> BoxOpacities =
-        Enum.GetValues<AppTheme>().ToDictionary(theme => theme, _ => DefaultBoxOpacity);
+        Enum.GetValues<AppTheme>().ToDictionary(theme => theme, GetDefaultBoxOpacity);
 
     private static readonly IReadOnlyDictionary<AppTheme, IReadOnlyDictionary<string, string>> ThemeColors =
         new Dictionary<AppTheme, IReadOnlyDictionary<string, string>>
@@ -186,11 +188,6 @@ public static class AppThemeManager
         }
 
         var opacity = GetBoxOpacity(_currentTheme);
-        if (Math.Abs(opacity - MaximumBoxOpacity) < 0.0001)
-        {
-            return;
-        }
-
         foreach (var key in LegacyTransparentCrystalBoxColors.Keys)
         {
             var color = GetDesktopBoxColor(_currentTheme, key, opacity);
@@ -230,9 +227,18 @@ public static class AppThemeManager
             }
 
             var legacyColor = ParseColor(LegacyTransparentCrystalBoxColors[key]);
-            return normalized <= DefaultBoxOpacity
-                ? legacyColor
-                : Interpolate(legacyColor, baseColor, ScaleAboveDefault(normalized));
+            if (normalized <= DefaultBoxOpacity)
+            {
+                return legacyColor;
+            }
+
+            var crystalLegacyOpacity = GetLegacyBoxOpacity(theme);
+            return normalized >= crystalLegacyOpacity
+                ? baseColor
+                : Interpolate(
+                    legacyColor,
+                    baseColor,
+                    ScaleBetween(normalized, DefaultBoxOpacity, crystalLegacyOpacity));
         }
 
         var transparentColor = theme == AppTheme.Crystal
@@ -249,14 +255,46 @@ public static class AppThemeManager
                 transparentColor.B);
         }
 
-        return Interpolate(transparentColor, baseColor, ScaleAboveDefault(normalized));
+        var legacyOpacity = GetLegacyBoxOpacity(theme);
+        if (normalized <= legacyOpacity)
+        {
+            return Interpolate(
+                transparentColor,
+                baseColor,
+                ScaleBetween(normalized, DefaultBoxOpacity, legacyOpacity));
+        }
+
+        var opaqueColor = Color.FromArgb(byte.MaxValue, baseColor.R, baseColor.G, baseColor.B);
+        return Interpolate(
+            baseColor,
+            opaqueColor,
+            ScaleBetween(normalized, legacyOpacity, MaximumBoxOpacity));
     }
 
-    internal static void ResetBoxOpacitiesForTests(double opacity = DefaultBoxOpacity)
+    internal static double GetLegacyBoxOpacity(AppTheme theme)
+    {
+        return theme switch
+        {
+            AppTheme.Glass => LegacyGlassBoxOpacity,
+            AppTheme.Crystal => LegacyCrystalBoxOpacity,
+            _ => MaximumBoxOpacity
+        };
+    }
+
+    internal static double GetDefaultBoxOpacity(AppTheme theme)
+    {
+        return theme == AppTheme.Crystal
+            ? DefaultBoxOpacity
+            : GetLegacyBoxOpacity(theme);
+    }
+
+    internal static void ResetBoxOpacitiesForTests(double? opacity = null)
     {
         foreach (var theme in Enum.GetValues<AppTheme>())
         {
-            BoxOpacities[theme] = NormalizeOpacity(opacity);
+            BoxOpacities[theme] = opacity is null
+                ? GetDefaultBoxOpacity(theme)
+                : NormalizeOpacity(opacity.Value);
         }
     }
 
@@ -275,9 +313,14 @@ public static class AppThemeManager
             baseColor.B);
     }
 
-    private static double ScaleAboveDefault(double opacity)
+    private static double ScaleBetween(double value, double lowerBound, double upperBound)
     {
-        return (opacity - DefaultBoxOpacity) / (MaximumBoxOpacity - DefaultBoxOpacity);
+        if (Math.Abs(upperBound - lowerBound) < 0.0001)
+        {
+            return 1;
+        }
+
+        return (value - lowerBound) / (upperBound - lowerBound);
     }
 
     private static Color Interpolate(Color from, Color to, double progress)

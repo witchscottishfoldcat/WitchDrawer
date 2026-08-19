@@ -19,10 +19,9 @@ public sealed class MainViewModel : ObservableObject
 {
     private const double ItemIconSizeDip = 19;
     private const string ThemeSettingKey = "Theme";
-    private const string CrystalBoxTransparencySettingKey = "CrystalBoxTransparency";
     internal const string ThemeBoxOpacitySettingKeyPrefix = "ThemeBoxOpacity.";
     internal const string ThemeBoxOpacityMigrationVersionSettingKey = "ThemeBoxOpacityVersion";
-    private const string ThemeBoxOpacityMigrationVersion = "1";
+    private const string ThemeBoxOpacityMigrationVersion = "2";
     internal const string DesktopDoubleClickSettingKey = "DesktopDoubleClickToggle";
     internal const string AboutPageShownSettingKey = "AboutPageShown";
     private const string StartupRegistryKeyName = "WitchDrawer";
@@ -37,7 +36,6 @@ public sealed class MainViewModel : ObservableObject
     private readonly BoxPositionLockStateStore _boxPositionLockStateStore;
     private readonly AppPaths _appPaths;
     private readonly DataStorageMigrationService _dataStorageMigrationService;
-    private readonly bool _hadExistingDatabase;
     private BoxViewModel? _selectedBox;
     private CancellationTokenSource? _itemsLoadCts;
     private int _itemsLoadVersion;
@@ -73,8 +71,7 @@ public sealed class MainViewModel : ObservableObject
         BoxVisualStyleStore boxVisualStyleStore,
         BoxPositionLockStateStore boxPositionLockStateStore,
         AppPaths appPaths,
-        DataStorageMigrationService dataStorageMigrationService,
-        bool hadExistingDatabase = false)
+        DataStorageMigrationService dataStorageMigrationService)
     {
         _drawerService = drawerService;
         _todoService = todoService;
@@ -86,7 +83,6 @@ public sealed class MainViewModel : ObservableObject
         _boxPositionLockStateStore = boxPositionLockStateStore;
         _appPaths = appPaths;
         _dataStorageMigrationService = dataStorageMigrationService;
-        _hadExistingDatabase = hadExistingDatabase;
         TodoBoxDetail = new TodoBoxDetailViewModel(todoService, logger);
         TodoBoxDetail.ItemsChanged += OnTodoBoxDetailItemsChanged;
         BoxSizeSettings = new BoxSizeSettingsViewModel(drawerService, logger);
@@ -1210,25 +1206,17 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
 
-        var legacyTheme = await _drawerService.GetSettingAsync(ThemeSettingKey);
-        var legacyAboutPageShown = await _drawerService.GetSettingAsync(AboutPageShownSettingKey);
-        var legacyCrystalTransparency =
-            await _drawerService.GetSettingAsync(CrystalBoxTransparencySettingKey);
-        var isExistingInstallation = _hadExistingDatabase
-            || legacyTheme is not null
-            || legacyAboutPageShown is not null
-            || legacyCrystalTransparency is not null;
-
         foreach (var theme in Enum.GetValues<AppTheme>())
         {
-            var opacity = isExistingInstallation
-                ? AppThemeManager.MaximumBoxOpacity
-                : AppThemeManager.DefaultBoxOpacity;
-            if (theme == AppTheme.Crystal
-                && bool.TryParse(legacyCrystalTransparency, out var usedTransparentCrystalBoxes)
-                && usedTransparentCrystalBoxes)
+            var opacity = AppThemeManager.GetDefaultBoxOpacity(theme);
+            if (string.Equals(migrationVersion, "1", StringComparison.Ordinal))
             {
-                opacity = AppThemeManager.DefaultBoxOpacity;
+                var savedOpacity = ParseSavedOpacity(
+                    await _drawerService.GetSettingAsync(GetThemeBoxOpacitySettingKey(theme)));
+                if (!IsVersionOneGeneratedDefault(savedOpacity))
+                {
+                    opacity = savedOpacity;
+                }
             }
 
             AppThemeManager.SetBoxOpacity(theme, opacity);
@@ -1241,6 +1229,12 @@ public sealed class MainViewModel : ObservableObject
             ThemeBoxOpacityMigrationVersionSettingKey,
             ThemeBoxOpacityMigrationVersion);
         SynchronizeThemeTransparency();
+    }
+
+    private static bool IsVersionOneGeneratedDefault(double opacity)
+    {
+        return Math.Abs(opacity - AppThemeManager.DefaultBoxOpacity) < 0.0001
+            || Math.Abs(opacity - AppThemeManager.MaximumBoxOpacity) < 0.0001;
     }
 
     private void SynchronizeThemeTransparency()

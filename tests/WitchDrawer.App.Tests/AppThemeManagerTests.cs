@@ -44,7 +44,7 @@ public sealed class AppThemeManagerTests
     }
 
     [Fact]
-    public void DefaultOpacity_ReproducesLegacySecondStageCrystalColors()
+    public void OpacityCurve_PreservesCrystalPresetAndMakesMaximumFullyOpaque()
     {
         var surface = AppThemeManager.GetDesktopBoxColor(
             AppTheme.Crystal,
@@ -61,7 +61,33 @@ public sealed class AppThemeManagerTests
 
         Assert.Equal((Color)ColorConverter.ConvertFromString("#66FFFFFF"), surface);
         Assert.Equal((Color)ColorConverter.ConvertFromString("#66FFFFFF"), panel);
-        Assert.Equal((Color)ColorConverter.ConvertFromString("#EFFFFFFF"), fullyOpaqueProfile);
+        Assert.Equal((Color)ColorConverter.ConvertFromString("#FFFFFFFF"), fullyOpaqueProfile);
+    }
+
+    [Theory]
+    [InlineData("AppBackgroundBrush", "#EB1C1C1E")]
+    [InlineData("PanelBrush", "#D92C2C2E")]
+    [InlineData("PanelAltBrush", "#C4222224")]
+    [InlineData("GlassSurfaceBrush", "#D12C2C2E")]
+    public void LegacyGlassOpacity_ReproducesOldThemeColors(string key, string expectedColor)
+    {
+        var color = AppThemeManager.GetDesktopBoxColor(
+            AppTheme.Glass,
+            key,
+            AppThemeManager.GetLegacyBoxOpacity(AppTheme.Glass));
+
+        Assert.Equal((Color)ColorConverter.ConvertFromString(expectedColor), color);
+    }
+
+    [Fact]
+    public void MaximumGlassOpacity_IsActuallyOpaque()
+    {
+        var surface = AppThemeManager.GetDesktopBoxColor(
+            AppTheme.Glass,
+            "GlassSurfaceBrush",
+            AppThemeManager.MaximumBoxOpacity);
+
+        Assert.Equal((Color)ColorConverter.ConvertFromString("#FF2C2C2E"), surface);
     }
 
     [Fact]

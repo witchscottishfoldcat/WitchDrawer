@@ -14,7 +14,7 @@ namespace WitchDrawer.App.Tests;
 public sealed class ThemeOpacitySettingTests
 {
     [Fact]
-    public async Task FirstLaunch_DefaultsEveryThemeToLegacySecondStageOpacity()
+    public async Task FirstLaunch_UsesThemeSpecificDefaultOpacities()
     {
         await using var workspace = await ThemeWorkspace.CreateAsync();
         AppThemeManager.ResetBoxOpacitiesForTests(AppThemeManager.MaximumBoxOpacity);
@@ -26,19 +26,19 @@ public sealed class ThemeOpacitySettingTests
             foreach (var theme in Enum.GetValues<AppTheme>())
             {
                 Assert.Equal(
-                    AppThemeManager.DefaultBoxOpacity,
+                    AppThemeManager.GetDefaultBoxOpacity(theme),
                     AppThemeManager.GetBoxOpacity(theme),
                     3);
                 Assert.Equal(
-                    FormatOpacity(AppThemeManager.DefaultBoxOpacity),
+                    FormatOpacity(AppThemeManager.GetDefaultBoxOpacity(theme)),
                     await workspace.DrawerService.GetSettingAsync(
                         MainViewModel.GetThemeBoxOpacitySettingKey(theme)));
             }
 
-            Assert.Equal(60, workspace.ViewModel.ThemeTransparencyPercent);
-            Assert.Equal("60%", workspace.ViewModel.ThemeTransparencyLabel);
+            Assert.Equal(0, workspace.ViewModel.ThemeTransparencyPercent);
+            Assert.Equal("0%", workspace.ViewModel.ThemeTransparencyLabel);
             Assert.Equal(
-                "1",
+                "2",
                 await workspace.DrawerService.GetSettingAsync(
                     MainViewModel.ThemeBoxOpacityMigrationVersionSettingKey));
         }
@@ -64,11 +64,11 @@ public sealed class ThemeOpacitySettingTests
             await workspace.ViewModel.LoadAsync();
 
             Assert.Equal(
-                AppThemeManager.MaximumBoxOpacity,
+                AppThemeManager.GetLegacyBoxOpacity(AppTheme.Moe),
                 AppThemeManager.GetBoxOpacity(AppTheme.Moe),
                 3);
             Assert.Equal(
-                AppThemeManager.MaximumBoxOpacity,
+                AppThemeManager.GetLegacyBoxOpacity(AppTheme.Glass),
                 AppThemeManager.GetBoxOpacity(AppTheme.Glass),
                 3);
             Assert.Equal(
@@ -83,9 +83,9 @@ public sealed class ThemeOpacitySettingTests
     }
 
     [Fact]
-    public async Task UpgradeWithoutOldThemeSettings_PreservesOriginalThemeOpacity()
+    public async Task InstallWithoutOldThemeSettings_UsesThemeSpecificDefaults()
     {
-        await using var workspace = await ThemeWorkspace.CreateAsync(hadExistingDatabase: true);
+        await using var workspace = await ThemeWorkspace.CreateAsync();
         AppThemeManager.ResetBoxOpacitiesForTests();
 
         try
@@ -95,7 +95,7 @@ public sealed class ThemeOpacitySettingTests
             foreach (var theme in Enum.GetValues<AppTheme>())
             {
                 Assert.Equal(
-                    AppThemeManager.MaximumBoxOpacity,
+                    AppThemeManager.GetDefaultBoxOpacity(theme),
                     AppThemeManager.GetBoxOpacity(theme),
                     3);
             }
@@ -112,7 +112,7 @@ public sealed class ThemeOpacitySettingTests
         await using var workspace = await ThemeWorkspace.CreateAsync();
         await workspace.DrawerService.SetSettingAsync(
             MainViewModel.ThemeBoxOpacityMigrationVersionSettingKey,
-            "1");
+            "2");
         await workspace.DrawerService.SetSettingAsync(
             MainViewModel.GetThemeBoxOpacitySettingKey(AppTheme.Moe),
             "0.25");
@@ -131,6 +131,42 @@ public sealed class ThemeOpacitySettingTests
             Assert.Equal(0.25, AppThemeManager.GetBoxOpacity(AppTheme.Moe), 3);
             Assert.Equal(0.55, AppThemeManager.GetBoxOpacity(AppTheme.Glass), 3);
             Assert.Equal(0.85, AppThemeManager.GetBoxOpacity(AppTheme.Crystal), 3);
+        }
+        finally
+        {
+            AppThemeManager.ResetBoxOpacitiesForTests();
+        }
+    }
+
+    [Fact]
+    public async Task UpgradeFromVersionOne_CorrectsGeneratedDefaultsAndKeepsCustomValues()
+    {
+        await using var workspace = await ThemeWorkspace.CreateAsync();
+        await workspace.DrawerService.SetSettingAsync(
+            MainViewModel.ThemeBoxOpacityMigrationVersionSettingKey,
+            "1");
+        await workspace.DrawerService.SetSettingAsync(
+            MainViewModel.GetThemeBoxOpacitySettingKey(AppTheme.Moe),
+            "0.25");
+        await workspace.DrawerService.SetSettingAsync(
+            MainViewModel.GetThemeBoxOpacitySettingKey(AppTheme.Glass),
+            "1.00");
+        await workspace.DrawerService.SetSettingAsync(
+            MainViewModel.GetThemeBoxOpacitySettingKey(AppTheme.Crystal),
+            "1.00");
+        AppThemeManager.ResetBoxOpacitiesForTests();
+
+        try
+        {
+            await workspace.ViewModel.LoadAsync();
+
+            Assert.Equal(0.25, AppThemeManager.GetBoxOpacity(AppTheme.Moe), 3);
+            Assert.Equal(0.82, AppThemeManager.GetBoxOpacity(AppTheme.Glass), 3);
+            Assert.Equal(0.40, AppThemeManager.GetBoxOpacity(AppTheme.Crystal), 3);
+            Assert.Equal(
+                "2",
+                await workspace.DrawerService.GetSettingAsync(
+                    MainViewModel.ThemeBoxOpacityMigrationVersionSettingKey));
         }
         finally
         {
@@ -191,7 +227,7 @@ public sealed class ThemeOpacitySettingTests
 
         public MainViewModel ViewModel { get; }
 
-        public static async Task<ThemeWorkspace> CreateAsync(bool hadExistingDatabase = false)
+        public static async Task<ThemeWorkspace> CreateAsync()
         {
             var root = Path.Combine(
                 Path.GetTempPath(),
@@ -217,8 +253,7 @@ public sealed class ThemeOpacitySettingTests
                 new DataStorageMigrationService(
                     paths,
                     repository,
-                    new StorageLocationStore(Path.Combine(root, "storage-location.json"))),
-                hadExistingDatabase);
+                    new StorageLocationStore(Path.Combine(root, "storage-location.json"))));
 
             return new ThemeWorkspace(root, drawerService, viewModel);
         }
