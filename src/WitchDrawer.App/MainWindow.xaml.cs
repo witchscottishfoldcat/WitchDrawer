@@ -22,6 +22,7 @@ public partial class MainWindow : Window
     private const string BoxListDragFormat = "WitchDrawer.BoxListOrder";
     private const int WmHotKey = 0x0312;
     private const int QuickPanelHotKeyId = 0x5744;
+    internal const string SupportPageUri = "https://www.witchcat.cn/zh/support";
 
     private readonly QuickPanelWindow _quickPanel;
     private readonly IAppLogger _logger;
@@ -37,9 +38,18 @@ public partial class MainWindow : Window
     private ListBoxItem? _boxDropTarget;
     private bool _isBoxVisualStylePageOpen;
     private bool _isBoxVisualStyleTransitioning;
+    private readonly HashSet<int> _recordedLayoutBackupSlots = [];
     public event EventHandler? WindowHidden;
     public event EventHandler? WindowClosing;
     public event EventHandler? DesktopShellRestarted;
+
+    public event EventHandler<int>? RecordLayoutBackupRequested;
+
+    public event EventHandler<int>? RestoreLayoutBackupRequested;
+
+    public event EventHandler<int>? DeleteLayoutBackupRequested;
+
+    public event EventHandler<Guid>? RecallBoxToScreenCenterRequested;
 
     /// <summary>
     /// Raised when the user asks to reopen a desktop box window (e.g. by
@@ -837,6 +847,173 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnRecordLayoutBackupClicked(object sender, RoutedEventArgs e)
+    {
+        if (!TryGetLayoutBackupSlot(sender, out var slot))
+        {
+            return;
+        }
+
+        if (_recordedLayoutBackupSlots.Contains(slot))
+        {
+            var result = System.Windows.MessageBox.Show(
+                this,
+                $"备份槽位 {slot} 已有记录。\n\n是否确认覆盖原有整体布局备份？",
+                "确认覆盖布局备份",
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Warning);
+            if (result != MessageBoxResult.OK)
+            {
+                return;
+            }
+        }
+
+        RecordLayoutBackupRequested?.Invoke(this, slot);
+    }
+
+    private void OnRestoreLayoutBackupClicked(object sender, RoutedEventArgs e)
+    {
+        if (!TryGetLayoutBackupSlot(sender, out var slot))
+        {
+            return;
+        }
+
+        if (!_recordedLayoutBackupSlots.Contains(slot))
+        {
+            return;
+        }
+
+        var result = System.Windows.MessageBox.Show(
+            this,
+            $"是否恢复备份槽位 {slot}？\n\n当前仍存在的盒子将移动到备份中记录的位置。",
+            "恢复整体布局",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Question);
+        if (result == MessageBoxResult.OK)
+        {
+            RestoreLayoutBackupRequested?.Invoke(this, slot);
+        }
+    }
+
+    private void OnDeleteLayoutBackupClicked(object sender, RoutedEventArgs e)
+    {
+        if (!TryGetLayoutBackupSlot(sender, out var slot)
+            || !_recordedLayoutBackupSlots.Contains(slot))
+        {
+            return;
+        }
+
+        var result = System.Windows.MessageBox.Show(
+            this,
+            $"是否删除备份槽位 {slot}？\n\n删除后无法恢复该槽位中记录的整体布局。",
+            "删除布局备份",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Warning);
+        if (result == MessageBoxResult.OK)
+        {
+            DeleteLayoutBackupRequested?.Invoke(this, slot);
+        }
+    }
+
+    internal void SetLayoutBackupSlotState(int slot, bool hasBackup)
+    {
+        var controls = slot switch
+        {
+            1 => (LayoutBackupSlot1Status, LayoutBackupSlot1RecordButton, LayoutBackupSlot1RestoreButton, LayoutBackupSlot1DeleteButton),
+            2 => (LayoutBackupSlot2Status, LayoutBackupSlot2RecordButton, LayoutBackupSlot2RestoreButton, LayoutBackupSlot2DeleteButton),
+            3 => (LayoutBackupSlot3Status, LayoutBackupSlot3RecordButton, LayoutBackupSlot3RestoreButton, LayoutBackupSlot3DeleteButton),
+            _ => throw new ArgumentOutOfRangeException(nameof(slot), slot, "Layout backup slot must be from 1 to 3.")
+        };
+        var presentation = GetLayoutBackupSlotPresentation(hasBackup);
+
+        if (hasBackup)
+        {
+            _recordedLayoutBackupSlots.Add(slot);
+        }
+        else
+        {
+            _recordedLayoutBackupSlots.Remove(slot);
+        }
+
+        controls.Item1.Text = presentation.StatusText;
+        controls.Item1.FontWeight = hasBackup ? FontWeights.SemiBold : FontWeights.Normal;
+        controls.Item1.SetResourceReference(
+            TextBlock.ForegroundProperty,
+            hasBackup ? "AccentBrush" : "TextMutedBrush");
+        controls.Item2.Content = presentation.RecordButtonText;
+        controls.Item3.Visibility = presentation.CanRestore ? Visibility.Visible : Visibility.Collapsed;
+        controls.Item4.Visibility = presentation.CanDelete ? Visibility.Visible : Visibility.Collapsed;
+        System.Windows.Automation.AutomationProperties.SetName(
+            controls.Item2,
+            hasBackup
+                ? $"覆盖备份槽位 {slot} 的整体布局"
+                : $"记录整体布局到备份槽位 {slot}");
+    }
+
+    internal static LayoutBackupSlotPresentation GetLayoutBackupSlotPresentation(bool hasBackup) =>
+        hasBackup
+            ? new LayoutBackupSlotPresentation("已记录", "覆盖", true, true)
+            : new LayoutBackupSlotPresentation("未记录", "记录", false, false);
+
+    private static bool TryGetLayoutBackupSlot(object sender, out int slot)
+    {
+        slot = 0;
+        return sender is FrameworkElement { Tag: string raw }
+            && int.TryParse(raw, out slot)
+            && slot is >= 1 and <= 3;
+    }
+
+    internal readonly record struct LayoutBackupSlotPresentation(
+        string StatusText,
+        string RecordButtonText,
+        bool CanRestore,
+        bool CanDelete);
+
+    private void OnThemeTransparencyInputKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || sender is not TextBox input)
+        {
+            return;
+        }
+
+        var binding = input.GetBindingExpression(TextBox.TextProperty);
+        binding?.UpdateSource();
+        binding?.UpdateTarget();
+        e.Handled = true;
+    }
+
+    private void OnThemeTransparencyInputLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is not TextBox input)
+        {
+            return;
+        }
+
+        var binding = input.GetBindingExpression(TextBox.TextProperty);
+        binding?.UpdateSource();
+        binding?.UpdateTarget();
+    }
+
+    private void OnRecallBoxClicked(object sender, RoutedEventArgs e)
+    {
+        BoxActionsPopup.IsOpen = false;
+        RecallBoxConfirmPopup.IsOpen = ViewModel.SelectedBox is not null;
+    }
+
+    private void OnCancelRecallBoxClicked(object sender, RoutedEventArgs e)
+    {
+        RecallBoxConfirmPopup.IsOpen = false;
+    }
+
+    private void OnConfirmRecallBoxClicked(object sender, RoutedEventArgs e)
+    {
+        RecallBoxConfirmPopup.IsOpen = false;
+        if (ViewModel.SelectedBox is { } box)
+        {
+            RecallBoxToScreenCenterRequested?.Invoke(this, box.Id);
+        }
+    }
+
     private void OnMainWindowPreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
         if (!BoxActionsPopup.IsOpen || e.OriginalSource is not DependencyObject source)
@@ -1022,6 +1199,11 @@ public partial class MainWindow : Window
     {
         e.Handled = true;
         OpenExternalUri("https://www.witchcat.cn");
+    }
+
+    private void OnOpenSupportLinkClicked(object sender, RoutedEventArgs e)
+    {
+        OpenExternalUri(SupportPageUri);
     }
 
     private void OpenExternalUri(string uri)

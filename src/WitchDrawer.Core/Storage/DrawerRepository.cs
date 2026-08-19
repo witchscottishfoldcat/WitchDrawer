@@ -754,6 +754,17 @@ public sealed class DrawerRepository
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    public async Task<bool> DeleteSettingAsync(string key, CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        var command = connection.CreateCommand();
+        command.CommandText = "DELETE FROM AppSettings WHERE Key = $key;";
+        command.Parameters.AddWithValue("$key", key);
+        return await command.ExecuteNonQueryAsync(cancellationToken) > 0;
+    }
+
     public async Task<int> GetNextBoxSortOrderAsync(CancellationToken cancellationToken = default)
     {
         await using var connection = CreateConnection();

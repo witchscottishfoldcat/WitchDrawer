@@ -724,6 +724,55 @@
                                                 </StackPanel>
                                             </Border>
                                         </Popup>
+                                        <Popup x:Name="RecallBoxConfirmPopup"
+                                               StaysOpen="False"
+                                               AllowsTransparency="True"
+                                               PlacementTarget="{Binding ElementName=BtnMoreBoxActions}"
+                                               Placement="Bottom"
+                                               VerticalOffset="6"
+                                               HorizontalOffset="-110"
+                                               PopupAnimation="Fade">
+                                            <Border Background="{DynamicResource PanelBrush}"
+                                                    BorderBrush="{DynamicResource BorderBrushSoft}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="14"
+                                                    Padding="16,14"
+                                                    Margin="16">
+                                                <Border.Effect>
+                                                    <DropShadowEffect BlurRadius="18"
+                                                                      ShadowDepth="5"
+                                                                      Opacity="0.16"
+                                                                      Direction="270" />
+                                                </Border.Effect>
+                                                <StackPanel MinWidth="230">
+                                                    <TextBlock FontWeight="SemiBold"
+                                                               FontSize="13"
+                                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                                               Margin="0,0,0,6">
+                                                        <Run Text="将“" />
+                                                        <Run Text="{Binding SelectedBox.Name, Mode=OneWay}" />
+                                                        <Run Text="”召回屏幕中心？" />
+                                                    </TextBlock>
+                                                    <TextBlock Text="盒子将显示在主屏工作区中心，并立即记录新位置。"
+                                                               FontSize="11.5"
+                                                               Foreground="{DynamicResource TextMutedBrush}"
+                                                               Margin="0,0,0,14"
+                                                               TextWrapping="Wrap" />
+                                                    <StackPanel Orientation="Horizontal"
+                                                                HorizontalAlignment="Right">
+                                                        <Button Content="取消"
+                                                                Click="OnCancelRecallBoxClicked"
+                                                                Style="{StaticResource GhostButtonStyle}"
+                                                                Margin="0,0,6,0"
+                                                                Padding="12,5" />
+                                                        <Button Content="召回"
+                                                                Click="OnConfirmRecallBoxClicked"
+                                                                Style="{StaticResource PrimaryButtonStyle}"
+                                                                Padding="14,5" />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </Popup>
                                     </Grid>
 
                                     <Grid Margin="6,1,0,0">
@@ -796,6 +845,22 @@
                                                                        FontSize="13"
                                                                        Foreground="{DynamicResource TextMutedBrush}" />
                                                             <TextBlock Text="{Binding SelectedBox.PositionLockButtonToolTip}"
+                                                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                                                       FontSize="12" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                    <Button Click="OnRecallBoxClicked"
+                                                            Style="{StaticResource GhostButtonStyle}"
+                                                            AutomationProperties.Name="将盒子召回屏幕中心"
+                                                            Padding="10,8"
+                                                            HorizontalContentAlignment="Left">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="&#xE72C;"
+                                                                       Width="20"
+                                                                       FontFamily="Segoe Fluent Icons"
+                                                                       FontSize="13"
+                                                                       Foreground="{DynamicResource TextMutedBrush}" />
+                                                            <TextBlock Text="召回屏幕中心"
                                                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                                                        FontSize="12" />
                                                         </StackPanel>
@@ -2633,16 +2698,33 @@
                                                 Maximum="90"
                                                 SmallChange="1"
                                                 LargeChange="10"
+                                                IsMoveToPointEnabled="True"
                                                 Style="{StaticResource ThemeOpacitySliderStyle}"
                                                 VerticalAlignment="Center"
                                                 Value="{Binding ThemeTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                        <TextBlock Grid.Column="2"
-                                                   Text="{Binding ThemeTransparencyLabel}"
-                                                   HorizontalAlignment="Right"
-                                                   VerticalAlignment="Center"
-                                                   FontSize="11.5"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <StackPanel Grid.Column="2"
+                                                    Orientation="Horizontal"
+                                                    HorizontalAlignment="Right"
+                                                    VerticalAlignment="Center">
+                                            <TextBox x:Name="ThemeTransparencyInput"
+                                                     Width="30"
+                                                     Height="24"
+                                                     Padding="2,1"
+                                                     MaxLength="3"
+                                                     TextAlignment="Right"
+                                                     VerticalContentAlignment="Center"
+                                                     FontSize="11.5"
+                                                     FontWeight="SemiBold"
+                                                     KeyDown="OnThemeTransparencyInputKeyDown"
+                                                     LostFocus="OnThemeTransparencyInputLostFocus"
+                                                     Text="{Binding ThemeTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" />
+                                            <TextBlock Text="%"
+                                                       Margin="2,0,0,0"
+                                                       VerticalAlignment="Center"
+                                                       FontSize="11.5"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        </StackPanel>
                                     </Grid>
                                 </Grid>
                                 </Border>
@@ -2695,6 +2777,193 @@
                                                    Foreground="{DynamicResource TextMutedBrush}" />
                                     </StackPanel>
                                 </Grid>
+                                </Border>
+
+                                <!-- Desktop Layout Card -->
+                                <Border Background="{DynamicResource PanelBrush}"
+                                        BorderBrush="{DynamicResource BorderBrushSoft}"
+                                        BorderThickness="1"
+                                        CornerRadius="12"
+                                        Padding="10"
+                                        Margin="0,0,0,6">
+                                    <StackPanel>
+                                        <TextBlock Text="桌面盒子布局"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="13"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <TextBlock Text="使用三个独立槽位备份当前所有盒子的位置，并可随时选择恢复"
+                                                   Margin="0,2,0,7"
+                                                   FontSize="11.5"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource TextMutedBrush}" />
+
+                                        <Border Background="{DynamicResource PanelAltBrush}"
+                                                BorderBrush="{DynamicResource BorderBrushSoft}"
+                                                BorderThickness="1"
+                                                CornerRadius="8"
+                                                Padding="8,5"
+                                                Margin="0,0,0,4">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <TextBlock Text="备份槽位 1"
+                                                               VerticalAlignment="Center"
+                                                               FontSize="12"
+                                                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                    <TextBlock x:Name="LayoutBackupSlot1Status"
+                                                               Text="未记录"
+                                                               Margin="8,0,0,0"
+                                                               VerticalAlignment="Center"
+                                                               FontSize="10.5"
+                                                               Foreground="{DynamicResource TextMutedBrush}" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                                    <Button x:Name="LayoutBackupSlot1RecordButton"
+                                                            Content="记录"
+                                                            Tag="1"
+                                                            Click="OnRecordLayoutBackupClicked"
+                                                            AutomationProperties.Name="记录整体布局到备份槽位 1"
+                                                            Style="{StaticResource GhostButtonStyle}"
+                                                            Height="26"
+                                                            Padding="11,0"
+                                                            Margin="0,0,5,0" />
+                                                    <Button x:Name="LayoutBackupSlot1RestoreButton"
+                                                            Content="恢复"
+                                                            Tag="1"
+                                                            Click="OnRestoreLayoutBackupClicked"
+                                                            AutomationProperties.Name="恢复备份槽位 1 的整体布局"
+                                                            Style="{StaticResource PrimaryButtonStyle}"
+                                                            Visibility="Collapsed"
+                                                            Height="26"
+                                                            Padding="11,0"
+                                                            Margin="0,0,5,0" />
+                                                    <Button x:Name="LayoutBackupSlot1DeleteButton"
+                                                            Content="删除"
+                                                            Tag="1"
+                                                            Click="OnDeleteLayoutBackupClicked"
+                                                            AutomationProperties.Name="删除备份槽位 1 的整体布局"
+                                                            Style="{StaticResource DangerButtonStyle}"
+                                                            Visibility="Collapsed"
+                                                            Height="26"
+                                                            Padding="10,0" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+
+                                        <Border Background="{DynamicResource PanelAltBrush}"
+                                                BorderBrush="{DynamicResource BorderBrushSoft}"
+                                                BorderThickness="1"
+                                                CornerRadius="8"
+                                                Padding="8,5"
+                                                Margin="0,0,0,4">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <TextBlock Text="备份槽位 2"
+                                                               VerticalAlignment="Center"
+                                                               FontSize="12"
+                                                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                    <TextBlock x:Name="LayoutBackupSlot2Status"
+                                                               Text="未记录"
+                                                               Margin="8,0,0,0"
+                                                               VerticalAlignment="Center"
+                                                               FontSize="10.5"
+                                                               Foreground="{DynamicResource TextMutedBrush}" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                                    <Button x:Name="LayoutBackupSlot2RecordButton"
+                                                            Content="记录"
+                                                            Tag="2"
+                                                            Click="OnRecordLayoutBackupClicked"
+                                                            AutomationProperties.Name="记录整体布局到备份槽位 2"
+                                                            Style="{StaticResource GhostButtonStyle}"
+                                                            Height="26"
+                                                            Padding="11,0"
+                                                            Margin="0,0,5,0" />
+                                                    <Button x:Name="LayoutBackupSlot2RestoreButton"
+                                                            Content="恢复"
+                                                            Tag="2"
+                                                            Click="OnRestoreLayoutBackupClicked"
+                                                            AutomationProperties.Name="恢复备份槽位 2 的整体布局"
+                                                            Style="{StaticResource PrimaryButtonStyle}"
+                                                            Visibility="Collapsed"
+                                                            Height="26"
+                                                            Padding="11,0"
+                                                            Margin="0,0,5,0" />
+                                                    <Button x:Name="LayoutBackupSlot2DeleteButton"
+                                                            Content="删除"
+                                                            Tag="2"
+                                                            Click="OnDeleteLayoutBackupClicked"
+                                                            AutomationProperties.Name="删除备份槽位 2 的整体布局"
+                                                            Style="{StaticResource DangerButtonStyle}"
+                                                            Visibility="Collapsed"
+                                                            Height="26"
+                                                            Padding="10,0" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+
+                                        <Border Background="{DynamicResource PanelAltBrush}"
+                                                BorderBrush="{DynamicResource BorderBrushSoft}"
+                                                BorderThickness="1"
+                                                CornerRadius="8"
+                                                Padding="8,5">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <TextBlock Text="备份槽位 3"
+                                                               VerticalAlignment="Center"
+                                                               FontSize="12"
+                                                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                    <TextBlock x:Name="LayoutBackupSlot3Status"
+                                                               Text="未记录"
+                                                               Margin="8,0,0,0"
+                                                               VerticalAlignment="Center"
+                                                               FontSize="10.5"
+                                                               Foreground="{DynamicResource TextMutedBrush}" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                                    <Button x:Name="LayoutBackupSlot3RecordButton"
+                                                            Content="记录"
+                                                            Tag="3"
+                                                            Click="OnRecordLayoutBackupClicked"
+                                                            AutomationProperties.Name="记录整体布局到备份槽位 3"
+                                                            Style="{StaticResource GhostButtonStyle}"
+                                                            Height="26"
+                                                            Padding="11,0"
+                                                            Margin="0,0,5,0" />
+                                                    <Button x:Name="LayoutBackupSlot3RestoreButton"
+                                                            Content="恢复"
+                                                            Tag="3"
+                                                            Click="OnRestoreLayoutBackupClicked"
+                                                            AutomationProperties.Name="恢复备份槽位 3 的整体布局"
+                                                            Style="{StaticResource PrimaryButtonStyle}"
+                                                            Visibility="Collapsed"
+                                                            Height="26"
+                                                            Padding="11,0"
+                                                            Margin="0,0,5,0" />
+                                                    <Button x:Name="LayoutBackupSlot3DeleteButton"
+                                                            Content="删除"
+                                                            Tag="3"
+                                                            Click="OnDeleteLayoutBackupClicked"
+                                                            AutomationProperties.Name="删除备份槽位 3 的整体布局"
+                                                            Style="{StaticResource DangerButtonStyle}"
+                                                            Visibility="Collapsed"
+                                                            Height="26"
+                                                            Padding="10,0" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </StackPanel>
                                 </Border>
 
                                 <!-- Update Check Card -->
@@ -2916,7 +3185,12 @@
                                           Margin="0"
                                           HorizontalScrollBarVisibility="Disabled"
                                           VerticalScrollBarVisibility="Auto"
-                                          CanContentScroll="True">
+                                          PanningMode="VerticalOnly"
+                                          CanContentScroll="False">
+                                <ScrollViewer.Resources>
+                                    <Style TargetType="{x:Type ScrollBar}"
+                                           BasedOn="{StaticResource DrawerScrollBarStyle}" />
+                                </ScrollViewer.Resources>
                                 <StackPanel HorizontalAlignment="Stretch"
                                             VerticalAlignment="Top">
                                 <!-- App Info Card -->
@@ -2997,8 +3271,49 @@
                                 </StackPanel>
                                 </Border>
 
+                                <!-- Author Support Card -->
+                                <Border x:Name="AuthorSupportCard"
+                                        Background="{DynamicResource PanelBrush}"
+                                        BorderBrush="{DynamicResource BorderBrushSoft}"
+                                        BorderThickness="1"
+                                        CornerRadius="14"
+                                        Padding="12"
+                                        Margin="0,0,0,8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="赞助作者"
+                                                       FontWeight="Bold"
+                                                       FontSize="14"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                                            <TextBlock Text="支持 WitchDrawer 的持续开发与维护"
+                                                       Margin="0,3,0,0"
+                                                       FontSize="12"
+                                                       Foreground="{DynamicResource TextMutedBrush}" />
+                                            <TextBlock Text="赞助时请备注你的 ID，可加入鸣谢名单。"
+                                                       Margin="0,5,0,0"
+                                                       FontSize="11.5"
+                                                       FontWeight="SemiBold"
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource AccentBrush}" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1"
+                                                Content="前往赞助页面"
+                                                Style="{StaticResource PrimaryButtonStyle}"
+                                                Click="OnOpenSupportLinkClicked"
+                                                AutomationProperties.Name="在浏览器中打开赞助作者页面"
+                                                Height="30"
+                                                Padding="12,0"
+                                                VerticalAlignment="Center" />
+                                    </Grid>
+                                </Border>
+
                                 <!-- Author Card -->
-                                <Border Background="{DynamicResource PanelBrush}"
+                                <Border x:Name="DeveloperCard"
+                                    Background="{DynamicResource PanelBrush}"
                                     BorderBrush="{DynamicResource BorderBrushSoft}"
                                     BorderThickness="1"
                                     CornerRadius="14"

@@ -172,6 +172,62 @@ public partial class App : Application
                 }
             };
             _mainWindow.ReopenBoxRequested += async (_, boxId) => await _desktopBoxManager.ShowAsync(boxId);
+            _mainWindow.RecordLayoutBackupRequested += async (_, slot) =>
+                await GuardRefreshAsync(
+                    async () =>
+                    {
+                        var count = await _desktopBoxManager.RecordLayoutBackupAsync(slot);
+                        _mainWindow.SetLayoutBackupSlotState(slot, hasBackup: true);
+                        mainViewModel.ReportStatus($"已将 {count} 个盒子记录到布局备份槽位 {slot}");
+                    },
+                    "RecordLayoutBackupAsync",
+                    logger);
+            _mainWindow.RestoreLayoutBackupRequested += async (_, slot) =>
+                await GuardRefreshAsync(
+                    async () =>
+                    {
+                        var result = await _desktopBoxManager.RestoreLayoutBackupAsync(slot);
+                        if (!result.BackupFound)
+                        {
+                            _mainWindow.SetLayoutBackupSlotState(slot, hasBackup: false);
+                            mainViewModel.ReportStatus($"布局备份槽位 {slot} 为空或不可用");
+                            return;
+                        }
+
+                        var missingText = result.MissingCount > 0
+                            ? $"，另有 {result.MissingCount} 个已删除盒子被跳过"
+                            : string.Empty;
+                        mainViewModel.ReportStatus(
+                            $"已从布局备份槽位 {slot} 恢复 {result.RestoredCount} 个盒子{missingText}");
+                    },
+                    "RestoreLayoutBackupAsync",
+                    logger);
+            _mainWindow.DeleteLayoutBackupRequested += async (_, slot) =>
+                await GuardRefreshAsync(
+                    async () =>
+                    {
+                        var deleted = await _desktopBoxManager.DeleteLayoutBackupAsync(slot);
+                        _mainWindow.SetLayoutBackupSlotState(slot, hasBackup: false);
+                        mainViewModel.ReportStatus(
+                            deleted
+                                ? $"已删除布局备份槽位 {slot}"
+                                : $"布局备份槽位 {slot} 已经为空");
+                    },
+                    "DeleteLayoutBackupAsync",
+                    logger);
+            _mainWindow.RecallBoxToScreenCenterRequested += async (_, boxId) =>
+                await GuardRefreshAsync(
+                    async () =>
+                    {
+                        if (await _desktopBoxManager.CenterBoxOnScreenAsync(
+                                boxId,
+                                SystemParameters.WorkArea))
+                        {
+                            mainViewModel.ReportStatus("已将盒子召回主屏中心");
+                        }
+                    },
+                    "CenterBoxOnScreenAsync",
+                    logger);
             _mainWindow.DesktopShellRestarted += async (_, _) =>
                 await _desktopBoxManager.RecoverDesktopHostsAsync();
             mainViewModel.UpdateRequested += async (_, result) =>
@@ -193,6 +249,14 @@ public partial class App : Application
             {
                 await PerformShutdownAsync();
             };
+
+            var layoutBackupStates = await Task.WhenAll(
+                Enumerable.Range(1, 3).Select(async slot =>
+                    (Slot: slot, HasBackup: await _desktopBoxManager.HasLayoutBackupAsync(slot))));
+            foreach (var state in layoutBackupStates)
+            {
+                _mainWindow.SetLayoutBackupSlotState(state.Slot, state.HasBackup);
+            }
 
             InitializeTaskbarIcon(paths, logger);
 

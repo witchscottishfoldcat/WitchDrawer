@@ -208,6 +208,20 @@ public sealed class DrawerServiceTests
     }
 
     [Fact]
+    public async Task DeleteSettingAsync_RemovesPersistedValueAndReportsWhetherItExisted()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        await workspace.Service.SetSettingAsync("LayoutBackup:1", "saved-layout");
+
+        var deleted = await workspace.Service.DeleteSettingAsync("LayoutBackup:1");
+        var deletedAgain = await workspace.Service.DeleteSettingAsync("LayoutBackup:1");
+
+        Assert.True(deleted);
+        Assert.False(deletedAgain);
+        Assert.Null(await workspace.Service.GetSettingAsync("LayoutBackup:1"));
+    }
+
+    [Fact]
     public async Task ImportPathAsync_PixelBoxMovesFileIntoStorage()
     {
         using var workspace = await TestWorkspace.CreateAsync();

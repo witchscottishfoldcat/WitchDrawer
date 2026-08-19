@@ -626,6 +626,11 @@ public sealed class DrawerService
         return _repository.SetSettingAsync(key, value, cancellationToken);
     }
 
+    public Task<bool> DeleteSettingAsync(string key, CancellationToken cancellationToken = default)
+    {
+        return _repository.DeleteSettingAsync(key, cancellationToken);
+    }
+
     public async Task RenameBoxAsync(Guid boxId, string newName, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(newName))

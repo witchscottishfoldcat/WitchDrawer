@@ -204,6 +204,28 @@ public sealed class ThemeOpacitySettingTests
         }
     }
 
+    [Fact]
+    public async Task TransparencyPercent_RejectsNonFiniteDirectInput()
+    {
+        await using var workspace = await ThemeWorkspace.CreateAsync();
+        AppThemeManager.ResetBoxOpacitiesForTests();
+
+        try
+        {
+            await workspace.ViewModel.LoadAsync();
+            workspace.ViewModel.ThemeTransparencyPercent = 35;
+
+            workspace.ViewModel.ThemeTransparencyPercent = double.NaN;
+            workspace.ViewModel.ThemeTransparencyPercent = double.PositiveInfinity;
+
+            Assert.Equal(35, workspace.ViewModel.ThemeTransparencyPercent);
+        }
+        finally
+        {
+            AppThemeManager.ResetBoxOpacitiesForTests();
+        }
+    }
+
     private static string FormatOpacity(double opacity)
     {
         return opacity.ToString("0.00", CultureInfo.InvariantCulture);

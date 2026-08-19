@@ -270,6 +270,14 @@ public sealed class MainViewModel : ObservableObject
         private set => SetProperty(ref _statusText, value);
     }
 
+    internal void ReportStatus(string message)
+    {
+        if (!string.IsNullOrWhiteSpace(message))
+        {
+            StatusText = message;
+        }
+    }
+
     public string ThemeLabel
     {
         get => _themeLabel;
@@ -301,6 +309,11 @@ public sealed class MainViewModel : ObservableObject
         get => _themeTransparencyPercent;
         set
         {
+            if (!double.IsFinite(value))
+            {
+                return;
+            }
+
             var normalized = Math.Clamp(
                 Math.Round(value),
                 0,

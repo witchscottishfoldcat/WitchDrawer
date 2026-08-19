@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Channels;
 using System.Windows;
@@ -16,6 +17,10 @@ namespace WitchDrawer.App.Infrastructure;
 public sealed class DesktopBoxManager
 {
     private const string BoxPositionSettingPrefix = "BoxPosition:";
+    private const string LayoutBackupSettingPrefix = "LayoutBackup:";
+    private const int LayoutBackupVersion = 1;
+    private const int LayoutBackupSlotCount = 3;
+    private const int MaxLayoutBackupPositions = 4096;
     private const char PositionSeparator = ',';
 
     private readonly DrawerService _drawerService;
@@ -280,11 +285,124 @@ public sealed class DesktopBoxManager
 
     public async Task SaveAllPositionsAsync()
     {
-        foreach (var (boxId, window) in _windows)
+        var positions = _windows
+            .Select(pair => new KeyValuePair<string, string>(
+                BoxPositionSettingPrefix + pair.Key.ToString("N"),
+                SerializePosition(pair.Value.Left, pair.Value.Top)))
+            .ToArray();
+
+        foreach (var (key, value) in positions)
         {
-            var key = BoxPositionSettingPrefix + boxId.ToString("N");
-            var value = SerializePosition(window.Left, window.Top);
             await _drawerService.SetSettingAsync(key, value);
+        }
+
+        _logger.Info($"Recorded complete desktop layout for {positions.Length} boxes.");
+    }
+
+    public async Task<int> RecordLayoutBackupAsync(int slot)
+    {
+        var key = GetLayoutBackupSettingKey(slot);
+        var positions = _windows
+            .Select(pair => new LayoutBackupPosition(
+                pair.Key,
+                pair.Value.Left,
+                pair.Value.Top))
+            .ToArray();
+        var value = SerializeLayoutBackup(positions);
+
+        await _drawerService.SetSettingAsync(key, value);
+        _logger.Info($"Recorded layout backup slot {slot} with {positions.Length} boxes.");
+        return positions.Length;
+    }
+
+    public async Task<bool> HasLayoutBackupAsync(int slot)
+    {
+        var key = GetLayoutBackupSettingKey(slot);
+        var value = await _drawerService.GetSettingAsync(key);
+        var hasBackup = TryParseLayoutBackup(value, out _);
+        if (!hasBackup && !string.IsNullOrWhiteSpace(value))
+        {
+            _logger.Info($"Layout backup slot {slot} contains invalid data and is treated as empty.");
+        }
+
+        return hasBackup;
+    }
+
+    public async Task<bool> DeleteLayoutBackupAsync(int slot)
+    {
+        var key = GetLayoutBackupSettingKey(slot);
+        var deleted = await _drawerService.DeleteSettingAsync(key);
+        _logger.Info(
+            deleted
+                ? $"Deleted layout backup slot {slot}."
+                : $"Layout backup slot {slot} was already empty when deletion was requested.");
+        return deleted;
+    }
+
+    public async Task<LayoutBackupRestoreResult> RestoreLayoutBackupAsync(int slot)
+    {
+        var key = GetLayoutBackupSettingKey(slot);
+        await _refreshGate.WaitAsync();
+        try
+        {
+            if (_closing)
+            {
+                return new LayoutBackupRestoreResult(false, 0, 0);
+            }
+
+            var value = await _drawerService.GetSettingAsync(key);
+            if (!TryParseLayoutBackup(value, out var positions))
+            {
+                _logger.Info($"Layout backup slot {slot} is empty or invalid; restore skipped.");
+                return new LayoutBackupRestoreResult(false, 0, 0);
+            }
+
+            var restoredCount = 0;
+            var missingCount = 0;
+            _isAdjustingPosition = true;
+            try
+            {
+                foreach (var position in positions)
+                {
+                    if (!_windows.TryGetValue(position.BoxId, out var window))
+                    {
+                        missingCount++;
+                        continue;
+                    }
+
+                    window.Left = position.Left;
+                    window.Top = position.Top;
+                    window.ResyncSizeToContent();
+                    window.UpdateLayout();
+
+                    var bounds = window.GetVisibleBounds();
+                    if (bounds.Width > 0 && bounds.Height > 0)
+                    {
+                        var origin = CalculateClampedVisibleOrigin(bounds, window.GetWorkAreaDip());
+                        window.MoveToVisibleOrigin(origin.X, origin.Y);
+                    }
+
+                    if (window.IsVisible)
+                    {
+                        window.QueueSendToBottom();
+                    }
+
+                    restoredCount++;
+                }
+            }
+            finally
+            {
+                _isAdjustingPosition = false;
+            }
+
+            await SaveAllPositionsAsync();
+            _logger.Info(
+                $"Restored layout backup slot {slot}: restored={restoredCount}, missing={missingCount}.");
+            return new LayoutBackupRestoreResult(true, restoredCount, missingCount);
+        }
+        finally
+        {
+            _refreshGate.Release();
         }
     }
 
@@ -417,8 +535,68 @@ public sealed class DesktopBoxManager
         }
 
         var key = BoxPositionSettingPrefix + boxId.ToString("N");
-        var value = $"{window.Left}{PositionSeparator}{window.Top}";
+        var value = SerializePosition(window.Left, window.Top);
         await _drawerService.SetSettingAsync(key, value);
+    }
+
+    public async Task<bool> CenterBoxOnScreenAsync(Guid boxId, Rect workArea)
+    {
+        if (_closing)
+        {
+            return false;
+        }
+
+        await _refreshGate.WaitAsync();
+        try
+        {
+            if (_closing || !_windows.TryGetValue(boxId, out var window))
+            {
+                _logger.Info($"Skipped screen-center recall for missing desktop box {boxId:N}.");
+                return false;
+            }
+
+            if (!window.IsVisible)
+            {
+                await window.ViewModel.LoadAsync();
+                if (_closing)
+                {
+                    return false;
+                }
+
+                window.Show();
+            }
+
+            window.ResyncSizeToContent();
+            window.UpdateLayout();
+            var bounds = window.GetVisibleBounds();
+            if (bounds.Width <= 0 || bounds.Height <= 0)
+            {
+                _logger.Info($"Skipped screen-center recall for unmeasured desktop box {boxId:N}.");
+                return false;
+            }
+
+            var origin = CalculateCenteredVisibleOrigin(bounds.Size, workArea);
+            _isAdjustingPosition = true;
+            try
+            {
+                window.MoveToVisibleOrigin(origin.X, origin.Y);
+            }
+            finally
+            {
+                _isAdjustingPosition = false;
+            }
+
+            window.QueueSendToBottom();
+            var key = BoxPositionSettingPrefix + boxId.ToString("N");
+            var value = SerializePosition(window.Left, window.Top);
+            await _drawerService.SetSettingAsync(key, value);
+            _logger.Info($"Recalled desktop box {boxId:N} to screen center at {value}.");
+            return true;
+        }
+        finally
+        {
+            _refreshGate.Release();
+        }
     }
 
     public async Task CloseAllAsync()
@@ -772,6 +950,122 @@ public sealed class DesktopBoxManager
 
         return double.IsFinite(left) && double.IsFinite(top);
     }
+
+    internal static Point CalculateCenteredVisibleOrigin(Size visibleSize, Rect workArea)
+    {
+        if (!double.IsFinite(visibleSize.Width)
+            || !double.IsFinite(visibleSize.Height)
+            || visibleSize.Width < 0
+            || visibleSize.Height < 0
+            || workArea.IsEmpty
+            || !double.IsFinite(workArea.Left)
+            || !double.IsFinite(workArea.Top)
+            || !double.IsFinite(workArea.Width)
+            || !double.IsFinite(workArea.Height))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(workArea),
+                "Visible size and work area must contain finite, non-negative dimensions.");
+        }
+
+        var centeredLeft = workArea.Left + ((workArea.Width - visibleSize.Width) / 2);
+        var centeredTop = workArea.Top + ((workArea.Height - visibleSize.Height) / 2);
+        var left = Math.Max(
+            workArea.Left,
+            Math.Min(centeredLeft, workArea.Right - visibleSize.Width));
+        var top = Math.Max(
+            workArea.Top,
+            Math.Min(centeredTop, workArea.Bottom - visibleSize.Height));
+        return new Point(left, top);
+    }
+
+    internal static Point CalculateClampedVisibleOrigin(Rect visibleBounds, Rect workArea)
+    {
+        var left = Math.Max(
+            workArea.Left,
+            Math.Min(visibleBounds.Left, workArea.Right - visibleBounds.Width));
+        var top = Math.Max(
+            workArea.Top,
+            Math.Min(visibleBounds.Top, workArea.Bottom - visibleBounds.Height));
+        return new Point(left, top);
+    }
+
+    internal static string GetLayoutBackupSettingKey(int slot)
+    {
+        if (slot is < 1 or > LayoutBackupSlotCount)
+        {
+            throw new ArgumentOutOfRangeException(nameof(slot), slot, "Layout backup slot must be from 1 to 3.");
+        }
+
+        return LayoutBackupSettingPrefix + slot.ToString(CultureInfo.InvariantCulture);
+    }
+
+    internal static string SerializeLayoutBackup(IEnumerable<LayoutBackupPosition> positions)
+    {
+        ArgumentNullException.ThrowIfNull(positions);
+        var snapshot = positions.ToArray();
+        if (!IsValidLayoutBackup(snapshot))
+        {
+            throw new ArgumentException("Layout backup contains invalid or duplicate box positions.", nameof(positions));
+        }
+
+        return JsonSerializer.Serialize(new LayoutBackupPayload(LayoutBackupVersion, snapshot));
+    }
+
+    internal static bool TryParseLayoutBackup(string? raw, out LayoutBackupPosition[] positions)
+    {
+        positions = [];
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return false;
+        }
+
+        try
+        {
+            var payload = JsonSerializer.Deserialize<LayoutBackupPayload>(raw);
+            if (payload is null
+                || payload.Version != LayoutBackupVersion
+                || !IsValidLayoutBackup(payload.Positions))
+            {
+                return false;
+            }
+
+            positions = payload.Positions;
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+        catch (NotSupportedException)
+        {
+            return false;
+        }
+    }
+
+    private static bool IsValidLayoutBackup(LayoutBackupPosition[]? positions)
+    {
+        if (positions is null || positions.Length > MaxLayoutBackupPositions)
+        {
+            return false;
+        }
+
+        var ids = new HashSet<Guid>();
+        return positions.All(position =>
+            position.BoxId != Guid.Empty
+            && double.IsFinite(position.Left)
+            && double.IsFinite(position.Top)
+            && ids.Add(position.BoxId));
+    }
+
+    internal readonly record struct LayoutBackupPosition(Guid BoxId, double Left, double Top);
+
+    public readonly record struct LayoutBackupRestoreResult(
+        bool BackupFound,
+        int RestoredCount,
+        int MissingCount);
+
+    private sealed record LayoutBackupPayload(int Version, LayoutBackupPosition[] Positions);
 
     private static void PlaceNewWindow(Window window, int index)
     {
