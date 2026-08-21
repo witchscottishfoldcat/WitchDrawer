@@ -45,6 +45,41 @@ public sealed class DesktopBoxManagerPositionTests
     }
 
     [Theory]
+    [InlineData(180, 120)]
+    [InlineData(2860, 240)]
+    [InlineData(360, 1680)]
+    [InlineData(-1420, 260)]
+    public void PhysicalPosition_RoundTripsAcrossExtendedDesktopCoordinates(
+        double screenX,
+        double screenY)
+    {
+        var serialized = DesktopBoxManager.SerializePhysicalPosition(screenX, screenY);
+
+        Assert.True(DesktopBoxManager.TryParseStoredPosition(
+            serialized,
+            out var restoredX,
+            out var restoredY,
+            out var isPhysicalPixels));
+        Assert.True(isPhysicalPixels);
+        Assert.Equal(screenX, restoredX);
+        Assert.Equal(screenY, restoredY);
+    }
+
+    [Fact]
+    public void LegacyPosition_RemainsReadableForOneTimeMigration()
+    {
+        Assert.True(DesktopBoxManager.TryParseStoredPosition(
+            "123.5,-42.25",
+            out var left,
+            out var top,
+            out var isPhysicalPixels));
+
+        Assert.False(isPhysicalPixels);
+        Assert.Equal(123.5, left);
+        Assert.Equal(-42.25, top);
+    }
+
+    [Theory]
     [InlineData(0, 0, 1920, 1040, 240, 180, 840, 430)]
     [InlineData(-1920, 0, 1920, 1040, 240, 180, -1080, 430)]
     [InlineData(0, 0, 200, 100, 300, 150, 0, 0)]
@@ -108,11 +143,39 @@ public sealed class DesktopBoxManagerPositionTests
         Assert.Equal(positions, restored);
     }
 
+    [Fact]
+    public void LayoutBackup_PreservesPhysicalPixelCoordinateSpace()
+    {
+        var boxId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+        DesktopBoxManager.LayoutBackupPosition[] positions =
+        [
+            new(boxId, 2860, 240, IsPhysicalPixels: true)
+        ];
+
+        var raw = DesktopBoxManager.SerializeLayoutBackup(positions);
+        var parsed = DesktopBoxManager.TryParseLayoutBackup(raw, out var restored);
+
+        Assert.True(parsed);
+        Assert.Equal(positions, restored);
+    }
+
+    [Fact]
+    public void LayoutBackup_Version1RemainsReadableForOneTimeMigration()
+    {
+        const string raw = "{\"Version\":1,\"Positions\":[{\"BoxId\":\"11111111-1111-1111-1111-111111111111\",\"Left\":123.5,\"Top\":-42.25}]}";
+
+        var parsed = DesktopBoxManager.TryParseLayoutBackup(raw, out var restored);
+
+        Assert.True(parsed);
+        Assert.Single(restored);
+        Assert.False(restored[0].IsPhysicalPixels);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("not-json")]
-    [InlineData("{\"Version\":2,\"Positions\":[]}")]
+    [InlineData("{\"Version\":3,\"Positions\":[]}")]
     [InlineData("{\"Version\":1,\"Positions\":[{\"BoxId\":\"00000000-0000-0000-0000-000000000000\",\"Left\":0,\"Top\":0}]}")]
     [InlineData("{\"Version\":1,\"Positions\":[{\"BoxId\":\"11111111-1111-1111-1111-111111111111\",\"Left\":0,\"Top\":0},{\"BoxId\":\"11111111-1111-1111-1111-111111111111\",\"Left\":10,\"Top\":10}]}")]
     public void TryParseLayoutBackup_RejectsInvalidPayloads(string? raw)

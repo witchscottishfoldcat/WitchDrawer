@@ -17,8 +17,10 @@ namespace WitchDrawer.App.Infrastructure;
 public sealed class DesktopBoxManager
 {
     private const string BoxPositionSettingPrefix = "BoxPosition:";
+    private const string PhysicalPositionPrefix = "px:";
     private const string LayoutBackupSettingPrefix = "LayoutBackup:";
-    private const int LayoutBackupVersion = 1;
+    private const int LayoutBackupVersion = 2;
+    private const int LegacyLayoutBackupVersion = 1;
     private const int LayoutBackupSlotCount = 3;
     private const int MaxLayoutBackupPositions = 4096;
     private const char PositionSeparator = ',';
@@ -290,7 +292,7 @@ public sealed class DesktopBoxManager
         var positions = _windows
             .Select(pair => new KeyValuePair<string, string>(
                 BoxPositionSettingPrefix + pair.Key.ToString("N"),
-                SerializePosition(pair.Value.Left, pair.Value.Top)))
+                CaptureStoredPosition(pair.Value)))
             .ToArray();
 
         foreach (var (key, value) in positions)
@@ -305,10 +307,7 @@ public sealed class DesktopBoxManager
     {
         var key = GetLayoutBackupSettingKey(slot);
         var positions = _windows
-            .Select(pair => new LayoutBackupPosition(
-                pair.Key,
-                pair.Value.Left,
-                pair.Value.Top))
+            .Select(pair => CaptureLayoutBackupPosition(pair.Key, pair.Value))
             .ToArray();
         var value = SerializeLayoutBackup(positions);
 
@@ -372,16 +371,26 @@ public sealed class DesktopBoxManager
                         continue;
                     }
 
-                    window.Left = position.Left;
-                    window.Top = position.Top;
+                    if (position.IsPhysicalPixels)
+                    {
+                        window.MoveWindowOriginPixels(position.Left, position.Top);
+                    }
+                    else
+                    {
+                        // Version 1 backups stored WPF DIPs without monitor identity.
+                        // Keep the legacy interpretation for one-time migration.
+                        window.Left = position.Left;
+                        window.Top = position.Top;
+                    }
                     window.ResyncSizeToContent();
                     window.UpdateLayout();
 
-                    var bounds = window.GetVisibleBounds();
-                    if (bounds.Width > 0 && bounds.Height > 0)
+                    var bounds = window.GetVisibleBoundsPixels();
+                    var workArea = window.GetWorkAreaPixels();
+                    if (bounds.Width > 0 && bounds.Height > 0 && !workArea.IsEmpty)
                     {
-                        var origin = CalculateClampedVisibleOrigin(bounds, window.GetWorkAreaDip());
-                        window.MoveToVisibleOrigin(origin.X, origin.Y);
+                        var origin = CalculateClampedVisibleOrigin(bounds, workArea);
+                        window.MoveToVisibleOriginPixels(origin.X, origin.Y);
                     }
 
                     if (window.IsVisible)
@@ -537,11 +546,11 @@ public sealed class DesktopBoxManager
         }
 
         var key = BoxPositionSettingPrefix + boxId.ToString("N");
-        var value = SerializePosition(window.Left, window.Top);
+        var value = CaptureStoredPosition(window);
         await _drawerService.SetSettingAsync(key, value);
     }
 
-    public async Task<bool> CenterBoxOnScreenAsync(Guid boxId, Rect workArea)
+    public async Task<bool> CenterBoxOnScreenAsync(Guid boxId)
     {
         if (_closing)
         {
@@ -570,10 +579,17 @@ public sealed class DesktopBoxManager
 
             window.ResyncSizeToContent();
             window.UpdateLayout();
-            var bounds = window.GetVisibleBounds();
+            var bounds = window.GetVisibleBoundsPixels();
             if (bounds.Width <= 0 || bounds.Height <= 0)
             {
                 _logger.Info($"Skipped screen-center recall for unmeasured desktop box {boxId:N}.");
+                return false;
+            }
+
+            var workArea = DesktopBoxWindow.GetPrimaryWorkAreaPixels();
+            if (workArea.IsEmpty)
+            {
+                _logger.Info($"Skipped screen-center recall because the primary work area is unavailable for {boxId:N}.");
                 return false;
             }
 
@@ -581,7 +597,7 @@ public sealed class DesktopBoxManager
             _isAdjustingPosition = true;
             try
             {
-                window.MoveToVisibleOrigin(origin.X, origin.Y);
+                window.MoveToVisibleOriginPixels(origin.X, origin.Y);
             }
             finally
             {
@@ -590,7 +606,7 @@ public sealed class DesktopBoxManager
 
             window.QueueSendToBottom();
             var key = BoxPositionSettingPrefix + boxId.ToString("N");
-            var value = SerializePosition(window.Left, window.Top);
+            var value = CaptureStoredPosition(window);
             await _drawerService.SetSettingAsync(key, value);
             _logger.Info($"Recalled desktop box {boxId:N} to screen center at {value}.");
             return true;
@@ -917,19 +933,40 @@ public sealed class DesktopBoxManager
         window.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
 
         var savedPosition = await _drawerService.GetSettingAsync(BoxPositionSettingPrefix + boxId.ToString("N"));
-        if (TryParsePosition(savedPosition, out var left, out var top))
+        if (TryParseStoredPosition(savedPosition, out var left, out var top, out var isPhysicalPixels))
         {
-            // 先按存档位置落位并创建句柄，确保取到目标位置所在显示器的工作区再钳制；
-            // SystemParameters.WorkArea 只有主屏，会把副屏上的存档位置错钳回主屏。
-            window.Left = left;
-            window.Top = top;
-            new System.Windows.Interop.WindowInteropHelper(window).EnsureHandle();
-            var workArea = window.GetWorkAreaDip();
-            var clampedLeft = Math.Max(workArea.Left, Math.Min(left, workArea.Right - window.DesiredSize.Width));
-            var clampedTop = Math.Max(workArea.Top, Math.Min(top, workArea.Bottom - window.DesiredSize.Height));
-            window.Left = clampedLeft;
-            window.Top = clampedTop;
-            return Math.Abs(clampedLeft - left) > 0.5 || Math.Abs(clampedTop - top) > 0.5;
+            if (isPhysicalPixels)
+            {
+                // Create the HWND before restoring. Assigning physical coordinates
+                // through WPF Left/Top would reinterpret them using the primary DPI.
+                new System.Windows.Interop.WindowInteropHelper(window).EnsureHandle();
+                window.MoveWindowOriginPixels(left, top);
+            }
+            else
+            {
+                // Old builds stored monitor-dependent WPF DIPs without a monitor id.
+                // Interpret them once with the legacy behavior; the next save writes px:.
+                window.Left = left;
+                window.Top = top;
+                new System.Windows.Interop.WindowInteropHelper(window).EnsureHandle();
+            }
+
+            var bounds = window.GetVisibleBoundsPixels();
+            var workArea = window.GetWorkAreaPixels();
+            if (bounds.IsEmpty || workArea.IsEmpty)
+            {
+                return false;
+            }
+
+            var origin = CalculateClampedVisibleOrigin(bounds, workArea);
+            var wasClamped = Math.Abs(origin.X - bounds.Left) > 0.5
+                || Math.Abs(origin.Y - bounds.Top) > 0.5;
+            if (wasClamped)
+            {
+                window.MoveToVisibleOriginPixels(origin.X, origin.Y);
+            }
+
+            return wasClamped;
         }
 
         PlaceNewWindow(window, fallbackIndex);
@@ -940,6 +977,26 @@ public sealed class DesktopBoxManager
         string.Create(
             CultureInfo.InvariantCulture,
             $"{left:R}{PositionSeparator}{top:R}");
+
+    internal static string SerializePhysicalPosition(double leftPixels, double topPixels) =>
+        PhysicalPositionPrefix + SerializePosition(leftPixels, topPixels);
+
+    internal static bool TryParseStoredPosition(
+        string? raw,
+        out double left,
+        out double top,
+        out bool isPhysicalPixels)
+    {
+        isPhysicalPixels = raw?.StartsWith(PhysicalPositionPrefix, StringComparison.Ordinal) == true;
+        var coordinates = isPhysicalPixels ? raw![PhysicalPositionPrefix.Length..] : raw;
+        if (TryParsePosition(coordinates, out left, out top))
+        {
+            return true;
+        }
+
+        isPhysicalPixels = false;
+        return false;
+    }
 
     internal static bool TryParsePosition(string? raw, out double left, out double top)
     {
@@ -961,6 +1018,30 @@ public sealed class DesktopBoxManager
         }
 
         return double.IsFinite(left) && double.IsFinite(top);
+    }
+
+    private static string CaptureStoredPosition(DesktopBoxWindow window)
+    {
+        if (window.TryGetWindowBoundsPixels(out var bounds))
+        {
+            return SerializePhysicalPosition(bounds.Left, bounds.Top);
+        }
+
+        // A visible desktop box normally always has an HWND. Retain the legacy
+        // fallback so shutdown cannot lose a position if a handle is being rebuilt.
+        return SerializePosition(window.Left, window.Top);
+    }
+
+    private static LayoutBackupPosition CaptureLayoutBackupPosition(
+        Guid boxId,
+        DesktopBoxWindow window)
+    {
+        if (window.TryGetWindowBoundsPixels(out var bounds))
+        {
+            return new LayoutBackupPosition(boxId, bounds.Left, bounds.Top, IsPhysicalPixels: true);
+        }
+
+        return new LayoutBackupPosition(boxId, window.Left, window.Top);
     }
 
     internal static Point CalculateCenteredVisibleOrigin(Size visibleSize, Rect workArea)
@@ -1036,7 +1117,8 @@ public sealed class DesktopBoxManager
         {
             var payload = JsonSerializer.Deserialize<LayoutBackupPayload>(raw);
             if (payload is null
-                || payload.Version != LayoutBackupVersion
+                || (payload.Version != LayoutBackupVersion
+                    && payload.Version != LegacyLayoutBackupVersion)
                 || !IsValidLayoutBackup(payload.Positions))
             {
                 return false;
@@ -1070,7 +1152,11 @@ public sealed class DesktopBoxManager
             && ids.Add(position.BoxId));
     }
 
-    internal readonly record struct LayoutBackupPosition(Guid BoxId, double Left, double Top);
+    internal readonly record struct LayoutBackupPosition(
+        Guid BoxId,
+        double Left,
+        double Top,
+        bool IsPhysicalPixels = false);
 
     public readonly record struct LayoutBackupRestoreResult(
         bool BackupFound,
@@ -1106,7 +1192,7 @@ public sealed class DesktopBoxManager
         var entries = _windows.Values
             .Where(window => window.IsVisible)
             .OfType<DesktopBoxWindow>()
-            .Select(window => (Window: window, Bounds: window.GetVisibleBounds()))
+            .Select(window => (Window: window, Bounds: window.GetVisibleBoundsPixels()))
             .Where(entry => entry.Bounds.Width > 0 && entry.Bounds.Height > 0)
             .ToArray();
 
@@ -1119,15 +1205,24 @@ public sealed class DesktopBoxManager
         foreach (var entry in entries.Where(entry => _overlapResolutionBoxIds.Contains(entry.Window.ViewModel.BoxId)))
         {
             var bounds = entry.Bounds;
+            var workArea = entry.Window.GetWorkAreaPixels();
+            if (workArea.IsEmpty)
+            {
+                // A transient monitor query failure must not turn Rect.Empty's
+                // infinities into an invalid native window position.
+                placed.Add(bounds);
+                continue;
+            }
+
             var resolved = ResolveOverlapCascade(
                 bounds,
                 placed,
-                entry.Window.GetWorkAreaDip());
+                workArea);
 
             if (Math.Abs(bounds.Left - resolved.Left) > 0.5
                 || Math.Abs(bounds.Top - resolved.Top) > 0.5)
             {
-                entry.Window.MoveToVisibleOrigin(resolved.Left, resolved.Top);
+                entry.Window.MoveToVisibleOriginPixels(resolved.Left, resolved.Top);
             }
 
             placed.Add(resolved);
@@ -1240,11 +1335,11 @@ public sealed class DesktopBoxManager
         {
             _verticalGuide = new GuideLineWindow(true);
         }
-        _verticalGuide.UpdateLine(x, yStart, x, yStart + height);
         if (!_verticalGuide.IsVisible)
         {
             _verticalGuide.Show();
         }
+        _verticalGuide.UpdateLine(x, yStart, x, yStart + height);
     }
 
     private void HideVerticalGuide()
@@ -1258,11 +1353,11 @@ public sealed class DesktopBoxManager
         {
             _horizontalGuide = new GuideLineWindow(false);
         }
-        _horizontalGuide.UpdateLine(xStart, y, xStart + width, y);
         if (!_horizontalGuide.IsVisible)
         {
             _horizontalGuide.Show();
         }
+        _horizontalGuide.UpdateLine(xStart, y, xStart + width, y);
     }
 
     private void HideHorizontalGuide()
@@ -1272,10 +1367,16 @@ public sealed class DesktopBoxManager
 
     private void PerformSnappingAndAlignment(DesktopBoxWindow draggedWindow, bool applySnap = true)
     {
-        const double snapThreshold = 10.0;
-        const double visualGap = 8.0;
+        var dpi = draggedWindow.GetDpiScale();
+        var snapThreshold = 10.0 * dpi.DpiScaleX;
+        var visualGap = 8.0 * dpi.DpiScaleX;
 
-        var boundsA = draggedWindow.GetVisibleBounds();
+        var boundsA = draggedWindow.GetVisibleBoundsPixels();
+        if (boundsA.IsEmpty)
+        {
+            HideGuides();
+            return;
+        }
         double currentLeft = boundsA.Left;
         double currentTop = boundsA.Top;
         double width = boundsA.Width;
@@ -1284,9 +1385,6 @@ public sealed class DesktopBoxManager
         double bottomA = boundsA.Bottom;
         double hCenterA = currentLeft + width / 2.0;
         double vCenterA = currentTop + height / 2.0;
-        double leftInset = boundsA.Left - draggedWindow.Left;
-        double topInset = boundsA.Top - draggedWindow.Top;
-
         double? bestSnappedVisibleLeft = null;
         double? bestSnappedVisibleTop = null;
 
@@ -1306,7 +1404,11 @@ public sealed class DesktopBoxManager
                 continue;
             }
 
-            var boundsB = otherWindow.GetVisibleBounds();
+            var boundsB = otherWindow.GetVisibleBoundsPixels();
+            if (boundsB.IsEmpty)
+            {
+                continue;
+            }
             double leftB = boundsB.Left;
             double topB = boundsB.Top;
             double widthB = boundsB.Width;
@@ -1393,13 +1495,11 @@ public sealed class DesktopBoxManager
 
         if (applySnap)
         {
-            if (bestSnappedVisibleLeft.HasValue)
+            if (bestSnappedVisibleLeft.HasValue || bestSnappedVisibleTop.HasValue)
             {
-                draggedWindow.Left = bestSnappedVisibleLeft.Value - leftInset;
-            }
-            if (bestSnappedVisibleTop.HasValue)
-            {
-                draggedWindow.Top = bestSnappedVisibleTop.Value - topInset;
+                draggedWindow.MoveToVisibleOriginPixels(
+                    bestSnappedVisibleLeft ?? currentLeft,
+                    bestSnappedVisibleTop ?? currentTop);
             }
         }
 

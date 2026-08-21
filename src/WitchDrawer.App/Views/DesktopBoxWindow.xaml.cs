@@ -290,6 +290,73 @@ public partial class DesktopBoxWindow : Window
         ComputeVisibleBounds(Left, Top, ActualWidth, ActualHeight, WindowBorder.Margin);
 
     /// <summary>
+    /// Returns the native window rectangle in virtual-desktop physical pixels.
+    /// Cross-window and cross-monitor operations must use this coordinate space:
+    /// WPF Left/Top are monitor-DPI-dependent DIPs and cannot be compared safely
+    /// when monitors use different scale factors.
+    /// </summary>
+    internal bool TryGetWindowBoundsPixels(out Rect bounds)
+    {
+        var handle = new WindowInteropHelper(this).Handle;
+        if (handle != nint.Zero
+            && GetWindowRect(handle, out var nativeBounds)
+            && nativeBounds.Right > nativeBounds.Left
+            && nativeBounds.Bottom > nativeBounds.Top)
+        {
+            bounds = new Rect(
+                nativeBounds.Left,
+                nativeBounds.Top,
+                nativeBounds.Right - nativeBounds.Left,
+                nativeBounds.Bottom - nativeBounds.Top);
+            return true;
+        }
+
+        bounds = Rect.Empty;
+        return false;
+    }
+
+    internal Rect GetVisibleBoundsPixels()
+    {
+        if (!TryGetWindowBoundsPixels(out var windowBounds))
+        {
+            return Rect.Empty;
+        }
+
+        return ComputeVisibleBoundsPixels(windowBounds, WindowBorder.Margin, GetDpiScale());
+    }
+
+    internal DpiScale GetDpiScale() => VisualTreeHelper.GetDpi(this);
+
+    internal void MoveWindowOriginPixels(double leftPixels, double topPixels)
+    {
+        var helper = new WindowInteropHelper(this);
+        var handle = helper.Handle;
+        if (handle == nint.Zero)
+        {
+            handle = helper.EnsureHandle();
+        }
+
+        SetWindowPos(
+            handle,
+            nint.Zero,
+            ToNativeCoordinate(leftPixels),
+            ToNativeCoordinate(topPixels),
+            0,
+            0,
+            SetWindowPosNoSize | SetWindowPosNoActivate | SetWindowPosNoZOrder);
+    }
+
+    internal void MoveToVisibleOriginPixels(double visibleLeftPixels, double visibleTopPixels)
+    {
+        var origin = ComputeWindowOriginPixels(
+            visibleLeftPixels,
+            visibleTopPixels,
+            WindowBorder.Margin,
+            GetDpiScale());
+        MoveWindowOriginPixels(origin.X, origin.Y);
+    }
+
+    /// <summary>
     /// <see cref="GetVisibleBounds"/> 的逆运算：把可视区域原点换算回窗口 Left/Top。
     /// 重叠消解在可视区域坐标系里计算，写回窗口位置时必须减去阴影留白 Margin，
     /// 否则每执行一次消解窗口就会按 Margin 平移一次（位置漂移）。
@@ -313,13 +380,17 @@ public partial class DesktopBoxWindow : Window
             return;
         }
 
-        var bounds = GetVisibleBounds();
+        var bounds = GetVisibleBoundsPixels();
         if (bounds.Width <= 0 || bounds.Height <= 0)
         {
             return;
         }
 
-        var workArea = GetWorkAreaDip();
+        var workArea = GetWorkAreaPixels();
+        if (workArea.IsEmpty)
+        {
+            return;
+        }
         var visibleLeft = bounds.Left;
         var visibleTop = bounds.Top;
         if (bounds.Right > workArea.Right)
@@ -338,7 +409,7 @@ public partial class DesktopBoxWindow : Window
         if (Math.Abs(visibleLeft - bounds.Left) > 0.5
             || Math.Abs(visibleTop - bounds.Top) > 0.5)
         {
-            MoveToVisibleOrigin(visibleLeft, visibleTop);
+            MoveToVisibleOriginPixels(visibleLeft, visibleTop);
         }
     }
 
@@ -359,6 +430,31 @@ public partial class DesktopBoxWindow : Window
         double visibleTop,
         Thickness margin) =>
         (visibleLeft - margin.Left, visibleTop - margin.Top);
+
+    internal static Rect ComputeVisibleBoundsPixels(
+        Rect windowBoundsPixels,
+        Thickness marginDip,
+        DpiScale dpi) =>
+        new(
+            windowBoundsPixels.Left + (marginDip.Left * dpi.DpiScaleX),
+            windowBoundsPixels.Top + (marginDip.Top * dpi.DpiScaleY),
+            Math.Max(
+                0,
+                windowBoundsPixels.Width
+                - ((marginDip.Left + marginDip.Right) * dpi.DpiScaleX)),
+            Math.Max(
+                0,
+                windowBoundsPixels.Height
+                - ((marginDip.Top + marginDip.Bottom) * dpi.DpiScaleY)));
+
+    internal static Point ComputeWindowOriginPixels(
+        double visibleLeftPixels,
+        double visibleTopPixels,
+        Thickness marginDip,
+        DpiScale dpi) =>
+        new(
+            visibleLeftPixels - (marginDip.Left * dpi.DpiScaleX),
+            visibleTopPixels - (marginDip.Top * dpi.DpiScaleY));
 
     private void OnDrawerSecondaryPopupOpened(object? sender, EventArgs e)
     {
@@ -1767,6 +1863,7 @@ public partial class DesktopBoxWindow : Window
     private const int WindowOwnerIndex = -8;
     private const uint SetWindowPosNoSize = 0x0001;
     private const uint SetWindowPosNoMove = 0x0002;
+    private const uint SetWindowPosNoZOrder = 0x0004;
     private const uint SetWindowPosNoActivate = 0x0010;
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
@@ -1779,6 +1876,10 @@ public partial class DesktopBoxWindow : Window
         int cx,
         int cy,
         uint flags);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool GetWindowRect(nint hWnd, out NativeRect lpRect);
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern nint SetWindowLongPtr(nint hWnd, int index, nint newValue);
@@ -1816,27 +1917,28 @@ public partial class DesktopBoxWindow : Window
     private static extern nint MonitorFromWindow(nint hwnd, uint dwFlags);
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern nint MonitorFromPoint(NativePoint point, uint dwFlags);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
     [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
     private static extern bool GetMonitorInfo(nint hMonitor, ref NativeMonitorInfo lpmi);
 
     /// <summary>
-    /// 窗口当前所在显示器的工作区（DIP）。<see cref="SystemParameters.WorkArea"/> 只覆盖主屏，
-    /// 多显示器下必须按窗口所在屏取工作区，否则副屏上的盒子会被钳制逻辑误判越界搬回主屏。
-    /// 句柄尚未创建或查询失败时回退到主屏工作区。
+    /// Gets the current monitor work area in virtual-desktop physical pixels.
+    /// This coordinate space remains stable across monitor DPI boundaries.
     /// </summary>
-    internal Rect GetWorkAreaDip()
+    internal Rect GetWorkAreaPixels()
     {
-        var fallback = SystemParameters.WorkArea;
         var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
         if (handle == nint.Zero)
         {
-            return fallback;
+            return Rect.Empty;
         }
 
         var monitor = MonitorFromWindow(handle, MonitorDefaultToNearest);
         if (monitor == nint.Zero)
         {
-            return fallback;
+            return Rect.Empty;
         }
 
         var info = new NativeMonitorInfo
@@ -1845,17 +1947,43 @@ public partial class DesktopBoxWindow : Window
         };
         if (!GetMonitorInfo(monitor, ref info))
         {
-            return fallback;
+            return Rect.Empty;
         }
 
-        // GetMonitorInfo 返回物理像素，按窗口当前 DPI 换算成 DIP。
-        var dpi = VisualTreeHelper.GetDpi(this);
         return new Rect(
-            info.WorkArea.Left / dpi.DpiScaleX,
-            info.WorkArea.Top / dpi.DpiScaleY,
-            (info.WorkArea.Right - info.WorkArea.Left) / dpi.DpiScaleX,
-            (info.WorkArea.Bottom - info.WorkArea.Top) / dpi.DpiScaleY);
+            info.WorkArea.Left,
+            info.WorkArea.Top,
+            info.WorkArea.Right - info.WorkArea.Left,
+            info.WorkArea.Bottom - info.WorkArea.Top);
     }
+
+    internal static Rect GetPrimaryWorkAreaPixels()
+    {
+        // The primary monitor owns virtual-desktop origin (0,0).
+        var monitor = MonitorFromPoint(new NativePoint(), MonitorDefaultToNearest);
+        if (monitor == nint.Zero)
+        {
+            return Rect.Empty;
+        }
+
+        var info = new NativeMonitorInfo
+        {
+            Size = System.Runtime.InteropServices.Marshal.SizeOf<NativeMonitorInfo>()
+        };
+        if (!GetMonitorInfo(monitor, ref info))
+        {
+            return Rect.Empty;
+        }
+
+        return new Rect(
+            info.WorkArea.Left,
+            info.WorkArea.Top,
+            info.WorkArea.Right - info.WorkArea.Left,
+            info.WorkArea.Bottom - info.WorkArea.Top);
+    }
+
+    private static int ToNativeCoordinate(double value) =>
+        checked((int)Math.Round(value, MidpointRounding.AwayFromZero));
 
     private bool IsCursorOverOpenDrawerPopup()
     {

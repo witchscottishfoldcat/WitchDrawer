@@ -57,4 +57,38 @@ public sealed class DesktopBoxWindowVisibleBoundsTests
         Assert.Equal(0, visible.Width);
         Assert.Equal(0, visible.Height);
     }
+
+    [Theory]
+    [InlineData(100, 100, 300, 220, 1.0)]
+    [InlineData(2760, 180, 450, 330, 1.5)]
+    [InlineData(300, 1620, 375, 275, 1.25)]
+    [InlineData(-1680, 120, 300, 220, 1.0)]
+    public void PhysicalWindowOrigin_RoundTripsOnEveryMonitorWithoutVirtualDesktopDrift(
+        double windowLeftPixels,
+        double windowTopPixels,
+        double windowWidthPixels,
+        double windowHeightPixels,
+        double dpiScale)
+    {
+        var windowBoundsPixels = new Rect(
+            windowLeftPixels,
+            windowTopPixels,
+            windowWidthPixels,
+            windowHeightPixels);
+        var margin = new Thickness(6);
+        var dpi = new DpiScale(dpiScale, dpiScale);
+
+        var visible = DesktopBoxWindow.ComputeVisibleBoundsPixels(
+            windowBoundsPixels,
+            margin,
+            dpi);
+        var restored = DesktopBoxWindow.ComputeWindowOriginPixels(
+            visible.Left,
+            visible.Top,
+            margin,
+            dpi);
+
+        Assert.Equal(windowLeftPixels, restored.X, precision: 6);
+        Assert.Equal(windowTopPixels, restored.Y, precision: 6);
+    }
 }

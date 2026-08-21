@@ -219,9 +219,7 @@ public partial class App : Application
                 await GuardRefreshAsync(
                     async () =>
                     {
-                        if (await _desktopBoxManager.CenterBoxOnScreenAsync(
-                                boxId,
-                                SystemParameters.WorkArea))
+                        if (await _desktopBoxManager.CenterBoxOnScreenAsync(boxId))
                         {
                             mainViewModel.ReportStatus("已将盒子召回主屏中心");
                         }
