@@ -53,7 +53,17 @@ public sealed class DrawerBoxCreationTests
                 await drawerService.GetSettingAsync(BoxViewModel.GetLayoutPresetSettingKey(createdBox.Id)));
             Assert.True(viewModel.SelectedBox?.IsDrawerBox);
             var selectedDrawer = Assert.IsType<BoxViewModel>(viewModel.SelectedBox);
-            Assert.False(selectedDrawer.SupportsFileNameVisibility);
+            Assert.True(selectedDrawer.SupportsFileNameVisibility);
+            await selectedDrawer.LoadFileNameVisibilityAsync();
+            Assert.False(selectedDrawer.IsFileNameVisible);
+
+            await selectedDrawer.ToggleFileNameVisibilityCommand.ExecuteAsync(null);
+
+            Assert.True(selectedDrawer.IsFileNameVisible);
+            Assert.Equal(
+                bool.TrueString,
+                await drawerService.GetSettingAsync(
+                    BoxViewModel.GetFileNameVisibilitySettingKey(createdBox.Id)));
             await selectedDrawer.LoadTitleVisibilityAsync();
             Assert.True(selectedDrawer.IsTitleVisible);
             Assert.Equal(

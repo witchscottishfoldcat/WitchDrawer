@@ -121,6 +121,19 @@ public sealed class DesktopBoxLayoutSettingsTests
         Assert.Equal("6x6", settings.CurrentPreset);
     }
 
+    [Fact]
+    public void DrawerFileNames_AddASeparateTextRowWithoutChangingColumnWidth()
+    {
+        var settings = new DesktopBoxLayoutSettings(isDrawerMode: true);
+        var cellWidth = settings.DrawerCoverCellWidth;
+        var cellHeight = settings.DrawerCoverCellHeight;
+
+        settings.IsFileNameVisible = true;
+
+        Assert.Equal(cellWidth, settings.DrawerCoverCellWidth);
+        Assert.Equal(cellHeight + settings.IconTextMaxHeight, settings.DrawerCoverCellHeight);
+    }
+
     [Theory]
     [InlineData("3x3")]
     [InlineData("4x4")]
@@ -194,6 +207,36 @@ public sealed class DesktopBoxLayoutSettingsTests
         Assert.Equal(expectedHeight, actual.Height);
         Assert.Equal(expectedColumns, actual.Columns);
         Assert.Equal(expectedRows, actual.Rows);
+    }
+
+    [Fact]
+    public void DrawerResize_UsesIndependentCellWidthAndHeightWhenNamesAreVisible()
+    {
+        var actual = DesktopBoxViewModel.NormalizeDrawerCoverSize(
+            width: 130,
+            height: 162,
+            cellWidth: 55,
+            cellHeight: 71);
+
+        Assert.Equal(130, actual.Width);
+        Assert.Equal(162, actual.Height);
+        Assert.Equal(2, actual.Columns);
+        Assert.Equal(2, actual.Rows);
+    }
+
+    [Theory]
+    [InlineData(4, 71, false)]
+    [InlineData(5, 55, false)]
+    [InlineData(5, 71, true)]
+    [InlineData(6, 55, true)]
+    public void DrawerSecondaryOverflow_UsesTheActualTextAwareContentHeight(
+        int rows,
+        double cellHeight,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            DesktopBoxViewModel.ShouldScrollDrawerSecondary(rows, cellHeight));
     }
 
     [Theory]

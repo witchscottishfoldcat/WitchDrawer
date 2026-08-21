@@ -18,6 +18,8 @@ namespace WitchDrawer.App.ViewModels;
 
 public sealed class DesktopBoxViewModel : ObservableObject
 {
+    private const double DrawerSecondaryPanelChrome = 20;
+    private const double MaximumDrawerSecondaryPanelDimension = 320;
     private const double EdgeExpandThreshold = 14;
     private const double VisibleHeaderRowHeight = 24;
     private const double HiddenGridContentInset = 6;
@@ -254,21 +256,23 @@ public sealed class DesktopBoxViewModel : ObservableObject
         DrawerSecondaryItems.Count,
         DrawerSecondaryColumns);
 
-    public bool DrawerSecondaryHasScrollableOverflow => DrawerSecondaryRows > 5;
+    public bool DrawerSecondaryHasScrollableOverflow => ShouldScrollDrawerSecondary(
+        DrawerSecondaryRows,
+        LayoutSettings.ItemSlotHeight);
 
     public double DrawerSecondaryPanelWidth => Math.Clamp(
         (DrawerSecondaryColumns
-            * (LayoutSettings.DrawerPrimaryIconFrameSize + 8))
-        + 20,
+            * LayoutSettings.ItemSlotWidth)
+        + DrawerSecondaryPanelChrome,
         110,
-        320);
+        MaximumDrawerSecondaryPanelDimension);
 
     public double DrawerSecondaryPanelHeight => Math.Clamp(
         (Math.Min(5, DrawerSecondaryRows)
-            * (LayoutSettings.DrawerPrimaryIconFrameSize + 8))
-        + 20,
+            * LayoutSettings.ItemSlotHeight)
+        + DrawerSecondaryPanelChrome,
         96,
-        320);
+        MaximumDrawerSecondaryPanelDimension);
 
     public bool IsMappingListMode => IsMappingBox && _isMappingListMode;
 
@@ -1374,7 +1378,11 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     public void ResizeDrawerCover(double width, double height)
     {
-        var normalized = NormalizeDrawerCoverSize(width, height, LayoutSettings.DrawerCoverCellSize);
+        var normalized = NormalizeDrawerCoverSize(
+            width,
+            height,
+            LayoutSettings.DrawerCoverCellWidth,
+            LayoutSettings.DrawerCoverCellHeight);
         var widthChanged = SetProperty(
             ref _drawerCoverWidth,
             normalized.Width,
@@ -1591,27 +1599,37 @@ public sealed class DesktopBoxViewModel : ObservableObject
     internal static (double Width, double Height, int Columns, int Rows) NormalizeDrawerCoverSize(
         double width,
         double height,
-        double cellSize)
+        double cellSize) => NormalizeDrawerCoverSize(width, height, cellSize, cellSize);
+
+    internal static (double Width, double Height, int Columns, int Rows) NormalizeDrawerCoverSize(
+        double width,
+        double height,
+        double cellWidth,
+        double cellHeight)
     {
-        var normalizedCellSize = Math.Clamp(cellSize, 24, 120);
+        var normalizedCellWidth = Math.Clamp(cellWidth, 24, 120);
+        var normalizedCellHeight = Math.Clamp(cellHeight, 24, 136);
         const double surfaceInsets = DesktopBoxLayoutSettings.DrawerSurfaceInset * 2;
         var requestedWidth = double.IsFinite(width) ? width : DefaultDrawerCoverWidth;
         var requestedHeight = double.IsFinite(height) ? height : DefaultDrawerCoverHeight;
-        var maximumCells = Math.Max(
+        var maximumColumns = Math.Max(
             2,
-            (int)Math.Floor((MaximumDrawerCoverDimension - surfaceInsets) / normalizedCellSize));
+            (int)Math.Floor((MaximumDrawerCoverDimension - surfaceInsets) / normalizedCellWidth));
+        var maximumRows = Math.Max(
+            2,
+            (int)Math.Floor((MaximumDrawerCoverDimension - surfaceInsets) / normalizedCellHeight));
         var columns = Math.Clamp(
             (int)Math.Round(
-                Math.Max(1, requestedWidth - surfaceInsets) / normalizedCellSize,
+                Math.Max(1, requestedWidth - surfaceInsets) / normalizedCellWidth,
                 MidpointRounding.AwayFromZero),
             1,
-            maximumCells);
+            maximumColumns);
         var rows = Math.Clamp(
             (int)Math.Round(
-                Math.Max(1, requestedHeight - surfaceInsets) / normalizedCellSize,
+                Math.Max(1, requestedHeight - surfaceInsets) / normalizedCellHeight,
                 MidpointRounding.AwayFromZero),
             1,
-            maximumCells);
+            maximumRows);
         if (columns * rows < 2 || (columns == 1 && rows == 2))
         {
             // The minimum drawer is always the established horizontal "1 + four previews"
@@ -1622,8 +1640,8 @@ public sealed class DesktopBoxViewModel : ObservableObject
         }
 
         return (
-            Math.Round((columns * normalizedCellSize) + surfaceInsets, 1),
-            Math.Round((rows * normalizedCellSize) + surfaceInsets, 1),
+            Math.Round((columns * normalizedCellWidth) + surfaceInsets, 1),
+            Math.Round((rows * normalizedCellHeight) + surfaceInsets, 1),
             columns,
             rows);
     }
@@ -1696,6 +1714,10 @@ public sealed class DesktopBoxViewModel : ObservableObject
     internal static int CalculateDrawerSecondaryRows(int itemCount, int columns) =>
         Math.Max(1, (int)Math.Ceiling(Math.Max(1, itemCount) / (double)Math.Max(1, columns)));
 
+    internal static bool ShouldScrollDrawerSecondary(int rows, double cellHeight) =>
+        Math.Max(1, rows) * Math.Max(1, cellHeight)
+        > MaximumDrawerSecondaryPanelDimension - DrawerSecondaryPanelChrome;
+
     private static DrawerSortEntry CreateDrawerSortEntry(DrawerItemViewModel item)
     {
         var path = item.PathLabel;
@@ -1765,6 +1787,13 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     private void OnLayoutSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName is nameof(DesktopBoxLayoutSettings.DrawerCoverCellWidth)
+            or nameof(DesktopBoxLayoutSettings.DrawerCoverCellHeight)
+            or nameof(DesktopBoxLayoutSettings.DrawerCoverCellSize))
+        {
+            return;
+        }
+
         foreach (var item in Items)
         {
             item.UpdateCanvasPosition(LayoutSettings);
@@ -1775,12 +1804,14 @@ public sealed class DesktopBoxViewModel : ObservableObject
         OnPropertyChanged(nameof(HeaderRowHeight));
         OnPropertyChanged(nameof(GridViewportWidth));
         OnPropertyChanged(nameof(GridViewportHeight));
-        if (IsDrawerBox && e.PropertyName is nameof(DesktopBoxLayoutSettings.CurrentPreset))
+        if (IsDrawerBox
+            && e.PropertyName is nameof(DesktopBoxLayoutSettings.CurrentPreset)
+                or nameof(DesktopBoxLayoutSettings.IsFileNameVisible))
         {
             ResizeDrawerCover(
-                (DrawerCoverColumns * LayoutSettings.DrawerCoverCellSize)
+                (DrawerCoverColumns * LayoutSettings.DrawerCoverCellWidth)
                 + (DesktopBoxLayoutSettings.DrawerSurfaceInset * 2),
-                (DrawerCoverRows * LayoutSettings.DrawerCoverCellSize)
+                (DrawerCoverRows * LayoutSettings.DrawerCoverCellHeight)
                 + (DesktopBoxLayoutSettings.DrawerSurfaceInset * 2));
             OnPropertyChanged(nameof(DrawerCoverCapacity));
             OnPropertyChanged(nameof(DrawerHasOverflow));

@@ -1,3 +1,4 @@
+using System.Windows;
 using System.Windows.Media;
 using WitchDrawer.App.Infrastructure;
 
@@ -91,6 +92,22 @@ public sealed class AppThemeManagerTests
     }
 
     [Fact]
+    public void EditorSurfaceOpacity_PreservesItsOwnColorAndBecomesFullyOpaqueAtMaximum()
+    {
+        var transparentSurface = AppThemeManager.GetDesktopBoxColor(
+            AppTheme.Crystal,
+            "ControlCenterSurfaceBrush",
+            AppThemeManager.DefaultBoxOpacity);
+        var opaqueSurface = AppThemeManager.GetDesktopBoxColor(
+            AppTheme.Crystal,
+            "ControlCenterSurfaceBrush",
+            AppThemeManager.MaximumBoxOpacity);
+
+        Assert.Equal((Color)ColorConverter.ConvertFromString("#7BF7F7FA"), transparentSurface);
+        Assert.Equal((Color)ColorConverter.ConvertFromString("#FFF7F7FA"), opaqueSurface);
+    }
+
+    [Fact]
     public void SetBoxOpacity_ClampsUnsafeValues()
     {
         AppThemeManager.ResetBoxOpacitiesForTests();
@@ -112,5 +129,24 @@ public sealed class AppThemeManagerTests
         {
             AppThemeManager.ResetBoxOpacitiesForTests();
         }
+    }
+
+    [Fact]
+    public void ClearEditorOpacityResources_RemovesOnlyEditorThemeOverrides()
+    {
+        var resources = new ResourceDictionary
+        {
+            ["ControlCenterSurfaceBrush"] = Brushes.Transparent,
+            ["PanelBrush"] = Brushes.Transparent,
+            ["TextPrimaryBrush"] = Brushes.Black,
+            ["UnrelatedResource"] = "keep"
+        };
+
+        AppThemeManager.ClearEditorOpacityResources(resources);
+
+        Assert.False(resources.Contains("ControlCenterSurfaceBrush"));
+        Assert.False(resources.Contains("PanelBrush"));
+        Assert.False(resources.Contains("TextPrimaryBrush"));
+        Assert.Equal("keep", resources["UnrelatedResource"]);
     }
 }

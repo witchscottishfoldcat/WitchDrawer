@@ -110,6 +110,7 @@ public static class AppThemeManager
     private static readonly IReadOnlyDictionary<string, string> LegacyTransparentCrystalBoxColors =
         new Dictionary<string, string>
         {
+            ["ControlCenterSurfaceBrush"] = "#7BF7F7FA",
             ["AppBackgroundBrush"] = "#78FFFFFF",
             ["PanelBrush"] = "#66FFFFFF",
             ["PanelAltBrush"] = "#4DF2F2F7",
@@ -134,6 +135,7 @@ public static class AppThemeManager
 
     private static readonly HashSet<string> OpacityAdjustedResourceKeys =
     [
+        "ControlCenterSurfaceBrush",
         "AppBackgroundBrush",
         "PanelBrush",
         "PanelAltBrush",
@@ -182,10 +184,7 @@ public static class AppThemeManager
 
     public static void ApplyDesktopBoxResources(ResourceDictionary resources)
     {
-        foreach (var key in LegacyTransparentCrystalBoxColors.Keys)
-        {
-            resources.Remove(key);
-        }
+        ClearDesktopBoxResources(resources);
 
         var opacity = GetBoxOpacity(_currentTheme);
         foreach (var key in LegacyTransparentCrystalBoxColors.Keys)
@@ -295,6 +294,24 @@ public static class AppThemeManager
             BoxOpacities[theme] = opacity is null
                 ? GetDefaultBoxOpacity(theme)
                 : NormalizeOpacity(opacity.Value);
+        }
+    }
+
+    public static void ApplyEditorOpacityResources(ResourceDictionary resources)
+    {
+        ApplyDesktopBoxResources(resources);
+    }
+
+    internal static void ClearEditorOpacityResources(ResourceDictionary resources)
+    {
+        ClearDesktopBoxResources(resources);
+    }
+
+    private static void ClearDesktopBoxResources(ResourceDictionary resources)
+    {
+        foreach (var key in LegacyTransparentCrystalBoxColors.Keys)
+        {
+            resources.Remove(key);
         }
     }
 

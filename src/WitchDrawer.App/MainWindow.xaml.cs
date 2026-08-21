@@ -38,6 +38,7 @@ public partial class MainWindow : Window
     private ListBoxItem? _boxDropTarget;
     private bool _isBoxVisualStylePageOpen;
     private bool _isBoxVisualStyleTransitioning;
+    private bool _isEditorOpacityRefreshQueued;
     private readonly HashSet<int> _recordedLayoutBackupSlots = [];
     public event EventHandler? WindowHidden;
     public event EventHandler? WindowClosing;
@@ -74,6 +75,8 @@ public partial class MainWindow : Window
         Loaded += OnLoaded;
         DpiChanged += OnDpiChanged;
         AppThemeManager.ThemeChanged += OnThemeChanged;
+        AppThemeManager.BoxOpacityChanged += OnBoxOpacityChanged;
+        ViewModel.PropertyChanged += OnViewModelPropertyChanged;
     }
 
     private bool _forceClosing;
@@ -140,6 +143,8 @@ public partial class MainWindow : Window
         Loaded -= OnLoaded;
         DpiChanged -= OnDpiChanged;
         AppThemeManager.ThemeChanged -= OnThemeChanged;
+        AppThemeManager.BoxOpacityChanged -= OnBoxOpacityChanged;
+        ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
         _source?.RemoveHook(WndProc);
         _hotKey?.Dispose();
         _quickPanel.ForceClose();
@@ -150,7 +155,7 @@ public partial class MainWindow : Window
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         UpdateIconDisplayMetrics(VisualTreeHelper.GetDpi(this));
-        AppThemeManager.ApplyToWindow(this);
+        ApplyThemeAppearance();
         WindowMotion.PopIn(this, 0.985, 160);
     }
 
@@ -166,7 +171,59 @@ public partial class MainWindow : Window
 
     private void OnThemeChanged(object? sender, AppTheme theme)
     {
+        ApplyThemeAppearance();
+    }
+
+    private void OnBoxOpacityChanged(object? sender, ThemeBoxOpacityChangedEventArgs e)
+    {
+        if (e.Theme != AppThemeManager.CurrentTheme || !ViewModel.EditorFollowsBoxOpacity)
+        {
+            return;
+        }
+
+        QueueEditorOpacityRefresh();
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MainViewModel.EditorFollowsBoxOpacity))
+        {
+            QueueEditorOpacityRefresh();
+        }
+    }
+
+    private void QueueEditorOpacityRefresh()
+    {
+        if (_isEditorOpacityRefreshQueued)
+        {
+            return;
+        }
+
+        _isEditorOpacityRefreshQueued = true;
+        _ = Dispatcher.BeginInvoke(
+            System.Windows.Threading.DispatcherPriority.Background,
+            () =>
+            {
+                _isEditorOpacityRefreshQueued = false;
+                RefreshEditorOpacityResources();
+            });
+    }
+
+    private void ApplyThemeAppearance()
+    {
         AppThemeManager.ApplyToWindow(this);
+        RefreshEditorOpacityResources();
+    }
+
+    private void RefreshEditorOpacityResources()
+    {
+        if (ViewModel.EditorFollowsBoxOpacity)
+        {
+            AppThemeManager.ApplyEditorOpacityResources(Resources);
+            return;
+        }
+
+        AppThemeManager.ClearEditorOpacityResources(Resources);
     }
 
     private void RegisterInitialHotKey()

@@ -114,7 +114,7 @@ public sealed partial class BoxViewModel : ObservableObject
     public string TitleVisibilityAutomationName => IsTitleVisible ? "隐藏名称" : "显示名称";
 
     public bool SupportsFileNameVisibility =>
-        Type is BoxType.Normal or BoxType.Pixel;
+        Type is BoxType.Normal or BoxType.Pixel or BoxType.Drawer;
 
     public bool IsFileNameVisible => _isFileNameVisible;
 

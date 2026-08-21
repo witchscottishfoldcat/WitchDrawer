@@ -1052,7 +1052,8 @@
                                     <ItemsPanelTemplate>
                                         <controls:CenteredUniformPanel
                                             Columns="{Binding DataContext.DrawerSecondaryColumns, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
-                                            CellSize="{Binding DataContext.LayoutSettings.ItemSlotWidth, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" />
+                                            CellSize="{Binding DataContext.LayoutSettings.ItemSlotWidth, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
+                                            CellHeight="{Binding DataContext.LayoutSettings.ItemSlotHeight, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" />
                                     </ItemsPanelTemplate>
                                 </ListBox.ItemsPanel>
                                 <ListBox.ItemContainerStyle>
@@ -1074,32 +1075,46 @@
                                     <DataTemplate>
                                         <Button Style="{StaticResource DrawerTileButtonStyle}"
                                                 Margin="0"
-                                                ToolTip="{Binding PathLabel}"
-                                                Click="OnDrawerSecondaryItemClick"
-                                                PreviewMouseLeftButtonDown="OnDrawerSecondaryIconPreviewMouseLeftButtonDown">
-                                            <Border Width="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
-                                                    Height="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
-                                                    CornerRadius="{Binding DataContext.LayoutSettings.IconCornerRadius, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
-                                                    Background="{DynamicResource GlassInnerBrush}"
-                                                    BorderBrush="{DynamicResource GlassStrokeBrush}"
-                                                    BorderThickness="1">
-                                                <Grid>
-                                                    <Image Width="{Binding DataContext.LayoutSettings.DrawerPrimaryIconSize, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
-                                                           infrastructure:DeferredIconLoad.IsEnabled="True"
-                                                           Height="{Binding DataContext.LayoutSettings.DrawerPrimaryIconSize, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
-                                                           Source="{Binding IconImage}"
-                                                           Stretch="Uniform"
-                                                           RenderOptions.BitmapScalingMode="HighQuality"
-                                                           Visibility="{Binding HasIcon, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                                    <TextBlock Text="{Binding FallbackIconText}"
-                                                               HorizontalAlignment="Center"
-                                                               VerticalAlignment="Center"
-                                                               FontSize="{Binding DataContext.LayoutSettings.FallbackIconFontSize, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
-                                                               FontWeight="Bold"
-                                                               Foreground="{DynamicResource AccentBrush}"
-                                                               Visibility="{Binding HasIcon, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
-                                                </Grid>
-                                            </Border>
+                                                 ToolTip="{Binding PathLabel}"
+                                                 Click="OnDrawerSecondaryItemClick"
+                                                 PreviewMouseLeftButtonDown="OnDrawerSecondaryIconPreviewMouseLeftButtonDown">
+                                            <StackPanel HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center">
+                                                <Border Width="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
+                                                        Height="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
+                                                        CornerRadius="{Binding DataContext.LayoutSettings.IconCornerRadius, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
+                                                        Background="{DynamicResource GlassInnerBrush}"
+                                                        BorderBrush="{DynamicResource GlassStrokeBrush}"
+                                                        BorderThickness="1">
+                                                    <Grid>
+                                                        <Image Width="{Binding DataContext.LayoutSettings.DrawerPrimaryIconSize, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
+                                                               infrastructure:DeferredIconLoad.IsEnabled="True"
+                                                               Height="{Binding DataContext.LayoutSettings.DrawerPrimaryIconSize, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
+                                                               Source="{Binding IconImage}"
+                                                               Stretch="Uniform"
+                                                               RenderOptions.BitmapScalingMode="HighQuality"
+                                                               Visibility="{Binding HasIcon, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                        <TextBlock Text="{Binding FallbackIconText}"
+                                                                   HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center"
+                                                                   FontSize="{Binding DataContext.LayoutSettings.FallbackIconFontSize, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
+                                                                   FontWeight="Bold"
+                                                                   Foreground="{DynamicResource AccentBrush}"
+                                                                   Visibility="{Binding HasIcon, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                                                    </Grid>
+                                                </Border>
+                                                <TextBlock x:Name="DrawerSecondaryFileName"
+                                                           Width="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
+                                                           MaxHeight="{Binding DataContext.LayoutSettings.IconTextMaxHeight, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
+                                                           Margin="0,1,0,0"
+                                                           Text="{Binding DisplayName}"
+                                                           TextAlignment="Center"
+                                                           TextWrapping="{Binding DataContext.LayoutSettings.IconTextWrapping, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           FontSize="{Binding DataContext.LayoutSettings.IconFontSize, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                                           Visibility="{Binding DataContext.IsFileNameVisible, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                            </StackPanel>
                                         </Button>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
@@ -1141,86 +1156,114 @@
                                 <Grid>
                                     <Button Style="{StaticResource DrawerTileButtonStyle}"
                                             PreviewMouseLeftButtonDown="OnDrawerIconPreviewMouseLeftButtonDown"
-                                            ToolTip="{Binding Item.PathLabel}"
-                                            Visibility="{Binding HasItem, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                        <Border Width="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                Height="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                CornerRadius="{Binding DataContext.LayoutSettings.IconCornerRadius, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                Background="{DynamicResource GlassInnerBrush}"
-                                                BorderBrush="{DynamicResource GlassStrokeBrush}"
-                                                BorderThickness="1">
-                                            <Grid DataContext="{Binding Item}">
-                                                <Image Width="{Binding DataContext.LayoutSettings.DrawerPrimaryIconSize, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                       infrastructure:DeferredIconLoad.IsEnabled="True"
-                                                       Height="{Binding DataContext.LayoutSettings.DrawerPrimaryIconSize, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                       Source="{Binding IconImage}"
-                                                       Stretch="Uniform"
-                                                       RenderOptions.BitmapScalingMode="HighQuality"
-                                                       Visibility="{Binding HasIcon, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                                <TextBlock Text="{Binding FallbackIconText}"
-                                                           HorizontalAlignment="Center"
-                                                           VerticalAlignment="Center"
-                                                           FontSize="{Binding DataContext.LayoutSettings.FallbackIconFontSize, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                           FontWeight="Bold"
-                                                           Foreground="{DynamicResource AccentBrush}"
-                                                           Visibility="{Binding HasIcon, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
-                                            </Grid>
-                                        </Border>
+                                             ToolTip="{Binding Item.PathLabel}"
+                                             Visibility="{Binding HasItem, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <StackPanel HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center">
+                                            <Border Width="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    Height="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CornerRadius="{Binding DataContext.LayoutSettings.IconCornerRadius, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    Background="{DynamicResource GlassInnerBrush}"
+                                                    BorderBrush="{DynamicResource GlassStrokeBrush}"
+                                                    BorderThickness="1">
+                                                <Grid DataContext="{Binding Item}">
+                                                    <Image Width="{Binding DataContext.LayoutSettings.DrawerPrimaryIconSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                           infrastructure:DeferredIconLoad.IsEnabled="True"
+                                                           Height="{Binding DataContext.LayoutSettings.DrawerPrimaryIconSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                           Source="{Binding IconImage}"
+                                                           Stretch="Uniform"
+                                                           RenderOptions.BitmapScalingMode="HighQuality"
+                                                           Visibility="{Binding HasIcon, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                    <TextBlock Text="{Binding FallbackIconText}"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center"
+                                                               FontSize="{Binding DataContext.LayoutSettings.FallbackIconFontSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                               FontWeight="Bold"
+                                                               Foreground="{DynamicResource AccentBrush}"
+                                                               Visibility="{Binding HasIcon, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                                                </Grid>
+                                            </Border>
+                                            <TextBlock x:Name="DrawerCoverFileName"
+                                                       Width="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                       MaxHeight="{Binding DataContext.LayoutSettings.IconTextMaxHeight, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                       Margin="0,1,0,0"
+                                                       Text="{Binding Item.DisplayName}"
+                                                       TextAlignment="Center"
+                                                       TextWrapping="{Binding DataContext.LayoutSettings.IconTextWrapping, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       FontSize="{Binding DataContext.LayoutSettings.IconFontSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                                       Visibility="{Binding DataContext.IsFileNameVisible, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                        </StackPanel>
                                     </Button>
 
                                     <Button Style="{StaticResource DrawerTileButtonStyle}"
-                                            Click="OnExpandDrawerClick"
-                                            ToolTip="展开抽屉"
-                                            Visibility="{Binding IsExpandTile, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                        <Border Padding="{Binding DataContext.LayoutSettings.DrawerPreviewGap, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                Width="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                Height="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                CornerRadius="{Binding DataContext.LayoutSettings.IconCornerRadius, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                Background="{DynamicResource GlassInnerBrush}"
-                                                BorderBrush="{DynamicResource GlassStrokeBrush}"
-                                                BorderThickness="1">
-                                            <Grid>
-                                                <ItemsControl ItemsSource="{Binding DataContext.DrawerPreviewItems, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                              HorizontalAlignment="Center"
-                                                              VerticalAlignment="Center">
-                                                    <ItemsControl.ItemsPanel>
-                                                        <ItemsPanelTemplate>
-                                                            <UniformGrid Columns="2" Rows="2" />
-                                                        </ItemsPanelTemplate>
-                                                    </ItemsControl.ItemsPanel>
-                                                    <ItemsControl.ItemContainerStyle>
-                                                        <Style TargetType="{x:Type ContentPresenter}">
-                                                            <Setter Property="Margin" Value="{Binding DataContext.LayoutSettings.DrawerPreviewGap, RelativeSource={RelativeSource AncestorType=Window}}" />
-                                                        </Style>
-                                                    </ItemsControl.ItemContainerStyle>
-                                                    <ItemsControl.ItemTemplate>
-                                                        <DataTemplate>
-                                                            <Border Width="{Binding DataContext.LayoutSettings.DrawerPreviewIconFrameSize, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                    Height="{Binding DataContext.LayoutSettings.DrawerPreviewIconFrameSize, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                    CornerRadius="4"
-                                                                    Background="{DynamicResource GlassSurfaceBrush}">
-                                                                <Grid>
-                                                                    <Image Width="{Binding DataContext.LayoutSettings.DrawerPreviewIconSize, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                           infrastructure:DeferredIconLoad.IsEnabled="True"
-                                                                           Height="{Binding DataContext.LayoutSettings.DrawerPreviewIconSize, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                           Source="{Binding IconImage}"
-                                                                           Stretch="Uniform"
-                                                                           RenderOptions.BitmapScalingMode="HighQuality"
-                                                                           Visibility="{Binding HasIcon, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                                                    <TextBlock Text="{Binding FallbackIconText}"
-                                                                               HorizontalAlignment="Center"
-                                                                               VerticalAlignment="Center"
-                                                                               FontSize="7"
-                                                                               FontWeight="Bold"
-                                                                               Foreground="{DynamicResource AccentBrush}"
-                                                                               Visibility="{Binding HasIcon, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
-                                                                </Grid>
-                                                            </Border>
-                                                        </DataTemplate>
-                                                    </ItemsControl.ItemTemplate>
-                                                </ItemsControl>
-                                            </Grid>
-                                        </Border>
+                                             Click="OnExpandDrawerClick"
+                                             ToolTip="展开抽屉"
+                                             Visibility="{Binding IsExpandTile, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <StackPanel HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center">
+                                            <Border Padding="{Binding DataContext.LayoutSettings.DrawerPreviewGap, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    Width="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    Height="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CornerRadius="{Binding DataContext.LayoutSettings.IconCornerRadius, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    Background="{DynamicResource GlassInnerBrush}"
+                                                    BorderBrush="{DynamicResource GlassStrokeBrush}"
+                                                    BorderThickness="1">
+                                                <Grid>
+                                                    <ItemsControl ItemsSource="{Binding DataContext.DrawerPreviewItems, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                  HorizontalAlignment="Center"
+                                                                  VerticalAlignment="Center">
+                                                        <ItemsControl.ItemsPanel>
+                                                            <ItemsPanelTemplate>
+                                                                <UniformGrid Columns="2" Rows="2" />
+                                                            </ItemsPanelTemplate>
+                                                        </ItemsControl.ItemsPanel>
+                                                        <ItemsControl.ItemContainerStyle>
+                                                            <Style TargetType="{x:Type ContentPresenter}">
+                                                                <Setter Property="Margin" Value="{Binding DataContext.LayoutSettings.DrawerPreviewGap, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                                            </Style>
+                                                        </ItemsControl.ItemContainerStyle>
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <Border Width="{Binding DataContext.LayoutSettings.DrawerPreviewIconFrameSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                        Height="{Binding DataContext.LayoutSettings.DrawerPreviewIconFrameSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                        CornerRadius="4"
+                                                                        Background="{DynamicResource GlassSurfaceBrush}">
+                                                                    <Grid>
+                                                                        <Image Width="{Binding DataContext.LayoutSettings.DrawerPreviewIconSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                               infrastructure:DeferredIconLoad.IsEnabled="True"
+                                                                               Height="{Binding DataContext.LayoutSettings.DrawerPreviewIconSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                               Source="{Binding IconImage}"
+                                                                               Stretch="Uniform"
+                                                                               RenderOptions.BitmapScalingMode="HighQuality"
+                                                                               Visibility="{Binding HasIcon, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                                        <TextBlock Text="{Binding FallbackIconText}"
+                                                                                   HorizontalAlignment="Center"
+                                                                                   VerticalAlignment="Center"
+                                                                                   FontSize="7"
+                                                                                   FontWeight="Bold"
+                                                                                   Foreground="{DynamicResource AccentBrush}"
+                                                                                   Visibility="{Binding HasIcon, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                                                                    </Grid>
+                                                                </Border>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </Grid>
+                                            </Border>
+                                            <TextBlock x:Name="DrawerExpandFileName"
+                                                       Width="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                       MaxHeight="{Binding DataContext.LayoutSettings.IconTextMaxHeight, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                       Margin="0,1,0,0"
+                                                       Text="抽屉"
+                                                       TextAlignment="Center"
+                                                       TextWrapping="{Binding DataContext.LayoutSettings.IconTextWrapping, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       FontSize="{Binding DataContext.LayoutSettings.IconFontSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                                       Visibility="{Binding DataContext.IsFileNameVisible, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                        </StackPanel>
                                     </Button>
                                 </Grid>
                             </DataTemplate>

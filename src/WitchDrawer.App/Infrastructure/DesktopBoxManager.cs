@@ -178,9 +178,11 @@ public sealed class DesktopBoxManager
                         _logger,
                         visualStyle,
                         layoutSettings);
-                    await viewModel.LoadDrawerCoverSizeAsync();
                     await viewModel.LoadTitleVisibilityAsync();
                     await viewModel.LoadFileNameVisibilityAsync();
+                    // The persisted drawer height is snapped against the active row height.
+                    // Load the file-name row first so a saved 4x4 cover stays 4x4 after restart.
+                    await viewModel.LoadDrawerCoverSizeAsync();
                     await viewModel.LoadRollUpStateAsync();
                     await viewModel.LoadSortModeAsync();
                     await viewModel.LoadSizeModeAsync();
@@ -882,6 +884,13 @@ public sealed class DesktopBoxManager
         if (_windows.TryGetValue(message.BoxId, out var window))
         {
             window.ViewModel.ApplyFileNameVisibility(message.IsVisible);
+            if (window.ViewModel.IsDrawerBox)
+            {
+                FireAndForget.Run(
+                    window.ViewModel.SaveDrawerCoverSizeAsync(),
+                    _logger,
+                    $"Failed to save resized drawer cover for box {message.BoxId:N}.");
+            }
         }
     }
 

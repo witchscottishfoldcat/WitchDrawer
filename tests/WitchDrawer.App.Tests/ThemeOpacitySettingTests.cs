@@ -205,6 +205,37 @@ public sealed class ThemeOpacitySettingTests
     }
 
     [Fact]
+    public async Task EditorOpacityFollow_DefaultsOffAndTogglePersistsTheChoice()
+    {
+        await using var workspace = await ThemeWorkspace.CreateAsync();
+
+        await workspace.ViewModel.LoadAsync();
+
+        Assert.False(workspace.ViewModel.EditorFollowsBoxOpacity);
+
+        await workspace.ViewModel.ToggleEditorOpacityFollowCommand.ExecuteAsync(null);
+
+        Assert.True(workspace.ViewModel.EditorFollowsBoxOpacity);
+        Assert.Equal(
+            bool.TrueString,
+            await workspace.DrawerService.GetSettingAsync(
+                MainViewModel.EditorFollowsBoxOpacitySettingKey));
+    }
+
+    [Fact]
+    public async Task EditorOpacityFollow_LoadsTheSavedChoice()
+    {
+        await using var workspace = await ThemeWorkspace.CreateAsync();
+        await workspace.DrawerService.SetSettingAsync(
+            MainViewModel.EditorFollowsBoxOpacitySettingKey,
+            bool.TrueString);
+
+        await workspace.ViewModel.LoadAsync();
+
+        Assert.True(workspace.ViewModel.EditorFollowsBoxOpacity);
+    }
+
+    [Fact]
     public async Task TransparencyPercent_RejectsNonFiniteDirectInput()
     {
         await using var workspace = await ThemeWorkspace.CreateAsync();

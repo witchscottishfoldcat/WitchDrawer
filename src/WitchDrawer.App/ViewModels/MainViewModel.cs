@@ -22,6 +22,7 @@ public sealed class MainViewModel : ObservableObject
     internal const string ThemeBoxOpacitySettingKeyPrefix = "ThemeBoxOpacity.";
     internal const string ThemeBoxOpacityMigrationVersionSettingKey = "ThemeBoxOpacityVersion";
     private const string ThemeBoxOpacityMigrationVersion = "2";
+    internal const string EditorFollowsBoxOpacitySettingKey = "EditorFollowsBoxOpacity";
     internal const string DesktopDoubleClickSettingKey = "DesktopDoubleClickToggle";
     internal const string AboutPageShownSettingKey = "AboutPageShown";
     private const string StartupRegistryKeyName = "WitchDrawer";
@@ -52,6 +53,7 @@ public sealed class MainViewModel : ObservableObject
     private readonly object _themeOpacitySaveLock = new();
     private readonly Dictionary<AppTheme, CancellationTokenSource> _themeOpacitySaveDelays = [];
     private bool _isSynchronizingThemeTransparency;
+    private bool _editorFollowsBoxOpacity;
     private bool _launchOnStartup;
     private bool _areDesktopIconsHidden;
     private bool _isDesktopDoubleClickEnabled;
@@ -119,6 +121,7 @@ public sealed class MainViewModel : ObservableObject
         ToggleLaunchOnStartupCommand = new AsyncRelayCommand(ToggleLaunchOnStartupAsync);
         ToggleDesktopIconsCommand = new AsyncRelayCommand(ToggleDesktopIconsAsync);
         ToggleDesktopDoubleClickCommand = new AsyncRelayCommand(ToggleDesktopDoubleClickAsync);
+        ToggleEditorOpacityFollowCommand = new AsyncRelayCommand(ToggleEditorOpacityFollowAsync);
         CheckForUpdateCommand = new AsyncRelayCommand(CheckForUpdateAsync);
         ShowDashboardCommand = new RelayCommand(() =>
         {
@@ -213,6 +216,8 @@ public sealed class MainViewModel : ObservableObject
     public IAsyncRelayCommand ToggleDesktopIconsCommand { get; }
 
     public IAsyncRelayCommand ToggleDesktopDoubleClickCommand { get; }
+
+    public IAsyncRelayCommand ToggleEditorOpacityFollowCommand { get; }
 
     public IAsyncRelayCommand CheckForUpdateCommand { get; }
 
@@ -333,6 +338,12 @@ public sealed class MainViewModel : ObservableObject
 
     public string ThemeTransparencyLabel => $"{ThemeTransparencyPercent:0}%";
 
+    public bool EditorFollowsBoxOpacity
+    {
+        get => _editorFollowsBoxOpacity;
+        private set => SetProperty(ref _editorFollowsBoxOpacity, value);
+    }
+
     public bool LaunchOnStartup
     {
         get => _launchOnStartup;
@@ -427,6 +438,12 @@ public sealed class MainViewModel : ObservableObject
             // 必须在首次启动标记写入前判断是否为旧安装，才能让新用户使用二段透明度，
             // 同时让升级用户保留旧主题原本的视觉效果。
             await RestoreThemeBoxOpacitiesAsync();
+            var editorOpacityFollowSetting =
+                await _drawerService.GetSettingAsync(EditorFollowsBoxOpacitySettingKey);
+            EditorFollowsBoxOpacity = bool.TryParse(
+                editorOpacityFollowSetting,
+                out var editorFollowsBoxOpacity)
+                && editorFollowsBoxOpacity;
 
             var aboutPageShown = await _drawerService.GetSettingAsync(AboutPageShownSettingKey);
             if (!bool.TryParse(aboutPageShown, out var hasShownAboutPage) || !hasShownAboutPage)
@@ -1246,6 +1263,27 @@ public sealed class MainViewModel : ObservableObject
             ThemeBoxOpacityMigrationVersionSettingKey,
             ThemeBoxOpacityMigrationVersion);
         SynchronizeThemeTransparency();
+    }
+
+    private async Task ToggleEditorOpacityFollowAsync()
+    {
+        try
+        {
+            var enabled = !EditorFollowsBoxOpacity;
+            await _drawerService.SetSettingAsync(
+                EditorFollowsBoxOpacitySettingKey,
+                enabled.ToString());
+            EditorFollowsBoxOpacity = enabled;
+            StatusText = enabled
+                ? "编辑页已跟随桌面盒子透明度"
+                : "编辑页已保持标准透明度";
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to save editor opacity follow setting.");
+            OnPropertyChanged(nameof(EditorFollowsBoxOpacity));
+            StatusText = exception.Message;
+        }
     }
 
     private static bool IsVersionOneGeneratedDefault(double opacity)

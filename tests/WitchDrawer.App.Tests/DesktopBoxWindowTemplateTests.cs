@@ -124,6 +124,40 @@ public sealed class DesktopBoxWindowTemplateTests
     }
 
     [Fact]
+    public void DrawerTemplates_ShowFileNamesAndUseTheTextAwareCellHeight()
+    {
+        var document = XDocument.Load(GetDesktopBoxWindowXamlPath());
+        var coverFileName = Assert.Single(
+            document.Descendants(PresentationNamespace + "TextBlock"),
+            element => (string?)element.Attribute(XamlNamespace + "Name") == "DrawerCoverFileName");
+        var secondaryFileName = Assert.Single(
+            document.Descendants(PresentationNamespace + "TextBlock"),
+            element => (string?)element.Attribute(XamlNamespace + "Name") == "DrawerSecondaryFileName");
+        var expandFileName = Assert.Single(
+            document.Descendants(PresentationNamespace + "TextBlock"),
+            element => (string?)element.Attribute(XamlNamespace + "Name") == "DrawerExpandFileName");
+        var secondaryPanel = Assert.Single(
+            document.Descendants(),
+            element => element.Name.LocalName == "CenteredUniformPanel");
+
+        Assert.Equal("{Binding Item.DisplayName}", (string?)coverFileName.Attribute("Text"));
+        Assert.Equal("{Binding DisplayName}", (string?)secondaryFileName.Attribute("Text"));
+        Assert.Equal("抽屉", (string?)expandFileName.Attribute("Text"));
+        Assert.Equal(
+            "{Binding DataContext.IsFileNameVisible, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BooleanToVisibilityConverter}}",
+            (string?)coverFileName.Attribute("Visibility"));
+        Assert.Equal(
+            "{Binding DataContext.IsFileNameVisible, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BooleanToVisibilityConverter}}",
+            (string?)secondaryFileName.Attribute("Visibility"));
+        Assert.Equal(
+            "{Binding DataContext.IsFileNameVisible, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BooleanToVisibilityConverter}}",
+            (string?)expandFileName.Attribute("Visibility"));
+        Assert.Equal(
+            "{Binding DataContext.LayoutSettings.ItemSlotHeight, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}",
+            (string?)secondaryPanel.Attribute("CellHeight"));
+    }
+
+    [Fact]
     public void RollUpButton_KeepsHeaderAndCollapsesTheContentRow()
     {
         var document = XDocument.Load(GetDesktopBoxWindowXamlPath());

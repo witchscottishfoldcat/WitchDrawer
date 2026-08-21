@@ -129,6 +129,14 @@ dotnet test WitchDrawer.sln
   logs\                   运行日志
 ```
 
+## 赞助支持
+
+如果 WitchDrawer 对你有帮助，欢迎赞助支持项目的持续开发与维护：
+
+- 赞助页面：[www.witchcat.cn/zh/support](https://www.witchcat.cn/zh/support)
+- 也可以在应用内打开 **关于 → 赞助作者**，点击「前往赞助页面」
+- 赞助时请备注你的 ID，可加入鸣谢名单
+
 ## 开源协议
 
 本项目采用 **CC BY-NC-SA 4.0** 协议开源。

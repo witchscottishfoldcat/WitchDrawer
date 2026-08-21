@@ -2556,6 +2556,7 @@
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -2725,6 +2726,32 @@
                                                        FontWeight="SemiBold"
                                                        Foreground="{DynamicResource TextPrimaryBrush}" />
                                         </StackPanel>
+                                    </Grid>
+                                    <Grid Grid.Row="2"
+                                          Grid.ColumnSpan="2"
+                                          Margin="0,9,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="编辑页跟随透明度"
+                                                       FontSize="11.5"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                                            <TextBlock Text="开启后，当前编辑窗口背景随上方滑块同步变化"
+                                                       Margin="0,2,12,0"
+                                                       FontSize="10.5"
+                                                       Foreground="{DynamicResource TextMutedBrush}" />
+                                        </StackPanel>
+                                        <ToggleButton x:Name="EditorOpacityFollowToggle"
+                                                      Grid.Column="1"
+                                                      Margin="12,0,0,0"
+                                                      VerticalAlignment="Center"
+                                                      Style="{StaticResource SettingsToggleButtonStyle}"
+                                                      IsChecked="{Binding EditorFollowsBoxOpacity, Mode=OneWay}"
+                                                      Command="{Binding ToggleEditorOpacityFollowCommand}"
+                                                      AutomationProperties.Name="编辑页跟随透明度" />
                                     </Grid>
                                 </Grid>
                                 </Border>

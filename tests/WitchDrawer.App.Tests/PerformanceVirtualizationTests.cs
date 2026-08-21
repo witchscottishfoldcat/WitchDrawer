@@ -318,6 +318,69 @@ public sealed class PerformanceVirtualizationTests
     }
 
     [Fact]
+    public void CenteredUniformPanel_UsesIndependentCellHeightForFileNameRows()
+    {
+        Exception? threadException = null;
+        var thread = new Thread(() =>
+        {
+            Window? window = null;
+            try
+            {
+                var panelFactory = new FrameworkElementFactory(typeof(CenteredUniformPanel));
+                panelFactory.SetValue(CenteredUniformPanel.ColumnsProperty, 2);
+                panelFactory.SetValue(CenteredUniformPanel.CellSizeProperty, 40d);
+                panelFactory.SetValue(CenteredUniformPanel.CellHeightProperty, 50d);
+                var listBox = new ListBox
+                {
+                    Width = 80,
+                    Height = 100,
+                    BorderThickness = new Thickness(0),
+                    ItemsPanel = new ItemsPanelTemplate(panelFactory),
+                    ItemsSource = Enumerable.Range(0, 4)
+                };
+                listBox.SetValue(ScrollViewer.CanContentScrollProperty, true);
+                listBox.SetValue(ScrollViewer.HorizontalScrollBarVisibilityProperty, ScrollBarVisibility.Disabled);
+                listBox.SetValue(ScrollViewer.VerticalScrollBarVisibilityProperty, ScrollBarVisibility.Disabled);
+                listBox.SetValue(VirtualizingPanel.IsVirtualizingProperty, true);
+                window = new Window
+                {
+                    Width = 80,
+                    Height = 100,
+                    Left = -10000,
+                    Top = -10000,
+                    ShowInTaskbar = false,
+                    WindowStyle = WindowStyle.None,
+                    Content = listBox
+                };
+                window.Show();
+                listBox.UpdateLayout();
+
+                var panel = FindVisualChild<CenteredUniformPanel>(listBox);
+                Assert.NotNull(panel);
+                var lastItem = (FrameworkElement)VisualTreeHelper.GetChild(panel, 3);
+                var lastBounds = lastItem.TransformToAncestor(panel)
+                    .TransformBounds(new Rect(lastItem.RenderSize));
+
+                Assert.Equal(50, lastBounds.Top, 3);
+                Assert.Equal(100, lastBounds.Bottom, 3);
+            }
+            catch (Exception exception)
+            {
+                threadException = exception;
+            }
+            finally
+            {
+                window?.Close();
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+
+        Assert.Null(threadException);
+    }
+
+    [Fact]
     public void CenteredUniformPanel_AlignsPartialLastRowToTheLeft()
     {
         Exception? threadException = null;

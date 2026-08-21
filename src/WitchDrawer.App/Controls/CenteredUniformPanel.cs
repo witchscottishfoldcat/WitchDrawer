@@ -19,6 +19,12 @@ public sealed class CenteredUniformPanel : VirtualizingPanel, IScrollInfo
         typeof(CenteredUniformPanel),
         new FrameworkPropertyMetadata(44d, FrameworkPropertyMetadataOptions.AffectsMeasure));
 
+    public static readonly DependencyProperty CellHeightProperty = DependencyProperty.Register(
+        nameof(CellHeight),
+        typeof(double),
+        typeof(CenteredUniformPanel),
+        new FrameworkPropertyMetadata(double.NaN, FrameworkPropertyMetadataOptions.AffectsMeasure));
+
     private Size _extent;
     private Size _viewport;
     private double _verticalOffset;
@@ -33,6 +39,12 @@ public sealed class CenteredUniformPanel : VirtualizingPanel, IScrollInfo
     {
         get => (double)GetValue(CellSizeProperty);
         set => SetValue(CellSizeProperty, value);
+    }
+
+    public double CellHeight
+    {
+        get => (double)GetValue(CellHeightProperty);
+        set => SetValue(CellHeightProperty, value);
     }
 
     public bool CanHorizontallyScroll { get; set; }
@@ -101,8 +113,9 @@ public sealed class CenteredUniformPanel : VirtualizingPanel, IScrollInfo
             ? availableSize.Width
             : columns * fallbackCellSize;
         var cellSize = CalculateCellSize(fallbackCellSize, viewportWidth, columns);
+        var cellHeight = CalculateCellHeight(CellHeight, cellSize);
         var rows = Math.Max(1, (int)Math.Ceiling(owner.Items.Count / (double)columns));
-        var extent = new Size(viewportWidth, rows * cellSize);
+        var extent = new Size(viewportWidth, rows * cellHeight);
         var viewportHeight = double.IsFinite(availableSize.Height) && availableSize.Height > 0
             ? availableSize.Height
             : extent.Height;
@@ -111,12 +124,12 @@ public sealed class CenteredUniformPanel : VirtualizingPanel, IScrollInfo
         var range = CalculateVisibleItemRange(
             owner.Items.Count,
             columns,
-            cellSize,
+            cellHeight,
             VerticalOffset,
             ViewportHeight,
             overscanRows: 1);
         RemoveContainersOutside(range);
-        RealizeRange(range, new Size(cellSize, cellSize));
+        RealizeRange(range, new Size(cellSize, cellHeight));
 
         return new Size(
             Math.Min(ExtentWidth, ViewportWidth),
@@ -133,6 +146,7 @@ public sealed class CenteredUniformPanel : VirtualizingPanel, IScrollInfo
 
         var columns = Math.Max(1, Columns);
         var cellSize = CalculateCellSize(CellSize, finalSize.Width, columns);
+        var cellHeight = CalculateCellHeight(CellHeight, cellSize);
         var gridWidth = columns * cellSize;
         var gridLeft = Math.Max(0, (finalSize.Width - gridWidth) / 2);
         var itemCount = owner.Items.Count;
@@ -150,9 +164,9 @@ public sealed class CenteredUniformPanel : VirtualizingPanel, IScrollInfo
             var column = itemIndex % columns;
             InternalChildren[childIndex].Arrange(new Rect(
                 gridLeft + (column * cellSize),
-                (row * cellSize) - VerticalOffset,
+                (row * cellHeight) - VerticalOffset,
                 cellSize,
-                cellSize));
+                cellHeight));
         }
 
         return finalSize;
@@ -164,13 +178,13 @@ public sealed class CenteredUniformPanel : VirtualizingPanel, IScrollInfo
         InvalidateMeasure();
     }
 
-    public void LineUp() => SetVerticalOffset(VerticalOffset - NormalizeDimension(CellSize));
+    public void LineUp() => SetVerticalOffset(VerticalOffset - GetScrollCellHeight());
 
-    public void LineDown() => SetVerticalOffset(VerticalOffset + NormalizeDimension(CellSize));
+    public void LineDown() => SetVerticalOffset(VerticalOffset + GetScrollCellHeight());
 
-    public void MouseWheelUp() => SetVerticalOffset(VerticalOffset - (NormalizeDimension(CellSize) * 3));
+    public void MouseWheelUp() => SetVerticalOffset(VerticalOffset - (GetScrollCellHeight() * 3));
 
-    public void MouseWheelDown() => SetVerticalOffset(VerticalOffset + (NormalizeDimension(CellSize) * 3));
+    public void MouseWheelDown() => SetVerticalOffset(VerticalOffset + (GetScrollCellHeight() * 3));
 
     public void PageUp() => SetVerticalOffset(VerticalOffset - ViewportHeight);
 
@@ -234,17 +248,18 @@ public sealed class CenteredUniformPanel : VirtualizingPanel, IScrollInfo
         }
 
         var cellSize = Math.Max(1, ViewportWidth / Math.Max(1, Columns));
-        var top = (itemIndex / Math.Max(1, Columns)) * cellSize;
+        var cellHeight = CalculateCellHeight(CellHeight, cellSize);
+        var top = (itemIndex / Math.Max(1, Columns)) * cellHeight;
         if (top < VerticalOffset)
         {
             SetVerticalOffset(top);
         }
-        else if (top + cellSize > VerticalOffset + ViewportHeight)
+        else if (top + cellHeight > VerticalOffset + ViewportHeight)
         {
-            SetVerticalOffset(top + cellSize - ViewportHeight);
+            SetVerticalOffset(top + cellHeight - ViewportHeight);
         }
 
-        return new Rect(0, top - VerticalOffset, cellSize, cellSize);
+        return new Rect(0, top - VerticalOffset, cellSize, cellHeight);
     }
 
     private void RealizeRange(VisibleItemRange range, Size cellSize)
@@ -350,6 +365,17 @@ public sealed class CenteredUniformPanel : VirtualizingPanel, IScrollInfo
         var availableCellWidth = NormalizeDimension(viewportWidth) / Math.Max(1, columns);
         return Math.Max(1, Math.Min(NormalizeDimension(requestedCellSize), availableCellWidth));
     }
+
+    private double GetScrollCellHeight()
+    {
+        var cellWidth = CalculateCellSize(CellSize, ViewportWidth, Columns);
+        return CalculateCellHeight(CellHeight, cellWidth);
+    }
+
+    private static double CalculateCellHeight(double requestedCellHeight, double fallbackCellSize) =>
+        double.IsFinite(requestedCellHeight) && requestedCellHeight > 0
+            ? requestedCellHeight
+            : NormalizeDimension(fallbackCellSize);
 
     internal readonly record struct VisibleItemRange(int FirstIndex, int LastIndex)
     {

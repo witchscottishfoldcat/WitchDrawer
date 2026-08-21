@@ -59,13 +59,26 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
     public double ItemSlotWidth
     {
         get => _itemSlotWidth;
-        set => SetProperty(ref _itemSlotWidth, value);
+        set
+        {
+            if (SetProperty(ref _itemSlotWidth, value))
+            {
+                OnPropertyChanged(nameof(DrawerCoverCellWidth));
+                OnPropertyChanged(nameof(DrawerCoverCellSize));
+            }
+        }
     }
 
     public double ItemSlotHeight
     {
         get => _itemSlotHeight + (IsFileNameVisible ? IconTextMaxHeight : 0);
-        set => SetProperty(ref _itemSlotHeight, value);
+        set
+        {
+            if (SetProperty(ref _itemSlotHeight, value))
+            {
+                OnPropertyChanged(nameof(DrawerCoverCellHeight));
+            }
+        }
     }
 
     public Thickness ItemPadding
@@ -94,6 +107,7 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
             if (SetProperty(ref _iconTextMaxHeight, value) && IsFileNameVisible)
             {
                 OnPropertyChanged(nameof(ItemSlotHeight));
+                OnPropertyChanged(nameof(DrawerCoverCellHeight));
             }
         }
     }
@@ -106,6 +120,7 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
             if (SetProperty(ref _isFileNameVisible, value))
             {
                 OnPropertyChanged(nameof(ItemSlotHeight));
+                OnPropertyChanged(nameof(DrawerCoverCellHeight));
             }
         }
     }
@@ -154,7 +169,11 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
 
     public bool IsCompactPreset => _currentPreset == "6x6";
 
-    public double DrawerCoverCellSize => ItemSlotWidth;
+    public double DrawerCoverCellWidth => ItemSlotWidth;
+
+    public double DrawerCoverCellHeight => ItemSlotHeight;
+
+    public double DrawerCoverCellSize => DrawerCoverCellWidth;
 
     public double DrawerPrimaryIconFrameSize => IconFrameSize;
 
@@ -320,6 +339,8 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
         OnPropertyChanged(nameof(IsMediumPreset));
         OnPropertyChanged(nameof(IsSmallPreset));
         OnPropertyChanged(nameof(IsCompactPreset));
+        OnPropertyChanged(nameof(DrawerCoverCellWidth));
+        OnPropertyChanged(nameof(DrawerCoverCellHeight));
         OnPropertyChanged(nameof(DrawerCoverCellSize));
         OnPropertyChanged(nameof(DrawerPrimaryIconFrameSize));
         OnPropertyChanged(nameof(DrawerPrimaryIconSize));

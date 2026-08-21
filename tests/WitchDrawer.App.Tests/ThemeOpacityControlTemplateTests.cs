@@ -34,6 +34,25 @@ public sealed class ThemeOpacityControlTemplateTests
         Assert.Equal("OnThemeTransparencyInputLostFocus", (string?)input.Attribute("LostFocus"));
     }
 
+    [Fact]
+    public void EditorOpacityFollow_IsExposedBesideTheTransparencySlider()
+    {
+        var document = XDocument.Load(GetMainWindowXamlPath());
+        var toggle = Assert.Single(
+            document.Descendants(PresentationNamespace + "ToggleButton"),
+            element => (string?)element.Attribute(XamlNamespace + "Name") == "EditorOpacityFollowToggle");
+
+        Assert.Equal(
+            "{Binding EditorFollowsBoxOpacity, Mode=OneWay}",
+            (string?)toggle.Attribute("IsChecked"));
+        Assert.Equal(
+            "{Binding ToggleEditorOpacityFollowCommand}",
+            (string?)toggle.Attribute("Command"));
+        Assert.Equal(
+            "编辑页跟随透明度",
+            (string?)toggle.Attribute("AutomationProperties.Name"));
+    }
+
     private static string GetMainWindowXamlPath() =>
         Path.GetFullPath(
             Path.Combine(
