@@ -16,3 +16,6 @@ publish/
 
 # 本地调试截图与辅助脚本，不入库
 artifacts/
+
+# 本地 AI 助手会话数据
+.zcode/
