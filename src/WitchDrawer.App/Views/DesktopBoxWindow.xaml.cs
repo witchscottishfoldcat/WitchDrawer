@@ -32,6 +32,7 @@ public partial class DesktopBoxWindow : Window
     private bool _isMappingViewTransitioning;
     private bool _isRollTransitioning;
     private bool _restoreAfterMinimizeQueued;
+    private bool _desktopOwnershipRestoreQueued;
     private bool _desktopIsForeground;
     private bool _isPositionLocked;
     private HwndSource? _source;
@@ -80,6 +81,7 @@ public partial class DesktopBoxWindow : Window
         Activated += OnWindowActivated;
         Deactivated += OnWindowDeactivated;
         StateChanged += OnWindowStateChanged;
+        PreviewMouseUp += OnWindowPreviewMouseUpForDesktopOwnership;
         // Desktop boxes often stay non-activated (ShowActivated=false + HWND_BOTTOM/NOACTIVATE).
         // Window.Deactivated therefore never runs after an external drop selection; clear when
         // the whole app loses foreground so a desktop click removes the selected-item chrome.
@@ -743,6 +745,7 @@ public partial class DesktopBoxWindow : Window
         Activated -= OnWindowActivated;
         Deactivated -= OnWindowDeactivated;
         StateChanged -= OnWindowStateChanged;
+        PreviewMouseUp -= OnWindowPreviewMouseUpForDesktopOwnership;
         _source?.RemoveHook(WindowMessageHook);
         _source = null;
         _nativeWindow = null;
@@ -771,6 +774,19 @@ public partial class DesktopBoxWindow : Window
         nint longParameter,
         ref bool handled)
     {
+        if (DesktopToolWindow.IsMouseActivationMessage(message))
+        {
+            // A Shell-owned window becomes Progman's "last active popup" when
+            // clicked. Detach before default mouse-activation processing so the
+            // next Win+D still activates Progman rather than this box.
+            _nativeWindow?.SuspendDesktopOwnershipForMouseInput();
+        }
+
+        if (DesktopToolWindow.IsMouseInteractionCompletionMessage(message))
+        {
+            QueueRestoreDesktopOwnershipAfterMouseInput();
+        }
+
         if (DesktopToolWindow.IsMinimizeSystemCommand(message, wordParameter))
         {
             // Win+D / Show Desktop normally minimizes top-level windows. A desktop
@@ -779,6 +795,35 @@ public partial class DesktopBoxWindow : Window
         }
 
         return nint.Zero;
+    }
+
+    private void QueueRestoreDesktopOwnershipAfterMouseInput()
+    {
+        if (_desktopOwnershipRestoreQueued)
+        {
+            return;
+        }
+
+        _desktopOwnershipRestoreQueued = true;
+        _ = Dispatcher.BeginInvoke(
+            DispatcherPriority.Input,
+            () =>
+            {
+                _desktopOwnershipRestoreQueued = false;
+                if (!_forceClose)
+                {
+                    _nativeWindow?.RestoreDesktopOwnershipAfterMouseInput();
+                }
+            });
+    }
+
+    private void OnWindowPreviewMouseUpForDesktopOwnership(
+        object sender,
+        MouseButtonEventArgs e)
+    {
+        // WPF fallback for controls that handle the native button-up message
+        // inside an input/drag loop before the HwndSource hook observes it.
+        QueueRestoreDesktopOwnershipAfterMouseInput();
     }
 
     private void OnWindowStateChanged(object? sender, EventArgs e)

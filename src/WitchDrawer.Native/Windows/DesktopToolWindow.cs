@@ -9,6 +9,18 @@ public sealed class DesktopToolWindow
 {
     public const int SystemCommandMessage = 0x0112;
 
+    private const int MouseActivateMessage = 0x0021;
+    private const int CancelModeMessage = 0x001F;
+    private const int NonClientLeftButtonUpMessage = 0x00A2;
+    private const int NonClientRightButtonUpMessage = 0x00A5;
+    private const int NonClientMiddleButtonUpMessage = 0x00A8;
+    private const int NonClientXButtonUpMessage = 0x00AC;
+    private const int LeftButtonUpMessage = 0x0202;
+    private const int RightButtonUpMessage = 0x0205;
+    private const int MiddleButtonUpMessage = 0x0208;
+    private const int XButtonUpMessage = 0x020C;
+    private const int ExitSizeMoveMessage = 0x0232;
+
     private const int WindowOwnerIndex = -8;
     private const int ExtendedStyleIndex = -20;
     private const nint ExtendedStyleAppWindow = 0x00040000;
@@ -31,6 +43,7 @@ public sealed class DesktopToolWindow
     private readonly nint _handle;
     private nint _originalOwner;
     private nint _desktopOwner;
+    private bool _desktopOwnershipSuspendedForInput;
 
     public DesktopToolWindow(nint handle)
     {
@@ -122,6 +135,58 @@ public sealed class DesktopToolWindow
         return true;
     }
 
+    /// <summary>
+    /// Temporarily removes the Shell owner before Windows processes a mouse
+    /// activation. Otherwise Explorer records the clicked box as Progman's last
+    /// active popup; the next Win+D foregrounds the box instead of toggling Show
+    /// Desktop, leaving normal windows stuck minimized.
+    /// </summary>
+    public bool SuspendDesktopOwnershipForMouseInput()
+    {
+        if (_desktopOwnershipSuspendedForInput)
+        {
+            return true;
+        }
+
+        if (!IsDesktopHosted)
+        {
+            return false;
+        }
+
+        var replacementOwner = _originalOwner != nint.Zero && IsWindow(_originalOwner)
+            ? _originalOwner
+            : nint.Zero;
+        SetWindowLongPtr(_handle, WindowOwnerIndex, replacementOwner);
+        if (GetWindow(_handle, GetWindowOwner) == _desktopOwner)
+        {
+            return false;
+        }
+
+        _desktopOwnershipSuspendedForInput = true;
+        return true;
+    }
+
+    /// <summary>
+    /// Reattaches the box after the mouse interaction has fully completed.
+    /// Reattaching does not change Explorer's last-active-popup state.
+    /// </summary>
+    public bool RestoreDesktopOwnershipAfterMouseInput()
+    {
+        if (!_desktopOwnershipSuspendedForInput)
+        {
+            return IsDesktopHosted;
+        }
+
+        _desktopOwnershipSuspendedForInput = false;
+        var restored = TryAttachToDesktop();
+        if (restored)
+        {
+            SendToBottom();
+        }
+
+        return restored;
+    }
+
     public void SendToBottom()
     {
         SetWindowPos(
@@ -172,6 +237,7 @@ public sealed class DesktopToolWindow
 
     private void RestoreOriginalOwner()
     {
+        _desktopOwnershipSuspendedForInput = false;
         _desktopOwner = nint.Zero;
         if (_originalOwner != nint.Zero && IsWindow(_originalOwner))
         {
@@ -194,6 +260,21 @@ public sealed class DesktopToolWindow
         return message == SystemCommandMessage
             && (command & SystemCommandMask) == SystemCommandMinimize;
     }
+
+    public static bool IsMouseActivationMessage(int message) =>
+        message == MouseActivateMessage;
+
+    public static bool IsMouseInteractionCompletionMessage(int message) =>
+        message is CancelModeMessage
+            or NonClientLeftButtonUpMessage
+            or NonClientRightButtonUpMessage
+            or NonClientMiddleButtonUpMessage
+            or NonClientXButtonUpMessage
+            or LeftButtonUpMessage
+            or RightButtonUpMessage
+            or MiddleButtonUpMessage
+            or XButtonUpMessage
+            or ExitSizeMoveMessage;
 
     private static nint GetWindowLongPtr(nint windowHandle, int index)
     {
