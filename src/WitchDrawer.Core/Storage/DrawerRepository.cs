@@ -330,12 +330,12 @@ public sealed class DrawerRepository
             """
             SELECT Id, BoxId, DisplayName, ItemKind, SourcePath, StoredPath, SortOrder, CreatedAt, UpdatedAt, GridColumn, GridRow
             FROM Items
-            WHERE $query = '' OR DisplayName LIKE $like OR SourcePath LIKE $like OR StoredPath LIKE $like
+            WHERE $query = '' OR DisplayName LIKE $like ESCAPE '\' OR SourcePath LIKE $like ESCAPE '\' OR StoredPath LIKE $like ESCAPE '\'
             ORDER BY COALESCE(GridRow, 1000000), COALESCE(GridColumn, 1000000), SortOrder, DisplayName
             LIMIT $limit;
             """;
         command.Parameters.AddWithValue("$query", query);
-        command.Parameters.AddWithValue("$like", $"%{query}%");
+        command.Parameters.AddWithValue("$like", $"%{EscapeLikePattern(query)}%");
         command.Parameters.AddWithValue("$limit", limit);
 
         var items = new List<DrawerItem>();
@@ -346,6 +346,14 @@ public sealed class DrawerRepository
         }
 
         return items;
+    }
+
+    internal static string EscapeLikePattern(string value)
+    {
+        return value
+            .Replace("\\", "\\\\")
+            .Replace("%", "\\%")
+            .Replace("_", "\\_");
     }
 
     public async Task<DrawerItem?> GetItemAsync(Guid itemId, CancellationToken cancellationToken = default)
