@@ -1,3 +1,4 @@
+using System.Windows;
 using WitchDrawer.App.ViewModels;
 
 namespace WitchDrawer.App.Tests;
@@ -37,6 +38,17 @@ public sealed class DesktopBoxLayoutSettingsTests
         settings.IsFileNameVisible = false;
 
         Assert.Equal(hiddenHeight, settings.ItemSlotHeight);
+    }
+
+    [Fact]
+    public void ExtraLargeIconNames_StayOnOneLineInsteadOfSplittingWords()
+    {
+        var settings = new DesktopBoxLayoutSettings();
+
+        settings.ApplyPresetWithoutCallback("3x3");
+
+        Assert.Equal(TextWrapping.NoWrap, settings.IconTextWrapping);
+        Assert.Equal(16, settings.IconTextMaxHeight);
     }
 
     [Fact]

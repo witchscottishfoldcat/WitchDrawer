@@ -362,8 +362,8 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
                 ItemSlotHeight = 74;
                 ItemPadding = new Thickness(3);
                 IconFontSize = 11;
-                IconTextWrapping = TextWrapping.Wrap;
-                IconTextMaxHeight = 32;
+                IconTextWrapping = TextWrapping.NoWrap;
+                IconTextMaxHeight = 16;
                 ItemCornerRadius = new CornerRadius(14);
                 IconCornerRadius = new CornerRadius(12);
                 break;

@@ -15,7 +15,7 @@ internal static class FireAndForget
         _ = ObserveAsync(task, logger, context);
     }
 
-    private static async Task ObserveAsync(Task task, IAppLogger logger, string context)
+    internal static async Task ObserveAsync(Task task, IAppLogger logger, string context)
     {
         try
         {
@@ -23,7 +23,15 @@ internal static class FireAndForget
         }
         catch (Exception exception)
         {
-            logger.Error(exception, context);
+            try
+            {
+                logger.Error(exception, context);
+            }
+            catch
+            {
+                // Fire-and-forget observation must never create another faulted task.
+                // Logging failures are intentionally contained at this final boundary.
+            }
         }
     }
 }

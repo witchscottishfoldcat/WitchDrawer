@@ -272,6 +272,7 @@ public partial class App : Application
             await mainViewModel.LoadAsync();
             await quickPanelViewModel.LoadAsync();
             await _desktopBoxManager.RefreshAsync();
+            await updateService.ConfirmUpdateStartupAsync();
         }
         catch (Exception exception)
         {

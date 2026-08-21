@@ -1,3 +1,4 @@
+using System.IO;
 using WitchDrawer.App.Infrastructure;
 using WitchDrawer.Core.Logging;
 
@@ -40,6 +41,15 @@ public sealed class FireAndForgetTests
         Assert.Throws<ArgumentNullException>(() => FireAndForget.Run(Task.CompletedTask, null!, "ctx"));
     }
 
+    [Fact]
+    public async Task ObserveAsync_DoesNotFaultWhenTheLoggerFails()
+    {
+        await FireAndForget.ObserveAsync(
+            Task.FromException(new InvalidOperationException("operation failed")),
+            new ThrowingLogger(),
+            "test context");
+    }
+
     private sealed class RecordingLogger : IAppLogger
     {
         private readonly TaskCompletionSource<(Exception Exception, string Message)> _firstError =
@@ -64,6 +74,18 @@ public sealed class FireAndForgetTests
         public async Task<(Exception Exception, string Message)> WaitForErrorAsync(TimeSpan timeout)
         {
             return await _firstError.Task.WaitAsync(timeout);
+        }
+    }
+
+    private sealed class ThrowingLogger : IAppLogger
+    {
+        public void Info(string message)
+        {
+        }
+
+        public void Error(Exception exception, string message)
+        {
+            throw new IOException("log write failed");
         }
     }
 }

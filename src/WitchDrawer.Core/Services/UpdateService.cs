@@ -16,6 +16,10 @@ public sealed class UpdateService
     private const string GitHubRepoApiUrl = $"https://api.github.com/repos/{GitHubOwner}/{GitHubRepo}/releases/latest";
     private const string GitHubReleasePageUrl = $"https://github.com/{GitHubOwner}/{GitHubRepo}/releases/latest";
     private const string VersionTagPrefix = "v";
+    private const string UpdateRootFolderName = "WitchDrawerUpdate";
+    private const string StartupSuccessMarkerFileName = "startup-succeeded.marker";
+    internal const string StartupSuccessMarkerEnvironmentVariable =
+        "WITCHDRAWER_STARTUP_SUCCESS_MARKER";
 
     private static readonly HttpClient HttpClient = new(new HttpClientHandler())
     {
@@ -112,7 +116,7 @@ public sealed class UpdateService
             var updateId = Guid.NewGuid().ToString("N");
             tempRoot = Path.Combine(
                 Path.GetTempPath(),
-                "WitchDrawerUpdate",
+                UpdateRootFolderName,
                 updateId);
             var payloadDir = Path.Combine(tempRoot, "payload");
             Directory.CreateDirectory(payloadDir);
@@ -241,6 +245,44 @@ public sealed class UpdateService
         }
     }
 
+    public async Task<bool> ConfirmUpdateStartupAsync()
+    {
+        var markerPath = Environment.GetEnvironmentVariable(
+            StartupSuccessMarkerEnvironmentVariable);
+        try
+        {
+            return await ConfirmUpdateStartupAsync(markerPath);
+        }
+        finally
+        {
+            // Do not let later child processes inherit a marker for a completed session.
+            Environment.SetEnvironmentVariable(
+                StartupSuccessMarkerEnvironmentVariable,
+                null);
+        }
+    }
+
+    internal async Task<bool> ConfirmUpdateStartupAsync(string? markerPath)
+    {
+        if (string.IsNullOrWhiteSpace(markerPath))
+        {
+            return false;
+        }
+
+        if (!TryResolveStartupSuccessMarkerPath(markerPath, out var resolvedMarkerPath))
+        {
+            LogInfoWithoutThrowing("Rejected an invalid update startup marker path.");
+            return false;
+        }
+
+        await File.WriteAllTextAsync(
+            resolvedMarkerPath,
+            DateTimeOffset.UtcNow.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+            Encoding.UTF8);
+        LogInfoWithoutThrowing("Confirmed successful startup after update.");
+        return true;
+    }
+
     /// <summary>
     /// 比较前先把未指定的分量（-1）补为 0，避免 "1.3" 与 "1.3.0" 这类等值版本被误判为有更新。
     /// </summary>
@@ -265,6 +307,7 @@ public sealed class UpdateService
 setlocal
 set "WITCHDRAWER_ROLLBACK=%WITCHDRAWER_UPDATE_ROOT%\rollback"
 set "WITCHDRAWER_EXIT_WAIT_SECONDS=30"
+set "WITCHDRAWER_STARTUP_WAIT_SECONDS=60"
 >>"%WITCHDRAWER_UPDATE_LOG%" echo [%date% %time%] Update started.
 
 rem Wait for this exact process instance to exit naturally before replacing files.
@@ -287,17 +330,27 @@ robocopy "%WITCHDRAWER_PAYLOAD%" "%WITCHDRAWER_APP_DIR%" /E /IS /IT /COPY:DAT /D
 if errorlevel 8 goto apply_failed
 
 del /q "%WITCHDRAWER_APP_DIR%\update.zip" "%WITCHDRAWER_APP_DIR%\updater.bat" >nul 2>&1
+del /q "%WITCHDRAWER_STARTUP_SUCCESS_MARKER%" >nul 2>&1
 
-start "" /b /d "%WITCHDRAWER_APP_DIR%" "%WITCHDRAWER_APP_EXE%" >nul 2>&1
+powershell.exe -NoProfile -Command "$process = Start-Process -FilePath $env:WITCHDRAWER_APP_EXE -WorkingDirectory $env:WITCHDRAWER_APP_DIR -PassThru; $deadline = [DateTime]::UtcNow.AddSeconds([int]$env:WITCHDRAWER_STARTUP_WAIT_SECONDS); while ([DateTime]::UtcNow -lt $deadline) { if (Test-Path -LiteralPath $env:WITCHDRAWER_STARTUP_SUCCESS_MARKER -PathType Leaf) { exit 0 }; if ($process.HasExited) { exit 1 }; Start-Sleep -Milliseconds 200 }; if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue; $process.WaitForExit() }; exit 1" >>"%WITCHDRAWER_UPDATE_LOG%" 2>&1
 if errorlevel 1 goto start_failed
 
->>"%WITCHDRAWER_UPDATE_LOG%" echo [%date% %time%] Update completed.
+>>"%WITCHDRAWER_UPDATE_LOG%" echo [%date% %time%] Updated application confirmed startup. Update completed.
 cd /d "%TEMP%"
 rmdir /s /q "%WITCHDRAWER_UPDATE_ROOT%" >nul 2>&1
 start "" /b "%ComSpec%" /d /c del /q "%~f0" >nul 2>&1 & exit /b 0
 
 :backup_failed
->>"%WITCHDRAWER_UPDATE_LOG%" echo [%date% %time%] Update backup failed with exit code %errorlevel%.
+set "WITCHDRAWER_FAILURE_CODE=%errorlevel%"
+>>"%WITCHDRAWER_UPDATE_LOG%" echo [%date% %time%] Update backup failed with exit code %WITCHDRAWER_FAILURE_CODE%. Restarting the original installation.
+set "WITCHDRAWER_STARTUP_SUCCESS_MARKER="
+start "" /b /d "%WITCHDRAWER_APP_DIR%" "%WITCHDRAWER_APP_EXE%" >nul 2>&1
+if errorlevel 1 goto original_restart_failed
+>>"%WITCHDRAWER_UPDATE_LOG%" echo [%date% %time%] Original installation restarted after backup failure.
+exit /b 1
+
+:original_restart_failed
+>>"%WITCHDRAWER_UPDATE_LOG%" echo [%date% %time%] Failed to restart the original installation after backup failure.
 exit /b 1
 
 :apply_failed
@@ -313,9 +366,10 @@ powershell.exe -NoProfile -Command "$payload = $env:WITCHDRAWER_PAYLOAD; $rollba
 if errorlevel 1 goto rollback_failed
 robocopy "%WITCHDRAWER_ROLLBACK%" "%WITCHDRAWER_APP_DIR%" /E /IS /IT /COPY:DAT /DCOPY:DAT /R:1 /W:1 /NFL /NDL /NP >>"%WITCHDRAWER_UPDATE_LOG%" 2>&1
 if errorlevel 8 goto rollback_failed
+>>"%WITCHDRAWER_UPDATE_LOG%" echo [%date% %time%] Previous installation restored. Recovery files retained at "%WITCHDRAWER_UPDATE_ROOT%".
+set "WITCHDRAWER_STARTUP_SUCCESS_MARKER="
 start "" /b /d "%WITCHDRAWER_APP_DIR%" "%WITCHDRAWER_APP_EXE%" >nul 2>&1
 if errorlevel 1 goto rollback_failed
->>"%WITCHDRAWER_UPDATE_LOG%" echo [%date% %time%] Previous installation restored. Recovery files retained at "%WITCHDRAWER_UPDATE_ROOT%".
 exit /b 1
 
 :rollback_failed
@@ -355,7 +409,63 @@ exit /b 1
         startInfo.Environment["WITCHDRAWER_APP_PID"] = appProcessId.ToString();
         startInfo.Environment["WITCHDRAWER_APP_START_TIME_UTC_TICKS"] =
             appProcessStartTimeUtcTicks.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        startInfo.Environment[StartupSuccessMarkerEnvironmentVariable] =
+            Path.Combine(tempRoot, StartupSuccessMarkerFileName);
         return startInfo;
+    }
+
+    private static bool TryResolveStartupSuccessMarkerPath(
+        string markerPath,
+        out string resolvedMarkerPath)
+    {
+        resolvedMarkerPath = string.Empty;
+        try
+        {
+            var fullMarkerPath = Path.GetFullPath(markerPath);
+            if (!string.Equals(
+                    Path.GetFileName(fullMarkerPath),
+                    StartupSuccessMarkerFileName,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            var sessionDirectory = Path.GetDirectoryName(fullMarkerPath);
+            if (string.IsNullOrWhiteSpace(sessionDirectory)
+                || !Guid.TryParseExact(Path.GetFileName(sessionDirectory), "N", out _)
+                || !Directory.Exists(sessionDirectory))
+            {
+                return false;
+            }
+
+            var expectedParent = Path.GetFullPath(
+                Path.Combine(Path.GetTempPath(), UpdateRootFolderName));
+            var actualParent = Path.GetDirectoryName(sessionDirectory);
+            if (!string.Equals(actualParent, expectedParent, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            resolvedMarkerPath = fullMarkerPath;
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    private void LogInfoWithoutThrowing(string message)
+    {
+        try
+        {
+            _logger.Info(message);
+        }
+        catch
+        {
+            // The startup marker is the commit point. Logging at this boundary
+            // must not turn a healthy startup into an update rollback.
+        }
     }
 
     internal static int CleanupLegacyUpdaterArtifacts(string appDirectory)
