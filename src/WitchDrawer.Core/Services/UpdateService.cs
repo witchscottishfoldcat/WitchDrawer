@@ -69,7 +69,7 @@ public sealed class UpdateService
                 return new UpdateCheckResult();
             }
 
-            var hasUpdate = remoteVersion > currentVersion;
+            var hasUpdate = IsNewerVersion(remoteVersion, currentVersion);
             var (downloadUrl, expectedSha256) = await ResolveAssetAsync(response.Assets);
 
             if (string.IsNullOrWhiteSpace(downloadUrl))
@@ -204,6 +204,7 @@ public sealed class UpdateService
             Directory.CreateDirectory(Path.GetDirectoryName(updateLogPath)!);
             await File.WriteAllTextAsync(updaterPath, BuildUpdaterScript(), Encoding.ASCII);
 
+            using var currentProcess = Process.GetCurrentProcess();
             var updaterProcess = Process.Start(CreateUpdaterStartInfo(
                 updaterPath,
                 tempRoot,
@@ -211,7 +212,9 @@ public sealed class UpdateService
                 appDirectory,
                 appExecutablePath,
                 executableName,
-                updateLogPath));
+                updateLogPath,
+                currentProcess.Id,
+                currentProcess.StartTime.ToUniversalTime().Ticks));
             if (updaterProcess is null)
             {
                 _logger.Info("Failed to start the update helper process.");
@@ -238,32 +241,85 @@ public sealed class UpdateService
         }
     }
 
+    /// <summary>
+    /// 比较前先把未指定的分量（-1）补为 0，避免 "1.3" 与 "1.3.0" 这类等值版本被误判为有更新。
+    /// </summary>
+    internal static bool IsNewerVersion(Version remoteVersion, Version currentVersion)
+    {
+        return NormalizeForComparison(remoteVersion) > NormalizeForComparison(currentVersion);
+    }
+
+    internal static Version NormalizeForComparison(Version version)
+    {
+        return new Version(
+            Math.Max(version.Major, 0),
+            Math.Max(version.Minor, 0),
+            Math.Max(version.Build, 0),
+            Math.Max(version.Revision, 0));
+    }
+
     internal static string BuildUpdaterScript()
     {
         return """"
 @echo off
 setlocal
+set "WITCHDRAWER_ROLLBACK=%WITCHDRAWER_UPDATE_ROOT%\rollback"
+set "WITCHDRAWER_EXIT_WAIT_SECONDS=30"
 >>"%WITCHDRAWER_UPDATE_LOG%" echo [%date% %time%] Update started.
-timeout /t 2 /nobreak >nul
 
-taskkill /im "%WITCHDRAWER_EXE_NAME%" /f >nul 2>&1
-timeout /t 1 /nobreak >nul
+rem Wait for this exact process instance to exit naturally before replacing files.
+if "%WITCHDRAWER_APP_PID%"=="0" goto process_exited
+for /l %%i in (1,1,%WITCHDRAWER_EXIT_WAIT_SECONDS%) do (
+    powershell.exe -NoProfile -Command "$process = Get-Process -Id %WITCHDRAWER_APP_PID% -ErrorAction SilentlyContinue; if ($null -eq $process -or $process.StartTime.ToUniversalTime().Ticks -ne %WITCHDRAWER_APP_START_TIME_UTC_TICKS%) { exit 0 }; exit 1" >nul 2>&1
+    if not errorlevel 1 goto process_exited
+    timeout /t 1 /nobreak >nul
+)
+>>"%WITCHDRAWER_UPDATE_LOG%" echo [%date% %time%] Timed out waiting for the application process to exit.
+exit /b 1
 
-xcopy "%WITCHDRAWER_PAYLOAD%\*" "%WITCHDRAWER_APP_DIR%" /e /y /i >>"%WITCHDRAWER_UPDATE_LOG%" 2>&1
-if errorlevel 1 goto update_failed
+:process_exited
+rem robocopy exit codes 0-7 are successful; 8 and above are failures.
+robocopy "%WITCHDRAWER_APP_DIR%" "%WITCHDRAWER_ROLLBACK%" /E /COPY:DAT /DCOPY:DAT /R:1 /W:1 /NFL /NDL /NP >>"%WITCHDRAWER_UPDATE_LOG%" 2>&1
+if errorlevel 8 goto backup_failed
+
+rem Overlay only the release payload. Do not delete files that are not part of the release.
+robocopy "%WITCHDRAWER_PAYLOAD%" "%WITCHDRAWER_APP_DIR%" /E /IS /IT /COPY:DAT /DCOPY:DAT /R:1 /W:1 /NFL /NDL /NP >>"%WITCHDRAWER_UPDATE_LOG%" 2>&1
+if errorlevel 8 goto apply_failed
 
 del /q "%WITCHDRAWER_APP_DIR%\update.zip" "%WITCHDRAWER_APP_DIR%\updater.bat" >nul 2>&1
 
 start "" /b /d "%WITCHDRAWER_APP_DIR%" "%WITCHDRAWER_APP_EXE%" >nul 2>&1
-if errorlevel 1 goto update_failed
+if errorlevel 1 goto start_failed
 
 >>"%WITCHDRAWER_UPDATE_LOG%" echo [%date% %time%] Update completed.
 cd /d "%TEMP%"
 rmdir /s /q "%WITCHDRAWER_UPDATE_ROOT%" >nul 2>&1
 start "" /b "%ComSpec%" /d /c del /q "%~f0" >nul 2>&1 & exit /b 0
 
-:update_failed
->>"%WITCHDRAWER_UPDATE_LOG%" echo [%date% %time%] Update failed with exit code %errorlevel%.
+:backup_failed
+>>"%WITCHDRAWER_UPDATE_LOG%" echo [%date% %time%] Update backup failed with exit code %errorlevel%.
+exit /b 1
+
+:apply_failed
+>>"%WITCHDRAWER_UPDATE_LOG%" echo [%date% %time%] Update apply failed with exit code %errorlevel%. Restoring the previous installation.
+goto rollback
+
+:start_failed
+>>"%WITCHDRAWER_UPDATE_LOG%" echo [%date% %time%] Updated application failed to start. Restoring the previous installation.
+
+:rollback
+rem Remove only files introduced by this payload that were absent from the backup.
+powershell.exe -NoProfile -Command "$payload = $env:WITCHDRAWER_PAYLOAD; $rollback = $env:WITCHDRAWER_ROLLBACK; $app = $env:WITCHDRAWER_APP_DIR; Get-ChildItem -LiteralPath $payload -Recurse -File | ForEach-Object { $relative = $_.FullName.Substring($payload.Length).TrimStart('\'); $target = Join-Path $app $relative; if (-not (Test-Path -LiteralPath (Join-Path $rollback $relative) -PathType Leaf) -and (Test-Path -LiteralPath $target -PathType Leaf)) { Remove-Item -LiteralPath $target -Force -ErrorAction Stop } }" >>"%WITCHDRAWER_UPDATE_LOG%" 2>&1
+if errorlevel 1 goto rollback_failed
+robocopy "%WITCHDRAWER_ROLLBACK%" "%WITCHDRAWER_APP_DIR%" /E /IS /IT /COPY:DAT /DCOPY:DAT /R:1 /W:1 /NFL /NDL /NP >>"%WITCHDRAWER_UPDATE_LOG%" 2>&1
+if errorlevel 8 goto rollback_failed
+start "" /b /d "%WITCHDRAWER_APP_DIR%" "%WITCHDRAWER_APP_EXE%" >nul 2>&1
+if errorlevel 1 goto rollback_failed
+>>"%WITCHDRAWER_UPDATE_LOG%" echo [%date% %time%] Previous installation restored. Recovery files retained at "%WITCHDRAWER_UPDATE_ROOT%".
+exit /b 1
+
+:rollback_failed
+>>"%WITCHDRAWER_UPDATE_LOG%" echo [%date% %time%] Update rollback failed. Recovery files retained at "%WITCHDRAWER_UPDATE_ROOT%".
 exit /b 1
 """";
     }
@@ -275,7 +331,9 @@ exit /b 1
         string appDirectory,
         string appExecutablePath,
         string executableName,
-        string updateLogPath)
+        string updateLogPath,
+        int appProcessId,
+        long appProcessStartTimeUtcTicks)
     {
         var startInfo = new ProcessStartInfo
         {
@@ -294,6 +352,9 @@ exit /b 1
         startInfo.Environment["WITCHDRAWER_APP_EXE"] = appExecutablePath;
         startInfo.Environment["WITCHDRAWER_EXE_NAME"] = executableName;
         startInfo.Environment["WITCHDRAWER_UPDATE_LOG"] = updateLogPath;
+        startInfo.Environment["WITCHDRAWER_APP_PID"] = appProcessId.ToString();
+        startInfo.Environment["WITCHDRAWER_APP_START_TIME_UTC_TICKS"] =
+            appProcessStartTimeUtcTicks.ToString(System.Globalization.CultureInfo.InvariantCulture);
         return startInfo;
     }
 

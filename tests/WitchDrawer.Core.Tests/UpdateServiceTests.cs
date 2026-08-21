@@ -19,34 +19,46 @@ public sealed class UpdateServiceTests
     }
 
     [Fact]
-    public void BuildUpdaterScript_CopiesOnlyPayloadAndCleansLegacyArtifacts()
+    public void BuildUpdaterScript_WaitsForGracefulExitAndUsesRecoverableOverlay()
     {
         var script = UpdateService.BuildUpdaterScript();
 
+        Assert.Contains("WITCHDRAWER_EXIT_WAIT_SECONDS", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("taskkill", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("/MIR", script, StringComparison.Ordinal);
         Assert.Contains(
-            "xcopy \"%WITCHDRAWER_PAYLOAD%\\*\" \"%WITCHDRAWER_APP_DIR%\"",
-            script,
-            StringComparison.Ordinal);
-        Assert.DoesNotContain(
-            "xcopy \"%WITCHDRAWER_UPDATE_ROOT%\\*\"",
-            script,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "del /q \"%WITCHDRAWER_APP_DIR%\\update.zip\" \"%WITCHDRAWER_APP_DIR%\\updater.bat\"",
+            "robocopy \"%WITCHDRAWER_APP_DIR%\" \"%WITCHDRAWER_ROLLBACK%\" /E",
             script,
             StringComparison.Ordinal);
         Assert.Contains(
-            "start \"\" /b /d \"%WITCHDRAWER_APP_DIR%\" \"%WITCHDRAWER_APP_EXE%\"",
+            "robocopy \"%WITCHDRAWER_PAYLOAD%\" \"%WITCHDRAWER_APP_DIR%\" /E",
             script,
             StringComparison.Ordinal);
+        Assert.Contains("if errorlevel 8 goto backup_failed", script, StringComparison.Ordinal);
+        Assert.Contains("if errorlevel 8 goto apply_failed", script, StringComparison.Ordinal);
+        Assert.Contains(":rollback", script, StringComparison.Ordinal);
         Assert.Contains(
-            "rmdir /s /q \"%WITCHDRAWER_UPDATE_ROOT%\"",
+            "robocopy \"%WITCHDRAWER_ROLLBACK%\" \"%WITCHDRAWER_APP_DIR%\" /E",
             script,
             StringComparison.Ordinal);
-        Assert.Contains(
-            "del /q \"%~f0\"",
-            script,
-            StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("1.3.1", "1.3", true)]
+    [InlineData("1.3", "1.3.0", false)]
+    [InlineData("1.3.0", "1.3", false)]
+    [InlineData("1.3.5.0", "1.3.5", false)]
+    [InlineData("1.3.5.1", "1.3.5", true)]
+    [InlineData("2.0", "1.9.9", true)]
+    [InlineData("1.2.9", "1.3", false)]
+    public void IsNewerVersion_TreatsMissingComponentsAsZero(
+        string remote,
+        string current,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            UpdateService.IsNewerVersion(Version.Parse(remote), Version.Parse(current)));
     }
 
     [Fact]
@@ -67,7 +79,9 @@ public sealed class UpdateServiceTests
             appDirectory,
             appExecutable,
             executableName,
-            logPath);
+            logPath,
+            appProcessId: 0,
+            appProcessStartTimeUtcTicks: 0);
 
         Assert.Equal(Path.Combine(Environment.SystemDirectory, "cmd.exe"), startInfo.FileName);
         Assert.Equal(Path.GetDirectoryName(updaterPath), startInfo.WorkingDirectory);
@@ -82,6 +96,8 @@ public sealed class UpdateServiceTests
         Assert.Equal(appExecutable, startInfo.Environment["WITCHDRAWER_APP_EXE"]);
         Assert.Equal(executableName, startInfo.Environment["WITCHDRAWER_EXE_NAME"]);
         Assert.Equal(logPath, startInfo.Environment["WITCHDRAWER_UPDATE_LOG"]);
+        Assert.Equal("0", startInfo.Environment["WITCHDRAWER_APP_PID"]);
+        Assert.Equal("0", startInfo.Environment["WITCHDRAWER_APP_START_TIME_UTC_TICKS"]);
     }
 
     [Fact]
@@ -117,7 +133,7 @@ public sealed class UpdateServiceTests
     }
 
     [Fact]
-    public async Task UpdaterScript_CopiesPayloadRestartsTargetAndCleansTemporaryFiles()
+    public async Task UpdaterScript_OverlaysPayloadPreservesUnrelatedFilesAndCleansTemporaryFiles()
     {
         var testRoot = Path.Combine(
             Path.GetTempPath(),
@@ -144,6 +160,13 @@ public sealed class UpdateServiceTests
             await File.WriteAllTextAsync(updaterPath, UpdateService.BuildUpdaterScript());
             await File.WriteAllTextAsync(Path.Combine(appDirectory, "update.zip"), "legacy");
             await File.WriteAllTextAsync(Path.Combine(appDirectory, "updater.bat"), "legacy");
+            var stalePayloadPath = Path.Combine(appDirectory, "stale-old-version.dll");
+            await File.WriteAllTextAsync(stalePayloadPath, "stale");
+            var replacedPath = Path.Combine(appDirectory, "WitchDrawer.Core.dll");
+            await File.WriteAllTextAsync(replacedPath, "old");
+            await File.WriteAllTextAsync(
+                Path.Combine(payloadDirectory, "WitchDrawer.Core.dll"),
+                "new");
 
             var startInfo = UpdateService.CreateUpdaterStartInfo(
                 updaterPath,
@@ -152,7 +175,9 @@ public sealed class UpdateServiceTests
                 appDirectory,
                 appExecutablePath,
                 executableName,
-                logPath);
+                logPath,
+                appProcessId: 0,
+                appProcessStartTimeUtcTicks: 0);
             startInfo.Environment["WITCHDRAWER_TEST_MARKER"] = markerPath;
 
             using var updaterProcess = Process.Start(startInfo);
@@ -171,6 +196,200 @@ public sealed class UpdateServiceTests
             Assert.True(File.Exists(appExecutablePath));
             Assert.False(File.Exists(Path.Combine(appDirectory, "update.zip")));
             Assert.False(File.Exists(Path.Combine(appDirectory, "updater.bat")));
+            Assert.Equal("new", await File.ReadAllTextAsync(replacedPath));
+            Assert.True(File.Exists(stalePayloadPath));
+            Assert.Equal("stale", await File.ReadAllTextAsync(stalePayloadPath));
+        }
+        finally
+        {
+            await DeleteDirectoryWithRetryAsync(testRoot, TimeSpan.FromSeconds(5));
+        }
+    }
+
+    [Fact]
+    public async Task UpdaterScript_WaitsForOriginalProcessExitBeforeApplyingPayload()
+    {
+        var testRoot = Path.Combine(Path.GetTempPath(), "WitchDrawer Update Wait Tests", Guid.NewGuid().ToString("N"));
+        var updateRoot = Path.Combine(testRoot, "update");
+        var payloadDirectory = Path.Combine(updateRoot, "payload");
+        var appDirectory = Path.Combine(testRoot, "app");
+        var updaterPath = Path.Combine(testRoot, "updater.cmd");
+        var executableName = "WitchDrawer.TestTarget.cmd";
+        var appExecutablePath = Path.Combine(appDirectory, executableName);
+        var markerPath = Path.Combine(testRoot, "target-started.txt");
+        var logPath = Path.Combine(testRoot, "updater.log");
+
+        Directory.CreateDirectory(payloadDirectory);
+        Directory.CreateDirectory(appDirectory);
+
+        try
+        {
+            await File.WriteAllTextAsync(
+                Path.Combine(payloadDirectory, executableName),
+                "@echo off\r\n>\"%WITCHDRAWER_TEST_MARKER%\" echo started\r\nexit\r\n");
+            await File.WriteAllTextAsync(updaterPath, UpdateService.BuildUpdaterScript());
+            await File.WriteAllTextAsync(appExecutablePath, "old");
+
+            using var originalProcess = Process.Start(new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                Arguments = "-NoProfile -Command \"Start-Sleep -Seconds 3\"",
+                UseShellExecute = false,
+                CreateNoWindow = true
+            });
+            Assert.NotNull(originalProcess);
+
+            var startInfo = UpdateService.CreateUpdaterStartInfo(
+                updaterPath,
+                updateRoot,
+                payloadDirectory,
+                appDirectory,
+                appExecutablePath,
+                executableName,
+                logPath,
+                originalProcess.Id,
+                originalProcess.StartTime.ToUniversalTime().Ticks);
+            startInfo.Environment["WITCHDRAWER_TEST_MARKER"] = markerPath;
+
+            using var updaterProcess = Process.Start(startInfo);
+            Assert.NotNull(updaterProcess);
+            await Task.Delay(500);
+            Assert.False(File.Exists(markerPath));
+            Assert.Equal("old", await File.ReadAllTextAsync(appExecutablePath));
+
+            await originalProcess.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
+            await updaterProcess.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15));
+            Assert.Equal(0, updaterProcess.ExitCode);
+            await WaitForConditionAsync(() => File.Exists(markerPath), TimeSpan.FromSeconds(5));
+        }
+        finally
+        {
+            await DeleteDirectoryWithRetryAsync(testRoot, TimeSpan.FromSeconds(5));
+        }
+    }
+
+    [Fact]
+    public async Task UpdaterScript_RestoresPreviousInstallationAfterPayloadCopyFails()
+    {
+        var testRoot = Path.Combine(Path.GetTempPath(), "WitchDrawer Update Rollback Tests", Guid.NewGuid().ToString("N"));
+        var updateRoot = Path.Combine(testRoot, "update");
+        var payloadDirectory = Path.Combine(updateRoot, "payload");
+        var appDirectory = Path.Combine(testRoot, "app");
+        var updaterPath = Path.Combine(testRoot, "updater.cmd");
+        var executableName = "WitchDrawer.TestTarget.cmd";
+        var appExecutablePath = Path.Combine(appDirectory, executableName);
+        var markerPath = Path.Combine(testRoot, "target-started.txt");
+        var logPath = Path.Combine(testRoot, "updater.log");
+        var firstAppPath = Path.Combine(appDirectory, "a-first.dll");
+        var introducedAppPath = Path.Combine(appDirectory, "b-introduced.dll");
+        var lockedPayloadPath = Path.Combine(payloadDirectory, "z-locked.dll");
+
+        Directory.CreateDirectory(payloadDirectory);
+        Directory.CreateDirectory(appDirectory);
+
+        try
+        {
+            await File.WriteAllTextAsync(firstAppPath, "old-first");
+            await File.WriteAllTextAsync(Path.Combine(appDirectory, "z-locked.dll"), "old-locked");
+            await File.WriteAllTextAsync(
+                appExecutablePath,
+                "@echo off\r\n>\"%WITCHDRAWER_TEST_MARKER%\" echo restored\r\nexit\r\n");
+            await File.WriteAllTextAsync(Path.Combine(payloadDirectory, "a-first.dll"), "new-first");
+            await File.WriteAllTextAsync(Path.Combine(payloadDirectory, "b-introduced.dll"), "new-introduced");
+            await File.WriteAllTextAsync(lockedPayloadPath, "new-locked");
+            await File.WriteAllTextAsync(
+                Path.Combine(payloadDirectory, executableName),
+                "@echo off\r\n>\"%WITCHDRAWER_TEST_MARKER%\" echo updated\r\nexit\r\n");
+            await File.WriteAllTextAsync(updaterPath, UpdateService.BuildUpdaterScript());
+
+            await using var lockStream = new FileStream(
+                lockedPayloadPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.None);
+            var startInfo = UpdateService.CreateUpdaterStartInfo(
+                updaterPath,
+                updateRoot,
+                payloadDirectory,
+                appDirectory,
+                appExecutablePath,
+                executableName,
+                logPath,
+                appProcessId: 0,
+                appProcessStartTimeUtcTicks: 0);
+            startInfo.Environment["WITCHDRAWER_TEST_MARKER"] = markerPath;
+
+            using var updaterProcess = Process.Start(startInfo);
+            Assert.NotNull(updaterProcess);
+            await WaitForConditionAsync(() => File.Exists(introducedAppPath), TimeSpan.FromSeconds(5));
+            Assert.Equal("new-introduced", await File.ReadAllTextAsync(introducedAppPath));
+            await updaterProcess.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15));
+
+            Assert.NotEqual(0, updaterProcess.ExitCode);
+            Assert.Equal("old-first", await File.ReadAllTextAsync(firstAppPath));
+            Assert.False(File.Exists(introducedAppPath));
+            await WaitForConditionAsync(() => File.Exists(markerPath), TimeSpan.FromSeconds(5));
+            Assert.Equal("restored", (await File.ReadAllTextAsync(markerPath)).Trim());
+            Assert.True(Directory.Exists(Path.Combine(updateRoot, "rollback")));
+        }
+        finally
+        {
+            await DeleteDirectoryWithRetryAsync(testRoot, TimeSpan.FromSeconds(5));
+        }
+    }
+
+    [Fact]
+    public async Task UpdaterScript_DoesNotApplyPayloadWhenBackupFails()
+    {
+        var testRoot = Path.Combine(Path.GetTempPath(), "WitchDrawer Update Backup Failure Tests", Guid.NewGuid().ToString("N"));
+        var updateRoot = Path.Combine(testRoot, "update");
+        var payloadDirectory = Path.Combine(updateRoot, "payload");
+        var appDirectory = Path.Combine(testRoot, "app");
+        var updaterPath = Path.Combine(testRoot, "updater.cmd");
+        var executableName = "WitchDrawer.TestTarget.cmd";
+        var appExecutablePath = Path.Combine(appDirectory, executableName);
+        var markerPath = Path.Combine(testRoot, "target-started.txt");
+        var logPath = Path.Combine(testRoot, "updater.log");
+        var lockedAppPath = Path.Combine(appDirectory, "z-locked.dll");
+
+        Directory.CreateDirectory(payloadDirectory);
+        Directory.CreateDirectory(appDirectory);
+
+        try
+        {
+            await File.WriteAllTextAsync(appExecutablePath, "old-target");
+            await File.WriteAllTextAsync(lockedAppPath, "old-locked");
+            await File.WriteAllTextAsync(
+                Path.Combine(payloadDirectory, executableName),
+                "@echo off\r\n>\"%WITCHDRAWER_TEST_MARKER%\" echo updated\r\nexit\r\n");
+            await File.WriteAllTextAsync(Path.Combine(payloadDirectory, "z-locked.dll"), "new-locked");
+            await File.WriteAllTextAsync(updaterPath, UpdateService.BuildUpdaterScript());
+
+            await using var lockStream = new FileStream(
+                lockedAppPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.None);
+            var startInfo = UpdateService.CreateUpdaterStartInfo(
+                updaterPath,
+                updateRoot,
+                payloadDirectory,
+                appDirectory,
+                appExecutablePath,
+                executableName,
+                logPath,
+                appProcessId: 0,
+                appProcessStartTimeUtcTicks: 0);
+            startInfo.Environment["WITCHDRAWER_TEST_MARKER"] = markerPath;
+
+            using var updaterProcess = Process.Start(startInfo);
+            Assert.NotNull(updaterProcess);
+            await updaterProcess.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15));
+
+            Assert.NotEqual(0, updaterProcess.ExitCode);
+            Assert.Equal("old-target", await File.ReadAllTextAsync(appExecutablePath));
+            Assert.False(File.Exists(markerPath));
+            Assert.True(Directory.Exists(updateRoot));
         }
         finally
         {
