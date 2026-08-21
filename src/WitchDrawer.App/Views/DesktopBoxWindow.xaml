@@ -503,7 +503,8 @@
                      SelectionChanged="OnItemsSelectionChanged"
                      PreviewMouseLeftButtonDown="OnIconPreviewMouseLeftButtonDown"
                      MouseMove="OnIconMouseMove"
-                     MouseDoubleClick="OnItemsMouseDoubleClick">
+                     MouseDoubleClick="OnItemsMouseDoubleClick"
+                     PreviewMouseRightButtonUp="OnIconPreviewMouseRightButtonUp">
                 <ListBox.Style>
                     <Style TargetType="{x:Type ListBox}" BasedOn="{StaticResource {x:Type ListBox}}">
                         <Setter Property="Visibility" Value="Visible" />
@@ -686,7 +687,8 @@
                      SelectionChanged="OnItemsSelectionChanged"
                      PreviewMouseLeftButtonDown="OnIconPreviewMouseLeftButtonDown"
                      MouseMove="OnIconMouseMove"
-                     MouseDoubleClick="OnItemsMouseDoubleClick">
+                     MouseDoubleClick="OnItemsMouseDoubleClick"
+                     PreviewMouseRightButtonUp="OnIconPreviewMouseRightButtonUp">
                 <ListBox.Style>
                     <Style TargetType="{x:Type ListBox}" BasedOn="{StaticResource {x:Type ListBox}}">
                         <Setter Property="Visibility" Value="Collapsed" />
@@ -1076,7 +1078,8 @@
                                                 Margin="0"
                                                 ToolTip="{Binding PathLabel}"
                                                 Click="OnDrawerSecondaryItemClick"
-                                                PreviewMouseLeftButtonDown="OnDrawerSecondaryIconPreviewMouseLeftButtonDown">
+                                                PreviewMouseLeftButtonDown="OnDrawerSecondaryIconPreviewMouseLeftButtonDown"
+                                                PreviewMouseRightButtonUp="OnDrawerSecondaryIconMouseRightButtonUp">
                                             <Border Width="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
                                                     Height="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
                                                     CornerRadius="{Binding DataContext.LayoutSettings.IconCornerRadius, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
@@ -1141,6 +1144,7 @@
                                 <Grid>
                                     <Button Style="{StaticResource DrawerTileButtonStyle}"
                                             PreviewMouseLeftButtonDown="OnDrawerIconPreviewMouseLeftButtonDown"
+                                            PreviewMouseRightButtonUp="OnDrawerCoverIconMouseRightButtonUp"
                                             ToolTip="{Binding Item.PathLabel}"
                                             Visibility="{Binding HasItem, Converter={StaticResource BooleanToVisibilityConverter}}">
                                         <Border Width="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType=Window}}"

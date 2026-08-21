@@ -1139,6 +1139,24 @@ public sealed class DesktopBoxViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// 右键时源文件已失效（被外部删除/移动），给用户一个轻量提示而非弹出空菜单。
+    /// </summary>
+    public void ShowFileMissingNotice(DrawerItemViewModel item)
+    {
+        _logger.Info($"Context menu skipped: source path for item '{item.DisplayName}' no longer exists.");
+        StatusText = $"文件不存在：{item.DisplayName}";
+    }
+
+    /// <summary>
+    /// 菜单弹出/执行失败时记录并提示，不让异常把盒子窗口搞挂。
+    /// </summary>
+    public void ShowContextMenuFailure(DrawerItemViewModel item, Exception exception)
+    {
+        _logger.Error(exception, $"Failed to show context menu for '{item.DisplayName}'.");
+        StatusText = $"菜单打开失败：{exception.Message}";
+    }
+
     private async Task MoveItemWithinBoxAsync(DrawerItemViewModel item, int targetColumn, int targetRow)
     {
         var targetSlot = NormalizeGridSlot(targetColumn, targetRow);

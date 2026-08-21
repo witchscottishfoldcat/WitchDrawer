@@ -11,6 +11,7 @@ using System.Windows.Threading;
 using WitchDrawer.App.Controls;
 using WitchDrawer.App.Infrastructure;
 using WitchDrawer.App.ViewModels;
+using WitchDrawer.Native.Shell;
 using WitchDrawer.Native.Windows;
 
 namespace WitchDrawer.App.Views;
@@ -1937,6 +1938,137 @@ public partial class DesktopBoxWindow : Window
         if (TryGetDrawerItem(e.OriginalSource, out var drawerItem))
         {
             await ViewModel.OpenItemCommand.ExecuteAsync(drawerItem);
+        }
+    }
+
+    private void OnIconPreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        // 主网格/映射列表：右键对象是 ListBox 里的项。
+        if (!TryGetDrawerItem(e.OriginalSource, out var drawerItem))
+        {
+            return;
+        }
+
+        e.Handled = true;
+        SelectItem(drawerItem.Id);
+        ShowContextMenuForItem(drawerItem, e);
+    }
+
+    private void OnDrawerCoverIconMouseRightButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        // 抽屉折叠封面磁贴：DataContext 是 DrawerCoverTileViewModel，真正的项在 Item。
+        // 仅对「有项目」的磁贴响应；「展开抽屉」磁贴（IsExpandTile）无 Item，忽略。
+        if (sender is not Button { DataContext: DrawerCoverTileViewModel { Item: not null } tile })
+        {
+            return;
+        }
+
+        e.Handled = true;
+        SelectCoverTile(tile);
+        ShowContextMenuForItem(tile.Item, e);
+    }
+
+    private void OnDrawerSecondaryIconMouseRightButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        // 抽屉展开后的二级弹窗磁贴：DataContext 就是 DrawerItemViewModel。
+        if (sender is not Button { DataContext: DrawerItemViewModel item })
+        {
+            return;
+        }
+
+        e.Handled = true;
+        ShowContextMenuForItem(item, e);
+    }
+
+    /// <summary>
+    /// 为指定收纳项弹出固定精简的原生右键菜单（打开 / 管理员运行 / 属性 / 复制 / 移除）。
+    /// 不再使用 Windows 系统右键菜单，因此不会混入第三方 Shell 扩展，菜单保持可控。
+    /// </summary>
+    private async void ShowContextMenuForItem(DrawerItemViewModel drawerItem, MouseButtonEventArgs e)
+    {
+        ClearPendingIconDrag();
+
+        var path = drawerItem.PathLabel;
+        if (string.IsNullOrWhiteSpace(path)
+            || (!File.Exists(path) && !Directory.Exists(path)))
+        {
+            // 源文件已失效（被外部删除/移动）：不弹空菜单，给轻提示。
+            ViewModel.ShowFileMissingNotice(drawerItem);
+            return;
+        }
+
+        var ownerHandle = NativeHandle;
+        if (ownerHandle == nint.Zero)
+        {
+            return;
+        }
+
+        // 用 GetCursorPos 拿物理屏幕坐标（TrackPopupMenu 需要屏幕像素坐标，不受 WPF
+        // DIP/DPI 缩放和多显示器坐标空间影响；e.GetPosition(null) 会导致菜单错位）。
+        if (!NativeCursor.TryGetCursorPos(out var screenX, out var screenY))
+        {
+            return;
+        }
+
+        ItemContextAction action;
+        try
+        {
+            action = ItemContextMenu.Show(
+                ownerHandle,
+                showRunAs: IsExecutable(path),
+                screenX,
+                screenY);
+        }
+        catch (Exception exception)
+        {
+            ViewModel.ShowContextMenuFailure(drawerItem, exception);
+            return;
+        }
+
+        switch (action)
+        {
+            case ItemContextAction.Open:
+                await ViewModel.OpenItemCommand.ExecuteAsync(drawerItem);
+                break;
+
+            case ItemContextAction.RunAsAdministrator:
+                // 返回 false 仅在 ShellExecuteEx 真正失败（非用户取消）时；极罕见，静默即可。
+                ItemContextMenu.TryRunAsAdministrator(path);
+                break;
+
+            case ItemContextAction.Properties:
+                ItemContextMenu.TryShowProperties(path);
+                break;
+
+            case ItemContextAction.Copy:
+                CopyToClipboard(path);
+                break;
+
+            case ItemContextAction.RemoveFromBox:
+                await ViewModel.DeleteItemCommand.ExecuteAsync(drawerItem);
+                break;
+        }
+    }
+
+    private static bool IsExecutable(string path)
+    {
+        var extension = Path.GetExtension(path);
+        var isFile = !Directory.Exists(path);
+        // .lnk 快捷方式通常指向可执行程序，一并视为「可用管理员身份运行」。
+        return isFile && extension.ToUpperInvariant() is ".EXE" or ".BAT" or ".CMD" or ".COM" or ".MSI" or ".LNK";
+    }
+
+    private static void CopyToClipboard(string path)
+    {
+        try
+        {
+            var data = new System.Windows.DataObject();
+            data.SetFileDropList(new System.Collections.Specialized.StringCollection { path });
+            System.Windows.Clipboard.SetDataObject(data, copy: true);
+        }
+        catch
+        {
+            // 剪贴板可能被其它进程占用；失败时静默，不打断用户。
         }
     }
 
