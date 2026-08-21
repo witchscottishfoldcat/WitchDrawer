@@ -8,6 +8,7 @@ public sealed class TaskbarIcon : IDisposable
     private readonly uint _callbackMessageId;
     private readonly string _tooltip;
     private readonly nint _iconHandle;
+    private readonly bool _ownsIconHandle;
     private readonly NativeWindow? _messageWindow;
 
     private bool _added;
@@ -32,7 +33,13 @@ public sealed class TaskbarIcon : IDisposable
 
         if (_iconHandle == nint.Zero)
         {
+            // 共享系统图标不属于本实例，Dispose 时绝不能 DestroyIcon。
             _iconHandle = NativeMethods.LoadIcon(nint.Zero, NativeMethods.IDI_APPLICATION);
+            _ownsIconHandle = false;
+        }
+        else
+        {
+            _ownsIconHandle = true;
         }
 
         _messageWindow = new NativeWindow(_callbackMessageId, this);
@@ -108,7 +115,7 @@ public sealed class TaskbarIcon : IDisposable
     {
         Hide();
 
-        if (_iconHandle != nint.Zero)
+        if (_ownsIconHandle && _iconHandle != nint.Zero)
         {
             NativeMethods.DestroyIcon(_iconHandle);
         }
@@ -117,10 +124,8 @@ public sealed class TaskbarIcon : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    ~TaskbarIcon()
-    {
-        Dispose();
-    }
+    // 不提供终结器：HWND/HICON 都必须在创建它们的 UI 线程上释放，
+    // 终结器线程调 DestroyWindow 必然失败并泄漏句柄。App 退出路径会显式 Dispose。
 
     private sealed class NativeWindow : IDisposable
     {
