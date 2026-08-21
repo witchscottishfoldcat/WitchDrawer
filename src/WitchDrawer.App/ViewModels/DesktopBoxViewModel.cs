@@ -107,6 +107,9 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     public DesktopBoxLayoutSettings LayoutSettings => _layoutSettings;
 
+    /// <summary>供窗口层包装 fire-and-forget 任务时记录异常。</summary>
+    internal IAppLogger Logger => _logger;
+
     public event EventHandler? ItemsChanged;
 
     public ResettableObservableCollection<DrawerItemViewModel> Items { get; } = [];

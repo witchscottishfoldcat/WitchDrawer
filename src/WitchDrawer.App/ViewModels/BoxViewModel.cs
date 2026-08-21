@@ -1,6 +1,8 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Messaging;
+using WitchDrawer.App.Infrastructure;
 using WitchDrawer.App.Messages;
+using WitchDrawer.Core.Logging;
 using WitchDrawer.Core.Models;
 using WitchDrawer.Core.Services;
 
@@ -9,6 +11,7 @@ namespace WitchDrawer.App.ViewModels;
 public sealed partial class BoxViewModel : ObservableObject
 {
     private readonly DrawerService _drawerService;
+    private readonly IAppLogger _logger;
     private BoxVisualStyle _visualStyle;
     private bool _isPositionLocked;
     private bool _isTitleVisible = true;
@@ -19,10 +22,12 @@ public sealed partial class BoxViewModel : ObservableObject
         Box model,
         DrawerService drawerService,
         BoxVisualStyle visualStyle,
-        bool isPositionLocked)
+        bool isPositionLocked,
+        IAppLogger? logger = null)
     {
         Model = model;
         _drawerService = drawerService;
+        _logger = logger ?? NullAppLogger.Instance;
         _visualStyle = visualStyle;
         _isPositionLocked = isPositionLocked;
 
@@ -43,10 +48,10 @@ public sealed partial class BoxViewModel : ObservableObject
                 }
             });
 
-        _ = LoadPresetAsync();
-        _ = LoadTitleVisibilityAsync();
-        _ = LoadFileNameVisibilityAsync();
-        _ = LoadDrawerSortModeAsync();
+        FireAndForget.Run(LoadPresetAsync(), _logger, $"Failed to load layout preset for box {Id:N}.");
+        FireAndForget.Run(LoadTitleVisibilityAsync(), _logger, $"Failed to load title visibility for box {Id:N}.");
+        FireAndForget.Run(LoadFileNameVisibilityAsync(), _logger, $"Failed to load file name visibility for box {Id:N}.");
+        FireAndForget.Run(LoadDrawerSortModeAsync(), _logger, $"Failed to load drawer sort mode for box {Id:N}.");
     }
 
     private async Task LoadPresetAsync()

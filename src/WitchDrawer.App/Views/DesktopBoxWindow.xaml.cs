@@ -484,7 +484,10 @@ public partial class DesktopBoxWindow : Window
             QueueSendToBottom();
             if (_positionChangedCallback is not null)
             {
-                _ = _positionChangedCallback(ViewModel.BoxId);
+                FireAndForget.Run(
+                    _positionChangedCallback(ViewModel.BoxId),
+                    ViewModel.Logger,
+                    $"Failed to run position callback for box {ViewModel.BoxId:N}.");
             }
         }
         catch (InvalidOperationException)
@@ -694,7 +697,10 @@ public partial class DesktopBoxWindow : Window
         // Some shell versions minimize via ShowWindow instead of WM_SYSCOMMAND.
         // Restore after the shell's burst of Z-order changes has settled.
         _restoreAfterMinimizeQueued = true;
-        _ = RestoreAfterShellMinimizeAsync();
+        FireAndForget.Run(
+                RestoreAfterShellMinimizeAsync(),
+                ViewModel.Logger,
+                $"Failed to restore box window {ViewModel.BoxId:N} after shell minimize.");
     }
 
     private async Task RestoreAfterShellMinimizeAsync()
@@ -1124,7 +1130,10 @@ public partial class DesktopBoxWindow : Window
         var previous = Interlocked.Exchange(ref _dragLeaveResetCts, cts);
         previous?.Cancel();
         previous?.Dispose();
-        _ = ResetDragVisualStateAfterSettlingAsync(cts);
+        FireAndForget.Run(
+                ResetDragVisualStateAfterSettlingAsync(cts),
+                ViewModel.Logger,
+                $"Failed to reset drag visual state for box {ViewModel.BoxId:N}.");
     }
 
     private CancellationTokenSource? _dragLeaveResetCts;
@@ -1189,7 +1198,10 @@ public partial class DesktopBoxWindow : Window
                     // box sees it immediately after DoDragDrop returns and treats this as
                     // an internal move/rearrange rather than a move-out to the desktop.
                     payload.WasDroppedInsideWitchDrawer = true;
-                    _ = CompleteInternalDropAsync(payload, slot.Value);
+                    FireAndForget.Run(
+                        CompleteInternalDropAsync(payload, slot.Value),
+                        ViewModel.Logger,
+                        $"Failed to complete internal drop for box {ViewModel.BoxId:N}.");
                 }
 
                 return;
@@ -1289,7 +1301,10 @@ public partial class DesktopBoxWindow : Window
                 QueueSendToBottom();
                 if (_positionChangedCallback is not null)
                 {
-                    _ = _positionChangedCallback(ViewModel.BoxId);
+                    FireAndForget.Run(
+                    _positionChangedCallback(ViewModel.BoxId),
+                    ViewModel.Logger,
+                    $"Failed to run position callback for box {ViewModel.BoxId:N}.");
                 }
             }
             catch (InvalidOperationException)

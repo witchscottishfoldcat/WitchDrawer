@@ -418,7 +418,8 @@ public sealed class MainViewModel : ObservableObject
                     box,
                     _drawerService,
                     visualStyle,
-                    isPositionLocked));
+                    isPositionLocked,
+                    _logger));
             }
 
             await SelectBoxAsync(Boxes.FirstOrDefault(box => box.Id == existingSelection) ?? Boxes.FirstOrDefault());
@@ -665,7 +666,8 @@ public sealed class MainViewModel : ObservableObject
                 box,
                 _drawerService,
                 effectiveStyle,
-                isPositionLocked: false);
+                isPositionLocked: false,
+                logger: _logger);
             Boxes.Add(viewModel);
             await SelectBoxAsync(viewModel);
             StatusText = $"已创建 {name}，桌面收纳栏已生成";
@@ -771,7 +773,8 @@ public sealed class MainViewModel : ObservableObject
                     box,
                     _drawerService,
                     visualStyle,
-                    isPositionLocked));
+                    isPositionLocked,
+                    _logger));
             }
 
             await SelectBoxAsync(
@@ -807,7 +810,8 @@ public sealed class MainViewModel : ObservableObject
                     box,
                     _drawerService,
                     visualStyle,
-                    isPositionLocked));
+                    isPositionLocked,
+                    _logger));
             }
 
             await SelectBoxAsync(Boxes.FirstOrDefault(b => b.Id == selectedBox.Id) ?? Boxes.FirstOrDefault());

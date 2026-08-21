@@ -741,7 +741,10 @@ public sealed class DesktopBoxManager
         var previous = Interlocked.Exchange(ref _foregroundChangeCts, next);
         previous?.Cancel();
         previous?.Dispose();
-        _ = ApplyForegroundWindowAfterSettlingAsync(next);
+        FireAndForget.Run(
+                ApplyForegroundWindowAfterSettlingAsync(next),
+                _logger,
+                "Failed to apply foreground window state after settling.");
     }
 
     private async Task ApplyForegroundWindowAfterSettlingAsync(CancellationTokenSource changeCts)
@@ -1209,7 +1212,10 @@ public sealed class DesktopBoxManager
         HideGuides();
         if (sender is DesktopBoxWindow window)
         {
-            _ = SavePositionAsync(window.ViewModel.BoxId);
+            FireAndForget.Run(
+                SavePositionAsync(window.ViewModel.BoxId),
+                _logger,
+                $"Failed to save position for box {window.ViewModel.BoxId:N}.");
         }
     }
 
