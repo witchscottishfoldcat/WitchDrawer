@@ -1135,6 +1135,7 @@ public partial class DesktopBoxWindow : Window
         }
 
         _isMappingViewTransitioning = true;
+        var outgoingList = useListMode ? IconList : FileList;
         var incomingList = useListMode ? FileList : IconList;
 
         try
@@ -1147,8 +1148,14 @@ public partial class DesktopBoxWindow : Window
             SizeToContent = SizeToContent.Manual;
             Width = startWidth;
             Height = startHeight;
+
+            // 交叉淡化：旧视图保持可见（本地值优先级高于折叠触发器）并淡出，
+            // 新视图淡入，避免切换瞬间内容区出现空白帧。
             incomingList.BeginAnimation(OpacityProperty, null);
             incomingList.Opacity = 0;
+            outgoingList.BeginAnimation(OpacityProperty, null);
+            outgoingList.Visibility = Visibility.Visible;
+            outgoingList.IsHitTestVisible = false;
 
             var modeChangeTask = useListMode
                 ? ViewModel.UseMappingListModeCommand.ExecuteAsync(null)
@@ -1165,20 +1172,32 @@ public partial class DesktopBoxWindow : Window
             incomingList.Opacity = 1;
             incomingList.BeginAnimation(
                 OpacityProperty,
-                new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(160))
+                new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(170))
                 {
-                    BeginTime = TimeSpan.FromMilliseconds(45),
+                    BeginTime = TimeSpan.FromMilliseconds(50),
                     EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                });
+            outgoingList.BeginAnimation(
+                OpacityProperty,
+                new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(120))
+                {
+                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn }
                 });
 
             await Task.WhenAll(
                 modeChangeTask,
-                AnimateWindowSizeAsync(startWidth, startHeight, targetWidth, targetHeight));
+                AnimateWindowSizeAsync(startWidth, startHeight, targetWidth, targetHeight),
+                // 等待两条淡化动画走完再拆除，避免结尾处闪回旧视图。
+                Task.Delay(TimeSpan.FromMilliseconds(230)));
         }
         finally
         {
             incomingList.BeginAnimation(OpacityProperty, null);
             incomingList.Opacity = 1;
+            outgoingList.BeginAnimation(OpacityProperty, null);
+            outgoingList.Opacity = 1;
+            outgoingList.ClearValue(VisibilityProperty);
+            outgoingList.IsHitTestVisible = true;
             BeginAnimation(WidthProperty, null);
             BeginAnimation(HeightProperty, null);
             SizeToContent = SizeToContent.WidthAndHeight;
