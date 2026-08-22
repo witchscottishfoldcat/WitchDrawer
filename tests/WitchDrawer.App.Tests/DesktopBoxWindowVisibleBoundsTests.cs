@@ -91,4 +91,25 @@ public sealed class DesktopBoxWindowVisibleBoundsTests
         Assert.Equal(windowLeftPixels, restored.X, precision: 6);
         Assert.Equal(windowTopPixels, restored.Y, precision: 6);
     }
+
+    [Fact]
+    public void MeasuredWindowBounds_ReplacesHwndSizeButKeepsOrigin()
+    {
+        // 回归：首次显示前 HWND 矩形是初始尺寸（可能远大于内容），
+        // 落位钳制必须用 Measure 后的 DesiredSize 换算物理像素，
+        // 否则正常存档位置会被误判越界而钳回左上。
+        var hwndBounds = new Rect(1865, 551, 1902, 979);
+        var desiredSizeDip = new Size(366, 180);
+        var dpi = new DpiScale(1.5, 1.5);
+
+        var measured = DesktopBoxWindow.ComputeMeasuredWindowBoundsPixels(
+            hwndBounds,
+            desiredSizeDip,
+            dpi);
+
+        Assert.Equal(1865, measured.Left, precision: 6);
+        Assert.Equal(551, measured.Top, precision: 6);
+        Assert.Equal(549, measured.Width, precision: 6);
+        Assert.Equal(270, measured.Height, precision: 6);
+    }
 }

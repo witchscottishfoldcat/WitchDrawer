@@ -988,7 +988,7 @@ public sealed class DesktopBoxManager
                 new System.Windows.Interop.WindowInteropHelper(window).EnsureHandle();
             }
 
-            var bounds = window.GetVisibleBoundsPixels();
+            var bounds = window.GetMeasuredVisibleBoundsPixels();
             var workArea = window.GetWorkAreaPixels();
             if (bounds.IsEmpty || workArea.IsEmpty)
             {

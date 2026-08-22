@@ -342,6 +342,53 @@ public partial class DesktopBoxWindow : Window
         return ComputeVisibleBoundsPixels(windowBounds, WindowBorder.Margin, GetDpiScale());
     }
 
+    /// <summary>
+    /// SizeToContent 窗口在首次显示前，HWND 矩形仍是初始尺寸而非内容尺寸，
+    /// 直接读 <see cref="GetVisibleBoundsPixels"/> 会把正常落位误判为越界并错误钳制。
+    /// 这里用 Measure 后的 <see cref="UIElement.DesiredSize"/>（按当前 DPI 换算物理像素）
+    /// 替代 HWND 尺寸，供显示前的落位钳制使用；HWND 位置部分仍以真实矩形为准。
+    /// </summary>
+    internal Rect GetMeasuredVisibleBoundsPixels()
+    {
+        if (!TryGetWindowBoundsPixels(out var windowBounds))
+        {
+            return Rect.Empty;
+        }
+
+        var dpi = GetDpiScale();
+        var measured = ComputeMeasuredWindowBoundsPixels(windowBounds, DesiredSize, dpi);
+        return ComputeVisibleBoundsPixels(measured, WindowBorder.Margin, dpi);
+    }
+
+    /// <summary>
+    /// 与 <see cref="GetMeasuredVisibleBoundsPixels"/> 同理，但用布局完成后的
+    /// <see cref="FrameworkElement.ActualWidth"/>/<see cref="FrameworkElement.ActualHeight"/>。
+    /// SizeChanged 事件触发时 SizeToContent 的 HWND 可能尚未缩放到位，此时读 HWND
+    /// 矩形会拿到初始尺寸；ActualWidth/Height 才是此刻的真实内容尺寸。
+    /// </summary>
+    internal Rect GetLayoutVisibleBoundsPixels()
+    {
+        if (!TryGetWindowBoundsPixels(out var windowBounds))
+        {
+            return Rect.Empty;
+        }
+
+        var dpi = GetDpiScale();
+        var measured = ComputeMeasuredWindowBoundsPixels(
+            windowBounds, new Size(ActualWidth, ActualHeight), dpi);
+        return ComputeVisibleBoundsPixels(measured, WindowBorder.Margin, dpi);
+    }
+
+    internal static Rect ComputeMeasuredWindowBoundsPixels(
+        Rect hwndBoundsPixels,
+        Size desiredSizeDip,
+        DpiScale dpi) =>
+        new(
+            hwndBoundsPixels.Left,
+            hwndBoundsPixels.Top,
+            Math.Max(0, desiredSizeDip.Width * dpi.DpiScaleX),
+            Math.Max(0, desiredSizeDip.Height * dpi.DpiScaleY));
+
     internal DpiScale GetDpiScale() => VisualTreeHelper.GetDpi(this);
 
     internal void MoveWindowOriginPixels(double leftPixels, double topPixels)
@@ -397,7 +444,10 @@ public partial class DesktopBoxWindow : Window
             return;
         }
 
-        var bounds = GetVisibleBoundsPixels();
+        // 尺寸必须取布局结果（ActualWidth/Height）而非 HWND 矩形：SizeToContent 的
+        // HWND 缩放与 SizeChanged 事件不同步，事件触发时 HWND 可能仍是初始尺寸，
+        // 读 HWND 会把正常窗口误判为越界并错误钳回左上（首次显示时必现）。
+        var bounds = GetLayoutVisibleBoundsPixels();
         if (bounds.Width <= 0 || bounds.Height <= 0)
         {
             return;
@@ -2067,7 +2117,10 @@ public partial class DesktopBoxWindow : Window
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern nint MonitorFromPoint(NativePoint point, uint dwFlags);
 
-    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    // 必须显式指定 CharSet.Unicode：默认 CharSet.None 会绑定 ANSI 版 GetMonitorInfoA，
+    // 而 NativeMonitorInfo 按 Unicode 布局（ByValTStr SizeConst=32，cbSize=104），
+    // GetMonitorInfoA 只接受 40/72 字节的 cbSize，会静默返回 false，导致召回屏幕中心被跳过。
+    [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
     [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
     private static extern bool GetMonitorInfo(nint hMonitor, ref NativeMonitorInfo lpmi);
 
