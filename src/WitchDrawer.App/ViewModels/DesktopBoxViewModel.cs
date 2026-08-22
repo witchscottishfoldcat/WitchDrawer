@@ -112,6 +112,23 @@ public sealed class DesktopBoxViewModel : ObservableObject
     /// <summary>供窗口层包装 fire-and-forget 任务时记录异常。</summary>
     internal IAppLogger Logger => _logger;
 
+    public void ShowFileMissingNotice(DrawerItemViewModel item)
+    {
+        _logger.Info($"Context menu skipped: source path for item '{item.DisplayName}' no longer exists.");
+        StatusText = $"文件不存在：{item.DisplayName}";
+    }
+
+    public void ShowContextMenuFailure(DrawerItemViewModel item, Exception exception)
+    {
+        _logger.Error(exception, $"Failed to show context menu for '{item.DisplayName}'.");
+        StatusText = $"菜单打开失败：{exception.Message}";
+    }
+
+    public void ReportItemContextAction(string message)
+    {
+        StatusText = message;
+    }
+
     public event EventHandler? ItemsChanged;
 
     public ResettableObservableCollection<DrawerItemViewModel> Items { get; } = [];

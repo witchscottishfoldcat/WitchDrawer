@@ -48,6 +48,7 @@ public sealed class DesktopBoxManager
     private bool _closing;
     private bool _desktopIsForeground;
     private CancellationTokenSource? _foregroundChangeCts;
+    private long _showDesktopShortcutObservedUntilTick;
     private GuideLineWindow? _verticalGuide;
     private GuideLineWindow? _horizontalGuide;
     private bool _isAdjustingPosition;
@@ -112,6 +113,8 @@ public sealed class DesktopBoxManager
     public event EventHandler<BoxItemsChangedEventArgs>? ItemsChanged;
 
     public event EventHandler? DesktopBackgroundDoubleClicked;
+
+    public event EventHandler? ShowDesktopActivated;
 
     private int _refreshVersion;
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
@@ -240,6 +243,10 @@ public sealed class DesktopBoxManager
             }
 
             ResolveWindowOverlaps();
+            if (DesktopToolWindow.RepairShellLastActivePopup())
+            {
+                _logger.Info("Reset Progman last-active-popup after attaching desktop boxes.");
+            }
         }
         finally
         {
@@ -459,6 +466,11 @@ public sealed class DesktopBoxManager
         if (recreateRequired)
         {
             await RefreshAsync();
+        }
+
+        if (DesktopToolWindow.RepairShellLastActivePopup())
+        {
+            _logger.Info("Reset Progman last-active-popup after recovering desktop hosts.");
         }
     }
 
@@ -752,6 +764,13 @@ public sealed class DesktopBoxManager
             return;
         }
 
+        if (DesktopToolWindow.IsShowDesktopShortcutPressed())
+        {
+            Interlocked.Exchange(
+                ref _showDesktopShortcutObservedUntilTick,
+                Environment.TickCount64 + 750);
+        }
+
         // Win+D emits a short burst of foreground changes (for example Progman,
         // WorkerW and transient shell windows). Applying every intermediate handle
         // moves all boxes up and down several times and produces a visible flash.
@@ -825,9 +844,19 @@ public sealed class DesktopBoxManager
         var isDesktopWindow = ForegroundWindowMonitor.IsDesktopWindow(windowHandle);
         var isDesktopBoxWindow = _windows.Values.Any(
             window => window.NativeHandle == windowHandle);
-        SetDesktopForeground(ResolveDesktopForegroundState(
+        var desktopIsForeground = ResolveDesktopForegroundState(
             isDesktopWindow,
-            isDesktopBoxWindow));
+            isDesktopBoxWindow);
+        SetDesktopForeground(desktopIsForeground);
+
+        if (ShouldLowerMainWindowForShowDesktop(
+                desktopIsForeground,
+                Environment.TickCount64,
+                Interlocked.Read(ref _showDesktopShortcutObservedUntilTick)))
+        {
+            Interlocked.Exchange(ref _showDesktopShortcutObservedUntilTick, 0);
+            ShowDesktopActivated?.Invoke(this, EventArgs.Empty);
+        }
     }
 
 
@@ -835,6 +864,14 @@ public sealed class DesktopBoxManager
         bool isDesktopWindow,
         bool isDesktopBoxWindow) =>
         isDesktopWindow && !isDesktopBoxWindow;
+
+    internal static bool ShouldLowerMainWindowForShowDesktop(
+        bool desktopIsForeground,
+        long currentTick,
+        long shortcutObservedUntilTick) =>
+        desktopIsForeground
+        && shortcutObservedUntilTick > 0
+        && currentTick <= shortcutObservedUntilTick;
 
     private void SetDesktopForeground(bool isForeground)
     {

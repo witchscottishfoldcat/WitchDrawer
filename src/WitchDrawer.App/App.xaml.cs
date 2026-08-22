@@ -151,6 +151,8 @@ public partial class App : Application
                 logger,
                 quickPanelHotKeySettings,
                 quickPanelHotKey);
+            _desktopBoxManager.ShowDesktopActivated += (_, _) =>
+                _mainWindow.SendBehindDesktop();
             StartSingleInstanceServer(logger);
 
             // 这些事件处理器是 async void：刷新期间的异常（如 SQLite 写入失败）会直接逃出

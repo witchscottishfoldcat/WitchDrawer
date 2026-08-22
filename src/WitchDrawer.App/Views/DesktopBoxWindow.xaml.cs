@@ -9,6 +9,8 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using WitchDrawer.App.Controls;
+using WitchDrawer.App.Features.DesktopItems;
+using WitchDrawer.App.Features.ItemContextMenu;
 using WitchDrawer.App.Infrastructure;
 using WitchDrawer.App.ViewModels;
 using WitchDrawer.Native.Windows;
@@ -27,6 +29,7 @@ public partial class DesktopBoxWindow : Window
     private Point? _dragStartPoint;
     private DrawerItemViewModel? _dragStartItem;
     private readonly DragOperationGate _itemDragGate = new();
+    private readonly DrawerItemContextMenuCoordinator _itemContextMenu;
     private DrawerItemViewModel? _keyboardDeleteTarget;
     private Func<Guid, Task>? _positionChangedCallback;
     private bool _isMappingViewTransitioning;
@@ -70,6 +73,7 @@ public partial class DesktopBoxWindow : Window
 
     public DesktopBoxWindow(DesktopBoxViewModel viewModel)
     {
+        _itemContextMenu = new DrawerItemContextMenuCoordinator(viewModel);
         DataContext = viewModel;
         InitializeComponent();
         SourceInitialized += OnSourceInitialized;
@@ -92,10 +96,20 @@ public partial class DesktopBoxWindow : Window
 
     private void SendToBottom()
     {
-        // 盒子永远停留在桌面层（桌面壳窗口之上、普通应用窗口之下），不再随前台状态上浮。
-        // 桌面父子关系（TryAttachToDesktop）保证 Win+D 显示桌面时盒子跟随桌面一起出现。
+        if (!ShouldSendToBottom(_desktopIsForeground))
+        {
+            return;
+        }
+
+        // Shell ownership keeps the box visible through Win+D. Keep it at the
+        // bottom of the normal band only while the desktop is not foreground.
+        // Moving an owned box during Show Desktop also moves Progman's owner
+        // chain and would bring ordinary app windows back above the desktop.
         _nativeWindow?.SendToBottom();
     }
+
+    internal static bool ShouldSendToBottom(bool isDesktopForeground) =>
+        !isDesktopForeground;
 
     public void QueueSendToBottom()
     {
@@ -185,7 +199,8 @@ public partial class DesktopBoxWindow : Window
 
     public void SetDesktopForeground(bool isForeground)
     {
-        // 层级已与前台状态解耦：盒子永远留在桌面层，这里只记录状态并保持沉底。
+        // When Show Desktop is active, leave Explorer's owner-chain Z order
+        // untouched. On exit, return the boxes behind ordinary app windows.
         _desktopIsForeground = isForeground;
         SendToBottom();
     }
@@ -461,8 +476,7 @@ public partial class DesktopBoxWindow : Window
     private void OnDrawerSecondaryPopupOpened(object? sender, EventArgs e)
     {
         // 弹窗 HWND 属主是盒子窗口，盒子窗口属主是桌面壳。弹窗打开时 Windows 会把
-        // 整条属主链提前：所有同属桌面壳的盒子都会被带到应用窗口之上（"全部上浮"）。
-        // 第一时间断开弹窗属主，再把所有盒子压回桌面层，弹窗稍后置顶（不被沉底拖下）。
+        // 整条属主链提前。第一时间断开弹窗属主，再把所有盒子压回桌面层。
         DetachDrawerPopupOwner();
         QueueSendToBottomAll();
         // 沉底在 ApplicationIdle 还会补一次，而压主窗口沉底会把它的属子弹窗一起拖下去；
@@ -716,6 +730,7 @@ public partial class DesktopBoxWindow : Window
 
     public void ForceClose()
     {
+        _itemContextMenu.CloseActiveMenu();
         _forceClose = true;
         Close();
     }
@@ -749,6 +764,7 @@ public partial class DesktopBoxWindow : Window
         _source?.RemoveHook(WindowMessageHook);
         _source = null;
         _nativeWindow = null;
+        _itemContextMenu.Dispose();
         if (Application.Current is not null)
         {
             Application.Current.Deactivated -= OnApplicationDeactivated;
@@ -776,10 +792,13 @@ public partial class DesktopBoxWindow : Window
     {
         if (DesktopToolWindow.IsMouseActivationMessage(message))
         {
-            // A Shell-owned window becomes Progman's "last active popup" when
-            // clicked. Detach before default mouse-activation processing so the
-            // next Win+D still activates Progman rather than this box.
+            // Detach before mouse input so Explorer cannot record this box as
+            // Progman's last active popup. Explicit MA_NOACTIVATE still delivers
+            // the click, but guarantees that menu/selection input never makes a
+            // desktop box the foreground window.
             _nativeWindow?.SuspendDesktopOwnershipForMouseInput();
+            handled = true;
+            return DesktopToolWindow.GetMouseActivateWithoutActivationResult();
         }
 
         if (DesktopToolWindow.IsMouseInteractionCompletionMessage(message))
@@ -821,8 +840,8 @@ public partial class DesktopBoxWindow : Window
         object sender,
         MouseButtonEventArgs e)
     {
-        // WPF fallback for controls that handle the native button-up message
-        // inside an input/drag loop before the HwndSource hook observes it.
+        // WPF fallback for controls that complete input before the HWND hook
+        // observes the native button-up message.
         QueueRestoreDesktopOwnershipAfterMouseInput();
     }
 
@@ -2107,10 +2126,53 @@ public partial class DesktopBoxWindow : Window
 
     private async void OnItemsMouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
+        if (!DesktopItemInputRules.ShouldOpenOnDoubleClick(e.ChangedButton))
+        {
+            return;
+        }
+
         if (TryGetDrawerItem(e.OriginalSource, out var drawerItem))
         {
             await ViewModel.OpenItemCommand.ExecuteAsync(drawerItem);
         }
+    }
+
+    private void OnIconPreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!TryGetDrawerItem(e.OriginalSource, out var item))
+        {
+            return;
+        }
+
+        e.Handled = true;
+        SelectItem(item.Id);
+        ClearPendingIconDrag();
+        _ = _itemContextMenu.ShowAsync(item);
+    }
+
+    private void OnDrawerCoverIconMouseRightButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not Button { DataContext: DrawerCoverTileViewModel { Item: not null } tile })
+        {
+            return;
+        }
+
+        e.Handled = true;
+        SelectCoverTile(tile);
+        ClearPendingIconDrag();
+        _ = _itemContextMenu.ShowAsync(tile.Item);
+    }
+
+    private void OnDrawerSecondaryIconMouseRightButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not Button { DataContext: DrawerItemViewModel item })
+        {
+            return;
+        }
+
+        e.Handled = true;
+        ClearPendingIconDrag();
+        _ = _itemContextMenu.ShowAsync(item);
     }
 
     private bool TryGetDrawerItem(object? source, out DrawerItemViewModel drawerItem)

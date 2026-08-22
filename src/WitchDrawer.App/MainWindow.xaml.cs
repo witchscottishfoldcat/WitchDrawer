@@ -97,6 +97,17 @@ public partial class MainWindow : Window
         Focus();
     }
 
+    internal void SendBehindDesktop()
+    {
+        if (!IsVisible)
+        {
+            return;
+        }
+
+        DesktopToolWindow.SendToBottomWithoutActivation(
+            new WindowInteropHelper(this).Handle);
+    }
+
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
         if (_forceClosing)

@@ -10,6 +10,7 @@ public sealed class DesktopToolWindow
     public const int SystemCommandMessage = 0x0112;
 
     private const int MouseActivateMessage = 0x0021;
+    private const int MouseActivateWithoutActivation = 3;
     private const int CancelModeMessage = 0x001F;
     private const int NonClientLeftButtonUpMessage = 0x00A2;
     private const int NonClientRightButtonUpMessage = 0x00A5;
@@ -36,8 +37,6 @@ public sealed class DesktopToolWindow
     private const uint SetWindowPositionFrameChanged = 0x0020;
     private const int ShowWithoutActivation = 4;
 
-    private static readonly nint WindowPositionTopMost = -1;
-    private static readonly nint WindowPositionNotTopMost = -2;
     private static readonly nint WindowPositionBottom = 1;
 
     private readonly nint _handle;
@@ -67,12 +66,104 @@ public sealed class DesktopToolWindow
     public static int TaskbarCreatedMessage { get; } =
         unchecked((int)RegisterWindowMessageW("TaskbarCreated"));
 
+    public static bool IsShowDesktopShortcutPressed() =>
+        IsShowDesktopShortcut(
+            IsKeyDown(0x44),
+            IsKeyDown(0x5B),
+            IsKeyDown(0x5C));
+
+    internal static bool IsShowDesktopShortcut(
+        bool dKeyDown,
+        bool leftWindowsKeyDown,
+        bool rightWindowsKeyDown) =>
+        dKeyDown && (leftWindowsKeyDown || rightWindowsKeyDown);
+
+    public static void SendToBottomWithoutActivation(nint windowHandle)
+    {
+        if (windowHandle == nint.Zero || !IsWindow(windowHandle))
+        {
+            return;
+        }
+
+        SetWindowPos(
+            windowHandle,
+            WindowPositionBottom,
+            0,
+            0,
+            0,
+            0,
+            SetWindowPositionNoMove
+            | SetWindowPositionNoSize
+            | SetWindowPositionNoActivate);
+    }
+
+    private static bool IsKeyDown(int virtualKey) =>
+        (GetAsyncKeyState(virtualKey) & 0x8000) != 0;
+
+    /// <summary>
+    /// Resets Progman's last-active-popup entry when it points at a WitchDrawer
+    /// desktop box. Shell ownership is required for boxes to survive Win+D, but
+    /// the popup entry must point back to Progman so Win+D never activates a box.
+    /// The previous foreground window is restored immediately.
+    /// </summary>
+    public static bool RepairShellLastActivePopup()
+    {
+        var shellWindow = GetShellWindow();
+        if (shellWindow == nint.Zero || !IsWindow(shellWindow))
+        {
+            return false;
+        }
+
+        var lastActivePopup = GetLastActivePopup(shellWindow);
+        var popupIsValid = lastActivePopup != nint.Zero && IsWindow(lastActivePopup);
+        uint popupProcessId = 0;
+        if (popupIsValid)
+        {
+            GetWindowThreadProcessId(lastActivePopup, out popupProcessId);
+        }
+
+        if (!ShouldRepairShellLastActivePopup(
+                shellWindow,
+                lastActivePopup,
+                popupIsValid,
+                popupProcessId,
+                (uint)Environment.ProcessId))
+        {
+            return false;
+        }
+
+        var previousForeground = GetForegroundWindow();
+        if (!SetForegroundWindow(shellWindow))
+        {
+            return false;
+        }
+
+        if (previousForeground != nint.Zero
+            && previousForeground != shellWindow
+            && IsWindow(previousForeground))
+        {
+            SetForegroundWindow(previousForeground);
+        }
+
+        return true;
+    }
+
+    internal static bool ShouldRepairShellLastActivePopup(
+        nint shellWindow,
+        nint lastActivePopup,
+        bool popupIsValid,
+        uint popupProcessId,
+        uint currentProcessId) =>
+        shellWindow != nint.Zero
+        && lastActivePopup != nint.Zero
+        && lastActivePopup != shellWindow
+        && (!popupIsValid || popupProcessId == currentProcessId);
+
     /// <summary>
     /// Marks the window as a tool window so Windows excludes it from Alt+Tab,
     /// attaches it to the desktop shell when available, and puts it at the
-    /// bottom of the normal top-level window Z order. WS_EX_NOACTIVATE 阻止
-    /// 点击激活：点击不再触发 Windows 的默认"激活并抬升"，盒子不会在点击瞬间
-    /// 浮出其他窗口再被压回（消除点击闪帧）。程序化 Activate() 不受此限制。
+    /// bottom of the normal top-level window Z order. WS_EX_NOACTIVATE prevents
+    /// a mouse click from activating and briefly raising the box.
     /// </summary>
     public void Configure()
     {
@@ -87,13 +178,8 @@ public sealed class DesktopToolWindow
 
     /// <summary>
     /// Makes the Shell desktop the owner of this top-level WPF window. An owned
-    /// window stays above its owner without entering the system-wide topmost
-    /// band, so Show Desktop no longer requires a visible Z-order correction.
-    ///
-    /// A true WorkerW child is not used here: cross-process SetParent changes
-    /// the WPF window's DPI hosting context and transparent WPF child windows
-    /// are not composed reliably by Explorer. Ownership keeps the HWND top-level
-    /// and preserves WPF rendering, input and per-monitor DPI behavior.
+    /// window stays visible when Win+D minimizes ordinary top-level windows,
+    /// without entering the system-wide topmost band.
     /// </summary>
     public bool TryAttachToDesktop()
     {
@@ -137,9 +223,8 @@ public sealed class DesktopToolWindow
 
     /// <summary>
     /// Temporarily removes the Shell owner before Windows processes a mouse
-    /// activation. Otherwise Explorer records the clicked box as Progman's last
-    /// active popup; the next Win+D foregrounds the box instead of toggling Show
-    /// Desktop, leaving normal windows stuck minimized.
+    /// activation. Otherwise Explorer can record the clicked box as Progman's
+    /// last active popup and make the next Win+D activate that box.
     /// </summary>
     public bool SuspendDesktopOwnershipForMouseInput()
     {
@@ -168,7 +253,7 @@ public sealed class DesktopToolWindow
 
     /// <summary>
     /// Reattaches the box after the mouse interaction has fully completed.
-    /// Reattaching does not change Explorer's last-active-popup state.
+    /// Reattaching does not activate the box or change its Z-order band.
     /// </summary>
     public bool RestoreDesktopOwnershipAfterMouseInput()
     {
@@ -202,39 +287,6 @@ public sealed class DesktopToolWindow
             | SetWindowPositionFrameChanged);
     }
 
-    /// <summary>
-    /// Raises the box above the Shell desktop without leaving it topmost.
-    /// Show Desktop puts Progman/WorkerW ahead of normal windows, so a plain
-    /// HWND_TOP/NOTOPMOST request can be ignored. A synchronous topmost pulse
-    /// crosses that Shell boundary, and the second call immediately returns
-    /// the box to the normal band before the compositor presents a frame.
-    /// </summary>
-    public void BringAboveDesktop()
-    {
-        if (IsDesktopHosted)
-        {
-            return;
-        }
-
-        SetWindowPos(
-            _handle,
-            WindowPositionTopMost,
-            0,
-            0,
-            0,
-            0,
-            SetWindowPositionNoMove | SetWindowPositionNoSize | SetWindowPositionNoActivate);
-
-        SetWindowPos(
-            _handle,
-            WindowPositionNotTopMost,
-            0,
-            0,
-            0,
-            0,
-            SetWindowPositionNoMove | SetWindowPositionNoSize | SetWindowPositionNoActivate);
-    }
-
     private void RestoreOriginalOwner()
     {
         _desktopOwnershipSuspendedForInput = false;
@@ -247,8 +299,6 @@ public sealed class DesktopToolWindow
 
     /// <summary>
     /// Restores a window minimized directly by the shell without activating it.
-    /// This is the fallback for Show Desktop implementations which bypass
-    /// <see cref="SystemCommandMessage"/>.
     /// </summary>
     public void RestoreWithoutActivation()
     {
@@ -263,6 +313,14 @@ public sealed class DesktopToolWindow
 
     public static bool IsMouseActivationMessage(int message) =>
         message == MouseActivateMessage;
+
+    /// <summary>
+    /// WM_MOUSEACTIVATE result that delivers the mouse input without activating
+    /// the desktop box. Returning this explicitly is more reliable than relying
+    /// on WS_EX_NOACTIVATE while the Shell owner is temporarily detached.
+    /// </summary>
+    public static nint GetMouseActivateWithoutActivationResult() =>
+        MouseActivateWithoutActivation;
 
     public static bool IsMouseInteractionCompletionMessage(int message) =>
         message is CancelModeMessage
@@ -309,6 +367,19 @@ public sealed class DesktopToolWindow
     private static extern nint GetWindow(nint windowHandle, uint command);
 
     [DllImport("user32.dll")]
+    private static extern nint GetLastActivePopup(nint windowHandle);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(nint windowHandle, out uint processId);
+
+    [DllImport("user32.dll")]
+    private static extern nint GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetForegroundWindow(nint windowHandle);
+
+    [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool IsWindow(nint windowHandle);
 
@@ -330,4 +401,6 @@ public sealed class DesktopToolWindow
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool ShowWindow(nint windowHandle, int command);
 
+    [DllImport("user32.dll")]
+    private static extern short GetAsyncKeyState(int virtualKey);
 }

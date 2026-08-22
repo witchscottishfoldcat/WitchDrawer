@@ -47,165 +47,12 @@
         </Style>
     </Window.Style>
     <Window.Resources>
-        <!-- 虚线滚动跑马灯动画 -->
-        <Storyboard x:Key="ScrollDashes" RepeatBehavior="Forever">
-            <DoubleAnimation Storyboard.TargetName="DashRect"
-                             Storyboard.TargetProperty="StrokeDashOffset"
-                             From="0" To="7" Duration="0:0:0.6" />
-        </Storyboard>
-
-        <Style x:Key="MappingModeButtonStyle" TargetType="{x:Type Button}">
-            <Setter Property="Width" Value="18" />
-            <Setter Property="Height" Value="18" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderBrush" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
-            <Setter Property="Opacity" Value="0.50" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="{x:Type Button}">
-                        <Border x:Name="Root"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="4">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource HoverBrush}" />
-                                <Setter Property="Opacity" Value="0.85" />
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource HoverBrush}" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="TodoCompletionButtonStyle" TargetType="{x:Type Button}">
-            <Setter Property="Width" Value="19" />
-            <Setter Property="Height" Value="19" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="{x:Type Button}">
-                        <Grid>
-                            <Ellipse x:Name="CompletionRing"
-                                     Fill="{DynamicResource GlassInnerBrush}"
-                                     Stroke="{DynamicResource BorderBrushSoft}"
-                                     StrokeThickness="1.4" />
-                            <Path x:Name="CompletionCheck"
-                                  Data="M 4.5,9.5 L 7.6,12.4 L 14.4,5.8"
-                                  Stroke="White"
-                                  StrokeThickness="2"
-                                  StrokeStartLineCap="Round"
-                                  StrokeEndLineCap="Round"
-                                  Visibility="Collapsed" />
-                        </Grid>
-                        <ControlTemplate.Triggers>
-                            <DataTrigger Binding="{Binding IsCompleted}" Value="True">
-                                <Setter TargetName="CompletionRing" Property="Fill" Value="{DynamicResource AccentBrush}" />
-                                <Setter TargetName="CompletionRing" Property="Stroke" Value="{DynamicResource AccentBrush}" />
-                                <Setter TargetName="CompletionCheck" Property="Visibility" Value="Visible" />
-                            </DataTrigger>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="CompletionRing" Property="Stroke" Value="{DynamicResource AccentBrush}" />
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter Property="Opacity" Value="0.72" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="TodoArchiveButtonStyle" TargetType="{x:Type Button}">
-            <Setter Property="Width" Value="38" />
-            <Setter Property="Height" Value="22" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
-            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="{x:Type Button}">
-                        <Border x:Name="ArchiveRoot"
-                                Background="{TemplateBinding Background}"
-                                CornerRadius="7"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="ArchiveRoot" Property="Background" Value="{DynamicResource AccentSoftBrush}" />
-                                <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter Property="Opacity" Value="0.72" />
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.32" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="DrawerTileButtonStyle" TargetType="{x:Type Button}">
-            <Setter Property="MinWidth" Value="0" />
-            <Setter Property="MinHeight" Value="0" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="Margin"
-                    Value="{Binding DataContext.LayoutSettings.DrawerHoverMargin, RelativeSource={RelativeSource AncestorType=Window}}" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderBrush" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="1.2" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="{x:Type Button}">
-                        <Border x:Name="DrawerButtonRoot"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="{Binding DataContext.LayoutSettings.ItemCornerRadius, RelativeSource={RelativeSource AncestorType=Window}}"
-                                RenderTransformOrigin="0.5,0.5">
-                            <Border.RenderTransform>
-                                <ScaleTransform x:Name="DrawerButtonScale" />
-                            </Border.RenderTransform>
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="DrawerButtonRoot" Property="Background" Value="{DynamicResource HoverBrush}" />
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="DrawerButtonRoot" Property="Opacity" Value="0.72" />
-                            </Trigger>
-                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                <Setter TargetName="DrawerButtonRoot" Property="Background" Value="{DynamicResource AccentSoftBrush}" />
-                                <Setter TargetName="DrawerButtonRoot" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
-                            </DataTrigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/WitchDrawer.App;component/Views/Styles/DesktopBoxSelectionStyles.xaml" />
+                <ResourceDictionary Source="/WitchDrawer.App;component/Views/Styles/DesktopBoxControlStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
     </Window.Resources>
 
     <Border x:Name="WindowBorder">
@@ -495,6 +342,7 @@
                      FocusVisualStyle="{x:Null}"
                      ItemsSource="{Binding Items}"
                      SelectionMode="Single"
+                     ItemContainerStyle="{StaticResource DesktopIconListItemStyle}"
                      ScrollViewer.CanContentScroll="True"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                      ScrollViewer.VerticalScrollBarVisibility="Disabled"
@@ -503,7 +351,8 @@
                      SelectionChanged="OnItemsSelectionChanged"
                      PreviewMouseLeftButtonDown="OnIconPreviewMouseLeftButtonDown"
                      MouseMove="OnIconMouseMove"
-                     MouseDoubleClick="OnItemsMouseDoubleClick">
+                     MouseDoubleClick="OnItemsMouseDoubleClick"
+                     PreviewMouseRightButtonUp="OnIconPreviewMouseRightButtonUp">
                 <ListBox.Style>
                     <Style TargetType="{x:Type ListBox}" BasedOn="{StaticResource {x:Type ListBox}}">
                         <Setter Property="Visibility" Value="Visible" />
@@ -529,82 +378,6 @@
                             ContentHeight="{Binding DataContext.GridCanvasHeight, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" />
                     </ItemsPanelTemplate>
                 </ListBox.ItemsPanel>
-                <ListBox.ItemContainerStyle>
-                    <Style TargetType="{x:Type ListBoxItem}">
-                        <Setter Property="Canvas.Left" Value="{Binding GridLeft}" />
-                        <Setter Property="Canvas.Top" Value="{Binding GridTop}" />
-                        <Setter Property="Width" Value="{Binding DataContext.LayoutSettings.ItemSlotWidth, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" />
-                        <Setter Property="Height" Value="{Binding DataContext.LayoutSettings.ItemSlotHeight, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" />
-                        <Setter Property="Padding" Value="{Binding DataContext.LayoutSettings.ItemPadding, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" />
-                        <Setter Property="Margin" Value="0" />
-                        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
-                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                        <Setter Property="Opacity" Value="1" />
-                        <Setter Property="Template">
-                            <Setter.Value>
-                                <ControlTemplate TargetType="{x:Type ListBoxItem}">
-                                    <Border x:Name="Root"
-                                            Background="Transparent"
-                                            BorderBrush="Transparent"
-                                            BorderThickness="1.2"
-                                            Margin="{Binding DataContext.LayoutSettings.ItemMargin, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
-                                            Padding="{TemplateBinding Padding}">
-                                        <Border.Style>
-                                            <Style TargetType="Border">
-                                                <Setter Property="CornerRadius" Value="{Binding DataContext.LayoutSettings.ItemCornerRadius, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding DataContext.IsPixelStyle, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" Value="True">
-                                                        <Setter Property="CornerRadius" Value="6" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Border.Style>
-                                        <ContentPresenter x:Name="ItemContent" />
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <!-- Normal hover -->
-                                        <MultiDataTrigger>
-                                            <MultiDataTrigger.Conditions>
-                                                <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
-                                                <Condition Binding="{Binding DataContext.Type, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" Value="Normal" />
-                                                <Condition Binding="{Binding DataContext.IsPixelStyle, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" Value="False" />
-                                            </MultiDataTrigger.Conditions>
-                                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource HoverBrush}" />
-                                        </MultiDataTrigger>
-
-                                        <!-- Mapping hover -->
-                                        <MultiDataTrigger>
-                                            <MultiDataTrigger.Conditions>
-                                                <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
-                                                <Condition Binding="{Binding DataContext.Type, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" Value="Mapping" />
-                                            </MultiDataTrigger.Conditions>
-                                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource HoverBrush}" />
-                                        </MultiDataTrigger>
-
-                                        <!-- Pixel hover (instant background change, no animation) -->
-                                        <MultiDataTrigger>
-                                            <MultiDataTrigger.Conditions>
-                                                <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
-                                                <Condition Binding="{Binding DataContext.IsPixelStyle, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" Value="True" />
-                                            </MultiDataTrigger.Conditions>
-                                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource HoverBrush}" />
-                                        </MultiDataTrigger>
-
-                                        <Trigger Property="IsSelected" Value="True">
-                                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource AccentSoftBrush}" />
-                                            <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
-                                        </Trigger>
-                                        <DataTrigger Binding="{Binding IsDragSource}" Value="True">
-                                            <Setter TargetName="Root" Property="Background" Value="Transparent" />
-                                            <Setter TargetName="Root" Property="BorderBrush" Value="Transparent" />
-                                            <Setter TargetName="ItemContent" Property="Opacity" Value="0.38" />
-                                        </DataTrigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Setter.Value>
-                        </Setter>
-                    </Style>
-                </ListBox.ItemContainerStyle>
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <StackPanel ToolTip="{Binding PathLabel}"
@@ -686,7 +459,8 @@
                      SelectionChanged="OnItemsSelectionChanged"
                      PreviewMouseLeftButtonDown="OnIconPreviewMouseLeftButtonDown"
                      MouseMove="OnIconMouseMove"
-                     MouseDoubleClick="OnItemsMouseDoubleClick">
+                     MouseDoubleClick="OnItemsMouseDoubleClick"
+                     PreviewMouseRightButtonUp="OnIconPreviewMouseRightButtonUp">
                 <ListBox.Style>
                     <Style TargetType="{x:Type ListBox}" BasedOn="{StaticResource {x:Type ListBox}}">
                         <Setter Property="Visibility" Value="Collapsed" />
@@ -1075,9 +849,10 @@
                                     <DataTemplate>
                                         <Button Style="{StaticResource DrawerTileButtonStyle}"
                                                 Margin="0"
-                                                 ToolTip="{Binding PathLabel}"
-                                                 Click="OnDrawerSecondaryItemClick"
-                                                 PreviewMouseLeftButtonDown="OnDrawerSecondaryIconPreviewMouseLeftButtonDown">
+                                                ToolTip="{Binding PathLabel}"
+                                                Click="OnDrawerSecondaryItemClick"
+                                                PreviewMouseLeftButtonDown="OnDrawerSecondaryIconPreviewMouseLeftButtonDown"
+                                                PreviewMouseRightButtonUp="OnDrawerSecondaryIconMouseRightButtonUp">
                                             <StackPanel HorizontalAlignment="Center"
                                                         VerticalAlignment="Center">
                                                 <Border Width="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
@@ -1156,6 +931,7 @@
                                 <Grid>
                                     <Button Style="{StaticResource DrawerTileButtonStyle}"
                                             PreviewMouseLeftButtonDown="OnDrawerIconPreviewMouseLeftButtonDown"
+                                            PreviewMouseRightButtonUp="OnDrawerCoverIconMouseRightButtonUp"
                                              ToolTip="{Binding Item.PathLabel}"
                                              Visibility="{Binding HasItem, Converter={StaticResource BooleanToVisibilityConverter}}">
                                         <StackPanel HorizontalAlignment="Center"
