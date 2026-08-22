@@ -60,6 +60,64 @@ public sealed class DrawerSecondaryPopupTests
         }
     }
 
+    /// <summary>
+    /// 二级弹窗尺寸不变式：不滚动时可视口必须恰好容纳全部行/列，
+    /// 否则最下列/最右列图标会被弹窗边缘裁掉（chrome 22 = 根 Border 1px×2 + ListBox Margin 10px×2）。
+    /// </summary>
+    [Theory]
+    [InlineData(8, false)]
+    [InlineData(12, false)]
+    [InlineData(20, false)]
+    [InlineData(40, false)]
+    [InlineData(8, true)]
+    [InlineData(12, true)]
+    [InlineData(20, true)]
+    [InlineData(40, true)]
+    public async Task SecondaryPopup_ViewportExactlyFitsContentWhenNotScrolling(
+        int itemCount,
+        bool showFileNames)
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var (drawerService, repository) = await CreateDrawerServiceAsync(root);
+            var box = await drawerService.CreateBoxAsync("抽屉盒", BoxType.Drawer);
+            var sourcePaths = Enumerable.Range(0, itemCount)
+                .Select(index => CreateSourceFile(root, $"item-{index:D2}.txt"))
+                .ToArray();
+            foreach (var path in sourcePaths)
+            {
+                await drawerService.ImportPathAsync(box.Id, path);
+            }
+
+            var viewModel = CreateViewModel(box, drawerService, repository);
+            await viewModel.LoadAsync();
+            viewModel.ApplyFileNameVisibility(showFileNames);
+            viewModel.SyncDrawerSecondaryFromItems();
+
+            var extentHeight = viewModel.DrawerSecondaryRows * viewModel.LayoutSettings.ItemSlotHeight;
+            var viewportHeight = viewModel.DrawerSecondaryPanelHeight - 22;
+            if (viewModel.DrawerSecondaryHasScrollableOverflow)
+            {
+                Assert.True(
+                    viewportHeight < extentHeight,
+                    $"滚动场景可视口 {viewportHeight} 应小于内容区 {extentHeight}");
+            }
+            else
+            {
+                Assert.Equal(extentHeight, viewportHeight);
+            }
+
+            var extentWidth = viewModel.DrawerSecondaryColumns * viewModel.LayoutSettings.ItemSlotWidth;
+            var viewportWidth = viewModel.DrawerSecondaryPanelWidth - 22;
+            Assert.Equal(extentWidth, viewportWidth);
+        }
+        finally
+        {
+            CleanupTempRoot(root);
+        }
+    }
+
     private static DesktopBoxViewModel CreateViewModel(
         Box box,
         DrawerService drawerService,

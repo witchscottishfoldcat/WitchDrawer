@@ -1,7 +1,9 @@
 using System.IO;
+using System.Windows;
 using System.Windows.Input;
 using System.Xml.Linq;
 using WitchDrawer.App.Features.DesktopItems;
+using WitchDrawer.App.ViewModels;
 using WitchDrawer.Native.Files;
 
 namespace WitchDrawer.App.Tests;
@@ -72,6 +74,9 @@ public sealed class DesktopBoxWindowTemplateTests
             "/WitchDrawer.App;component/Views/Styles/DesktopBoxControlStyles.xaml",
             sources);
     }
+
+    private static Thickness ParseThickness(string? value) =>
+        (Thickness)new ThicknessConverter().ConvertFromInvariantString(value ?? "0")!;
 
     private static readonly XNamespace PresentationNamespace =
         "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
@@ -220,6 +225,29 @@ public sealed class DesktopBoxWindowTemplateTests
         Assert.Equal(
             "{Binding DataContext.LayoutSettings.ItemSlotHeight, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}",
             (string?)secondaryPanel.Attribute("CellHeight"));
+    }
+
+    [Fact]
+    public void DrawerSecondaryPopup_ChromeReserveMatchesXamlBorderAndListMargin()
+    {
+        // DesktopBoxViewModel.DrawerSecondaryPanelChrome 必须与弹窗 XAML 中的
+        // 根 Border 描边 + ListBox Margin 一一对应，否则内容区会比可视口大出几像素，
+        // 最下列图标会被弹窗下边缘裁掉。
+        var document = XDocument.Load(GetDesktopBoxWindowXamlPath());
+        var popupRoot = Assert.Single(
+            document.Descendants(PresentationNamespace + "Border"),
+            element => (string?)element.Attribute(XamlNamespace + "Name") == "DrawerSecondaryPopupRoot");
+        var listBox = Assert.Single(popupRoot.Descendants(PresentationNamespace + "ListBox"));
+
+        var borderThickness = ParseThickness((string?)popupRoot.Attribute("BorderThickness"));
+        var listMargin = ParseThickness((string?)listBox.Attribute("Margin"));
+
+        Assert.Equal(
+            DesktopBoxViewModel.DrawerSecondaryPanelChrome,
+            borderThickness.Left + borderThickness.Right + listMargin.Left + listMargin.Right);
+        Assert.Equal(
+            DesktopBoxViewModel.DrawerSecondaryPanelChrome,
+            borderThickness.Top + borderThickness.Bottom + listMargin.Top + listMargin.Bottom);
     }
 
     [Fact]
