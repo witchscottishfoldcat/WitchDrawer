@@ -98,6 +98,16 @@ dotnet build WitchDrawer.sln
 
 该脚本使用 `Release` 配置构建完整解决方案。
 
+### 发布 Windows x64 版本
+
+维护者可在安装 Inno Setup 6 后执行：
+
+```powershell
+.\tools\Publish-WitchDrawer.ps1
+```
+
+脚本会生成自包含便携 ZIP、`Setup.exe` 安装包及各自的 SHA-256 校验文件。发布前应确认 ZIP 解压后可以启动，并且 GitHub Release 同时上传 ZIP 和 `Setup.exe`；不要只把单个 exe 从发布目录手工压进 ZIP。
+
 ## 本地开发
 
 ```powershell
