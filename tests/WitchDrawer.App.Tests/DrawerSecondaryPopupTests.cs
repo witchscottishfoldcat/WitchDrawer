@@ -62,7 +62,8 @@ public sealed class DrawerSecondaryPopupTests
 
     /// <summary>
     /// 二级弹窗尺寸不变式：不滚动时可视口必须恰好容纳全部行/列，
-    /// 否则最下列/最右列图标会被弹窗边缘裁掉（chrome 22 = 根 Border 1px×2 + ListBox Margin 10px×2）。
+    /// 否则最下列/最右列图标会被弹窗边缘裁掉（chrome 24 = 根 Border 1px×2
+    /// + ListBox Margin 10px×2 + ListBox 默认模板 Border Padding 1px×2）。
     /// </summary>
     [Theory]
     [InlineData(8, false)]
@@ -96,7 +97,7 @@ public sealed class DrawerSecondaryPopupTests
             viewModel.SyncDrawerSecondaryFromItems();
 
             var extentHeight = viewModel.DrawerSecondaryRows * viewModel.LayoutSettings.ItemSlotHeight;
-            var viewportHeight = viewModel.DrawerSecondaryPanelHeight - 22;
+            var viewportHeight = viewModel.DrawerSecondaryPanelHeight - 24;
             if (viewModel.DrawerSecondaryHasScrollableOverflow)
             {
                 Assert.True(
@@ -109,7 +110,7 @@ public sealed class DrawerSecondaryPopupTests
             }
 
             var extentWidth = viewModel.DrawerSecondaryColumns * viewModel.LayoutSettings.ItemSlotWidth;
-            var viewportWidth = viewModel.DrawerSecondaryPanelWidth - 22;
+            var viewportWidth = viewModel.DrawerSecondaryPanelWidth - 24;
             Assert.Equal(extentWidth, viewportWidth);
         }
         finally

@@ -19,9 +19,12 @@ namespace WitchDrawer.App.ViewModels;
 public sealed class DesktopBoxViewModel : ObservableObject
 {
     // 弹窗 chrome 预留 = DesktopBoxWindow.xaml 中 DrawerSecondaryPopup 根 Border 的
-    // BorderThickness (1px × 2) + 内部 ListBox 的 Margin (10px × 2)。改动 XAML 中任一
-    // 数值时必须同步，否则内容区会比可视口大出几像素，最下列图标会被弹窗下边缘裁掉。
-    internal const double DrawerSecondaryPanelChrome = 22;
+    // BorderThickness (1px × 2) + 内部 ListBox 的 Margin (10px × 2) + ListBox 默认
+    // (Aero2) 模板内 Border 的 Padding (1px × 2，该值硬编码在主题模板中，与
+    // DesktopBoxLayoutSettings.GridViewportFixedChromeInset 已计入的同款 2px 一致)。
+    // 改动 XAML 中任一数值时必须同步，否则内容区会比可视口大出几像素，最下列图标
+    // 会被弹窗下边缘裁掉，且上下边距不对称。
+    internal const double DrawerSecondaryPanelChrome = 24;
     private const double MaximumDrawerSecondaryPanelDimension = 320;
     private const double EdgeExpandThreshold = 14;
     private const double VisibleHeaderRowHeight = 24;

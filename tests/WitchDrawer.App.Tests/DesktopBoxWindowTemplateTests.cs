@@ -231,8 +231,10 @@ public sealed class DesktopBoxWindowTemplateTests
     public void DrawerSecondaryPopup_ChromeReserveMatchesXamlBorderAndListMargin()
     {
         // DesktopBoxViewModel.DrawerSecondaryPanelChrome 必须与弹窗 XAML 中的
-        // 根 Border 描边 + ListBox Margin 一一对应，否则内容区会比可视口大出几像素，
-        // 最下列图标会被弹窗下边缘裁掉。
+        // 根 Border 描边 + ListBox Margin + ListBox 默认(Aero2)模板内 Border 的
+        // Padding (1px × 2，硬编码在主题模板中) 一一对应，否则内容区会比可视口
+        // 大出几像素，最下列图标会被弹窗下边缘裁掉。
+        const double listBoxTemplateBorderPadding = 2;
         var document = XDocument.Load(GetDesktopBoxWindowXamlPath());
         var popupRoot = Assert.Single(
             document.Descendants(PresentationNamespace + "Border"),
@@ -244,10 +246,12 @@ public sealed class DesktopBoxWindowTemplateTests
 
         Assert.Equal(
             DesktopBoxViewModel.DrawerSecondaryPanelChrome,
-            borderThickness.Left + borderThickness.Right + listMargin.Left + listMargin.Right);
+            borderThickness.Left + borderThickness.Right + listMargin.Left + listMargin.Right
+                + listBoxTemplateBorderPadding);
         Assert.Equal(
             DesktopBoxViewModel.DrawerSecondaryPanelChrome,
-            borderThickness.Top + borderThickness.Bottom + listMargin.Top + listMargin.Bottom);
+            borderThickness.Top + borderThickness.Bottom + listMargin.Top + listMargin.Bottom
+                + listBoxTemplateBorderPadding);
     }
 
     [Fact]
