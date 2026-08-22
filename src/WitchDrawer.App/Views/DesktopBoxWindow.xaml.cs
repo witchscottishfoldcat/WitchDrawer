@@ -1144,19 +1144,50 @@ public partial class DesktopBoxWindow : Window
             var startHeight = Math.Max(MinHeight, ActualHeight);
 
             // SizeToContent would otherwise apply the target view's desired size in one frame.
-            // Freeze the current size first, then animate to the newly measured target size.
             SizeToContent = SizeToContent.Manual;
+            // 样式里的 MinWidth/MinHeight 会阻止窗口收拢到标题栏，过渡期间用本地值放行，
+            // finally 里 ClearValue 还给样式。
+            MinWidth = 0;
+            MinHeight = 0;
             Width = startWidth;
             Height = startHeight;
 
-            // 交叉淡化：旧视图保持可见（本地值优先级高于折叠触发器）并淡出，
-            // 新视图淡入，避免切换瞬间内容区出现空白帧。
-            incomingList.BeginAnimation(OpacityProperty, null);
-            incomingList.Opacity = 0;
-            outgoingList.BeginAnimation(OpacityProperty, null);
-            outgoingList.Visibility = Visibility.Visible;
             outgoingList.IsHitTestVisible = false;
+            incomingList.IsHitTestVisible = false;
+            incomingList.Opacity = 0;
+            // 收拢/展开途中可视口临时比内容矮，Auto 滚动条会闪现一下再消失；
+            // 过渡期间禁用滚动条（本地值），finally 里 ClearValue 还给 XAML。
+            ScrollViewer.SetVerticalScrollBarVisibility(outgoingList, ScrollBarVisibility.Disabled);
+            ScrollViewer.SetVerticalScrollBarVisibility(incomingList, ScrollBarVisibility.Disabled);
 
+            // 两段式时序：旧视图先淡出收拢，全部收回后新视图再展开，两阶段不重叠，
+            // 避免两种布局同时显影造成的双影抖动。
+            //
+            // 收回阶段：旧视图淡出并轻微缩小，窗口高度同步收拢到标题栏下沿。
+            var listTop = outgoingList.TranslatePoint(new Point(0, 0), WindowRoot).Y;
+            var collapsedHeight = Math.Max(
+                36,
+                listTop + WindowBorder.Margin.Bottom + WindowBorder.BorderThickness.Bottom);
+
+            var collapseEase = new CubicEase { EasingMode = EasingMode.EaseIn };
+            outgoingList.RenderTransformOrigin = new Point(0.5, 0.5);
+            var outScale = new ScaleTransform();
+            outgoingList.RenderTransform = outScale;
+            outScale.BeginAnimation(
+                ScaleTransform.ScaleXProperty,
+                new DoubleAnimation(1, 0.92, TimeSpan.FromMilliseconds(150)) { EasingFunction = collapseEase });
+            outScale.BeginAnimation(
+                ScaleTransform.ScaleYProperty,
+                new DoubleAnimation(1, 0.92, TimeSpan.FromMilliseconds(150)) { EasingFunction = collapseEase });
+            outgoingList.BeginAnimation(
+                OpacityProperty,
+                new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(130)) { EasingFunction = collapseEase });
+
+            await AnimateWindowSizeAsync(
+                startWidth, startHeight, startWidth, collapsedHeight,
+                durationMs: 160, EasingMode.EaseInOut);
+
+            // 模式翻转（同步改绑定，异步写 SQLite 持久化）。
             var modeChangeTask = useListMode
                 ? ViewModel.UseMappingListModeCommand.ExecuteAsync(null)
                 : ViewModel.UseMappingGridModeCommand.ExecuteAsync(null);
@@ -1165,41 +1196,73 @@ public partial class DesktopBoxWindow : Window
                 () => { },
                 DispatcherPriority.DataBind);
 
-            WindowBorder.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            var targetWidth = Math.Max(MinWidth, WindowBorder.DesiredSize.Width);
-            var targetHeight = Math.Max(MinHeight, WindowBorder.DesiredSize.Height);
+            // 手动 Measure 与真实布局结果不一致（列表会先出滚动条再二次展开），
+            // 把尺寸交还给 SizeToContent 做一轮真实布局、直接读稳态尺寸；
+            // 同一同步块内立即收回收拢态，不会产生中间渲染帧。
+            SizeToContent = SizeToContent.WidthAndHeight;
+            ClearValue(WidthProperty);
+            ClearValue(HeightProperty);
+            UpdateLayout();
+            var targetWidth = ActualWidth;
+            var targetHeight = ActualHeight;
+            SizeToContent = SizeToContent.Manual;
+            Width = startWidth;
+            Height = collapsedHeight;
 
-            incomingList.Opacity = 1;
+            // 展开阶段：窗口从收拢态缓动到稳态尺寸，新视图淡入并轻微放大回位；
+            // 结束时尺寸已经是 SizeToContent 的稳态值，恢复时不再回跳。
+            var expandEase = new CubicEase { EasingMode = EasingMode.EaseOut };
+            incomingList.RenderTransformOrigin = new Point(0.5, 0.5);
+            var inScale = new ScaleTransform(0.96, 0.96);
+            incomingList.RenderTransform = inScale;
+            inScale.BeginAnimation(
+                ScaleTransform.ScaleXProperty,
+                new DoubleAnimation(0.96, 1, TimeSpan.FromMilliseconds(220))
+                {
+                    BeginTime = TimeSpan.FromMilliseconds(40),
+                    EasingFunction = expandEase
+                });
+            inScale.BeginAnimation(
+                ScaleTransform.ScaleYProperty,
+                new DoubleAnimation(0.96, 1, TimeSpan.FromMilliseconds(220))
+                {
+                    BeginTime = TimeSpan.FromMilliseconds(40),
+                    EasingFunction = expandEase
+                });
             incomingList.BeginAnimation(
                 OpacityProperty,
-                new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(170))
+                new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(180))
                 {
-                    BeginTime = TimeSpan.FromMilliseconds(50),
-                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
-                });
-            outgoingList.BeginAnimation(
-                OpacityProperty,
-                new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(120))
-                {
-                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn }
+                    BeginTime = TimeSpan.FromMilliseconds(70),
+                    EasingFunction = expandEase
                 });
 
             await Task.WhenAll(
                 modeChangeTask,
-                AnimateWindowSizeAsync(startWidth, startHeight, targetWidth, targetHeight),
-                // 等待两条淡化动画走完再拆除，避免结尾处闪回旧视图。
-                Task.Delay(TimeSpan.FromMilliseconds(230)));
+                AnimateWindowSizeAsync(
+                    startWidth, collapsedHeight, targetWidth, targetHeight,
+                    durationMs: 230, EasingMode.EaseOut),
+                // 等淡入与回位动画走完再拆除，避免结尾处状态突变。
+                Task.Delay(TimeSpan.FromMilliseconds(310)));
         }
         finally
         {
-            incomingList.BeginAnimation(OpacityProperty, null);
-            incomingList.Opacity = 1;
             outgoingList.BeginAnimation(OpacityProperty, null);
             outgoingList.Opacity = 1;
-            outgoingList.ClearValue(VisibilityProperty);
+            outgoingList.RenderTransform = null;
             outgoingList.IsHitTestVisible = true;
+            incomingList.BeginAnimation(OpacityProperty, null);
+            incomingList.Opacity = 1;
+            incomingList.RenderTransform = null;
+            incomingList.IsHitTestVisible = true;
+            // XAML 里的滚动条可见性本身是本地值，ClearValue 会把它一起抹掉，
+            // 这里显式恢复各自的原始值（IconList 恒禁用，FileList 为 Auto）。
+            ScrollViewer.SetVerticalScrollBarVisibility(IconList, ScrollBarVisibility.Disabled);
+            ScrollViewer.SetVerticalScrollBarVisibility(FileList, ScrollBarVisibility.Auto);
             BeginAnimation(WidthProperty, null);
             BeginAnimation(HeightProperty, null);
+            ClearValue(MinWidthProperty);
+            ClearValue(MinHeightProperty);
             SizeToContent = SizeToContent.WidthAndHeight;
             ClearValue(WidthProperty);
             ClearValue(HeightProperty);
@@ -1212,11 +1275,13 @@ public partial class DesktopBoxWindow : Window
         double startWidth,
         double startHeight,
         double targetWidth,
-        double targetHeight)
+        double targetHeight,
+        int durationMs = 220,
+        EasingMode easingMode = EasingMode.EaseOut)
     {
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var duration = TimeSpan.FromMilliseconds(220);
-        var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var duration = TimeSpan.FromMilliseconds(durationMs);
+        var easing = new CubicEase { EasingMode = easingMode };
 
         Width = targetWidth;
         Height = targetHeight;

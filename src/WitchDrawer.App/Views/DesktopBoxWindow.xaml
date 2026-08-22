@@ -55,6 +55,7 @@
         </ResourceDictionary>
     </Window.Resources>
 
+    <Grid x:Name="WindowRoot">
     <Border x:Name="WindowBorder">
         <Border.Style>
             <Style TargetType="Border">
@@ -1219,4 +1220,5 @@
             </Border>
         </Grid>
     </Border>
+    </Grid>
 </Window>
