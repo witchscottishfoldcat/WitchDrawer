@@ -126,6 +126,29 @@ public sealed class DesktopBoxManagerPositionTests
     }
 
     [Fact]
+    public void StartupRestore_ClampsOnlyTheStableFinalSize()
+    {
+        // Regression: a collapsed drawer at the right edge is 163 px wide after
+        // SizeToContent settles, but its pre-show template can provisionally measure
+        // about 199 px. Clamping the provisional bounds shifts the saved X left even
+        // though the final drawer fits exactly where the user placed it.
+        var workArea = new Rect(0, 0, 2560, 1368);
+        var stableBounds = new Rect(2396, 27, 151, 96);
+        var provisionalBounds = new Rect(2396, 27, 187, 96);
+
+        var stableOrigin = DesktopBoxManager.CalculateClampedVisibleOrigin(
+            stableBounds,
+            workArea);
+        var provisionalOrigin = DesktopBoxManager.CalculateClampedVisibleOrigin(
+            provisionalBounds,
+            workArea);
+
+        Assert.Equal(stableBounds.Left, stableOrigin.X);
+        Assert.True(provisionalOrigin.X < stableOrigin.X);
+        Assert.Equal(23, stableOrigin.X - provisionalOrigin.X);
+    }
+
+    [Fact]
     public void LayoutBackup_SerializesAndParsesAllBoxPositions()
     {
         var firstId = Guid.Parse("11111111-1111-1111-1111-111111111111");

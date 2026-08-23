@@ -196,10 +196,8 @@ public sealed class DesktopBoxManager
                         new BoxItemsChangedEventArgs(viewModel.BoxId));
 
                     window = new DesktopBoxWindow(viewModel);
-                    if (await PlaceWindowAsync(window, box.Id, index))
-                    {
-                        _overlapResolutionBoxIds.Add(box.Id);
-                    }
+                    var requiresOverlapResolution =
+                        await PlaceWindowAsync(window, box.Id, index);
 
                     _windows.Add(box.Id, window);
 
@@ -231,6 +229,19 @@ public sealed class DesktopBoxManager
                     // 首次布局的测量约束来自初始 HWND 尺寸，内容稳定后强制重测一次，
                     // 否则窗口会一直停在错误的初始宽度（折叠抽屉盒封面两侧突出）。
                     window.ResyncSizeToContent();
+                    window.UpdateLayout();
+                    if (ClampWindowToCurrentWorkArea(window))
+                    {
+                        requiresOverlapResolution = true;
+                    }
+
+                    // Startup SizeChanged events are based on provisional template sizes.
+                    // Only future user/content-driven resizes may clamp the live window.
+                    window.EnableVisibleBoundsClamping();
+                    if (requiresOverlapResolution)
+                    {
+                        _overlapResolutionBoxIds.Add(box.Id);
+                    }
                 }
                 else
                 {
@@ -965,10 +976,6 @@ public sealed class DesktopBoxManager
     /// </summary>
     private async Task<bool> PlaceWindowAsync(DesktopBoxWindow window, Guid boxId, int fallbackIndex)
     {
-        // SizeToContent windows report NaN for Width/Height before they are shown; measure
-        // first and use DesiredSize so saved positions are restored correctly.
-        window.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-
         var savedPosition = await _drawerService.GetSettingAsync(BoxPositionSettingPrefix + boxId.ToString("N"));
         if (TryParseStoredPosition(savedPosition, out var left, out var top, out var isPhysicalPixels))
         {
@@ -988,26 +995,39 @@ public sealed class DesktopBoxManager
                 new System.Windows.Interop.WindowInteropHelper(window).EnsureHandle();
             }
 
-            var bounds = window.GetMeasuredVisibleBoundsPixels();
-            var workArea = window.GetWorkAreaPixels();
-            if (bounds.IsEmpty || workArea.IsEmpty)
-            {
-                return false;
-            }
-
-            var origin = CalculateClampedVisibleOrigin(bounds, workArea);
-            var wasClamped = Math.Abs(origin.X - bounds.Left) > 0.5
-                || Math.Abs(origin.Y - bounds.Top) > 0.5;
-            if (wasClamped)
-            {
-                window.MoveToVisibleOriginPixels(origin.X, origin.Y);
-            }
-
-            return wasClamped;
+            // Do not clamp yet. Before Show + LoadAsync + the first stable
+            // SizeToContent pass, DesiredSize can be wider than the final HWND
+            // (notably for a collapsed drawer). Clamping that provisional size
+            // permanently shifts a right-edge box left after every restart.
+            return false;
         }
 
+        // New windows still need a pre-show measurement for their fallback placement.
+        window.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         PlaceNewWindow(window, fallbackIndex);
         return true;
+    }
+
+    private static bool ClampWindowToCurrentWorkArea(DesktopBoxWindow window)
+    {
+        // UpdateLayout has completed the stable SizeToContent pass. Use layout
+        // dimensions here because the native HWND resize can lag the WPF layout event.
+        var bounds = window.GetLayoutVisibleBoundsPixels();
+        var workArea = window.GetWorkAreaPixels();
+        if (bounds.IsEmpty || workArea.IsEmpty)
+        {
+            return false;
+        }
+
+        var origin = CalculateClampedVisibleOrigin(bounds, workArea);
+        var wasClamped = Math.Abs(origin.X - bounds.Left) > 0.5
+            || Math.Abs(origin.Y - bounds.Top) > 0.5;
+        if (wasClamped)
+        {
+            window.MoveToVisibleOriginPixels(origin.X, origin.Y);
+        }
+
+        return wasClamped;
     }
 
     internal static string SerializePosition(double left, double top) =>

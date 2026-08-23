@@ -45,6 +45,7 @@ public partial class DesktopBoxWindow : Window
     private NativePoint _drawerResizeStartCursor;
     private bool _suppressDrawerItemClick;
     private bool _isBoxOpacityRefreshQueued;
+    private bool _isVisibleBoundsClampingEnabled;
 
     internal sealed class DesktopBoxDragPayload(Guid dragId, Guid itemId, Guid sourceBoxId)
     {
@@ -303,6 +304,17 @@ public partial class DesktopBoxWindow : Window
         }
     }
 
+    /// <summary>
+    /// Enables work-area clamping after the manager has restored the saved origin,
+    /// loaded the box contents and completed the first stable SizeToContent pass.
+    /// Startup SizeChanged events use provisional template dimensions and must not
+    /// move the window before its final size is known.
+    /// </summary>
+    internal void EnableVisibleBoundsClamping()
+    {
+        _isVisibleBoundsClampingEnabled = true;
+    }
+
     internal Rect GetVisibleBounds() =>
         ComputeVisibleBounds(Left, Top, ActualWidth, ActualHeight, WindowBorder.Margin);
 
@@ -439,7 +451,9 @@ public partial class DesktopBoxWindow : Window
     /// </summary>
     private void OnWindowSizeChanged(object sender, SizeChangedEventArgs e)
     {
-        if (!IsVisible || e.PreviousSize == e.NewSize)
+        if (!_isVisibleBoundsClampingEnabled
+            || !IsVisible
+            || e.PreviousSize == e.NewSize)
         {
             return;
         }
