@@ -112,4 +112,19 @@ public sealed class DesktopBoxWindowVisibleBoundsTests
         Assert.Equal(549, measured.Width, precision: 6);
         Assert.Equal(270, measured.Height, precision: 6);
     }
+
+    [Fact]
+    public void MappingViewTransition_SuppressesWorkAreaClampingUntilLayoutSettles()
+    {
+        Assert.False(DesktopBoxWindow.ShouldClampVisibleBounds(
+            isClampingEnabled: true,
+            isMappingViewTransitioning: true,
+            isVisible: true,
+            sizeChanged: true));
+        Assert.True(DesktopBoxWindow.ShouldClampVisibleBounds(
+            isClampingEnabled: true,
+            isMappingViewTransitioning: false,
+            isVisible: true,
+            sizeChanged: true));
+    }
 }

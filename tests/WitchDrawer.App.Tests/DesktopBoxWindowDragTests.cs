@@ -112,6 +112,29 @@ public sealed class DesktopBoxWindowDragTests
         Assert.Equal(1, rect.Width);
         Assert.Equal(1, rect.Height);
     }
+
+    [Theory]
+    [InlineData(4, 0, 2, false, 1)]
+    [InlineData(4, 3, 1, true, 2)]
+    [InlineData(4, 1, 1, false, 1)]
+    [InlineData(4, 1, 1, true, 1)]
+    [InlineData(4, 2, 0, false, 0)]
+    [InlineData(4, -1, 1, true, 2)]
+    public void MappingListInsertionIndex_AccountsForRemovedSourceRow(
+        int itemCount,
+        int sourceIndex,
+        int hoveredIndex,
+        bool insertAfter,
+        int expected)
+    {
+        Assert.Equal(
+            expected,
+            DesktopBoxWindow.CalculateListInsertionIndex(
+                itemCount,
+                sourceIndex,
+                hoveredIndex,
+                insertAfter));
+    }
 }
 
 public sealed class InternalDragCompletionTests

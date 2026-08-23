@@ -439,7 +439,7 @@
             <ListBox x:Name="FileList"
                      Grid.Row="1"
                      Panel.ZIndex="1"
-                      Width="{Binding LayoutSettings.MappingListWidth}"
+                      Width="{Binding MappingListWidth}"
                       MinHeight="{Binding LayoutSettings.MappingListMinHeight}"
                       MaxHeight="{Binding LayoutSettings.MappingListMaxHeight}"
                       Margin="{Binding LayoutSettings.MappingListMargin}"
@@ -547,6 +547,38 @@
                     </DataTemplate>
                 </ListBox.ItemTemplate>
             </ListBox>
+
+            <Canvas x:Name="MappingListDropOverlay"
+                    Grid.Row="1"
+                    Panel.ZIndex="11"
+                    IsHitTestVisible="False"
+                    Visibility="Collapsed">
+                <Border x:Name="MappingListInsertionIndicator"
+                        Height="2"
+                        MinWidth="24"
+                        CornerRadius="1"
+                        Background="{DynamicResource AccentBrush}"
+                        SnapsToDevicePixels="True" />
+            </Canvas>
+
+            <Thumb x:Name="MappingListResizeThumb"
+                   Grid.RowSpan="2"
+                   Panel.ZIndex="12"
+                   Width="10"
+                   Margin="0,5,-1,5"
+                   HorizontalAlignment="Right"
+                   VerticalAlignment="Stretch"
+                   Cursor="SizeWE"
+                   Visibility="{Binding IsMappingListMode, Converter={StaticResource BooleanToVisibilityConverter}}"
+                   DragStarted="OnMappingListResizeStarted"
+                   DragDelta="OnMappingListResizeDelta"
+                   DragCompleted="OnMappingListResizeCompleted">
+                <Thumb.Template>
+                    <ControlTemplate TargetType="{x:Type Thumb}">
+                        <Grid Background="Transparent" />
+                    </ControlTemplate>
+                </Thumb.Template>
+            </Thumb>
 
             <!-- 待办收纳盒：与文件盒共用原生桌面浮窗外壳，但拥有独立的持久化内容。 -->
             <Grid Grid.Row="1"

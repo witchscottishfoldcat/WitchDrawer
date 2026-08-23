@@ -187,6 +187,13 @@ public sealed class DrawerService
         return _repository.UpdateItemGridPositionAsync(itemId, gridColumn, gridRow, cancellationToken);
     }
 
+    public Task UpdateItemGridPositionsAsync(
+        IReadOnlyDictionary<Guid, (int GridColumn, int GridRow)> positions,
+        CancellationToken cancellationToken = default)
+    {
+        return _repository.UpdateItemGridPositionsAsync(positions, cancellationToken);
+    }
+
     public async Task MoveItemToBoxAsync(
         Guid itemId,
         Guid targetBoxId,

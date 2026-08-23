@@ -33,6 +33,7 @@ public partial class DesktopBoxWindow : Window
     private DrawerItemViewModel? _keyboardDeleteTarget;
     private Func<Guid, Task>? _positionChangedCallback;
     private bool _isMappingViewTransitioning;
+    private Point? _mappingViewTransitionVisibleOriginPixels;
     private bool _isRollTransitioning;
     private bool _restoreAfterMinimizeQueued;
     private bool _desktopOwnershipRestoreQueued;
@@ -43,6 +44,8 @@ public partial class DesktopBoxWindow : Window
     private double _drawerResizeStartWidth;
     private double _drawerResizeStartHeight;
     private NativePoint _drawerResizeStartCursor;
+    private double _mappingListResizeStartWidth;
+    private NativePoint _mappingListResizeStartCursor;
     private bool _suppressDrawerItemClick;
     private bool _isBoxOpacityRefreshQueued;
     private bool _isVisibleBoundsClampingEnabled;
@@ -451,9 +454,19 @@ public partial class DesktopBoxWindow : Window
     /// </summary>
     private void OnWindowSizeChanged(object sender, SizeChangedEventArgs e)
     {
-        if (!_isVisibleBoundsClampingEnabled
-            || !IsVisible
-            || e.PreviousSize == e.NewSize)
+        if (_mappingViewTransitionVisibleOriginPixels is Point anchoredOrigin
+            && IsVisible
+            && e.PreviousSize != e.NewSize)
+        {
+            MoveToVisibleOriginPixels(anchoredOrigin.X, anchoredOrigin.Y);
+            return;
+        }
+
+        if (!ShouldClampVisibleBounds(
+                _isVisibleBoundsClampingEnabled,
+                _isMappingViewTransitioning,
+                IsVisible,
+                e.PreviousSize != e.NewSize))
         {
             return;
         }
@@ -493,6 +506,16 @@ public partial class DesktopBoxWindow : Window
             MoveToVisibleOriginPixels(visibleLeft, visibleTop);
         }
     }
+
+    internal static bool ShouldClampVisibleBounds(
+        bool isClampingEnabled,
+        bool isMappingViewTransitioning,
+        bool isVisible,
+        bool sizeChanged) =>
+        isClampingEnabled
+        && !isMappingViewTransitioning
+        && isVisible
+        && sizeChanged;
 
     internal static Rect ComputeVisibleBounds(
         double windowLeft,
@@ -639,6 +662,41 @@ public partial class DesktopBoxWindow : Window
             _ = exception;
         }
 
+        e.Handled = true;
+    }
+
+    private void OnMappingListResizeStarted(object sender, DragStartedEventArgs e)
+    {
+        _mappingListResizeStartWidth = ViewModel.MappingListWidth;
+        GetCursorPos(out _mappingListResizeStartCursor);
+        e.Handled = true;
+    }
+
+    private void OnMappingListResizeDelta(object sender, DragDeltaEventArgs e)
+    {
+        if (!GetCursorPos(out var currentCursor))
+        {
+            return;
+        }
+
+        var dpi = VisualTreeHelper.GetDpi(this);
+        var horizontalDelta = currentCursor.X - _mappingListResizeStartCursor.X;
+        ViewModel.ResizeMappingListWidth(
+            _mappingListResizeStartWidth
+            + (horizontalDelta / Math.Max(0.1, dpi.DpiScaleX)));
+        e.Handled = true;
+    }
+
+    private async void OnMappingListResizeCompleted(object sender, DragCompletedEventArgs e)
+    {
+        if (e.Canceled)
+        {
+            ViewModel.ResizeMappingListWidth(_mappingListResizeStartWidth);
+            e.Handled = true;
+            return;
+        }
+
+        await ViewModel.SaveMappingListWidthAsync();
         e.Handled = true;
     }
 
@@ -1198,6 +1256,11 @@ public partial class DesktopBoxWindow : Window
             return;
         }
 
+        var visibleBoundsBeforeTransition = GetLayoutVisibleBoundsPixels();
+        _mappingViewTransitionVisibleOriginPixels =
+            visibleBoundsBeforeTransition.Width > 0 && visibleBoundsBeforeTransition.Height > 0
+                ? new Point(visibleBoundsBeforeTransition.Left, visibleBoundsBeforeTransition.Top)
+                : null;
         _isMappingViewTransitioning = true;
         var outgoingList = useListMode ? IconList : FileList;
         var incomingList = useListMode ? FileList : IconList;
@@ -1330,8 +1393,25 @@ public partial class DesktopBoxWindow : Window
             SizeToContent = SizeToContent.WidthAndHeight;
             ClearValue(WidthProperty);
             ClearValue(HeightProperty);
+            // SizeToContent 的最终布局也必须在过渡保护期内完成，否则靠近工作区
+            // 底边的盒子会被 SizeChanged 越界修正向上推，看起来像切换后“弹走”。
+            await Dispatcher.InvokeAsync(UpdateLayout, DispatcherPriority.Loaded);
+            RestoreMappingViewTransitionOrigin();
+            // ClearValue(Size) 后 WPF 还可能把一次 SizeToContent 布局排到当前事件之后。
+            // 等到队列空闲再恢复一次，确保延迟 SizeChanged 也无法改变左上锚点。
+            await Dispatcher.InvokeAsync(UpdateLayout, DispatcherPriority.ContextIdle);
+            RestoreMappingViewTransitionOrigin();
+            _mappingViewTransitionVisibleOriginPixels = null;
             _isMappingViewTransitioning = false;
             QueueSendToBottom();
+        }
+    }
+
+    private void RestoreMappingViewTransitionOrigin()
+    {
+        if (_mappingViewTransitionVisibleOriginPixels is Point anchoredOrigin)
+        {
+            MoveToVisibleOriginPixels(anchoredOrigin.X, anchoredOrigin.Y);
         }
     }
 
@@ -1421,6 +1501,7 @@ public partial class DesktopBoxWindow : Window
         if (!showPreview)
         {
             ViewModel.HideDragPreview();
+            HideMappingListDropIndicator();
         }
 
         ViewModel.IsDragOver = acceptsDrop;
@@ -1682,7 +1763,7 @@ public partial class DesktopBoxWindow : Window
         var movingItemId = payload?.SourceBoxId == ViewModel.BoxId ? payload.ItemId : (Guid?)null;
         if (ViewModel.IsMappingListMode)
         {
-            return ViewModel.GetListDropSlot(movingItemId);
+            return (0, GetMappingListDropIndex(e, movingItemId));
         }
 
         if (ViewModel.IsDrawerCollapsed)
@@ -1708,8 +1789,61 @@ public partial class DesktopBoxWindow : Window
             : null;
     }
 
+    private int GetMappingListDropIndex(DragEventArgs e, Guid? movingItemId)
+    {
+        var sourceIndex = movingItemId is Guid itemId
+            ? ViewModel.Items.ToList().FindIndex(item => item.Id == itemId)
+            : -1;
+        var source = e.OriginalSource as DependencyObject;
+        var container = source is null
+            ? null
+            : ItemsControl.ContainerFromElement(FileList, source) as ListBoxItem;
+        if (container is null)
+        {
+            return ViewModel.Items.Count - (sourceIndex >= 0 ? 1 : 0);
+        }
+
+        var hoveredIndex = FileList.ItemContainerGenerator.IndexFromContainer(container);
+        var insertAfter = e.GetPosition(container).Y >= container.ActualHeight / 2;
+        return CalculateListInsertionIndex(
+            ViewModel.Items.Count,
+            sourceIndex,
+            hoveredIndex,
+            insertAfter);
+    }
+
+    internal static int CalculateListInsertionIndex(
+        int itemCount,
+        int sourceIndex,
+        int hoveredIndex,
+        bool insertAfter)
+    {
+        itemCount = Math.Max(0, itemCount);
+        var hasSource = sourceIndex >= 0 && sourceIndex < itemCount;
+        var boundary = Math.Clamp(hoveredIndex, 0, Math.Max(0, itemCount - 1))
+            + (insertAfter ? 1 : 0);
+        if (hasSource && sourceIndex < boundary)
+        {
+            boundary--;
+        }
+
+        var remainingCount = itemCount - (hasSource ? 1 : 0);
+        return Math.Clamp(boundary, 0, remainingCount);
+    }
+
     private void ShowDropPreview(DragEventArgs e, DesktopBoxDragPayload? payload)
     {
+        if (ViewModel.IsMappingListMode)
+        {
+            var movingItemId = payload?.SourceBoxId == ViewModel.BoxId
+                ? payload.ItemId
+                : (Guid?)null;
+            ViewModel.HideDragPreview();
+            ShowMappingListDropIndicator(e, movingItemId);
+            return;
+        }
+
+        HideMappingListDropIndicator();
         if (ViewModel.IsDrawerCollapsed)
         {
             var coverMovingItemId = payload?.SourceBoxId == ViewModel.BoxId ? payload.ItemId : (Guid?)null;
@@ -1726,6 +1860,71 @@ public partial class DesktopBoxWindow : Window
         }
 
         ViewModel.ShowDragPreview(slot.Value.Column, slot.Value.Row);
+    }
+
+    private void ShowMappingListDropIndicator(DragEventArgs e, Guid? movingItemId)
+    {
+        var insertionIndex = GetMappingListDropIndex(e, movingItemId);
+        var remainingItems = ViewModel.Items
+            .Where(item => movingItemId is null || item.Id != movingItemId.Value)
+            .ToList();
+
+        FrameworkElement? boundaryContainer = null;
+        var useContainerBottom = false;
+        if (remainingItems.Count > 0)
+        {
+            if (insertionIndex < remainingItems.Count)
+            {
+                boundaryContainer = FileList.ItemContainerGenerator.ContainerFromItem(
+                    remainingItems[insertionIndex]) as FrameworkElement;
+            }
+            else
+            {
+                boundaryContainer = FileList.ItemContainerGenerator.ContainerFromItem(
+                    remainingItems[^1]) as FrameworkElement;
+                useContainerBottom = true;
+            }
+        }
+
+        Point boundaryPoint;
+        if (boundaryContainer is not null)
+        {
+            boundaryPoint = boundaryContainer.TranslatePoint(
+                new Point(0, useContainerBottom ? boundaryContainer.ActualHeight : 0),
+                MappingListDropOverlay);
+        }
+        else
+        {
+            var source = e.OriginalSource as DependencyObject;
+            var hoveredContainer = source is null
+                ? null
+                : ItemsControl.ContainerFromElement(FileList, source) as FrameworkElement;
+            boundaryPoint = hoveredContainer is null
+                ? FileList.TranslatePoint(
+                    new Point(0, FileList.Padding.Top),
+                    MappingListDropOverlay)
+                : hoveredContainer.TranslatePoint(
+                    new Point(
+                        0,
+                        e.GetPosition(hoveredContainer).Y >= hoveredContainer.ActualHeight / 2
+                            ? hoveredContainer.ActualHeight
+                            : 0),
+                    MappingListDropOverlay);
+        }
+
+        var listOrigin = FileList.TranslatePoint(new Point(0, 0), MappingListDropOverlay);
+        var horizontalInset = Math.Max(6, FileList.Padding.Left);
+        Canvas.SetLeft(MappingListInsertionIndicator, listOrigin.X + horizontalInset);
+        Canvas.SetTop(MappingListInsertionIndicator, boundaryPoint.Y - 1);
+        MappingListInsertionIndicator.Width = Math.Max(
+            MappingListInsertionIndicator.MinWidth,
+            FileList.ActualWidth - horizontalInset - Math.Max(6, FileList.Padding.Right));
+        MappingListDropOverlay.Visibility = Visibility.Visible;
+    }
+
+    private void HideMappingListDropIndicator()
+    {
+        MappingListDropOverlay.Visibility = Visibility.Collapsed;
     }
 
     private void ShowDrawerCoverDropPreview(Guid? movingItemId)
@@ -1963,6 +2162,7 @@ public partial class DesktopBoxWindow : Window
         // 立即复位（落放/拖拽结束/全局清理）：任何延迟复位都取消。
         CancelPendingDragLeaveReset();
         ViewModel.HideDragPreview();
+        HideMappingListDropIndicator();
         ViewModel.IsDragOver = false;
     }
 

@@ -170,6 +170,83 @@ public sealed class UnifiedBoxSortTests
         }
     }
 
+    [Fact]
+    public async Task MappingListDrop_ReordersAtHoveredIndexAndPersistsAllGridPositions()
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var (drawerService, repository) = await CreateDrawerServiceAsync(root);
+            var box = await drawerService.CreateBoxAsync("映射盒", BoxType.Mapping);
+            var alpha = await drawerService.ImportPathAsync(
+                box.Id, CreateSourceFile(root, "alpha.txt"), 0, 0);
+            await drawerService.ImportPathAsync(
+                box.Id, CreateSourceFile(root, "beta.txt"), 1, 0);
+            await drawerService.ImportPathAsync(
+                box.Id, CreateSourceFile(root, "gamma.txt"), 0, 1);
+
+            var viewModel = CreateViewModel(box, drawerService, repository);
+            await viewModel.LoadAsync();
+            await viewModel.UseMappingListModeCommand.ExecuteAsync(null);
+
+            var originalSlots = viewModel.Items
+                .Select(item => (item.GridColumn, item.GridRow))
+                .ToHashSet();
+            var moved = await viewModel.DropDrawerItemAsync(alpha.Id, 0, 2);
+
+            Assert.True(moved);
+            Assert.Equal(
+                new[] { "beta.txt", "gamma.txt", "alpha.txt" },
+                viewModel.Items.Select(item => item.DisplayName).ToArray());
+            Assert.True(originalSlots.SetEquals(
+                viewModel.Items.Select(item => (item.GridColumn, item.GridRow))));
+
+            var reloaded = CreateViewModel(box, drawerService, repository);
+            await reloaded.LoadAsync();
+            Assert.Equal(
+                new[] { "beta.txt", "gamma.txt", "alpha.txt" },
+                reloaded.Items.Select(item => item.DisplayName).ToArray());
+        }
+        finally
+        {
+            CleanupTempRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task MappingListWidth_IsClampedAndPersistedPerBox()
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var (drawerService, repository) = await CreateDrawerServiceAsync(root);
+            var firstBox = await drawerService.CreateBoxAsync("映射盒一", BoxType.Mapping);
+            var secondBox = await drawerService.CreateBoxAsync("映射盒二", BoxType.Mapping);
+            var first = CreateViewModel(firstBox, drawerService, repository);
+
+            first.ResizeMappingListWidth(412.5);
+            await first.SaveMappingListWidthAsync();
+
+            var restored = CreateViewModel(firstBox, drawerService, repository);
+            await restored.LoadMappingListWidthAsync();
+            var untouched = CreateViewModel(secondBox, drawerService, repository);
+            await untouched.LoadMappingListWidthAsync();
+
+            Assert.Equal(412.5, restored.MappingListWidth);
+            Assert.Equal(untouched.LayoutSettings.MappingListWidth, untouched.MappingListWidth);
+            restored.ResizeMappingListWidth(double.PositiveInfinity);
+            Assert.Equal(
+                restored.LayoutSettings.MappingListWidth,
+                restored.MappingListWidth);
+            restored.ResizeMappingListWidth(5000);
+            Assert.Equal(DesktopBoxViewModel.MaximumMappingListWidth, restored.MappingListWidth);
+        }
+        finally
+        {
+            CleanupTempRoot(root);
+        }
+    }
+
     private static DesktopBoxViewModel CreateViewModel(
         Box box,
         DrawerService drawerService,

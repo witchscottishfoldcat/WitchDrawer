@@ -272,6 +272,33 @@ public sealed class DesktopBoxWindowTemplateTests
         Assert.Equal("2", (string?)button.Attribute("Grid.Column"));
     }
 
+    [Fact]
+    public void MappingList_UsesPersistedWidthAndExposesRightEdgeResizeThumb()
+    {
+        var document = XDocument.Load(GetDesktopBoxWindowXamlPath());
+        var fileList = Assert.Single(
+            document.Descendants(PresentationNamespace + "ListBox"),
+            element => (string?)element.Attribute(XamlNamespace + "Name") == "FileList");
+        var thumb = Assert.Single(
+            document.Descendants(PresentationNamespace + "Thumb"),
+            element => (string?)element.Attribute(XamlNamespace + "Name") == "MappingListResizeThumb");
+        var insertionIndicator = Assert.Single(
+            document.Descendants(PresentationNamespace + "Border"),
+            element => (string?)element.Attribute(XamlNamespace + "Name") == "MappingListInsertionIndicator");
+
+        Assert.Equal("{Binding MappingListWidth}", (string?)fileList.Attribute("Width"));
+        Assert.Equal("Right", (string?)thumb.Attribute("HorizontalAlignment"));
+        Assert.Equal("SizeWE", (string?)thumb.Attribute("Cursor"));
+        Assert.Equal("OnMappingListResizeStarted", (string?)thumb.Attribute("DragStarted"));
+        Assert.Equal("OnMappingListResizeDelta", (string?)thumb.Attribute("DragDelta"));
+        Assert.Equal("OnMappingListResizeCompleted", (string?)thumb.Attribute("DragCompleted"));
+        Assert.Equal("2", (string?)insertionIndicator.Attribute("Height"));
+        Assert.Equal("{DynamicResource AccentBrush}", (string?)insertionIndicator.Attribute("Background"));
+        Assert.DoesNotContain(
+            thumb.Descendants(PresentationNamespace + "Border"),
+            element => (string?)element.Attribute(XamlNamespace + "Name") == "ResizeLine");
+    }
+
     private static string GetDesktopBoxWindowXamlPath() =>
         Path.GetFullPath(
             Path.Combine(

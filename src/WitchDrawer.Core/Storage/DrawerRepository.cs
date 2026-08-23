@@ -454,6 +454,50 @@ public sealed class DrawerRepository
         }
     }
 
+    public async Task UpdateItemGridPositionsAsync(
+        IReadOnlyDictionary<Guid, (int GridColumn, int GridRow)> positions,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(positions);
+        if (positions.Count == 0)
+        {
+            return;
+        }
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        var command = connection.CreateCommand();
+        command.Transaction = (SqliteTransaction)transaction;
+        command.CommandText =
+            """
+            UPDATE Items
+            SET GridColumn = $gridColumn,
+                GridRow = $gridRow,
+                UpdatedAt = $updatedAt
+            WHERE Id = $id;
+            """;
+        var idParameter = command.Parameters.Add("$id", SqliteType.Text);
+        var columnParameter = command.Parameters.Add("$gridColumn", SqliteType.Integer);
+        var rowParameter = command.Parameters.Add("$gridRow", SqliteType.Integer);
+        var updatedAtParameter = command.Parameters.Add("$updatedAt", SqliteType.Text);
+        updatedAtParameter.Value = ToDb(DateTimeOffset.UtcNow);
+
+        foreach (var (itemId, position) in positions)
+        {
+            idParameter.Value = itemId.ToString();
+            columnParameter.Value = position.GridColumn;
+            rowParameter.Value = position.GridRow;
+            if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+            {
+                throw new InvalidOperationException("Item does not exist.");
+            }
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
     public async Task MoveItemToBoxAsync(
         DrawerItem item,
         Guid targetBoxId,

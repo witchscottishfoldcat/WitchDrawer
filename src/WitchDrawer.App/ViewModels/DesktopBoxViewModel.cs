@@ -30,6 +30,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private const double VisibleHeaderRowHeight = 24;
     private const double HiddenGridContentInset = 6;
     private const string MappingViewModeSettingPrefix = "MappingViewMode:";
+    private const string MappingListWidthSettingPrefix = "MappingListWidth:";
     private const string MappingListViewMode = "List";
     private const string MappingGridViewMode = "Grid";
     private const string DrawerCoverSizeSettingPrefix = "DrawerCoverSize:";
@@ -42,6 +43,8 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private const double DefaultDrawerCoverHeight = 112;
     private const double MaximumDrawerCoverDimension = 720;
     private const double DrawerTitleHeightCompensation = 9;
+    internal const double MinimumMappingListWidth = 180;
+    internal const double MaximumMappingListWidth = 720;
 
     private readonly DrawerService _drawerService;
     private readonly TodoService _todoService;
@@ -66,6 +69,8 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private string _statusText = "拖入文件";
     private bool _isDragOver;
     private bool _isMappingListMode;
+    private double _mappingListWidth;
+    private bool _hasCustomMappingListWidth;
     private string _newTodoTitle = string.Empty;
     private double _iconDpiScaleX = 1;
     private double _iconDpiScaleY = 1;
@@ -98,6 +103,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
         _launcher = launcher;
         _logger = logger;
         _layoutSettings = layoutSettings ?? new DesktopBoxLayoutSettings(box.Type == BoxType.Drawer);
+        _mappingListWidth = _layoutSettings.MappingListWidth;
         _layoutSettings.PropertyChanged += OnLayoutSettingsChanged;
 
         OpenItemCommand = new AsyncRelayCommand<DrawerItemViewModel?>(OpenItemAsync);
@@ -110,10 +116,11 @@ public sealed class DesktopBoxViewModel : ObservableObject
         ArchiveCompletedTodosCommand = new AsyncRelayCommand(ArchiveCompletedTodosAsync, CanArchiveCompletedTodos);
         DeleteTodoCommand = new AsyncRelayCommand<TodoItemViewModel?>(DeleteTodoAsync);
         UpdateGridCanvasSize();
-        _ = LoadMappingViewModeAsync();
     }
 
     public DesktopBoxLayoutSettings LayoutSettings => _layoutSettings;
+
+    public double MappingListWidth => _mappingListWidth;
 
     /// <summary>供窗口层包装 fire-and-forget 任务时记录异常。</summary>
     internal IAppLogger Logger => _logger;
@@ -977,7 +984,14 @@ public sealed class DesktopBoxViewModel : ObservableObject
                 // 排序模式：盒内拖动不换位（显示顺序由排序键决定），落放为空操作。
                 if (IsFreeSort)
                 {
-                    await MoveItemWithinBoxAsync(currentItem, targetColumn, targetRow);
+                    if (IsMappingListMode)
+                    {
+                        await MoveMappingListItemWithinBoxAsync(currentItem, targetRow);
+                    }
+                    else
+                    {
+                        await MoveItemWithinBoxAsync(currentItem, targetColumn, targetRow);
+                    }
                 }
             }
             else
@@ -1078,7 +1092,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
         }
     }
 
-    private async Task LoadMappingViewModeAsync()
+    public async Task LoadMappingViewModeAsync()
     {
         if (!IsMappingBox)
         {
@@ -1119,11 +1133,95 @@ public sealed class DesktopBoxViewModel : ObservableObject
     {
         if (SetProperty(ref _isMappingListMode, value, nameof(IsMappingListMode)))
         {
+            if (value && IsFreeSort)
+            {
+                Items.ReplaceAll(Items
+                    .OrderBy(item => item.GridRow)
+                    .ThenBy(item => item.GridColumn)
+                    .ThenBy(item => item.Model.SortOrder));
+            }
+
             OnPropertyChanged(nameof(IsGridMode));
             OnPropertyChanged(nameof(HeaderRowHeight));
             HideDragPreview();
             UpdateItemIconSizes();
         }
+    }
+
+    public void ResizeMappingListWidth(double width)
+    {
+        if (!IsMappingBox)
+        {
+            return;
+        }
+
+        _hasCustomMappingListWidth = true;
+        SetProperty(
+            ref _mappingListWidth,
+            NormalizeMappingListWidth(width, LayoutSettings.MappingListWidth),
+            nameof(MappingListWidth));
+    }
+
+    public async Task LoadMappingListWidthAsync()
+    {
+        if (!IsMappingBox)
+        {
+            return;
+        }
+
+        try
+        {
+            var saved = await _drawerService.GetSettingAsync(GetMappingListWidthSettingKey(BoxId));
+            if (double.TryParse(saved, NumberStyles.Float, CultureInfo.InvariantCulture, out var width)
+                && double.IsFinite(width))
+            {
+                _hasCustomMappingListWidth = true;
+                SetProperty(
+                    ref _mappingListWidth,
+                    NormalizeMappingListWidth(width, LayoutSettings.MappingListWidth),
+                    nameof(MappingListWidth));
+            }
+            else
+            {
+                _hasCustomMappingListWidth = false;
+                SetProperty(
+                    ref _mappingListWidth,
+                    LayoutSettings.MappingListWidth,
+                    nameof(MappingListWidth));
+            }
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to load mapping list width.");
+        }
+    }
+
+    public async Task SaveMappingListWidthAsync()
+    {
+        if (!IsMappingBox)
+        {
+            return;
+        }
+
+        try
+        {
+            await _drawerService.SetSettingAsync(
+                GetMappingListWidthSettingKey(BoxId),
+                MappingListWidth.ToString("R", CultureInfo.InvariantCulture));
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to save mapping list width.");
+        }
+    }
+
+    internal static string GetMappingListWidthSettingKey(Guid boxId) =>
+        MappingListWidthSettingPrefix + boxId.ToString("N");
+
+    internal static double NormalizeMappingListWidth(double width, double fallback)
+    {
+        var candidate = double.IsFinite(width) ? width : fallback;
+        return Math.Clamp(candidate, MinimumMappingListWidth, MaximumMappingListWidth);
     }
 
     private async Task OpenItemAsync(DrawerItemViewModel? item)
@@ -1191,6 +1289,54 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
         await _drawerService.UpdateItemGridPositionAsync(item.Id, targetColumn, targetRow);
         item.SetGridPosition(targetColumn, targetRow, LayoutSettings);
+        UpdateGridCanvasSize();
+    }
+
+    private async Task MoveMappingListItemWithinBoxAsync(
+        DrawerItemViewModel item,
+        int targetIndex)
+    {
+        var originalOrder = Items.ToList();
+        var sourceIndex = originalOrder.FindIndex(candidate => candidate.Id == item.Id);
+        if (sourceIndex < 0)
+        {
+            return;
+        }
+
+        var reordered = originalOrder.ToList();
+        reordered.RemoveAt(sourceIndex);
+        targetIndex = Math.Clamp(targetIndex, 0, reordered.Count);
+        reordered.Insert(targetIndex, item);
+        if (originalOrder.Select(candidate => candidate.Id)
+            .SequenceEqual(reordered.Select(candidate => candidate.Id)))
+        {
+            return;
+        }
+
+        // 列表顺序仍由网格坐标持久化。把当前有序格位依次分配给新列表顺序，
+        // 既保持图标布局占用形状不变，也确保重启后列表按相同顺序恢复。
+        var orderedSlots = originalOrder
+            .Select(candidate => (candidate.GridColumn, candidate.GridRow))
+            .ToList();
+        var positions = reordered
+            .Select((candidate, index) => new
+            {
+                candidate.Id,
+                GridColumn = orderedSlots[index].GridColumn,
+                GridRow = orderedSlots[index].GridRow
+            })
+            .ToDictionary(
+                candidate => candidate.Id,
+                candidate => (candidate.GridColumn, candidate.GridRow));
+
+        await _drawerService.UpdateItemGridPositionsAsync(positions);
+        foreach (var candidate in reordered)
+        {
+            var position = positions[candidate.Id];
+            candidate.SetGridPosition(position.GridColumn, position.GridRow, LayoutSettings);
+        }
+
+        Items.ReplaceAll(reordered);
         UpdateGridCanvasSize();
     }
 
@@ -1810,6 +1956,15 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     private void OnLayoutSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(DesktopBoxLayoutSettings.MappingListWidth)
+            && !_hasCustomMappingListWidth)
+        {
+            SetProperty(
+                ref _mappingListWidth,
+                LayoutSettings.MappingListWidth,
+                nameof(MappingListWidth));
+        }
+
         if (e.PropertyName is nameof(DesktopBoxLayoutSettings.DrawerCoverCellWidth)
             or nameof(DesktopBoxLayoutSettings.DrawerCoverCellHeight)
             or nameof(DesktopBoxLayoutSettings.DrawerCoverCellSize))
