@@ -1,3 +1,5 @@
+using Microsoft.Win32.SafeHandles;
+using System.Runtime.InteropServices;
 using WitchDrawer.Core.Services;
 
 namespace WitchDrawer.Core.Tests;
@@ -73,6 +75,40 @@ public sealed class SafeFileOpsTests
         Assert.True(File.Exists(Path.Combine(targetDir, "root.txt")));
         Assert.True(File.Exists(Path.Combine(targetDir, "child", "nested.txt")));
         Assert.Equal("nested", File.ReadAllText(Path.Combine(targetDir, "child", "nested.txt")));
+        Assert.Empty(Directory.GetDirectories(workspace.Root, "*.witchdrawer-*.tmp"));
+        Assert.Empty(Directory.GetDirectories(workspace.Root, "*.witchdrawer-*.moving"));
+    }
+
+    [Fact]
+    public async Task CopyThenDelete_DirectoryTemporarilyLockedForRename_RetriesAndCompletes()
+    {
+        using var workspace = new TempWorkspace();
+        var sourceDir = workspace.CreateDirectory("source-dir");
+        File.WriteAllText(Path.Combine(sourceDir, "payload.txt"), "payload");
+        var targetDir = Path.Combine(workspace.Root, "target-dir");
+
+        using var directoryHandle = OpenDirectoryWithoutDeleteSharing(sourceDir);
+        var moveTask = Task.Run(
+            () => SafeFileOps.CopyThenDelete(
+                sourceDir,
+                targetDir,
+                isDirectory: true,
+                CancellationToken.None));
+
+        var stagingAppeared = await WaitForConditionAsync(
+            () => Directory.GetDirectories(workspace.Root, ".target-dir.witchdrawer-*.tmp").Length > 0,
+            TimeSpan.FromSeconds(10));
+        Assert.True(stagingAppeared, "The cross-volume staging directory was not observed.");
+
+        // Explorer can keep this kind of handle briefly while the OLE Drop call unwinds.
+        // Ensure the move has time to encounter the sharing violation before releasing it.
+        await Task.Delay(150);
+        directoryHandle.Dispose();
+
+        await moveTask.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.False(Directory.Exists(sourceDir));
+        Assert.Equal("payload", File.ReadAllText(Path.Combine(targetDir, "payload.txt")));
         Assert.Empty(Directory.GetDirectories(workspace.Root, "*.witchdrawer-*.tmp"));
         Assert.Empty(Directory.GetDirectories(workspace.Root, "*.witchdrawer-*.moving"));
     }
@@ -370,6 +406,39 @@ public sealed class SafeFileOpsTests
 
         return condition();
     }
+
+    private static SafeFileHandle OpenDirectoryWithoutDeleteSharing(string path)
+    {
+        const uint genericRead = 0x80000000;
+        const uint openExisting = 3;
+        const uint backupSemantics = 0x02000000;
+        var handle = CreateFile(
+            path,
+            genericRead,
+            FileShare.Read | FileShare.Write,
+            IntPtr.Zero,
+            openExisting,
+            backupSemantics,
+            IntPtr.Zero);
+        if (handle.IsInvalid)
+        {
+            var error = Marshal.GetLastWin32Error();
+            handle.Dispose();
+            throw new IOException($"Failed to open directory test handle: {path}", error);
+        }
+
+        return handle;
+    }
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern SafeFileHandle CreateFile(
+        string fileName,
+        uint desiredAccess,
+        FileShare shareMode,
+        IntPtr securityAttributes,
+        uint creationDisposition,
+        uint flagsAndAttributes,
+        IntPtr templateFile);
 }
 
 public sealed class SafeFileOpsRollbackTests

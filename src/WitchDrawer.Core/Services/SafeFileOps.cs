@@ -5,6 +5,11 @@ namespace WitchDrawer.Core.Services;
 /// </summary>
 internal static class SafeFileOps
 {
+    private const int ErrorSharingViolation = 32;
+    private const int ErrorLockViolation = 33;
+    private const int DirectoryMoveRetryCount = 20;
+    private static readonly TimeSpan DirectoryMoveRetryDelay = TimeSpan.FromMilliseconds(50);
+
     public static Task MoveAsync(
         string sourcePath,
         string destinationPath,
@@ -151,7 +156,10 @@ internal static class SafeFileOps
             // Rename on the source volume first. New files created at the original path after
             // this point belong to a new directory and must never be consumed by this move.
             heldSourcePath = CreateHeldSourcePath(sourcePath);
-            Directory.Move(sourcePath, heldSourcePath);
+            MoveDirectoryWithTransientLockRetry(
+                sourcePath,
+                heldSourcePath,
+                cancellationToken);
             sourceMovedToHolding = true;
 
             var heldSourceSnapshot = CaptureDirectorySnapshot(heldSourcePath, cancellationToken);
@@ -231,6 +239,37 @@ internal static class SafeFileOps
         return Path.Combine(
             directory,
             $".{Path.GetFileName(sourcePath)}.witchdrawer-{Guid.NewGuid():N}.moving");
+    }
+
+    private static void MoveDirectoryWithTransientLockRetry(
+        string sourcePath,
+        string destinationPath,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                Directory.Move(sourcePath, destinationPath);
+                return;
+            }
+            catch (IOException exception) when (
+                attempt < DirectoryMoveRetryCount
+                && IsTransientLockViolation(exception))
+            {
+                if (cancellationToken.WaitHandle.WaitOne(DirectoryMoveRetryDelay))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
+            }
+        }
+    }
+
+    private static bool IsTransientLockViolation(IOException exception)
+    {
+        var errorCode = exception.HResult & 0xFFFF;
+        return errorCode is ErrorSharingViolation or ErrorLockViolation;
     }
 
     private static void CopyDirectory(string sourceDir, string destinationDir, CancellationToken cancellationToken)
