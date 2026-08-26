@@ -33,10 +33,20 @@ public sealed class ThemeOpacitySettingTests
                     FormatOpacity(AppThemeManager.GetDefaultBoxOpacity(theme)),
                     await workspace.DrawerService.GetSettingAsync(
                         MainViewModel.GetThemeBoxOpacitySettingKey(theme)));
+                Assert.Equal(
+                    FormatOpacity(AppThemeManager.GetBoxBorderOpacity(theme)),
+                    await workspace.DrawerService.GetSettingAsync(
+                        MainViewModel.GetThemeBoxBorderOpacitySettingKey(theme)));
+                Assert.Equal(
+                    FormatOpacity(AppThemeManager.GetIconFrameOpacity(theme)),
+                    await workspace.DrawerService.GetSettingAsync(
+                        MainViewModel.GetThemeIconFrameOpacitySettingKey(theme)));
             }
 
             Assert.Equal(0, workspace.ViewModel.ThemeTransparencyPercent);
             Assert.Equal("0%", workspace.ViewModel.ThemeTransparencyLabel);
+            Assert.Equal(0, workspace.ViewModel.BoxBorderTransparencyPercent);
+            Assert.Equal(0, workspace.ViewModel.IconFrameTransparencyPercent);
             Assert.Equal(
                 "2",
                 await workspace.DrawerService.GetSettingAsync(
@@ -205,6 +215,72 @@ public sealed class ThemeOpacitySettingTests
     }
 
     [Fact]
+    public async Task Load_RestoresIndependentDesktopChromeOpacityForCurrentTheme()
+    {
+        await using var workspace = await ThemeWorkspace.CreateAsync();
+        await workspace.DrawerService.SetSettingAsync(
+            MainViewModel.GetThemeBoxBorderOpacitySettingKey(AppTheme.Moe),
+            "0.35");
+        await workspace.DrawerService.SetSettingAsync(
+            MainViewModel.GetThemeIconFrameOpacitySettingKey(AppTheme.Moe),
+            "0.70");
+        AppThemeManager.ResetBoxOpacitiesForTests();
+
+        try
+        {
+            await workspace.ViewModel.LoadAsync();
+
+            Assert.Equal(0.35, AppThemeManager.GetBoxBorderOpacity(AppTheme.Moe), 3);
+            Assert.Equal(0.70, AppThemeManager.GetIconFrameOpacity(AppTheme.Moe), 3);
+            Assert.Equal(65, workspace.ViewModel.BoxBorderTransparencyPercent);
+            Assert.Equal(30, workspace.ViewModel.IconFrameTransparencyPercent);
+        }
+        finally
+        {
+            AppThemeManager.ResetBoxOpacitiesForTests();
+        }
+    }
+
+    [Fact]
+    public async Task ChangingDesktopChromeSliders_AppliesAndPersistsFullRange()
+    {
+        await using var workspace = await ThemeWorkspace.CreateAsync();
+        AppThemeManager.ResetBoxOpacitiesForTests();
+
+        try
+        {
+            await workspace.ViewModel.LoadAsync();
+
+            workspace.ViewModel.BoxBorderTransparencyPercent = 100;
+            workspace.ViewModel.IconFrameTransparencyPercent = 37;
+
+            var borderSettingKey = MainViewModel.GetThemeBoxBorderOpacitySettingKey(
+                AppThemeManager.CurrentTheme);
+            var iconFrameSettingKey = MainViewModel.GetThemeIconFrameOpacitySettingKey(
+                AppThemeManager.CurrentTheme);
+            string? savedBorderOpacity = null;
+            string? savedIconFrameOpacity = null;
+            for (var attempt = 0;
+                 attempt < 40 && (savedBorderOpacity != "0.00" || savedIconFrameOpacity != "0.63");
+                 attempt++)
+            {
+                await Task.Delay(25);
+                savedBorderOpacity = await workspace.DrawerService.GetSettingAsync(borderSettingKey);
+                savedIconFrameOpacity = await workspace.DrawerService.GetSettingAsync(iconFrameSettingKey);
+            }
+
+            Assert.Equal(0, AppThemeManager.GetBoxBorderOpacity(AppThemeManager.CurrentTheme));
+            Assert.Equal(0.63, AppThemeManager.GetIconFrameOpacity(AppThemeManager.CurrentTheme), 3);
+            Assert.Equal("0.00", savedBorderOpacity);
+            Assert.Equal("0.63", savedIconFrameOpacity);
+        }
+        finally
+        {
+            AppThemeManager.ResetBoxOpacitiesForTests();
+        }
+    }
+
+    [Fact]
     public async Task EditorOpacityFollow_DefaultsOffAndTogglePersistsTheChoice()
     {
         await using var workspace = await ThemeWorkspace.CreateAsync();
@@ -250,6 +326,34 @@ public sealed class ThemeOpacitySettingTests
             workspace.ViewModel.ThemeTransparencyPercent = double.PositiveInfinity;
 
             Assert.Equal(35, workspace.ViewModel.ThemeTransparencyPercent);
+        }
+        finally
+        {
+            AppThemeManager.ResetBoxOpacitiesForTests();
+        }
+    }
+
+    [Fact]
+    public async Task DesktopChromeTransparency_ClampsZeroToOneHundredAndRejectsNonFiniteInput()
+    {
+        await using var workspace = await ThemeWorkspace.CreateAsync();
+        AppThemeManager.ResetBoxOpacitiesForTests();
+
+        try
+        {
+            await workspace.ViewModel.LoadAsync();
+
+            workspace.ViewModel.BoxBorderTransparencyPercent = -10;
+            workspace.ViewModel.IconFrameTransparencyPercent = 200;
+
+            Assert.Equal(0, workspace.ViewModel.BoxBorderTransparencyPercent);
+            Assert.Equal(100, workspace.ViewModel.IconFrameTransparencyPercent);
+
+            workspace.ViewModel.BoxBorderTransparencyPercent = double.NaN;
+            workspace.ViewModel.IconFrameTransparencyPercent = double.PositiveInfinity;
+
+            Assert.Equal(0, workspace.ViewModel.BoxBorderTransparencyPercent);
+            Assert.Equal(100, workspace.ViewModel.IconFrameTransparencyPercent);
         }
         finally
         {

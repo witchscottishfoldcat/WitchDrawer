@@ -31,6 +31,9 @@
         <SolidColorBrush x:Key="GlassSurfaceBrush" Color="#FFFFFF" />
         <SolidColorBrush x:Key="GlassInnerBrush" Color="#F5F5F7" />
         <SolidColorBrush x:Key="GlassStrokeBrush" Color="#E5E5EA" />
+        <SolidColorBrush x:Key="DesktopBoxBorderBrush" Color="#E5E5EA" />
+        <SolidColorBrush x:Key="DesktopIconFrameBrush" Color="#F5F5F7" />
+        <SolidColorBrush x:Key="DesktopIconFrameBorderBrush" Color="#E5E5EA" />
         <SolidColorBrush x:Key="PositiveBrush" Color="#34C759" />
         <SolidColorBrush x:Key="PositiveSoftBrush" Color="#E9F8EE" />
         <SolidColorBrush x:Key="DangerBrush" Color="#FF3B30" />

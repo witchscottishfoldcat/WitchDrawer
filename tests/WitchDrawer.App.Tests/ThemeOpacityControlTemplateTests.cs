@@ -34,6 +34,31 @@ public sealed class ThemeOpacityControlTemplateTests
         Assert.Equal("OnThemeTransparencyInputLostFocus", (string?)input.Attribute("LostFocus"));
     }
 
+    [Theory]
+    [InlineData("BoxBorderTransparencyPercent", "BoxBorderTransparencyInput", "盒子边线透明度")]
+    [InlineData("IconFrameTransparencyPercent", "IconFrameTransparencyInput", "图标背景框透明度")]
+    public void DesktopChromeTransparency_UsesFullRangeSliderAndEditablePercent(
+        string propertyName,
+        string inputName,
+        string automationName)
+    {
+        var document = XDocument.Load(GetMainWindowXamlPath());
+        var slider = Assert.Single(
+            document.Descendants(PresentationNamespace + "Slider"),
+            element => ((string?)element.Attribute("Value"))?.Contains(propertyName) == true);
+        var input = Assert.Single(
+            document.Descendants(PresentationNamespace + "TextBox"),
+            element => (string?)element.Attribute(XamlNamespace + "Name") == inputName);
+
+        Assert.Equal("0", (string?)slider.Attribute("Minimum"));
+        Assert.Equal("100", (string?)slider.Attribute("Maximum"));
+        Assert.Equal("True", (string?)slider.Attribute("IsMoveToPointEnabled"));
+        Assert.Equal(automationName, (string?)slider.Attribute("AutomationProperties.Name"));
+        Assert.Contains(propertyName, (string?)input.Attribute("Text"));
+        Assert.Equal("OnThemeTransparencyInputKeyDown", (string?)input.Attribute("KeyDown"));
+        Assert.Equal("OnThemeTransparencyInputLostFocus", (string?)input.Attribute("LostFocus"));
+    }
+
     [Fact]
     public void EditorOpacityFollow_IsExposedBesideTheTransparencySlider()
     {

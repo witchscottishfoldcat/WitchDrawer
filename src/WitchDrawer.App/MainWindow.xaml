@@ -2557,6 +2557,8 @@
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -2700,9 +2702,10 @@
                                                 SmallChange="1"
                                                 LargeChange="10"
                                                 IsMoveToPointEnabled="True"
-                                                Style="{StaticResource ThemeOpacitySliderStyle}"
-                                                VerticalAlignment="Center"
-                                                Value="{Binding ThemeTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                 Style="{StaticResource ThemeOpacitySliderStyle}"
+                                                 VerticalAlignment="Center"
+                                                 AutomationProperties.Name="桌面盒子透明度"
+                                                 Value="{Binding ThemeTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                         <StackPanel Grid.Column="2"
                                                     Orientation="Horizontal"
                                                     HorizontalAlignment="Right"
@@ -2716,9 +2719,10 @@
                                                      VerticalContentAlignment="Center"
                                                      FontSize="11.5"
                                                      FontWeight="SemiBold"
-                                                     KeyDown="OnThemeTransparencyInputKeyDown"
-                                                     LostFocus="OnThemeTransparencyInputLostFocus"
-                                                     Text="{Binding ThemeTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" />
+                                                      KeyDown="OnThemeTransparencyInputKeyDown"
+                                                      LostFocus="OnThemeTransparencyInputLostFocus"
+                                                      AutomationProperties.Name="桌面盒子透明度百分比"
+                                                      Text="{Binding ThemeTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" />
                                             <TextBlock Text="%"
                                                        Margin="2,0,0,0"
                                                        VerticalAlignment="Center"
@@ -2728,6 +2732,102 @@
                                         </StackPanel>
                                     </Grid>
                                     <Grid Grid.Row="2"
+                                          Grid.ColumnSpan="2"
+                                          Margin="0,9,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="42" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="盒子边线透明度"
+                                                   VerticalAlignment="Center"
+                                                   FontSize="11.5"
+                                                   Foreground="{DynamicResource TextMutedBrush}" />
+                                        <Slider Grid.Column="1"
+                                                Margin="12,0,10,0"
+                                                Minimum="0"
+                                                Maximum="100"
+                                                SmallChange="1"
+                                                LargeChange="10"
+                                                IsMoveToPointEnabled="True"
+                                                Style="{StaticResource ThemeOpacitySliderStyle}"
+                                                VerticalAlignment="Center"
+                                                AutomationProperties.Name="盒子边线透明度"
+                                                Value="{Binding BoxBorderTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        <StackPanel Grid.Column="2"
+                                                    Orientation="Horizontal"
+                                                    HorizontalAlignment="Right"
+                                                    VerticalAlignment="Center">
+                                            <TextBox x:Name="BoxBorderTransparencyInput"
+                                                     Width="30"
+                                                     Height="24"
+                                                     Padding="2,1"
+                                                     MaxLength="3"
+                                                     TextAlignment="Right"
+                                                     VerticalContentAlignment="Center"
+                                                     FontSize="11.5"
+                                                     FontWeight="SemiBold"
+                                                     KeyDown="OnThemeTransparencyInputKeyDown"
+                                                     LostFocus="OnThemeTransparencyInputLostFocus"
+                                                     AutomationProperties.Name="盒子边线透明度百分比"
+                                                     Text="{Binding BoxBorderTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" />
+                                            <TextBlock Text="%"
+                                                       Margin="2,0,0,0"
+                                                       VerticalAlignment="Center"
+                                                       FontSize="11.5"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid Grid.Row="3"
+                                          Grid.ColumnSpan="2"
+                                          Margin="0,9,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="42" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="图标背景框透明度"
+                                                   VerticalAlignment="Center"
+                                                   FontSize="11.5"
+                                                   Foreground="{DynamicResource TextMutedBrush}" />
+                                        <Slider Grid.Column="1"
+                                                Margin="12,0,10,0"
+                                                Minimum="0"
+                                                Maximum="100"
+                                                SmallChange="1"
+                                                LargeChange="10"
+                                                IsMoveToPointEnabled="True"
+                                                Style="{StaticResource ThemeOpacitySliderStyle}"
+                                                VerticalAlignment="Center"
+                                                AutomationProperties.Name="图标背景框透明度"
+                                                Value="{Binding IconFrameTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        <StackPanel Grid.Column="2"
+                                                    Orientation="Horizontal"
+                                                    HorizontalAlignment="Right"
+                                                    VerticalAlignment="Center">
+                                            <TextBox x:Name="IconFrameTransparencyInput"
+                                                     Width="30"
+                                                     Height="24"
+                                                     Padding="2,1"
+                                                     MaxLength="3"
+                                                     TextAlignment="Right"
+                                                     VerticalContentAlignment="Center"
+                                                     FontSize="11.5"
+                                                     FontWeight="SemiBold"
+                                                     KeyDown="OnThemeTransparencyInputKeyDown"
+                                                     LostFocus="OnThemeTransparencyInputLostFocus"
+                                                     AutomationProperties.Name="图标背景框透明度百分比"
+                                                     Text="{Binding IconFrameTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" />
+                                            <TextBlock Text="%"
+                                                       Margin="2,0,0,0"
+                                                       VerticalAlignment="Center"
+                                                       FontSize="11.5"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid Grid.Row="4"
                                           Grid.ColumnSpan="2"
                                           Margin="0,9,0,0">
                                         <Grid.ColumnDefinitions>

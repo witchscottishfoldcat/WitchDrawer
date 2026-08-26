@@ -86,6 +86,7 @@ public partial class DesktopBoxWindow : Window
         SizeChanged += OnWindowSizeChanged;
         AppThemeManager.ThemeChanged += OnThemeChanged;
         AppThemeManager.BoxOpacityChanged += OnBoxOpacityChanged;
+        AppThemeManager.DesktopBoxChromeChanged += OnDesktopBoxChromeChanged;
         Activated += OnWindowActivated;
         Deactivated += OnWindowDeactivated;
         StateChanged += OnWindowStateChanged;
@@ -879,6 +880,7 @@ public partial class DesktopBoxWindow : Window
         DpiChanged -= OnDpiChanged;
         AppThemeManager.ThemeChanged -= OnThemeChanged;
         AppThemeManager.BoxOpacityChanged -= OnBoxOpacityChanged;
+        AppThemeManager.DesktopBoxChromeChanged -= OnDesktopBoxChromeChanged;
         Activated -= OnWindowActivated;
         Deactivated -= OnWindowDeactivated;
         StateChanged -= OnWindowStateChanged;
@@ -1041,7 +1043,17 @@ public partial class DesktopBoxWindow : Window
 
     private void OnBoxOpacityChanged(object? sender, ThemeBoxOpacityChangedEventArgs e)
     {
-        if (e.Theme != AppThemeManager.CurrentTheme || _isBoxOpacityRefreshQueued)
+        QueueBoxAppearanceRefresh(e.Theme);
+    }
+
+    private void OnDesktopBoxChromeChanged(object? sender, ThemeDesktopBoxChromeChangedEventArgs e)
+    {
+        QueueBoxAppearanceRefresh(e.Theme);
+    }
+
+    private void QueueBoxAppearanceRefresh(AppTheme theme)
+    {
+        if (theme != AppThemeManager.CurrentTheme || _isBoxOpacityRefreshQueued)
         {
             return;
         }
