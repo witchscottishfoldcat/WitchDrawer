@@ -91,6 +91,113 @@ public sealed class AppThemeManagerTests
         Assert.Equal((Color)ColorConverter.ConvertFromString("#FF2C2C2E"), surface);
     }
 
+    [Theory]
+    [InlineData(AppTheme.Moe)]
+    [InlineData(AppTheme.Glass)]
+    [InlineData(AppTheme.Crystal)]
+    public void GlassStrokeColorCurve_FollowsBoxOpacity(AppTheme theme)
+    {
+        var transparentStroke = AppThemeManager.GetDesktopBoxColor(
+            theme,
+            "GlassStrokeBrush",
+            AppThemeManager.MinimumBoxOpacity);
+        var opaqueStroke = AppThemeManager.GetDesktopBoxColor(
+            theme,
+            "GlassStrokeBrush",
+            AppThemeManager.MaximumBoxOpacity);
+
+        Assert.True(transparentStroke.A < opaqueStroke.A);
+        Assert.Equal(byte.MaxValue, opaqueStroke.A);
+    }
+
+    [Fact]
+    public void DesktopBoxChromeOpacity_IsIndependentFromBoxSurfaceOpacity()
+    {
+        AppThemeManager.ResetBoxOpacitiesForTests();
+        var changes = new List<AppTheme>();
+        EventHandler<ThemeDesktopBoxChromeChangedEventArgs> handler =
+            (_, change) => changes.Add(change.Theme);
+        AppThemeManager.DesktopBoxChromeChanged += handler;
+
+        try
+        {
+            AppThemeManager.SetBoxBorderOpacity(AppTheme.Crystal, 0.75);
+            AppThemeManager.SetIconFrameOpacity(AppTheme.Crystal, 0.25);
+            AppThemeManager.SetBoxOpacity(AppTheme.Crystal, AppThemeManager.MinimumBoxOpacity);
+
+            var transparentSurfaceBorder = AppThemeManager.GetDesktopBoxBorderColor(AppTheme.Crystal);
+            var transparentSurfaceIconFrame = AppThemeManager.GetDesktopIconFrameColor(AppTheme.Crystal);
+
+            AppThemeManager.SetBoxOpacity(AppTheme.Crystal, AppThemeManager.MaximumBoxOpacity);
+
+            var opaqueSurfaceBorder = AppThemeManager.GetDesktopBoxBorderColor(AppTheme.Crystal);
+            var opaqueSurfaceIconFrame = AppThemeManager.GetDesktopIconFrameColor(AppTheme.Crystal);
+
+            Assert.Equal(191, transparentSurfaceBorder.A);
+            Assert.Equal(191, opaqueSurfaceBorder.A);
+            Assert.Equal(64, transparentSurfaceIconFrame.A);
+            Assert.Equal(64, opaqueSurfaceIconFrame.A);
+            Assert.Equal([AppTheme.Crystal, AppTheme.Crystal], changes);
+        }
+        finally
+        {
+            AppThemeManager.DesktopBoxChromeChanged -= handler;
+            AppThemeManager.ResetBoxOpacitiesForTests();
+        }
+    }
+
+    [Fact]
+    public void DesktopBoxChromeOpacity_ClampsFullRangeAndRejectsNonFiniteValues()
+    {
+        AppThemeManager.ResetBoxOpacitiesForTests();
+        try
+        {
+            AppThemeManager.SetBoxBorderOpacity(AppTheme.Moe, -1);
+            AppThemeManager.SetIconFrameOpacity(AppTheme.Moe, 2);
+
+            Assert.Equal(0, AppThemeManager.GetBoxBorderOpacity(AppTheme.Moe));
+            Assert.Equal(1, AppThemeManager.GetIconFrameOpacity(AppTheme.Moe));
+
+            AppThemeManager.SetBoxBorderOpacity(AppTheme.Moe, double.NaN);
+            AppThemeManager.SetIconFrameOpacity(AppTheme.Moe, double.PositiveInfinity);
+
+            Assert.Equal(0, AppThemeManager.GetBoxBorderOpacity(AppTheme.Moe));
+            Assert.Equal(1, AppThemeManager.GetIconFrameOpacity(AppTheme.Moe));
+        }
+        finally
+        {
+            AppThemeManager.ResetBoxOpacitiesForTests();
+        }
+    }
+
+    [Fact]
+    public void IconFrameFillAndBorder_AlwaysShareTheConfiguredOpacity()
+    {
+        AppThemeManager.ResetBoxOpacitiesForTests();
+        try
+        {
+            AppThemeManager.SetIconFrameOpacity(AppTheme.Crystal, 0);
+
+            var transparentFill = AppThemeManager.GetDesktopIconFrameColor(AppTheme.Crystal);
+            var transparentBorder = AppThemeManager.GetDesktopIconFrameBorderColor(AppTheme.Crystal);
+
+            Assert.Equal(0, transparentFill.A);
+            Assert.Equal(transparentFill.A, transparentBorder.A);
+
+            AppThemeManager.SetIconFrameOpacity(AppTheme.Crystal, 1);
+
+            var opaqueFill = AppThemeManager.GetDesktopIconFrameColor(AppTheme.Crystal);
+            var opaqueBorder = AppThemeManager.GetDesktopIconFrameBorderColor(AppTheme.Crystal);
+
+            Assert.Equal(byte.MaxValue, opaqueFill.A);
+            Assert.Equal(opaqueFill.A, opaqueBorder.A);
+        }
+        finally
+        {
+            AppThemeManager.ResetBoxOpacitiesForTests();
+        }
+    }
+
     [Fact]
     public void EditorSurfaceOpacity_PreservesItsOwnColorAndBecomesFullyOpaqueAtMaximum()
     {

@@ -20,6 +20,8 @@ public sealed class MainViewModel : ObservableObject
     private const double ItemIconSizeDip = 19;
     private const string ThemeSettingKey = "Theme";
     internal const string ThemeBoxOpacitySettingKeyPrefix = "ThemeBoxOpacity.";
+    internal const string ThemeBoxBorderOpacitySettingKeyPrefix = "ThemeBoxBorderOpacity.";
+    internal const string ThemeIconFrameOpacitySettingKeyPrefix = "ThemeIconFrameOpacity.";
     internal const string ThemeBoxOpacityMigrationVersionSettingKey = "ThemeBoxOpacityVersion";
     private const string ThemeBoxOpacityMigrationVersion = "2";
     internal const string EditorFollowsBoxOpacitySettingKey = "EditorFollowsBoxOpacity";
@@ -50,9 +52,14 @@ public sealed class MainViewModel : ObservableObject
     private string _themeLabel = "清透雅致";
     private AppTheme _currentTheme;
     private double _themeTransparencyPercent = (1 - AppThemeManager.DefaultBoxOpacity) * 100;
+    private double _boxBorderTransparencyPercent;
+    private double _iconFrameTransparencyPercent;
     private readonly object _themeOpacitySaveLock = new();
     private readonly Dictionary<AppTheme, CancellationTokenSource> _themeOpacitySaveDelays = [];
     private bool _isSynchronizingThemeTransparency;
+    private readonly object _desktopChromeOpacitySaveLock = new();
+    private readonly Dictionary<string, CancellationTokenSource> _desktopChromeOpacitySaveDelays = [];
+    private bool _isSynchronizingDesktopChromeTransparency;
     private bool _editorFollowsBoxOpacity;
     private bool _launchOnStartup;
     private bool _areDesktopIconsHidden;
@@ -338,6 +345,62 @@ public sealed class MainViewModel : ObservableObject
 
     public string ThemeTransparencyLabel => $"{ThemeTransparencyPercent:0}%";
 
+    public double BoxBorderTransparencyPercent
+    {
+        get => _boxBorderTransparencyPercent;
+        set
+        {
+            if (!double.IsFinite(value))
+            {
+                return;
+            }
+
+            var normalized = Math.Clamp(Math.Round(value), 0, 100);
+            if (SetProperty(ref _boxBorderTransparencyPercent, normalized))
+            {
+                OnPropertyChanged(nameof(BoxBorderTransparencyLabel));
+                var opacity = 1 - (normalized / 100);
+                AppThemeManager.SetBoxBorderOpacity(CurrentTheme, opacity);
+                if (!_isSynchronizingDesktopChromeTransparency)
+                {
+                    QueueDesktopChromeOpacitySave(
+                        GetThemeBoxBorderOpacitySettingKey(CurrentTheme),
+                        opacity);
+                }
+            }
+        }
+    }
+
+    public string BoxBorderTransparencyLabel => $"{BoxBorderTransparencyPercent:0}%";
+
+    public double IconFrameTransparencyPercent
+    {
+        get => _iconFrameTransparencyPercent;
+        set
+        {
+            if (!double.IsFinite(value))
+            {
+                return;
+            }
+
+            var normalized = Math.Clamp(Math.Round(value), 0, 100);
+            if (SetProperty(ref _iconFrameTransparencyPercent, normalized))
+            {
+                OnPropertyChanged(nameof(IconFrameTransparencyLabel));
+                var opacity = 1 - (normalized / 100);
+                AppThemeManager.SetIconFrameOpacity(CurrentTheme, opacity);
+                if (!_isSynchronizingDesktopChromeTransparency)
+                {
+                    QueueDesktopChromeOpacitySave(
+                        GetThemeIconFrameOpacitySettingKey(CurrentTheme),
+                        opacity);
+                }
+            }
+        }
+    }
+
+    public string IconFrameTransparencyLabel => $"{IconFrameTransparencyPercent:0}%";
+
     public bool EditorFollowsBoxOpacity
     {
         get => _editorFollowsBoxOpacity;
@@ -438,6 +501,7 @@ public sealed class MainViewModel : ObservableObject
             // 必须在首次启动标记写入前判断是否为旧安装，才能让新用户使用二段透明度，
             // 同时让升级用户保留旧主题原本的视觉效果。
             await RestoreThemeBoxOpacitiesAsync();
+            await RestoreDesktopBoxChromeOpacitiesAsync();
             var editorOpacityFollowSetting =
                 await _drawerService.GetSettingAsync(EditorFollowsBoxOpacitySettingKey);
             EditorFollowsBoxOpacity = bool.TryParse(
@@ -1094,6 +1158,7 @@ public sealed class MainViewModel : ObservableObject
     {
         CurrentTheme = theme;
         SynchronizeThemeTransparency();
+        SynchronizeDesktopChromeTransparency();
         UpdateThemeLabel();
     }
 
@@ -1286,6 +1351,36 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
+    private async Task RestoreDesktopBoxChromeOpacitiesAsync()
+    {
+        foreach (var theme in Enum.GetValues<AppTheme>())
+        {
+            var borderSettingKey = GetThemeBoxBorderOpacitySettingKey(theme);
+            var savedBorderOpacity = await _drawerService.GetSettingAsync(borderSettingKey);
+            var borderOpacity = ParseUnitOpacity(
+                savedBorderOpacity,
+                AppThemeManager.GetExistingBoxBorderOpacity(theme));
+            AppThemeManager.SetBoxBorderOpacity(theme, borderOpacity);
+            if (!IsValidUnitOpacity(savedBorderOpacity))
+            {
+                await _drawerService.SetSettingAsync(borderSettingKey, FormatOpacity(borderOpacity));
+            }
+
+            var iconFrameSettingKey = GetThemeIconFrameOpacitySettingKey(theme);
+            var savedIconFrameOpacity = await _drawerService.GetSettingAsync(iconFrameSettingKey);
+            var iconFrameOpacity = ParseUnitOpacity(
+                savedIconFrameOpacity,
+                AppThemeManager.GetExistingIconFrameOpacity(theme));
+            AppThemeManager.SetIconFrameOpacity(theme, iconFrameOpacity);
+            if (!IsValidUnitOpacity(savedIconFrameOpacity))
+            {
+                await _drawerService.SetSettingAsync(iconFrameSettingKey, FormatOpacity(iconFrameOpacity));
+            }
+        }
+
+        SynchronizeDesktopChromeTransparency();
+    }
+
     private static bool IsVersionOneGeneratedDefault(double opacity)
     {
         return Math.Abs(opacity - AppThemeManager.DefaultBoxOpacity) < 0.0001
@@ -1303,6 +1398,22 @@ public sealed class MainViewModel : ObservableObject
         finally
         {
             _isSynchronizingThemeTransparency = false;
+        }
+    }
+
+    private void SynchronizeDesktopChromeTransparency()
+    {
+        _isSynchronizingDesktopChromeTransparency = true;
+        try
+        {
+            BoxBorderTransparencyPercent =
+                Math.Round((1 - AppThemeManager.GetBoxBorderOpacity(CurrentTheme)) * 100);
+            IconFrameTransparencyPercent =
+                Math.Round((1 - AppThemeManager.GetIconFrameOpacity(CurrentTheme)) * 100);
+        }
+        finally
+        {
+            _isSynchronizingDesktopChromeTransparency = false;
         }
     }
 
@@ -1359,9 +1470,72 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
+    private void QueueDesktopChromeOpacitySave(string settingKey, double opacity)
+    {
+        CancellationTokenSource delay;
+        lock (_desktopChromeOpacitySaveLock)
+        {
+            if (_desktopChromeOpacitySaveDelays.TryGetValue(settingKey, out var previousDelay))
+            {
+                previousDelay.Cancel();
+            }
+
+            delay = new CancellationTokenSource();
+            _desktopChromeOpacitySaveDelays[settingKey] = delay;
+        }
+
+        _ = PersistDesktopChromeOpacityAfterDelayAsync(settingKey, opacity, delay);
+    }
+
+    private async Task PersistDesktopChromeOpacityAfterDelayAsync(
+        string settingKey,
+        double opacity,
+        CancellationTokenSource delay)
+    {
+        try
+        {
+            await Task.Delay(250, delay.Token);
+            await _drawerService.SetSettingAsync(
+                settingKey,
+                FormatOpacity(opacity),
+                delay.Token);
+        }
+        catch (OperationCanceledException) when (delay.IsCancellationRequested)
+        {
+            // 连续拖动时只保存停止后的最终值。
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, $"Failed to persist desktop box chrome opacity '{settingKey}'.");
+        }
+        finally
+        {
+            lock (_desktopChromeOpacitySaveLock)
+            {
+                if (_desktopChromeOpacitySaveDelays.TryGetValue(settingKey, out var currentDelay)
+                    && ReferenceEquals(currentDelay, delay))
+                {
+                    _desktopChromeOpacitySaveDelays.Remove(settingKey);
+                }
+            }
+
+            delay.Dispose();
+        }
+    }
+
     internal static string GetThemeBoxOpacitySettingKey(AppTheme theme)
     {
         return ThemeBoxOpacitySettingKeyPrefix + theme;
+    }
+
+    internal static string GetThemeBoxBorderOpacitySettingKey(AppTheme theme)
+    {
+        return ThemeBoxBorderOpacitySettingKeyPrefix + theme;
+    }
+
+    internal static string GetThemeIconFrameOpacitySettingKey(AppTheme theme)
+    {
+        return ThemeIconFrameOpacitySettingKeyPrefix + theme;
     }
 
     private static string FormatOpacity(double opacity)
@@ -1381,6 +1555,24 @@ public sealed class MainViewModel : ObservableObject
                 AppThemeManager.MinimumBoxOpacity,
                 AppThemeManager.MaximumBoxOpacity)
             : AppThemeManager.DefaultBoxOpacity;
+    }
+
+    private static bool IsValidUnitOpacity(string? value)
+    {
+        return double.TryParse(
+                value,
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out var opacity)
+            && double.IsFinite(opacity)
+            && opacity is >= 0 and <= 1;
+    }
+
+    private static double ParseUnitOpacity(string? value, double fallback)
+    {
+        return IsValidUnitOpacity(value)
+            ? double.Parse(value!, CultureInfo.InvariantCulture)
+            : Math.Clamp(fallback, 0, 1);
     }
 
     private async Task CheckForUpdateAsync()

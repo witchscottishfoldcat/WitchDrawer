@@ -75,6 +75,36 @@ public sealed class DesktopBoxWindowTemplateTests
             sources);
     }
 
+    [Fact]
+    public void OuterBorderAndIconFrames_UseIndependentOpacityResources()
+    {
+        var document = XDocument.Load(GetDesktopBoxWindowXamlPath());
+        var windowBorder = Assert.Single(
+            document.Descendants(PresentationNamespace + "Border"),
+            element => (string?)element.Attribute(XamlNamespace + "Name") == "WindowBorder");
+        var borderBrushSetter = Assert.Single(
+            windowBorder
+                .Elements(PresentationNamespace + "Border.Style")
+                .Elements(PresentationNamespace + "Style")
+                .Elements(PresentationNamespace + "Setter"),
+            element => (string?)element.Attribute("Property") == "BorderBrush");
+        var iconFrames = document
+            .Descendants(PresentationNamespace + "Border")
+            .Where(element =>
+                (string?)element.Attribute("Background") == "{DynamicResource DesktopIconFrameBrush}")
+            .ToArray();
+
+        Assert.Equal(
+            "{DynamicResource DesktopBoxBorderBrush}",
+            (string?)borderBrushSetter.Attribute("Value"));
+        Assert.Equal(4, iconFrames.Length);
+        Assert.All(
+            iconFrames,
+            iconFrame => Assert.Equal(
+                "{DynamicResource DesktopIconFrameBorderBrush}",
+                (string?)iconFrame.Attribute("BorderBrush")));
+    }
+
     private static Thickness ParseThickness(string? value) =>
         (Thickness)new ThicknessConverter().ConvertFromInvariantString(value ?? "0")!;
 

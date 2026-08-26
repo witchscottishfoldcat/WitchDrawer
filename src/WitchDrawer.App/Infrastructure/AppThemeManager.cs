@@ -10,6 +10,11 @@ public sealed class ThemeBoxOpacityChangedEventArgs(AppTheme theme, double opaci
     public double Opacity { get; } = opacity;
 }
 
+public sealed class ThemeDesktopBoxChromeChangedEventArgs(AppTheme theme) : EventArgs
+{
+    public AppTheme Theme { get; } = theme;
+}
+
 public static class AppThemeManager
 {
     public const double DefaultBoxOpacity = 0.40;
@@ -141,15 +146,28 @@ public static class AppThemeManager
         "PanelAltBrush",
         "BorderBrushSoft",
         "GlassSurfaceBrush",
+        "GlassStrokeBrush",
         "DrawerSecondarySurfaceBrush",
         "HoverBrush",
         "DropZoneBrush",
         "WindowOverlayBrush"
     ];
 
+    private static readonly Dictionary<AppTheme, double> BoxBorderOpacities =
+        Enum.GetValues<AppTheme>().ToDictionary(
+            theme => theme,
+            theme => GetExistingResourceOpacity(theme, "GlassStrokeBrush", GetDefaultBoxOpacity(theme)));
+
+    private static readonly Dictionary<AppTheme, double> IconFrameOpacities =
+        Enum.GetValues<AppTheme>().ToDictionary(
+            theme => theme,
+            theme => GetExistingResourceOpacity(theme, "GlassInnerBrush", GetDefaultBoxOpacity(theme)));
+
     public static event EventHandler<AppTheme>? ThemeChanged;
 
     public static event EventHandler<ThemeBoxOpacityChangedEventArgs>? BoxOpacityChanged;
+
+    public static event EventHandler<ThemeDesktopBoxChromeChangedEventArgs>? DesktopBoxChromeChanged;
 
     public static AppTheme CurrentTheme => _currentTheme;
 
@@ -182,6 +200,26 @@ public static class AppThemeManager
         BoxOpacityChanged?.Invoke(null, new ThemeBoxOpacityChangedEventArgs(theme, normalized));
     }
 
+    public static double GetBoxBorderOpacity(AppTheme theme)
+    {
+        return BoxBorderOpacities[theme];
+    }
+
+    public static void SetBoxBorderOpacity(AppTheme theme, double opacity)
+    {
+        SetDesktopBoxChromeOpacity(BoxBorderOpacities, theme, opacity);
+    }
+
+    public static double GetIconFrameOpacity(AppTheme theme)
+    {
+        return IconFrameOpacities[theme];
+    }
+
+    public static void SetIconFrameOpacity(AppTheme theme, double opacity)
+    {
+        SetDesktopBoxChromeOpacity(IconFrameOpacities, theme, opacity);
+    }
+
     public static void ApplyDesktopBoxResources(ResourceDictionary resources)
     {
         ClearDesktopBoxResources(resources);
@@ -199,6 +237,13 @@ public static class AppThemeManager
             brush.Freeze();
             resources[key] = brush;
         }
+
+        SetResourceColor(resources, "DesktopBoxBorderBrush", GetDesktopBoxBorderColor(_currentTheme));
+        SetResourceColor(resources, "DesktopIconFrameBrush", GetDesktopIconFrameColor(_currentTheme));
+        SetResourceColor(
+            resources,
+            "DesktopIconFrameBorderBrush",
+            GetDesktopIconFrameBorderColor(_currentTheme));
     }
 
     public static void ApplyToWindow(Window window)
@@ -287,6 +332,37 @@ public static class AppThemeManager
             : GetLegacyBoxOpacity(theme);
     }
 
+    internal static double GetExistingBoxBorderOpacity(AppTheme theme)
+    {
+        return GetExistingResourceOpacity(theme, "GlassStrokeBrush", GetBoxOpacity(theme));
+    }
+
+    internal static double GetExistingIconFrameOpacity(AppTheme theme)
+    {
+        return GetExistingResourceOpacity(theme, "GlassInnerBrush", GetBoxOpacity(theme));
+    }
+
+    internal static Color GetDesktopBoxBorderColor(AppTheme theme)
+    {
+        return WithOpacity(
+            GetDesktopBoxColor(theme, "GlassStrokeBrush", GetBoxOpacity(theme)),
+            GetBoxBorderOpacity(theme));
+    }
+
+    internal static Color GetDesktopIconFrameColor(AppTheme theme)
+    {
+        return WithOpacity(
+            GetDesktopBoxColor(theme, "GlassInnerBrush", GetBoxOpacity(theme)),
+            GetIconFrameOpacity(theme));
+    }
+
+    internal static Color GetDesktopIconFrameBorderColor(AppTheme theme)
+    {
+        return WithOpacity(
+            GetDesktopBoxColor(theme, "GlassStrokeBrush", GetBoxOpacity(theme)),
+            GetIconFrameOpacity(theme));
+    }
+
     internal static void ResetBoxOpacitiesForTests(double? opacity = null)
     {
         foreach (var theme in Enum.GetValues<AppTheme>())
@@ -294,6 +370,17 @@ public static class AppThemeManager
             BoxOpacities[theme] = opacity is null
                 ? GetDefaultBoxOpacity(theme)
                 : NormalizeOpacity(opacity.Value);
+        }
+
+        ResetDesktopBoxChromeOpacitiesForTests();
+    }
+
+    internal static void ResetDesktopBoxChromeOpacitiesForTests()
+    {
+        foreach (var theme in Enum.GetValues<AppTheme>())
+        {
+            BoxBorderOpacities[theme] = GetExistingBoxBorderOpacity(theme);
+            IconFrameOpacities[theme] = GetExistingIconFrameOpacity(theme);
         }
     }
 
@@ -313,6 +400,51 @@ public static class AppThemeManager
         {
             resources.Remove(key);
         }
+
+        resources.Remove("DesktopBoxBorderBrush");
+        resources.Remove("DesktopIconFrameBrush");
+        resources.Remove("DesktopIconFrameBorderBrush");
+    }
+
+    private static void SetDesktopBoxChromeOpacity(
+        Dictionary<AppTheme, double> values,
+        AppTheme theme,
+        double opacity)
+    {
+        if (!double.IsFinite(opacity))
+        {
+            return;
+        }
+
+        var normalized = Math.Clamp(opacity, 0, 1);
+        if (Math.Abs(values[theme] - normalized) < 0.0001)
+        {
+            return;
+        }
+
+        values[theme] = normalized;
+        DesktopBoxChromeChanged?.Invoke(null, new ThemeDesktopBoxChromeChangedEventArgs(theme));
+    }
+
+    private static double GetExistingResourceOpacity(AppTheme theme, string key, double boxOpacity)
+    {
+        return GetDesktopBoxColor(theme, key, boxOpacity).A / (double)byte.MaxValue;
+    }
+
+    private static Color WithOpacity(Color color, double opacity)
+    {
+        return Color.FromArgb(
+            ToByte(Math.Clamp(opacity, 0, 1) * byte.MaxValue),
+            color.R,
+            color.G,
+            color.B);
+    }
+
+    private static void SetResourceColor(ResourceDictionary resources, string key, Color color)
+    {
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        resources[key] = brush;
     }
 
     private static Color CreateEquivalentTransparentColor(string key, Color baseColor)
