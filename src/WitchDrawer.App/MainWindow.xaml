@@ -2894,13 +2894,29 @@
                                                         Style="{StaticResource ThemeOpacitySliderStyle}"
                                                         VerticalAlignment="Center"
                                                         Value="{Binding AutoHideHiddenTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                                <TextBlock Grid.Column="2"
-                                                           HorizontalAlignment="Right"
-                                                           VerticalAlignment="Center"
-                                                           FontSize="11.5"
-                                                           FontWeight="SemiBold"
-                                                           Foreground="{DynamicResource TextPrimaryBrush}"
-                                                           Text="{Binding AutoHideHiddenTransparencyLabel}" />
+                                                <StackPanel Grid.Column="2"
+                                                            Orientation="Horizontal"
+                                                            HorizontalAlignment="Right"
+                                                            VerticalAlignment="Center">
+                                                    <TextBox x:Name="AutoHideTransparencyInput"
+                                                             Width="30"
+                                                             Height="24"
+                                                             Padding="2,1"
+                                                             MaxLength="3"
+                                                             TextAlignment="Right"
+                                                             VerticalContentAlignment="Center"
+                                                             FontSize="11.5"
+                                                             FontWeight="SemiBold"
+                                                             KeyDown="OnThemeTransparencyInputKeyDown"
+                                                             LostFocus="OnThemeTransparencyInputLostFocus"
+                                                             Text="{Binding AutoHideHiddenTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" />
+                                                    <TextBlock Text="%"
+                                                               Margin="2,0,0,0"
+                                                               VerticalAlignment="Center"
+                                                               FontSize="11.5"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                </StackPanel>
                                             </Grid>
                                             <WrapPanel Margin="0,10,2,0"
                                                        VerticalAlignment="Center">
@@ -2946,6 +2962,30 @@
                                                     </UniformGrid>
                                                 </Border>
                                             </StackPanel>
+                                            <Grid Margin="0,10,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel VerticalAlignment="Center">
+                                                    <TextBlock Text="图标名称"
+                                                               FontSize="11.5"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                    <TextBlock Text="鼠标悬停图标时显示的名称：完整显示文件路径，精简显示仅文件名（快捷方式自动去掉 .lnk）"
+                                                               Margin="0,2,12,0"
+                                                               FontSize="10.5"
+                                                               TextWrapping="Wrap"
+                                                               Foreground="{DynamicResource TextMutedBrush}" />
+                                                </StackPanel>
+                                                <ToggleButton Grid.Column="1"
+                                                              Margin="12,0,0,0"
+                                                              VerticalAlignment="Center"
+                                                              Style="{StaticResource SettingsToggleButtonStyle}"
+                                                              IsChecked="{Binding IconToolTipCompact, Mode=OneWay}"
+                                                              Command="{Binding ToggleIconToolTipCompactCommand}"
+                                                              AutomationProperties.Name="图标名称精简显示" />
+                                            </Grid>
                                         </StackPanel>
                                     </Border>
                                 </Grid>

@@ -428,7 +428,7 @@
                 </ListBox.ItemsPanel>
                 <ListBox.ItemTemplate>
                     <DataTemplate>
-                        <StackPanel ToolTip="{Binding PathLabel}"
+                        <StackPanel ToolTip="{Binding HoverDisplayText}"
                                     VerticalAlignment="Center">
                             <!-- 图标卡片背景 -->
                             <Border x:Name="IconBorder"
@@ -554,7 +554,7 @@
                 </ListBox.ItemContainerStyle>
                 <ListBox.ItemTemplate>
                     <DataTemplate>
-                        <Grid ToolTip="{Binding PathLabel}">
+                        <Grid ToolTip="{Binding HoverDisplayText}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="{Binding DataContext.LayoutSettings.MappingListIconColumnWidth, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" />
                                 <ColumnDefinition Width="*" />
@@ -931,7 +931,7 @@
                                     <DataTemplate>
                                         <Button Style="{StaticResource DrawerTileButtonStyle}"
                                                 Margin="0"
-                                                ToolTip="{Binding PathLabel}"
+                                                ToolTip="{Binding HoverDisplayText}"
                                                 Click="OnDrawerSecondaryItemClick"
                                                 PreviewMouseLeftButtonDown="OnDrawerSecondaryIconPreviewMouseLeftButtonDown"
                                                 PreviewMouseRightButtonUp="OnDrawerSecondaryIconMouseRightButtonUp">
@@ -1015,7 +1015,7 @@
                                     <Button Style="{StaticResource DrawerTileButtonStyle}"
                                             PreviewMouseLeftButtonDown="OnDrawerIconPreviewMouseLeftButtonDown"
                                             PreviewMouseRightButtonUp="OnDrawerCoverIconMouseRightButtonUp"
-                                             ToolTip="{Binding Item.PathLabel}"
+                                             ToolTip="{Binding Item.HoverDisplayText}"
                                              Visibility="{Binding HasItem, Converter={StaticResource BooleanToVisibilityConverter}}">
                                         <StackPanel HorizontalAlignment="Center"
                                                     VerticalAlignment="Center">

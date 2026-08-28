@@ -850,6 +850,22 @@ public sealed class DesktopBoxViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowFileEmptyState));
     }
 
+    /// <summary>
+    /// 当全局“图标名称（悬停提示）”模式切换时，刷新各文件条目以重绘其悬停提示文本。
+    /// </summary>
+    public void RefreshItemHoverDisplayTexts()
+    {
+        foreach (var item in Items)
+        {
+            item.RaiseHoverDisplayTextChanged();
+        }
+
+        foreach (var item in DrawerSecondaryItems)
+        {
+            item.RaiseHoverDisplayTextChanged();
+        }
+    }
+
     private bool CanAddTodo()
     {
         return IsTodoBox && !IsBusy && !string.IsNullOrWhiteSpace(NewTodoTitle);

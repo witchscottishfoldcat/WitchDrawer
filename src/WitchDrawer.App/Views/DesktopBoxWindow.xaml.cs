@@ -110,6 +110,14 @@ public partial class DesktopBoxWindow : Window
     internal event EventHandler? AutoHideHoverLeft;
 
     /// <summary>
+    /// 全局“图标名称（悬停提示）”模式切换后，刷新盒内所有条目的悬停提示文本。
+    /// </summary>
+    internal void ApplyHoverDisplayMode()
+    {
+        ViewModel.RefreshItemHoverDisplayTexts();
+    }
+
+    /// <summary>
     /// 应用自动隐藏的当前配置。未开启时内容、盒子外壳与标题始终完全可见，悬停事件不产生副作用。
     /// </summary>
     internal void ApplyAutoHideState(AutoHideSettings settings)

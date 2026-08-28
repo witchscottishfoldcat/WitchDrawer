@@ -24,6 +24,7 @@ public sealed class MainViewModel : ObservableObject
     private const string ThemeBoxOpacityMigrationVersion = "2";
     internal const string EditorFollowsBoxOpacitySettingKey = "EditorFollowsBoxOpacity";
     internal const string DesktopDoubleClickSettingKey = "DesktopDoubleClickToggle";
+    internal const string IconToolTipCompactSettingKey = "IconToolTipCompact";
     internal const string AboutPageShownSettingKey = "AboutPageShown";
     private const string StartupRegistryKeyName = "WitchDrawer";
 
@@ -54,6 +55,7 @@ public sealed class MainViewModel : ObservableObject
     private readonly Dictionary<AppTheme, CancellationTokenSource> _themeOpacitySaveDelays = [];
     private bool _isSynchronizingThemeTransparency;
     private bool _editorFollowsBoxOpacity;
+    private bool _iconToolTipCompact;
     private readonly AutoHideSettingsStore _autoHideSettingsStore;
     private bool _autoHideEnabled;
     private int _autoHideHiddenTransparencyPercent = AutoHideSettings.DefaultHiddenTransparencyPercent;
@@ -132,6 +134,7 @@ public sealed class MainViewModel : ObservableObject
         ToggleDesktopIconsCommand = new AsyncRelayCommand(ToggleDesktopIconsAsync);
         ToggleDesktopDoubleClickCommand = new AsyncRelayCommand(ToggleDesktopDoubleClickAsync);
         ToggleEditorOpacityFollowCommand = new AsyncRelayCommand(ToggleEditorOpacityFollowAsync);
+        ToggleIconToolTipCompactCommand = new AsyncRelayCommand(ToggleIconToolTipCompactAsync);
         ToggleAutoHideEnabledCommand = new AsyncRelayCommand(ToggleAutoHideEnabledAsync);
         ApplyAutoHideScopeHoveredOnlyCommand =
             new AsyncRelayCommand(() => ApplyAutoHideRevealScopeAsync(AutoHideRevealScope.HoveredBoxOnly));
@@ -233,6 +236,8 @@ public sealed class MainViewModel : ObservableObject
     public IAsyncRelayCommand ToggleDesktopDoubleClickCommand { get; }
 
     public IAsyncRelayCommand ToggleEditorOpacityFollowCommand { get; }
+
+    public IAsyncRelayCommand ToggleIconToolTipCompactCommand { get; }
 
     public IAsyncRelayCommand ToggleAutoHideEnabledCommand { get; }
 
@@ -365,6 +370,16 @@ public sealed class MainViewModel : ObservableObject
         private set => SetProperty(ref _editorFollowsBoxOpacity, value);
     }
 
+    /// <summary>
+    /// 图标名称（悬停提示）显示模式。<see langword="false"/> = 完整显示（文件路径），
+    /// <see langword="true"/> = 精简显示（文件名，快捷方式自动去掉 .lnk）。
+    /// </summary>
+    public bool IconToolTipCompact
+    {
+        get => _iconToolTipCompact;
+        private set => SetProperty(ref _iconToolTipCompact, value);
+    }
+
     public bool AutoHideEnabled
     {
         get => _autoHideEnabled;
@@ -382,12 +397,9 @@ public sealed class MainViewModel : ObservableObject
                 return;
             }
 
-            OnPropertyChanged(nameof(AutoHideHiddenTransparencyLabel));
             QueueAutoHideSave();
         }
     }
-
-    public string AutoHideHiddenTransparencyLabel => $"{AutoHideHiddenTransparencyPercent:0}%";
 
     public AutoHideRevealScope AutoHideRevealScope
     {
@@ -553,6 +565,14 @@ public sealed class MainViewModel : ObservableObject
                 editorOpacityFollowSetting,
                 out var editorFollowsBoxOpacity)
                 && editorFollowsBoxOpacity;
+
+            var iconToolTipCompactSetting =
+                await _drawerService.GetSettingAsync(IconToolTipCompactSettingKey);
+            IconToolTipCompact = bool.TryParse(
+                iconToolTipCompactSetting,
+                out var iconToolTipCompact)
+                && iconToolTipCompact;
+            PublishIconToolTipMode();
 
             var autoHideSettings = await _autoHideSettingsStore.LoadAsync();
             AutoHideEnabled = autoHideSettings.IsEnabled;
@@ -1402,6 +1422,34 @@ public sealed class MainViewModel : ObservableObject
             OnPropertyChanged(nameof(EditorFollowsBoxOpacity));
             StatusText = exception.Message;
         }
+    }
+
+    private async Task ToggleIconToolTipCompactAsync()
+    {
+        try
+        {
+            var compact = !IconToolTipCompact;
+            await _drawerService.SetSettingAsync(
+                IconToolTipCompactSettingKey,
+                compact.ToString());
+            IconToolTipCompact = compact;
+            PublishIconToolTipMode();
+            StatusText = compact
+                ? "图标名称已设为精简显示"
+                : "图标名称已设为完整显示";
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to save icon tooltip compact setting.");
+            OnPropertyChanged(nameof(IconToolTipCompact));
+            StatusText = exception.Message;
+        }
+    }
+
+    private void PublishIconToolTipMode()
+    {
+        WeakReferenceMessenger.Default.Send(
+            new IconToolTipModeChangedMessage(IconToolTipCompact));
     }
 
     private async Task ToggleAutoHideEnabledAsync()

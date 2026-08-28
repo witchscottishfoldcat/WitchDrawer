@@ -113,6 +113,9 @@ public sealed class DesktopBoxManager
         WeakReferenceMessenger.Default.Register<DesktopBoxManager, AutoHideSettingsChangedMessage>(
             this,
             static (recipient, message) => recipient.ApplyAutoHideSettings(message));
+        WeakReferenceMessenger.Default.Register<DesktopBoxManager, IconToolTipModeChangedMessage>(
+            this,
+            static (recipient, message) => recipient.ApplyIconToolTipMode(message));
     }
 
     public event EventHandler<BoxItemsChangedEventArgs>? ItemsChanged;
@@ -1000,6 +1003,18 @@ public sealed class DesktopBoxManager
         // 清空会让正在交互的盒瞬间收缩隐藏。已移除窗口的残留 boxId 会被
         // ReevaluateAutoHide 忽略（仅遍历当前 _windows）。
         ReevaluateAutoHide();
+    }
+
+    /// <summary>
+    /// 全局“图标名称（悬停提示）”模式切换后，更新实时状态并刷新所有已显示盒子的提示文本。
+    /// </summary>
+    private void ApplyIconToolTipMode(IconToolTipModeChangedMessage message)
+    {
+        DesktopHoverDisplayMode.IsCompact = message.IsCompact;
+        foreach (var window in _windows.Values)
+        {
+            window.ApplyHoverDisplayMode();
+        }
     }
 
     private void OnWindowAutoHideHoverEntered(object? sender, EventArgs e)
