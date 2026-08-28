@@ -108,6 +108,7 @@ public partial class App : Application
             var boxVisualStyleStore = new BoxVisualStyleStore(drawerService, logger);
             var boxPositionLockStateStore =
                 new BoxPositionLockStateStore(drawerService, logger);
+            var autoHideSettingsStore = new AutoHideSettingsStore(drawerService);
             var storageLocationStore = StorageLocationStore.ForCurrentUser();
             var dataStorageMigrationService =
                 new DataStorageMigrationService(paths, repository, storageLocationStore);
@@ -136,7 +137,8 @@ public partial class App : Application
                 boxVisualStyleStore,
                 boxPositionLockStateStore,
                 paths,
-                dataStorageMigrationService);
+                dataStorageMigrationService,
+                autoHideSettingsStore);
             _desktopBoxManager = new DesktopBoxManager(
                 drawerService,
                 todoService,

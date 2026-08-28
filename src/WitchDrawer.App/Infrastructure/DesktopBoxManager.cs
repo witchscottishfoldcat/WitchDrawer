@@ -45,6 +45,8 @@ public sealed class DesktopBoxManager
     private readonly Task _desktopMouseButtonProcessor;
     private readonly Func<bool> _isDesktopDoubleClickEnabled;
     private readonly HashSet<Guid> _overlapResolutionBoxIds = [];
+    private AutoHideSettings _autoHideSettings = AutoHideSettings.Defaults;
+    private readonly HashSet<Guid> _autoHideHoveredBoxIds = [];
     private bool _closing;
     private bool _desktopIsForeground;
     private CancellationTokenSource? _foregroundChangeCts;
@@ -108,6 +110,9 @@ public sealed class DesktopBoxManager
         WeakReferenceMessenger.Default.Register<DesktopBoxManager, BoxSizeModeChangedMessage>(
             this,
             static (recipient, message) => recipient.ApplyBoxSizeMode(message));
+        WeakReferenceMessenger.Default.Register<DesktopBoxManager, AutoHideSettingsChangedMessage>(
+            this,
+            static (recipient, message) => recipient.ApplyAutoHideSettings(message));
     }
 
     public event EventHandler<BoxItemsChangedEventArgs>? ItemsChanged;
@@ -152,6 +157,8 @@ public sealed class DesktopBoxManager
                 var win = _windows[removedId];
                 win.LocationChanged -= OnWindowLocationChanged;
                 win.PreviewMouseLeftButtonUp -= OnWindowMouseUp;
+                win.AutoHideHoverEntered -= OnWindowAutoHideHoverEntered;
+                win.AutoHideHoverLeft -= OnWindowAutoHideHoverLeft;
                 win.ForceClose();
                 _windows.Remove(removedId);
             }
@@ -205,6 +212,9 @@ public sealed class DesktopBoxManager
 
                     window.LocationChanged += OnWindowLocationChanged;
                     window.PreviewMouseLeftButtonUp += OnWindowMouseUp;
+                    window.AutoHideHoverEntered += OnWindowAutoHideHoverEntered;
+                    window.AutoHideHoverLeft += OnWindowAutoHideHoverLeft;
+                    window.ApplyAutoHideState(_autoHideSettings);
                     window.SetPositionChangedCallback(async (id) =>
                     {
                         _isAdjustingPosition = true;
@@ -650,6 +660,8 @@ public sealed class DesktopBoxManager
         {
             window.LocationChanged -= OnWindowLocationChanged;
             window.PreviewMouseLeftButtonUp -= OnWindowMouseUp;
+            window.AutoHideHoverEntered -= OnWindowAutoHideHoverEntered;
+            window.AutoHideHoverLeft -= OnWindowAutoHideHoverLeft;
             window.ForceClose();
         }
 
@@ -968,6 +980,91 @@ public sealed class DesktopBoxManager
             // 排序模式变化：重排盒内显示（自由模式则从 DB 恢复记忆布局）。
             _ = window.ViewModel.LoadAsync();
         }
+    }
+
+    private void ApplyAutoHideSettings(AutoHideSettingsChangedMessage message)
+    {
+        _autoHideSettings = new AutoHideSettings(
+            message.IsEnabled,
+            message.HiddenPercent,
+            message.RevealScope,
+            message.FadeWholeBox,
+            message.FadeTitle,
+            message.FadeBorder);
+        foreach (var window in _windows.Values)
+        {
+            window.ApplyAutoHideState(_autoHideSettings);
+        }
+
+        // 悬停集合保留：scope/opacity 变更后 Reveal 由悬停态 + scope 即时重算，
+        // 清空会让正在交互的盒瞬间收缩隐藏。已移除窗口的残留 boxId 会被
+        // ReevaluateAutoHide 忽略（仅遍历当前 _windows）。
+        ReevaluateAutoHide();
+    }
+
+    private void OnWindowAutoHideHoverEntered(object? sender, EventArgs e)
+    {
+        if (sender is DesktopBoxWindow window
+            && _autoHideHoveredBoxIds.Add(window.ViewModel.BoxId))
+        {
+            ReevaluateAutoHide();
+        }
+    }
+
+    private void OnWindowAutoHideHoverLeft(object? sender, EventArgs e)
+    {
+        if (sender is DesktopBoxWindow window
+            && _autoHideHoveredBoxIds.Remove(window.ViewModel.BoxId))
+        {
+            ReevaluateAutoHide();
+        }
+    }
+
+    private void ReevaluateAutoHide()
+    {
+        var revealStates = ComputeAutoHideReveal(
+            _windows.Keys,
+            _autoHideSettings,
+            _autoHideHoveredBoxIds);
+        foreach (var (boxId, window) in _windows)
+        {
+            window.SetAutoHideReveal(revealStates[boxId]);
+        }
+    }
+
+    /// <summary>
+    /// 纯函数：根据悬停集合与悬停取消隐藏范围，计算每个收纳盒是否取消隐藏。
+    /// 未开启自动隐藏时所有盒内容完全可见。
+    /// </summary>
+    internal static IReadOnlyDictionary<Guid, bool> ComputeAutoHideReveal(
+        IEnumerable<Guid> boxIds,
+        AutoHideSettings settings,
+        IEnumerable<Guid> hoveredBoxIds)
+    {
+        var result = new Dictionary<Guid, bool>();
+        foreach (var boxId in boxIds)
+        {
+            result[boxId] = true;
+        }
+
+        if (!settings.IsEnabled || result.Count == 0)
+        {
+            return result;
+        }
+
+        var hovered = hoveredBoxIds as IReadOnlyCollection<Guid>
+            ?? new HashSet<Guid>(hoveredBoxIds);
+        var revealAll = settings.RevealScope == AutoHideRevealScope.AllBoxes
+            && hovered.Count > 0;
+        foreach (var boxId in result.Keys.ToArray())
+        {
+            var revealed = revealAll
+                || (settings.RevealScope == AutoHideRevealScope.HoveredBoxOnly
+                    && hovered.Contains(boxId));
+            result[boxId] = revealed;
+        }
+
+        return result;
     }
 
     /// <summary>

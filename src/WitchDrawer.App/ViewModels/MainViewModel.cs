@@ -54,6 +54,14 @@ public sealed class MainViewModel : ObservableObject
     private readonly Dictionary<AppTheme, CancellationTokenSource> _themeOpacitySaveDelays = [];
     private bool _isSynchronizingThemeTransparency;
     private bool _editorFollowsBoxOpacity;
+    private readonly AutoHideSettingsStore _autoHideSettingsStore;
+    private bool _autoHideEnabled;
+    private int _autoHideHiddenTransparencyPercent = AutoHideSettings.DefaultHiddenTransparencyPercent;
+    private AutoHideRevealScope _autoHideRevealScope = AutoHideRevealScope.HoveredBoxOnly;
+    private bool _autoHideFadeWholeBox = true;
+    private bool _autoHideFadeTitle = true;
+    private bool _autoHideFadeBorder = true;
+    private CancellationTokenSource? _autoHideSaveCts;
     private bool _launchOnStartup;
     private bool _areDesktopIconsHidden;
     private bool _isDesktopDoubleClickEnabled;
@@ -73,7 +81,8 @@ public sealed class MainViewModel : ObservableObject
         BoxVisualStyleStore boxVisualStyleStore,
         BoxPositionLockStateStore boxPositionLockStateStore,
         AppPaths appPaths,
-        DataStorageMigrationService dataStorageMigrationService)
+        DataStorageMigrationService dataStorageMigrationService,
+        AutoHideSettingsStore autoHideSettingsStore)
     {
         _drawerService = drawerService;
         _todoService = todoService;
@@ -85,6 +94,7 @@ public sealed class MainViewModel : ObservableObject
         _boxPositionLockStateStore = boxPositionLockStateStore;
         _appPaths = appPaths;
         _dataStorageMigrationService = dataStorageMigrationService;
+        _autoHideSettingsStore = autoHideSettingsStore;
         TodoBoxDetail = new TodoBoxDetailViewModel(todoService, logger);
         TodoBoxDetail.ItemsChanged += OnTodoBoxDetailItemsChanged;
         BoxSizeSettings = new BoxSizeSettingsViewModel(drawerService, logger);
@@ -122,6 +132,11 @@ public sealed class MainViewModel : ObservableObject
         ToggleDesktopIconsCommand = new AsyncRelayCommand(ToggleDesktopIconsAsync);
         ToggleDesktopDoubleClickCommand = new AsyncRelayCommand(ToggleDesktopDoubleClickAsync);
         ToggleEditorOpacityFollowCommand = new AsyncRelayCommand(ToggleEditorOpacityFollowAsync);
+        ToggleAutoHideEnabledCommand = new AsyncRelayCommand(ToggleAutoHideEnabledAsync);
+        ApplyAutoHideScopeHoveredOnlyCommand =
+            new AsyncRelayCommand(() => ApplyAutoHideRevealScopeAsync(AutoHideRevealScope.HoveredBoxOnly));
+        ApplyAutoHideScopeAllCommand =
+            new AsyncRelayCommand(() => ApplyAutoHideRevealScopeAsync(AutoHideRevealScope.AllBoxes));
         CheckForUpdateCommand = new AsyncRelayCommand(CheckForUpdateAsync);
         ShowDashboardCommand = new RelayCommand(() =>
         {
@@ -218,6 +233,12 @@ public sealed class MainViewModel : ObservableObject
     public IAsyncRelayCommand ToggleDesktopDoubleClickCommand { get; }
 
     public IAsyncRelayCommand ToggleEditorOpacityFollowCommand { get; }
+
+    public IAsyncRelayCommand ToggleAutoHideEnabledCommand { get; }
+
+    public IAsyncRelayCommand ApplyAutoHideScopeHoveredOnlyCommand { get; }
+
+    public IAsyncRelayCommand ApplyAutoHideScopeAllCommand { get; }
 
     public IAsyncRelayCommand CheckForUpdateCommand { get; }
 
@@ -344,6 +365,94 @@ public sealed class MainViewModel : ObservableObject
         private set => SetProperty(ref _editorFollowsBoxOpacity, value);
     }
 
+    public bool AutoHideEnabled
+    {
+        get => _autoHideEnabled;
+        private set => SetProperty(ref _autoHideEnabled, value);
+    }
+
+    public int AutoHideHiddenTransparencyPercent
+    {
+        get => _autoHideHiddenTransparencyPercent;
+        set
+        {
+            var clamped = Math.Clamp(value, 0, 100);
+            if (!SetProperty(ref _autoHideHiddenTransparencyPercent, clamped))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(AutoHideHiddenTransparencyLabel));
+            QueueAutoHideSave();
+        }
+    }
+
+    public string AutoHideHiddenTransparencyLabel => $"{AutoHideHiddenTransparencyPercent:0}%";
+
+    public AutoHideRevealScope AutoHideRevealScope
+    {
+        get => _autoHideRevealScope;
+        private set
+        {
+            if (!SetProperty(ref _autoHideRevealScope, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(IsAutoHideScopeHoveredOnly));
+            OnPropertyChanged(nameof(IsAutoHideScopeAll));
+        }
+    }
+
+    public bool IsAutoHideScopeHoveredOnly => AutoHideRevealScope == AutoHideRevealScope.HoveredBoxOnly;
+
+    public bool IsAutoHideScopeAll => AutoHideRevealScope == AutoHideRevealScope.AllBoxes;
+
+    /// <summary>
+    /// 是否在自动隐藏时连同收纳盒外壳（背景/边框/阴影）一起透明。与内容透明相互独立。
+    /// </summary>
+    public bool AutoHideFadeWholeBox
+    {
+        get => _autoHideFadeWholeBox;
+        set
+        {
+            if (SetProperty(ref _autoHideFadeWholeBox, value))
+            {
+                QueueAutoHideSave();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 是否在自动隐藏时连同收纳盒标题一起透明。与内容透明相互独立。
+    /// </summary>
+    public bool AutoHideFadeTitle
+    {
+        get => _autoHideFadeTitle;
+        set
+        {
+            if (SetProperty(ref _autoHideFadeTitle, value))
+            {
+                QueueAutoHideSave();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 是否在自动隐藏时连同收纳盒边框（描边）一起透明。与内容透明相互独立。
+    /// </summary>
+    public bool AutoHideFadeBorder
+    {
+        get => _autoHideFadeBorder;
+        set
+        {
+            if (SetProperty(ref _autoHideFadeBorder, value))
+            {
+                QueueAutoHideSave();
+            }
+        }
+    }
+
     public bool LaunchOnStartup
     {
         get => _launchOnStartup;
@@ -444,6 +553,15 @@ public sealed class MainViewModel : ObservableObject
                 editorOpacityFollowSetting,
                 out var editorFollowsBoxOpacity)
                 && editorFollowsBoxOpacity;
+
+            var autoHideSettings = await _autoHideSettingsStore.LoadAsync();
+            AutoHideEnabled = autoHideSettings.IsEnabled;
+            AutoHideHiddenTransparencyPercent = autoHideSettings.HiddenTransparencyPercent;
+            AutoHideRevealScope = autoHideSettings.RevealScope;
+            AutoHideFadeWholeBox = autoHideSettings.FadeWholeBox;
+            AutoHideFadeTitle = autoHideSettings.FadeTitle;
+            AutoHideFadeBorder = autoHideSettings.FadeBorder;
+            PublishAutoHideSettings();
 
             var aboutPageShown = await _drawerService.GetSettingAsync(AboutPageShownSettingKey);
             if (!bool.TryParse(aboutPageShown, out var hasShownAboutPage) || !hasShownAboutPage)
@@ -1283,6 +1401,102 @@ public sealed class MainViewModel : ObservableObject
             _logger.Error(exception, "Failed to save editor opacity follow setting.");
             OnPropertyChanged(nameof(EditorFollowsBoxOpacity));
             StatusText = exception.Message;
+        }
+    }
+
+    private async Task ToggleAutoHideEnabledAsync()
+    {
+        try
+        {
+            var enabled = !AutoHideEnabled;
+            AutoHideEnabled = enabled;
+            PublishAutoHideSettings();
+            await SaveAutoHideSettingsAsync();
+            StatusText = enabled ? "已开启自动隐藏" : "已关闭自动隐藏";
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to save auto hide enable setting.");
+            OnPropertyChanged(nameof(AutoHideEnabled));
+            StatusText = exception.Message;
+        }
+    }
+
+    private async Task ApplyAutoHideRevealScopeAsync(AutoHideRevealScope scope)
+    {
+        try
+        {
+            AutoHideRevealScope = scope;
+            PublishAutoHideSettings();
+            await SaveAutoHideSettingsAsync();
+            StatusText = scope == AutoHideRevealScope.AllBoxes
+                ? "悬停任一收纳盒将全部显示"
+                : "悬停某个收纳盒仅其内容显示";
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to save auto hide reveal scope setting.");
+            OnPropertyChanged(nameof(AutoHideRevealScope));
+            StatusText = exception.Message;
+        }
+    }
+
+    private Task SaveAutoHideSettingsAsync()
+    {
+        return _autoHideSettingsStore.SaveAsync(new AutoHideSettings(
+            AutoHideEnabled,
+            AutoHideHiddenTransparencyPercent,
+            AutoHideRevealScope,
+            AutoHideFadeWholeBox,
+            AutoHideFadeTitle,
+            AutoHideFadeBorder));
+    }
+
+    private void PublishAutoHideSettings()
+    {
+        WeakReferenceMessenger.Default.Send(new AutoHideSettingsChangedMessage(
+            AutoHideEnabled,
+            AutoHideHiddenTransparencyPercent,
+            AutoHideRevealScope,
+            AutoHideFadeWholeBox,
+            AutoHideFadeTitle,
+            AutoHideFadeBorder));
+    }
+
+    private void QueueAutoHideSave()
+    {
+        var next = new CancellationTokenSource();
+        var previous = Interlocked.Exchange(ref _autoHideSaveCts, next);
+        previous?.Cancel();
+        previous?.Dispose();
+
+        _ = PersistAutoHideAfterDelayAsync(next.Token);
+    }
+
+    private async Task PersistAutoHideAfterDelayAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(300, cancellationToken);
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            await SaveAutoHideSettingsAsync();
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            PublishAutoHideSettings();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to save auto hide settings.");
         }
     }
 

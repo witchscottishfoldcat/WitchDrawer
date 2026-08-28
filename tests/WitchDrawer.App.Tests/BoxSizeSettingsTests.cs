@@ -603,7 +603,8 @@ public sealed class FixedModeImportEnforcementTests
                 new DataStorageMigrationService(
                     paths,
                     repository,
-                    new StorageLocationStore(Path.Combine(root, "storage-location.json"))));
+                    new StorageLocationStore(Path.Combine(root, "storage-location.json"))),
+                new AutoHideSettingsStore(drawerService));
 
             await viewModel.LoadCommand.ExecuteAsync(null);
             await viewModel.CreateNormalBoxCommand.ExecuteAsync(null);

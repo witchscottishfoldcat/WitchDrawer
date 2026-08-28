@@ -306,7 +306,8 @@ public sealed class ThemeOpacitySettingTests
                 new DataStorageMigrationService(
                     paths,
                     repository,
-                    new StorageLocationStore(Path.Combine(root, "storage-location.json"))));
+                    new StorageLocationStore(Path.Combine(root, "storage-location.json"))),
+                new AutoHideSettingsStore(drawerService));
 
             return new ThemeWorkspace(root, drawerService, viewModel);
         }

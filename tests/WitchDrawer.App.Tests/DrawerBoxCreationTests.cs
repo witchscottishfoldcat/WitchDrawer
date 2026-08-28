@@ -39,7 +39,8 @@ public sealed class DrawerBoxCreationTests
                 new DataStorageMigrationService(
                     paths,
                     repository,
-                    new StorageLocationStore(Path.Combine(root, "storage-location.json"))));
+                    new StorageLocationStore(Path.Combine(root, "storage-location.json"))),
+                new AutoHideSettingsStore(drawerService));
             var existingIds = (await drawerService.GetBoxesAsync()).Select(box => box.Id).ToHashSet();
 
             await viewModel.CreateDrawerBoxCommand.ExecuteAsync(null);

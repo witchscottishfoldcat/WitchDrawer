@@ -38,7 +38,8 @@ public sealed class DesktopDoubleClickSettingTests
                 new DataStorageMigrationService(
                     paths,
                     repository,
-                    new StorageLocationStore(Path.Combine(root, "storage-location.json"))));
+                    new StorageLocationStore(Path.Combine(root, "storage-location.json"))),
+                new AutoHideSettingsStore(drawerService));
 
             await viewModel.LoadAsync();
             Assert.True(viewModel.IsDesktopDoubleClickEnabled);

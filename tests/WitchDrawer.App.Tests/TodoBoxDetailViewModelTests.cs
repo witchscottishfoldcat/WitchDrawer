@@ -127,7 +127,8 @@ public sealed class TodoBoxDetailViewModelTests
                 workspace.Paths,
                 workspace.Repository,
                 new StorageLocationStore(
-                    Path.Combine(workspace.Root, "storage-location.json"))));
+                    Path.Combine(workspace.Root, "storage-location.json"))),
+            new AutoHideSettingsStore(workspace.DrawerService));
         await viewModel.LoadAsync();
 
         viewModel.SelectedBox = Assert.Single(
