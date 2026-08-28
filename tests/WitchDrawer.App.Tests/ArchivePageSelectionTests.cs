@@ -38,7 +38,8 @@ public sealed class ArchivePageSelectionTests
                 new DataStorageMigrationService(
                     paths,
                     repository,
-                    new StorageLocationStore(Path.Combine(root, "storage-location.json"))));
+                    new StorageLocationStore(Path.Combine(root, "storage-location.json"))),
+                new AutoHideSettingsStore(drawerService));
 
             await viewModel.LoadAsync();
 
@@ -89,7 +90,8 @@ public sealed class ArchivePageSelectionTests
                 new DataStorageMigrationService(
                     paths,
                     repository,
-                    new StorageLocationStore(Path.Combine(root, "storage-location.json"))));
+                    new StorageLocationStore(Path.Combine(root, "storage-location.json"))),
+                new AutoHideSettingsStore(drawerService));
 
             await viewModel.CreateDrawerBoxCommand.ExecuteAsync(null);
             Assert.NotNull(viewModel.SelectedBox);
@@ -139,7 +141,8 @@ public sealed class ArchivePageSelectionTests
                 new DataStorageMigrationService(
                     paths,
                     repository,
-                    new StorageLocationStore(Path.Combine(root, "storage-location.json"))));
+                    new StorageLocationStore(Path.Combine(root, "storage-location.json"))),
+                new AutoHideSettingsStore(drawerService));
 
             await viewModel.CreateDrawerBoxCommand.ExecuteAsync(null);
             Assert.NotNull(viewModel.SelectedBox);

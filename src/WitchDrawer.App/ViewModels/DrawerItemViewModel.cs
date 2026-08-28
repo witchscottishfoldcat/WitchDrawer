@@ -70,6 +70,28 @@ public sealed class DrawerItemViewModel : ObservableObject, IVirtualizingCanvasI
 
     public string PathLabel => Model.EffectivePath ?? string.Empty;
 
+    /// <summary>
+    /// 供鼠标悬停提示展示的名称。精简模式显示文件名（快捷方式自动去掉 .lnk），完整模式显示完整路径。
+    /// 仅用于展示，不参与打开/导出等需要真实路径的逻辑。
+    /// </summary>
+    public string HoverDisplayText =>
+        Infrastructure.DesktopHoverDisplayMode.IsCompact ? CompactFileName : PathLabel;
+
+    private string CompactFileName
+    {
+        get
+        {
+            var name = System.IO.Path.GetFileName(PathLabel);
+            if (name.EndsWith(".lnk", System.StringComparison.OrdinalIgnoreCase))
+            {
+                return name[..^4];
+            }
+            return name;
+        }
+    }
+
+    public void RaiseHoverDisplayTextChanged() => OnPropertyChanged(nameof(HoverDisplayText));
+
     public string ShortPathLabel
     {
         get

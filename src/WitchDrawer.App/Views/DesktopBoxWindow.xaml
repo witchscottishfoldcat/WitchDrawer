@@ -22,7 +22,9 @@
         PreviewDrop="OnFilesDropped"
         Drop="OnFilesDropped"
         PreviewDragOver="OnPreviewDragOver"
-        PreviewDragLeave="OnPreviewDragLeave">
+        PreviewDragLeave="OnPreviewDragLeave"
+        MouseEnter="OnWindowMouseEnter"
+        MouseLeave="OnWindowMouseLeave">
     <Window.Style>
         <Style TargetType="{x:Type Window}">
             <Setter Property="MinWidth" Value="180" />
@@ -60,8 +62,8 @@
         <Border.Style>
             <Style TargetType="Border">
                 <Setter Property="Margin" Value="6" />
-                <Setter Property="Background" Value="{DynamicResource GlassSurfaceBrush}" />
-                <Setter Property="BorderBrush" Value="{DynamicResource GlassStrokeBrush}" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderBrush" Value="Transparent" />
                 <Setter Property="BorderThickness" Value="1" />
                 <Setter Property="CornerRadius" Value="20" />
                 <Setter Property="Effect">
@@ -93,6 +95,49 @@
                 <RowDefinition Height="{Binding ContentRowHeight}" />
             </Grid.RowDefinitions>
 
+            <!-- 独立透明层：收纳盒外壳背景。自动隐藏时仅此层随 AutoHideBoxOpacity 透明，
+                 与内容（图标/文字）及标题的透明相互独立、不叠加。 -->
+            <Border x:Name="BoxSurface"
+                    Grid.RowSpan="2"
+                    Background="{DynamicResource GlassSurfaceBrush}"
+                    IsHitTestVisible="False"
+                    Opacity="{Binding AutoHideBoxOpacity}">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="CornerRadius" Value="18" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsPixelStyle}" Value="True">
+                                <Setter Property="CornerRadius" Value="12" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsDrawerCollapsed}" Value="True">
+                                <Setter Property="CornerRadius" Value="22" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+            </Border>
+
+            <!-- 独立透明层：收纳盒描边（1px 玻璃描边）。自动隐藏时仅此层随 AutoHideBorderOpacity 透明，
+                 与外壳背景、内容、标题的透明相互独立、不叠加。 -->
+            <Border x:Name="BoxBorder"
+                    Grid.RowSpan="2"
+                    Background="Transparent"
+                    BorderBrush="{DynamicResource GlassStrokeBrush}"
+                    BorderThickness="1"
+                    IsHitTestVisible="False"
+                    Opacity="{Binding AutoHideBorderOpacity}">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="CornerRadius" Value="18" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsPixelStyle}" Value="True">
+                                <Setter Property="CornerRadius" Value="12" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+            </Border>
+
             <!-- 顶部标题栏与 macOS 关闭小红点 -->
             <!-- 左侧名称 / 视图切换 / 卷起 / 关闭。 -->
             <Grid Grid.Row="0"
@@ -107,6 +152,7 @@
 
                 <TextBlock Grid.Column="0"
                            Text="{Binding Name}"
+                           Opacity="{Binding AutoHideTitleOpacity}"
                            Visibility="{Binding IsHeaderTitleVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
                            FontSize="12"
                            FontWeight="SemiBold"
@@ -357,6 +403,7 @@
                 <ListBox.Style>
                     <Style TargetType="{x:Type ListBox}" BasedOn="{StaticResource {x:Type ListBox}}">
                         <Setter Property="Visibility" Value="Visible" />
+                        <Setter Property="Opacity" Value="{Binding AutoHideContentOpacity}" />
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsMappingListMode}" Value="True">
                                 <Setter Property="Visibility" Value="Collapsed" />
@@ -381,7 +428,7 @@
                 </ListBox.ItemsPanel>
                 <ListBox.ItemTemplate>
                     <DataTemplate>
-                        <StackPanel ToolTip="{Binding PathLabel}"
+                        <StackPanel ToolTip="{Binding HoverDisplayText}"
                                     VerticalAlignment="Center">
                             <!-- 图标卡片背景 -->
                             <Border x:Name="IconBorder"
@@ -465,6 +512,7 @@
                 <ListBox.Style>
                     <Style TargetType="{x:Type ListBox}" BasedOn="{StaticResource {x:Type ListBox}}">
                         <Setter Property="Visibility" Value="Collapsed" />
+                        <Setter Property="Opacity" Value="{Binding AutoHideContentOpacity}" />
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsMappingListMode}" Value="True">
                                 <Setter Property="Visibility" Value="Visible" />
@@ -506,7 +554,7 @@
                 </ListBox.ItemContainerStyle>
                 <ListBox.ItemTemplate>
                     <DataTemplate>
-                        <Grid ToolTip="{Binding PathLabel}">
+                        <Grid ToolTip="{Binding HoverDisplayText}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="{Binding DataContext.LayoutSettings.MappingListIconColumnWidth, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" />
                                 <ColumnDefinition Width="*" />
@@ -592,6 +640,7 @@
                 <Grid.Style>
                     <Style TargetType="{x:Type Grid}">
                         <Setter Property="Visibility" Value="Collapsed" />
+                        <Setter Property="Opacity" Value="{Binding AutoHideContentOpacity}" />
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsTodoBox}" Value="True">
                                 <Setter Property="Visibility" Value="Visible" />
@@ -882,7 +931,7 @@
                                     <DataTemplate>
                                         <Button Style="{StaticResource DrawerTileButtonStyle}"
                                                 Margin="0"
-                                                ToolTip="{Binding PathLabel}"
+                                                ToolTip="{Binding HoverDisplayText}"
                                                 Click="OnDrawerSecondaryItemClick"
                                                 PreviewMouseLeftButtonDown="OnDrawerSecondaryIconPreviewMouseLeftButtonDown"
                                                 PreviewMouseRightButtonUp="OnDrawerSecondaryIconMouseRightButtonUp">
@@ -936,6 +985,7 @@
                   Background="Transparent"
                   Width="{Binding DrawerCoverWidth}"
                   Height="{Binding DrawerContentHeight}"
+                  Opacity="{Binding AutoHideContentOpacity}"
                   PreviewMouseMove="OnDrawerIconMouseMove"
                   PreviewMouseLeftButtonDown="OnDrawerSurfacePreviewMouseLeftButtonDown"
                   Visibility="{Binding IsDrawerCollapsed, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -965,7 +1015,7 @@
                                     <Button Style="{StaticResource DrawerTileButtonStyle}"
                                             PreviewMouseLeftButtonDown="OnDrawerIconPreviewMouseLeftButtonDown"
                                             PreviewMouseRightButtonUp="OnDrawerCoverIconMouseRightButtonUp"
-                                             ToolTip="{Binding Item.PathLabel}"
+                                             ToolTip="{Binding Item.HoverDisplayText}"
                                              Visibility="{Binding HasItem, Converter={StaticResource BooleanToVisibilityConverter}}">
                                         <StackPanel HorizontalAlignment="Center"
                                                     VerticalAlignment="Center">

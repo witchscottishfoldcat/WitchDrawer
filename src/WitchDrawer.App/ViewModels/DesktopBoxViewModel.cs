@@ -86,6 +86,10 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private BoxSizeModeState _sizeMode = BoxSizeModeState.Adaptive;
     private int _occupiedColumns = 1;
     private int _occupiedRows = 1;
+    private double _autoHideContentOpacity = 1;
+    private double _autoHideBoxOpacity = 1;
+    private double _autoHideTitleOpacity = 1;
+    private double _autoHideBorderOpacity = 1;
 
     public DesktopBoxViewModel(
         Box box,
@@ -121,6 +125,67 @@ public sealed class DesktopBoxViewModel : ObservableObject
     public DesktopBoxLayoutSettings LayoutSettings => _layoutSettings;
 
     public double MappingListWidth => _mappingListWidth;
+
+    /// <summary>
+    /// 自动隐藏开启且未悬停时，收纳盒内容的可见度（0..1），默认完全可见。
+    /// 与桌面盒子透明度（背景外观）相互独立。
+    /// </summary>
+    public double AutoHideContentOpacity
+    {
+        get => _autoHideContentOpacity;
+        private set => SetProperty(ref _autoHideContentOpacity, value);
+    }
+
+    /// <summary>
+    /// 自动隐藏开启且未悬停时，收纳盒外壳（背景/边框/阴影）的可见度（0..1）。
+    /// 仅当勾选“收纳盒”参与透明时为隐藏态透明度，否则为 1。与内容透明相互独立、不叠加。
+    /// </summary>
+    public double AutoHideBoxOpacity
+    {
+        get => _autoHideBoxOpacity;
+        private set => SetProperty(ref _autoHideBoxOpacity, value);
+    }
+
+    /// <summary>
+    /// 自动隐藏开启且未悬停时，收纳盒标题的可见度（0..1）。
+    /// 仅当勾选“收纳盒标题”参与透明时为隐藏态透明度，否则为 1。
+    /// </summary>
+    public double AutoHideTitleOpacity
+    {
+        get => _autoHideTitleOpacity;
+        private set => SetProperty(ref _autoHideTitleOpacity, value);
+    }
+
+    /// <summary>
+    /// 自动隐藏开启且未悬停时，收纳盒边框（描边）的可见度（0..1）。
+    /// 仅当勾选“收纳盒边框”参与透明时为隐藏态透明度，否则为 1。与内容透明相互独立、不叠加。
+    /// </summary>
+    public double AutoHideBorderOpacity
+    {
+        get => _autoHideBorderOpacity;
+        private set => SetProperty(ref _autoHideBorderOpacity, value);
+    }
+
+    /// <summary>
+    /// 由窗口层根据自动隐藏状态设置内容、盒子外壳、标题与边框四者的可见度。
+    /// </summary>
+    /// <param name="revealed">是否取消隐藏（悬停命中时 <see langword="true"/>）。</param>
+    /// <param name="hiddenContentOpacity">隐藏时内容的可见度（0..1）。</param>
+    /// <param name="hiddenBoxOpacity">隐藏时盒子外壳的可见度（0..1）；未勾选参与透明时传 1。</param>
+    /// <param name="hiddenTitleOpacity">隐藏时标题的可见度（0..1）；未勾选参与透明时传 1。</param>
+    /// <param name="hiddenBorderOpacity">隐藏时边框的可见度（0..1）；未勾选参与透明时传 1。</param>
+    public void SetAutoHideReveal(
+        bool revealed,
+        double hiddenContentOpacity,
+        double hiddenBoxOpacity,
+        double hiddenTitleOpacity,
+        double hiddenBorderOpacity)
+    {
+        AutoHideContentOpacity = revealed ? 1 : Math.Clamp(hiddenContentOpacity, 0, 1);
+        AutoHideBoxOpacity = revealed ? 1 : Math.Clamp(hiddenBoxOpacity, 0, 1);
+        AutoHideTitleOpacity = revealed ? 1 : Math.Clamp(hiddenTitleOpacity, 0, 1);
+        AutoHideBorderOpacity = revealed ? 1 : Math.Clamp(hiddenBorderOpacity, 0, 1);
+    }
 
     /// <summary>供窗口层包装 fire-and-forget 任务时记录异常。</summary>
     internal IAppLogger Logger => _logger;
@@ -783,6 +848,22 @@ public sealed class DesktopBoxViewModel : ObservableObject
         OnPropertyChanged(nameof(ItemCountLabel));
         OnPropertyChanged(nameof(IsEmpty));
         OnPropertyChanged(nameof(ShowFileEmptyState));
+    }
+
+    /// <summary>
+    /// 当全局“图标名称（悬停提示）”模式切换时，刷新各文件条目以重绘其悬停提示文本。
+    /// </summary>
+    public void RefreshItemHoverDisplayTexts()
+    {
+        foreach (var item in Items)
+        {
+            item.RaiseHoverDisplayTextChanged();
+        }
+
+        foreach (var item in DrawerSecondaryItems)
+        {
+            item.RaiseHoverDisplayTextChanged();
+        }
     }
 
     private bool CanAddTodo()
