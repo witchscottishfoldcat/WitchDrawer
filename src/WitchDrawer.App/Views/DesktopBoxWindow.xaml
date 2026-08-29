@@ -25,8 +25,9 @@
         PreviewDragLeave="OnPreviewDragLeave">
     <Window.Style>
         <Style TargetType="{x:Type Window}">
-            <Setter Property="MinWidth" Value="180" />
-            <Setter Property="MinHeight" Value="120" />
+            <!-- 自适应：盒子宽度/高度跟随内容（图标列数），不再有 180px 硬下限。 -->
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsMappingListMode}" Value="True">
                     <Setter Property="MinWidth" Value="150" />
@@ -1065,7 +1066,7 @@
                                                        Width="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType=Window}}"
                                                        MaxHeight="{Binding DataContext.LayoutSettings.IconTextMaxHeight, RelativeSource={RelativeSource AncestorType=Window}}"
                                                        Margin="0,1,0,0"
-                                                       Text="抽屉"
+                                                       Text="{Binding DataContext.DrawerExpandTileLabel, RelativeSource={RelativeSource AncestorType=Window}}"
                                                        TextAlignment="Center"
                                                        TextWrapping="{Binding DataContext.LayoutSettings.IconTextWrapping, RelativeSource={RelativeSource AncestorType=Window}}"
                                                        TextTrimming="CharacterEllipsis"
@@ -1099,6 +1100,40 @@
                                    Foreground="{DynamicResource TextMutedBrush}" />
                     </StackPanel>
 
+                    <!-- 下边缘热区：拖拽改盒子高度（封面行数） -->
+                    <Thumb x:Name="DrawerBottomResizeThumb"
+                           Height="8"
+                           Margin="6,0,26,-8"
+                           HorizontalAlignment="Stretch"
+                           VerticalAlignment="Bottom"
+                           Cursor="SizeNS"
+                           Focusable="False"
+                           DragStarted="OnDrawerResizeStarted"
+                           DragDelta="OnDrawerBottomResizeDelta"
+                           DragCompleted="OnDrawerResizeCompleted">
+                        <Thumb.Template>
+                            <ControlTemplate TargetType="Thumb">
+                                <Grid Background="Transparent" />
+                            </ControlTemplate>
+                        </Thumb.Template>
+                    </Thumb>
+                    <!-- 右边缘热区：拖拽改盒子宽度（封面列数） -->
+                    <Thumb x:Name="DrawerRightResizeThumb"
+                           Width="8"
+                           Margin="0,6,-8,26"
+                           HorizontalAlignment="Right"
+                           VerticalAlignment="Stretch"
+                           Cursor="SizeWE"
+                           Focusable="False"
+                           DragStarted="OnDrawerResizeStarted"
+                           DragDelta="OnDrawerRightResizeDelta"
+                           DragCompleted="OnDrawerResizeCompleted">
+                        <Thumb.Template>
+                            <ControlTemplate TargetType="Thumb">
+                                <Grid Background="Transparent" />
+                            </ControlTemplate>
+                        </Thumb.Template>
+                    </Thumb>
                     <Thumb
                            Width="20"
                            Height="20"

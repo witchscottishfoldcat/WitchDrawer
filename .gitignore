@@ -19,3 +19,7 @@ artifacts/
 
 # 本地 AI 助手会话数据
 .zcode/
+
+# 本地视觉工具粘贴/产物目录，不入库
+.dsh-vision-toolkit/
+.dsh-vision-router/

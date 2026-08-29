@@ -57,6 +57,7 @@ public sealed class MainViewModel : ObservableObject
     private bool _launchOnStartup;
     private bool _areDesktopIconsHidden;
     private bool _isDesktopDoubleClickEnabled;
+    private bool _drawerStyleEnabled;
     private string _updateStatusText = string.Empty;
     private bool _isCheckingUpdate;
     private string? _pendingUpdateSha256;
@@ -122,6 +123,7 @@ public sealed class MainViewModel : ObservableObject
         ToggleDesktopIconsCommand = new AsyncRelayCommand(ToggleDesktopIconsAsync);
         ToggleDesktopDoubleClickCommand = new AsyncRelayCommand(ToggleDesktopDoubleClickAsync);
         ToggleEditorOpacityFollowCommand = new AsyncRelayCommand(ToggleEditorOpacityFollowAsync);
+        ToggleDrawerStyleCommand = new AsyncRelayCommand(ToggleDrawerStyleAsync);
         CheckForUpdateCommand = new AsyncRelayCommand(CheckForUpdateAsync);
         ShowDashboardCommand = new RelayCommand(() =>
         {
@@ -218,6 +220,8 @@ public sealed class MainViewModel : ObservableObject
     public IAsyncRelayCommand ToggleDesktopDoubleClickCommand { get; }
 
     public IAsyncRelayCommand ToggleEditorOpacityFollowCommand { get; }
+
+    public IAsyncRelayCommand ToggleDrawerStyleCommand { get; }
 
     public IAsyncRelayCommand CheckForUpdateCommand { get; }
 
@@ -362,6 +366,12 @@ public sealed class MainViewModel : ObservableObject
         private set => SetProperty(ref _isDesktopDoubleClickEnabled, value);
     }
 
+    public bool DrawerStyleEnabled
+    {
+        get => _drawerStyleEnabled;
+        private set => SetProperty(ref _drawerStyleEnabled, value);
+    }
+
     public string UpdateStatusText
     {
         get => _updateStatusText;
@@ -468,6 +478,11 @@ public sealed class MainViewModel : ObservableObject
             IsDesktopDoubleClickEnabled =
                 bool.TryParse(desktopDoubleClickSetting, out var desktopDoubleClickEnabled)
                 && desktopDoubleClickEnabled;
+            var drawerStyleSetting =
+                await _drawerService.GetSettingAsync(DesktopBoxViewModel.DrawerStyleSettingKey);
+            DrawerStyleEnabled =
+                bool.TryParse(drawerStyleSetting, out var drawerStyleEnabled)
+                && drawerStyleEnabled;
             StatusText = $"{Boxes.Count} 个收纳盒已同步到桌面";
             BoxesChanged?.Invoke(this, EventArgs.Empty);
         });
@@ -1178,6 +1193,28 @@ public sealed class MainViewModel : ObservableObject
         {
             _logger.Error(exception, "Failed to save desktop double-click setting.");
             OnPropertyChanged(nameof(IsDesktopDoubleClickEnabled));
+            StatusText = exception.Message;
+        }
+    }
+
+    private async Task ToggleDrawerStyleAsync()
+    {
+        try
+        {
+            var enabled = !DrawerStyleEnabled;
+            await _drawerService.SetSettingAsync(
+                DesktopBoxViewModel.DrawerStyleSettingKey,
+                enabled.ToString());
+            DrawerStyleEnabled = enabled;
+            StatusText = enabled
+                ? "已为普通/映射收纳盒启用抽屉式收纳"
+                : "已关闭普通/映射收纳盒的抽屉式收纳";
+            BoxesChanged?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to save drawer style setting.");
+            OnPropertyChanged(nameof(DrawerStyleEnabled));
             StatusText = exception.Message;
         }
     }

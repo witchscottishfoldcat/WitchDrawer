@@ -147,7 +147,7 @@ public sealed class BoxSizeSettingsTests
     }
 
     [Fact]
-    public async Task DesktopBoxViewModel_FixedSizeIsIgnoredForNonGridBoxes()
+    public async Task DesktopBoxViewModel_FixedSizeIsIgnoredForTodoBoxes()
     {
         var root = CreateTempRoot();
         try
@@ -155,8 +155,8 @@ public sealed class BoxSizeSettingsTests
             var (drawerService, repository) = await CreateDrawerServiceAsync(root);
             var box = new Box(
                 Guid.NewGuid(),
-                "映射收纳盒",
-                BoxType.Mapping,
+                "待办收纳盒",
+                BoxType.Todo,
                 null,
                 0,
                 DateTimeOffset.UtcNow,
@@ -290,13 +290,13 @@ public sealed class BoxSizeSettingsTests
         try
         {
             var (drawerService, _) = await CreateDrawerServiceAsync(root);
-            var mappingBox = new Box(
-                Guid.NewGuid(), "映射", BoxType.Mapping, null, 1,
+            var todoBox = new Box(
+                Guid.NewGuid(), "待办", BoxType.Todo, null, 1,
                 DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
             var viewModel = new BoxSizeSettingsViewModel(drawerService, new RecordingLogger());
 
             viewModel.SetTargetBox(
-                new BoxViewModel(mappingBox, drawerService, BoxVisualStyle.Modern, false));
+                new BoxViewModel(todoBox, drawerService, BoxVisualStyle.Modern, false));
 
             Assert.Null(viewModel.SelectedBox);
             Assert.False(viewModel.HasSelection);

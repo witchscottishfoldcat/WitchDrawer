@@ -39,6 +39,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private const string FileNameVisibilitySettingPrefix = "BoxFileNameVisible:";
     private const string RollUpSettingPrefix = "BoxRolledUp:";
     private const string DrawerSortModeSettingPrefix = "DrawerSortMode:";
+    internal const string DrawerStyleSettingKey = "BoxDrawerStyleEnabled";
     private const double DefaultDrawerCoverWidth = 180;
     private const double DefaultDrawerCoverHeight = 112;
     private const double MaximumDrawerCoverDimension = 720;
@@ -75,6 +76,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private double _iconDpiScaleX = 1;
     private double _iconDpiScaleY = 1;
     private bool _isDrawerExpanded;
+    private bool _drawerStyleEnabled;
     private bool _isTitleVisible = true;
     private bool _isFileNameVisible;
     private bool _isRolledUp;
@@ -189,6 +191,22 @@ public sealed class DesktopBoxViewModel : ObservableObject
     public bool IsDrawerBox => Type == BoxType.Drawer;
 
     /// <summary>
+    /// 是否使用抽屉式收纳：抽屉盒恒为真；普通/像素/映射盒仅在全局
+    /// "收纳方式 > 抽屉式收纳" 开关开启时为真。
+    /// </summary>
+    public bool IsDrawerStyleEnabled =>
+        IsDrawerBox || (_drawerStyleEnabled && Type is BoxType.Normal or BoxType.Pixel or BoxType.Mapping);
+
+    public bool DrawerStyleEnabled => _drawerStyleEnabled;
+
+    /// <summary>
+    /// 折叠展开按钮下方的文案：抽屉盒显示"抽屉"，普通/映射盒显示溢出数量。
+    /// </summary>
+    public string DrawerExpandTileLabel => IsDrawerBox
+        ? "抽屉"
+        : $"+{Math.Max(0, Items.Count - DrawerDirectItemCount)}";
+
+    /// <summary>
     /// 固定 m×n 格尺寸仅适用于普通网格收纳盒；其余盒型始终自适应。
     /// </summary>
     public bool SupportsFixedSize => Type is BoxType.Normal or BoxType.Pixel;
@@ -215,7 +233,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     public bool IsDrawerExpanded
     {
-        get => IsDrawerBox && _isDrawerExpanded;
+        get => IsDrawerStyleEnabled && !IsMappingListMode && _isDrawerExpanded;
         set
         {
             if (SetProperty(ref _isDrawerExpanded, value))
@@ -228,7 +246,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
         }
     }
 
-    public bool IsDrawerCollapsed => IsDrawerBox && !IsDrawerExpanded;
+    public bool IsDrawerCollapsed => IsDrawerStyleEnabled && !IsMappingListMode && !_isDrawerExpanded;
 
     public bool IsTitleVisible => _isTitleVisible;
 
@@ -240,11 +258,18 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     public bool IsHeaderTitleVisible => IsTitleVisible || IsRolledUp;
 
-    public bool IsHeaderVisible => ShouldShowHeader(
-        IsDrawerBox,
-        IsDrawerExpanded,
-        IsTitleVisible,
-        IsRolledUp);
+    public bool IsHeaderVisible
+    {
+        get
+        {
+            if (IsDrawerCollapsed && !IsRolledUp)
+            {
+                return false;
+            }
+
+            return ShouldShowHeader(IsDrawerBox, IsDrawerExpanded, IsTitleVisible, IsRolledUp);
+        }
+    }
 
     public GridLength ContentRowHeight => IsRolledUp
         ? new GridLength(0)
@@ -732,9 +757,9 @@ public sealed class DesktopBoxViewModel : ObservableObject
                 nextItems.Add(itemViewModel);
             }
 
-            if (IsFreeSort)
+            if (IsFreeSort && !IsFixedSize)
             {
-                // 自由排序：按持久化格位摆放（含无格位项目的空位分配）。
+                // 自由排序（自适应宽度）：按持久化格位摆放（含无格位项目的空位分配）。
                 var positions = ResolveItemPositions(items);
                 foreach (var itemViewModel in nextItems)
                 {
@@ -746,7 +771,8 @@ public sealed class DesktopBoxViewModel : ObservableObject
             }
             else
             {
-                // 自动排序：按排序键行优先展示；不写库，自由布局不受污染。
+                // 固定尺寸：按盒子列数行优先填充（同抽屉封面）；自动排序：先按排序键再填充。
+                // 固定模式不依赖旧格位，避免拉宽后图标仍停留在旧列。
                 var ordered = await Task.Run(() => SortDrawerItems(nextItems, _drawerItemSortMode));
                 var sortedPositions = AssignSortedGridPositions(ordered);
                 foreach (var itemViewModel in ordered)
@@ -1142,6 +1168,8 @@ public sealed class DesktopBoxViewModel : ObservableObject
             }
 
             OnPropertyChanged(nameof(IsGridMode));
+            OnPropertyChanged(nameof(IsDrawerExpanded));
+            OnPropertyChanged(nameof(IsDrawerCollapsed));
             OnPropertyChanged(nameof(HeaderRowHeight));
             HideDragPreview();
             UpdateItemIconSizes();
@@ -1537,6 +1565,37 @@ public sealed class DesktopBoxViewModel : ObservableObject
         OnPropertyChanged(nameof(GridViewportHeight));
         OnPropertyChanged(nameof(FixedCapacity));
         UpdateGridCanvasSize();
+        if (normalized.IsFixed)
+        {
+            ReflowFixedGridItems();
+        }
+    }
+
+    /// <summary>
+    /// 固定尺寸模式下，把当前图标按列数重排为"行优先填充"，
+    /// 跟随盒子宽度自动填满（借鉴抽屉封面不保存格位的做法）。
+    /// </summary>
+    private void ReflowFixedGridItems()
+    {
+        if (!IsFixedSize)
+        {
+            return;
+        }
+
+        var ordered = Items.ToList();
+        if (ordered.Count == 0)
+        {
+            return;
+        }
+
+        var positions = AssignSortedGridPositions(ordered);
+        foreach (var item in ordered)
+        {
+            var position = positions[item.Id];
+            item.SetGridPosition(position.Column, position.Row, LayoutSettings);
+        }
+
+        UpdateGridCanvasSize();
     }
 
     internal async Task LoadSizeModeAsync()
@@ -1544,6 +1603,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
         var saved = await _drawerService.GetSettingAsync(BoxViewModel.GetSizeModeSettingKey(BoxId));
         ApplySizeMode(BoxSizeModeState.Parse(saved));
     }
+
 
     public void ResizeDrawerCover(double width, double height)
     {
@@ -1580,9 +1640,46 @@ public sealed class DesktopBoxViewModel : ObservableObject
         RefreshDrawerPreview();
     }
 
+    /// <summary>
+    /// 读取全局"收纳方式 > 抽屉式收纳"开关并应用到本盒。
+    /// </summary>
+    public async Task LoadDrawerStyleAsync()
+    {
+        if (IsDrawerBox)
+        {
+            ApplyDrawerStyleEnabled(enabled: false);
+            return;
+        }
+
+        var saved = await _drawerService.GetSettingAsync(DrawerStyleSettingKey);
+        // 未配置过时默认开启（迁移抽屉盒实现到映射/普通盒）。
+        var enabled = saved is null || (bool.TryParse(saved, out var parsed) && parsed);
+        ApplyDrawerStyleEnabled(enabled);
+    }
+
+    private void ApplyDrawerStyleEnabled(bool enabled)
+    {
+        if (_drawerStyleEnabled == enabled)
+        {
+            return;
+        }
+
+        _drawerStyleEnabled = enabled;
+        OnPropertyChanged(nameof(DrawerStyleEnabled));
+        OnPropertyChanged(nameof(IsDrawerStyleEnabled));
+        OnPropertyChanged(nameof(IsDrawerExpanded));
+        OnPropertyChanged(nameof(IsDrawerCollapsed));
+        OnPropertyChanged(nameof(IsHeaderVisible));
+        OnPropertyChanged(nameof(HeaderRowHeight));
+        OnPropertyChanged(nameof(DrawerContentHeight));
+        OnPropertyChanged(nameof(ShowFileEmptyState));
+        RefreshDrawerPreview();
+        SyncDrawerSecondaryFromItems();
+    }
+
     public async Task LoadDrawerCoverSizeAsync()
     {
-        if (!IsDrawerBox)
+        if (!IsDrawerStyleEnabled)
         {
             return;
         }
@@ -1799,14 +1896,9 @@ public sealed class DesktopBoxViewModel : ObservableObject
                 MidpointRounding.AwayFromZero),
             1,
             maximumRows);
-        if (columns * rows < 2 || (columns == 1 && rows == 2))
-        {
-            // The minimum drawer is always the established horizontal "1 + four previews"
-            // shape. A 1x2 cover makes the primary and composite tiles stack vertically and
-            // visually turns the already-finished drawer into a different component.
-            columns = 2;
-            rows = 1;
-        }
+        // 允许缩小到 1 列 x 1 行（映射/普通盒需要能收到 1 格宽）。
+        columns = Math.Max(1, columns);
+        rows = Math.Max(1, rows);
 
         return (
             Math.Round((columns * normalizedCellWidth) + surfaceInsets, 1),
@@ -1982,7 +2074,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
         OnPropertyChanged(nameof(HeaderRowHeight));
         OnPropertyChanged(nameof(GridViewportWidth));
         OnPropertyChanged(nameof(GridViewportHeight));
-        if (IsDrawerBox
+        if (IsDrawerStyleEnabled
             && e.PropertyName is nameof(DesktopBoxLayoutSettings.CurrentPreset)
                 or nameof(DesktopBoxLayoutSettings.IsFileNameVisible))
         {

@@ -2756,6 +2756,39 @@
                                 </Grid>
                                 </Border>
 
+                                <!-- 收纳方式 Card -->
+                                <Border Background="{DynamicResource PanelBrush}"
+                                    BorderBrush="{DynamicResource BorderBrushSoft}"
+                                    BorderThickness="1"
+                                    CornerRadius="12"
+                                    Padding="10"
+                                    Margin="0,0,0,6">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="收纳方式"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="13"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <TextBlock Text="普通收纳盒和映射收纳盒也使用抽屉式收纳：放不下的图标自动折叠进最后一个图标，点击可展开查看"
+                                                   Margin="0,2,12,0"
+                                                   FontSize="11.5"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource TextMutedBrush}" />
+                                    </StackPanel>
+                                    <ToggleButton Grid.Column="1"
+                                                  Margin="12,0,0,0"
+                                                  VerticalAlignment="Center"
+                                                  Style="{StaticResource SettingsToggleButtonStyle}"
+                                                  IsChecked="{Binding DrawerStyleEnabled, Mode=OneWay}"
+                                                  Command="{Binding ToggleDrawerStyleCommand}"
+                                                  AutomationProperties.Name="抽屉式收纳" />
+                                </Grid>
+                                </Border>
+
                                 <!-- Keyboard Shortcuts Card -->
                                 <Border Background="{DynamicResource PanelBrush}"
                                     BorderBrush="{DynamicResource BorderBrushSoft}"
