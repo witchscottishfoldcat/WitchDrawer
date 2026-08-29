@@ -224,6 +224,33 @@ public sealed class DesktopBoxDrawerStyleTests
         }
     }
 
+    [Fact]
+    public async Task CollapsedCover_MinimumWidthIsTwoColumns()
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var (drawerService, repository) = await CreateDrawerServiceAsync(root);
+            var box = await drawerService.CreateBoxAsync("mapping", BoxType.Mapping);
+
+            // 保存一个远小于两列的封面尺寸，加载后应被钳制到至少 2 列宽。
+            await drawerService.SetSettingAsync(
+                DesktopBoxViewModel.GetDrawerCoverSizeSettingKey(box.Id),
+                "57,131");
+
+            var viewModel = CreateViewModel(box, drawerService, repository);
+            await viewModel.LoadDrawerStyleAsync();
+            await viewModel.LoadDrawerCoverSizeAsync();
+
+            Assert.True(viewModel.DrawerCoverColumns >= 2);
+            Assert.True(viewModel.DrawerCoverWidth >= 96);
+        }
+        finally
+        {
+            CleanupTempRoot(root);
+        }
+    }
+
     private static DesktopBoxViewModel CreateViewModel(
         Box box,
         DrawerService drawerService,

@@ -209,7 +209,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
     /// <summary>
     /// 固定 m×n 格尺寸仅适用于普通网格收纳盒；其余盒型始终自适应。
     /// </summary>
-    public bool SupportsFixedSize => Type is BoxType.Normal or BoxType.Pixel;
+    public bool SupportsFixedSize => false;
 
     public BoxSizeModeState SizeMode => _sizeMode;
 
@@ -258,18 +258,11 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     public bool IsHeaderTitleVisible => IsTitleVisible || IsRolledUp;
 
-    public bool IsHeaderVisible
-    {
-        get
-        {
-            if (IsDrawerCollapsed && !IsRolledUp)
-            {
-                return false;
-            }
-
-            return ShouldShowHeader(IsDrawerBox, IsDrawerExpanded, IsTitleVisible, IsRolledUp);
-        }
-    }
+    public bool IsHeaderVisible => ShouldShowHeader(
+        IsDrawerBox,
+        IsDrawerExpanded,
+        IsTitleVisible,
+        IsRolledUp);
 
     public GridLength ContentRowHeight => IsRolledUp
         ? new GridLength(0)
@@ -283,6 +276,14 @@ public sealed class DesktopBoxViewModel : ObservableObject
         LayoutSettings.MappingListMargin.Bottom);
 
     public double DrawerCoverWidth => _drawerCoverWidth;
+
+    /// <summary>
+    /// 折叠时标题栏最大宽度=封面宽度，避免标题栏把盒子撑宽；
+    /// 展开/普通视图不限宽。
+    /// </summary>
+    public double HeaderMaxWidth => IsDrawerCollapsed
+        ? DrawerCoverWidth
+        : double.PositiveInfinity;
 
     public double DrawerCoverHeight => _drawerCoverHeight;
 
@@ -735,6 +736,12 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
             // Each desktop box owns its layout settings. The manager restores the preset
             // before the window is created so boxes can use different icon sizes.
+
+            // 映射盒：刷新时同步已注册映射文件夹的新增内容（启动兜底 + 手动刷新）。
+            if (IsMappingBox)
+            {
+                await _drawerService.SyncMappingFoldersAsync(BoxId);
+            }
 
             var items = await _drawerService.GetItemsAsync(BoxId);
             var isPixelated = IsPixelStyle;
@@ -1605,16 +1612,26 @@ public sealed class DesktopBoxViewModel : ObservableObject
     }
 
 
+    /// <summary>
+    /// 封面最小宽度：允许缩到 2 列图标（2 行 x 2 列 / 2 行 x 1 列），
+    /// 和抽屉盒一样缩放更自由。折叠时标题栏会被约束到该宽度。
+    /// </summary>
+    private double GetDrawerCoverMinimumWidth() => Math.Max(
+        96,
+        (LayoutSettings.DrawerCoverCellWidth * 2)
+            + (DesktopBoxLayoutSettings.DrawerSurfaceInset * 2));
+
     public void ResizeDrawerCover(double width, double height)
     {
+        var minWidth = GetDrawerCoverMinimumWidth();
         var normalized = NormalizeDrawerCoverSize(
-            width,
+            Math.Max(width, minWidth),
             height,
             LayoutSettings.DrawerCoverCellWidth,
             LayoutSettings.DrawerCoverCellHeight);
         var widthChanged = SetProperty(
             ref _drawerCoverWidth,
-            normalized.Width,
+            Math.Max(normalized.Width, minWidth),
             nameof(DrawerCoverWidth));
         var heightChanged = SetProperty(
             ref _drawerCoverHeight,

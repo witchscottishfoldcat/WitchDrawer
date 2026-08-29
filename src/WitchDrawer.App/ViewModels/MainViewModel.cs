@@ -112,6 +112,10 @@ public sealed class MainViewModel : ObservableObject
         RenameSelectedBoxCommand = new AsyncRelayCommand<string?>(RenameSelectedBoxAsync, _ => SelectedBox is not null);
         OpenItemCommand = new AsyncRelayCommand<DrawerItemViewModel?>(OpenItemAsync);
         DeleteItemCommand = new AsyncRelayCommand<DrawerItemViewModel?>(DeleteItemAsync);
+        ImportMappingFolderCommand = new AsyncRelayCommand(
+            ImportMappingFolderAsync,
+            () => SelectedBox?.IsMappingBox == true);
+        RemoveMappingFolderCommand = new AsyncRelayCommand<string?>(RemoveMappingFolderAsync);
         RestoreArchivedTodoCommand = new AsyncRelayCommand<ArchivedTodoItemViewModel?>(RestoreArchivedTodoAsync);
         DeleteArchivedTodoCommand = new AsyncRelayCommand<ArchivedTodoItemViewModel?>(DeleteArchivedTodoAsync);
         SetCurrentTheme(AppThemeManager.CurrentTheme);
@@ -222,6 +226,12 @@ public sealed class MainViewModel : ObservableObject
     public IAsyncRelayCommand ToggleEditorOpacityFollowCommand { get; }
 
     public IAsyncRelayCommand ToggleDrawerStyleCommand { get; }
+
+    public IAsyncRelayCommand ImportMappingFolderCommand { get; }
+
+    public IAsyncRelayCommand<string?> RemoveMappingFolderCommand { get; }
+
+    public ObservableCollection<string> MappingFolderPaths { get; } = [];
 
     public IAsyncRelayCommand CheckForUpdateCommand { get; }
 
@@ -647,6 +657,80 @@ public sealed class MainViewModel : ObservableObject
         });
     }
 
+    /// <summary>
+    /// 映射收纳盒：选择一个文件夹注册为"映射文件夹"，把里面的文件/子文件夹作为映射引用加入，
+    /// 之后往该文件夹新增的内容会在刷新/文件监视时自动同步进盒子。
+    /// 仅映射盒可用；拖动单个文件夹的行为不变（仍映射整个文件夹）。
+    /// </summary>
+    private async Task ImportMappingFolderAsync()
+    {
+        var selectedBox = SelectedBox;
+        if (selectedBox is not { IsMappingBox: true })
+        {
+            return;
+        }
+
+        var folder = PickMappingFolder();
+        if (string.IsNullOrWhiteSpace(folder))
+        {
+            return;
+        }
+
+        await RunBusyAsync(async () =>
+        {
+            await _drawerService.AddMappingFolderAsync(selectedBox.Id, folder);
+            var syncResult = await _drawerService.SyncMappingFoldersAsync(selectedBox.Id);
+            var imported = syncResult.Added;
+            await LoadItemsForSelectedBoxAsync(selectedBox);
+            await _quickPanelViewModel.RefreshBoxAsync(selectedBox.Id);
+            StatusText = imported > 0
+                ? $"已把文件夹内容 {imported} 项加入 {selectedBox.Name}（以后新增会自动同步）"
+                : $"已注册映射文件夹 {folder}，后续新增内容会自动同步";
+            ItemsChanged?.Invoke(this, new BoxItemsChangedEventArgs(selectedBox.Id));
+            BoxesChanged?.Invoke(this, EventArgs.Empty);
+        });
+    }
+
+    private static string? PickMappingFolder()
+    {
+        var dialog = new Microsoft.Win32.OpenFolderDialog
+        {
+            Title = "选择要映射内容的文件夹",
+            Multiselect = false
+        };
+        return dialog.ShowDialog() == true ? dialog.FolderName : null;
+    }
+
+    private async Task LoadMappingFoldersAsync(BoxViewModel box)
+    {
+        var folders = await _drawerService.GetMappingFolderPathsAsync(box.Id);
+        MappingFolderPaths.Clear();
+        foreach (var folder in folders)
+        {
+            MappingFolderPaths.Add(folder);
+        }
+    }
+
+    private async Task RemoveMappingFolderAsync(string? folderPath)
+    {
+        if (string.IsNullOrWhiteSpace(folderPath)
+            || SelectedBox is not { IsMappingBox: true } selectedBox)
+        {
+            return;
+        }
+
+        await RunBusyAsync(async () =>
+        {
+            await _drawerService.RemoveMappingFolderAsync(selectedBox.Id, folderPath);
+            MappingFolderPaths.Remove(folderPath);
+            await LoadItemsForSelectedBoxAsync(selectedBox);
+            await _quickPanelViewModel.RefreshBoxAsync(selectedBox.Id);
+            StatusText = $"已移除映射文件夹 {folderPath}";
+            ItemsChanged?.Invoke(this, new BoxItemsChangedEventArgs(selectedBox.Id));
+            BoxesChanged?.Invoke(this, EventArgs.Empty);
+        });
+    }
+
     private Task CreateStyledNormalBoxAsync(BoxVisualStyleOption? option)
     {
         return option is null
@@ -870,6 +954,15 @@ public sealed class MainViewModel : ObservableObject
         RenameSelectedBoxCommand.NotifyCanExecuteChanged();
         SetSelectedBoxVisualStyleCommand.NotifyCanExecuteChanged();
         ToggleSelectedBoxPositionLockCommand.NotifyCanExecuteChanged();
+        ImportMappingFolderCommand.NotifyCanExecuteChanged();
+        if (value?.IsMappingBox == true)
+        {
+            _ = LoadMappingFoldersAsync(value);
+        }
+        else
+        {
+            MappingFolderPaths.Clear();
+        }
         return true;
     }
 

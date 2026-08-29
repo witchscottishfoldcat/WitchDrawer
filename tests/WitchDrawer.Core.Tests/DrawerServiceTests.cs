@@ -747,6 +747,132 @@ public sealed class DrawerServiceTests
         Assert.True(File.Exists(Path.Combine(item.StoredPath!, "nested.txt")));
     }
 
+    [Fact]
+    public async Task ImportDirectoryContentsAsync_MappingBoxAddsChildReferences()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var mappingBox = await workspace.GetBoxAsync(BoxType.Mapping);
+
+        // 源文件夹里放两个文件 + 一个子文件夹（含一个文件）
+        var folder = Path.Combine(workspace.Root, "source-folder");
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, "a.txt"), "a");
+        File.WriteAllText(Path.Combine(folder, "b.txt"), "b");
+        Directory.CreateDirectory(Path.Combine(folder, "sub"));
+        File.WriteAllText(Path.Combine(folder, "sub", "c.txt"), "c");
+
+        var imported = await workspace.Service.ImportDirectoryContentsAsync(mappingBox.Id, folder);
+
+        Assert.Equal(3, imported);
+        var items = await workspace.Service.GetItemsAsync(mappingBox.Id);
+        Assert.Equal(3, items.Count);
+        Assert.All(items, item =>
+        {
+            Assert.Null(item.StoredPath);
+            Assert.NotNull(item.SourcePath);
+        });
+        Assert.Contains(items, item => item.DisplayName == "a.txt");
+        Assert.Contains(items, item => item.DisplayName == "sub");
+    }
+
+    [Fact]
+    public async Task ImportDirectoryContentsAsync_NonMappingBoxThrows()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var normalBox = await workspace.GetBoxAsync(BoxType.Normal);
+        var folder = Path.Combine(workspace.Root, "some-folder");
+        Directory.CreateDirectory(folder);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => workspace.Service.ImportDirectoryContentsAsync(normalBox.Id, folder));
+    }
+
+    [Fact]
+    public async Task MappingFolder_AddAndSyncImportsNewChildren()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var mappingBox = await workspace.GetBoxAsync(BoxType.Mapping);
+
+        var folder = Path.Combine(workspace.Root, "watched-folder");
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, "a.txt"), "a");
+
+        await workspace.Service.AddMappingFolderAsync(mappingBox.Id, folder);
+        var firstSync = await workspace.Service.SyncMappingFoldersAsync(mappingBox.Id);
+
+        Assert.Equal(1, firstSync.Added);
+        Assert.Contains(
+            await workspace.Service.GetItemsAsync(mappingBox.Id),
+            item => item.DisplayName == "a.txt" && item.StoredPath is null);
+
+        // 往源文件夹新增文件后再次同步，应自动识别新文件。
+        File.WriteAllText(Path.Combine(folder, "b.txt"), "b");
+        var secondSync = await workspace.Service.SyncMappingFoldersAsync(mappingBox.Id);
+
+        Assert.Equal(1, secondSync.Added);
+        var items = await workspace.Service.GetItemsAsync(mappingBox.Id);
+        Assert.Equal(2, items.Count);
+        Assert.Contains(items, item => item.DisplayName == "b.txt");
+    }
+
+    [Fact]
+    public async Task MappingFolder_SyncRemovesReferencesWhenSourceDeleted()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var mappingBox = await workspace.GetBoxAsync(BoxType.Mapping);
+
+        var folder = Path.Combine(workspace.Root, "delete-folder");
+        Directory.CreateDirectory(folder);
+        var aPath = Path.Combine(folder, "a.txt");
+        File.WriteAllText(aPath, "a");
+        File.WriteAllText(Path.Combine(folder, "b.txt"), "b");
+        await workspace.Service.AddMappingFolderAsync(mappingBox.Id, folder);
+        await workspace.Service.SyncMappingFoldersAsync(mappingBox.Id);
+        Assert.Equal(2, (await workspace.Service.GetItemsAsync(mappingBox.Id)).Count);
+
+        // 删除源文件夹里的一个文件后同步，对应引用应被自动移除。
+        File.Delete(aPath);
+        var result = await workspace.Service.SyncMappingFoldersAsync(mappingBox.Id);
+
+        Assert.Equal(1, result.Removed);
+        var items = await workspace.Service.GetItemsAsync(mappingBox.Id);
+        Assert.Single(items);
+        Assert.DoesNotContain(items, item => item.DisplayName == "a.txt");
+    }
+
+    [Fact]
+    public async Task MappingFolder_AddNonMappingBoxThrows()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var normalBox = await workspace.GetBoxAsync(BoxType.Normal);
+        var folder = Path.Combine(workspace.Root, "some-folder");
+        Directory.CreateDirectory(folder);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => workspace.Service.AddMappingFolderAsync(normalBox.Id, folder));
+    }
+
+    [Fact]
+    public async Task MappingFolder_RemoveStopsTrackingAndCleansSourcedReferences()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var mappingBox = await workspace.GetBoxAsync(BoxType.Mapping);
+
+        var folder = Path.Combine(workspace.Root, "remove-folder");
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, "a.txt"), "a");
+        File.WriteAllText(Path.Combine(folder, "b.txt"), "b");
+        await workspace.Service.AddMappingFolderAsync(mappingBox.Id, folder);
+        await workspace.Service.SyncMappingFoldersAsync(mappingBox.Id);
+        Assert.Equal(2, (await workspace.Service.GetItemsAsync(mappingBox.Id)).Count);
+
+        var removed = await workspace.Service.RemoveMappingFolderAsync(mappingBox.Id, folder);
+
+        Assert.True(removed);
+        Assert.Empty(await workspace.Service.GetMappingFolderPathsAsync(mappingBox.Id));
+        Assert.Empty(await workspace.Service.GetItemsAsync(mappingBox.Id));
+    }
+
     private sealed class TestWorkspace : IDisposable
     {
         private TestWorkspace(string root, AppPaths paths, DrawerRepository repository, DrawerService service)

@@ -10,69 +10,27 @@ using WitchDrawer.Core.Storage;
 namespace WitchDrawer.App.Tests;
 
 /// <summary>
-/// Fixed-size grid behavior for normal boxes (settings panel): items wrap to the
-/// column count so the grid always fills the box width, like the drawer cover.
-/// Mapping boxes are adaptive-only and do not support fixed size.
+/// All boxes are adaptive-only: the fixed m x n grid size was removed, so
+/// applying a fixed size mode is always a no-op and the box stays adaptive.
 /// </summary>
 public sealed class DesktopBoxGridResizeTests
 {
     [Fact]
-    public async Task NormalBox_ApplyFixedModeReflowsItemsToFillColumns()
+    public async Task NormalBox_DoesNotSupportFixedSize()
     {
         var root = CreateTempRoot();
         try
         {
             var (drawerService, repository) = await CreateDrawerServiceAsync(root);
             var box = await drawerService.CreateBoxAsync("normal", BoxType.Normal);
-            var sourcePaths = Enumerable.Range(0, 8)
-                .Select(index => CreateSourceFile(root, $"item-{index:D2}.txt"))
-                .ToArray();
-            foreach (var path in sourcePaths)
-            {
-                await drawerService.ImportPathAsync(box.Id, path);
-            }
-
             var viewModel = CreateViewModel(box, drawerService, repository);
-            await viewModel.LoadAsync();
+
+            Assert.False(viewModel.SupportsFixedSize);
 
             viewModel.ApplySizeMode(new BoxSizeModeState(true, 5, 2));
 
-            var columns = viewModel.Items.Select(item => item.GridColumn).ToArray();
-            Assert.Equal(new[] { 0, 1, 2, 3, 4, 0, 1, 2 }, columns);
-            Assert.True(viewModel.IsFixedSize);
-        }
-        finally
-        {
-            CleanupTempRoot(root);
-        }
-    }
-
-    [Fact]
-    public async Task NormalBox_FixedModeLoadWrapsItemsToPersistedColumns()
-    {
-        var root = CreateTempRoot();
-        try
-        {
-            var (drawerService, repository) = await CreateDrawerServiceAsync(root);
-            var box = await drawerService.CreateBoxAsync("normal", BoxType.Normal);
-            var sourcePaths = Enumerable.Range(0, 8)
-                .Select(index => CreateSourceFile(root, $"item-{index:D2}.txt"))
-                .ToArray();
-            foreach (var path in sourcePaths)
-            {
-                await drawerService.ImportPathAsync(box.Id, path);
-            }
-
-            await drawerService.SetSettingAsync(
-                BoxViewModel.GetSizeModeSettingKey(box.Id),
-                new BoxSizeModeState(true, 5, 2).Serialize());
-
-            var viewModel = CreateViewModel(box, drawerService, repository);
-            await viewModel.LoadSizeModeAsync();
-            await viewModel.LoadAsync();
-
-            var columns = viewModel.Items.Select(item => item.GridColumn).ToArray();
-            Assert.Equal(new[] { 0, 1, 2, 3, 4, 0, 1, 2 }, columns);
+            Assert.False(viewModel.IsFixedSize);
+            Assert.Equal(BoxSizeModeState.Adaptive, viewModel.SizeMode);
         }
         finally
         {
@@ -137,15 +95,6 @@ public sealed class DesktopBoxGridResizeTests
             new NoOpFileLauncher(),
             new RecordingLogger(),
             BoxVisualStyle.Modern);
-
-    private static string CreateSourceFile(string root, string name)
-    {
-        var directory = Path.Combine(root, "sources");
-        Directory.CreateDirectory(directory);
-        var path = Path.Combine(directory, name);
-        File.WriteAllText(path, "payload");
-        return path;
-    }
 
     private static string CreateTempRoot() =>
         Path.Combine(Path.GetTempPath(), "WitchDrawerTests", Guid.NewGuid().ToString("N"));
