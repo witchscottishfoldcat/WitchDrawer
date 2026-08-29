@@ -212,7 +212,9 @@ public sealed class DesktopBoxWindowTemplateTests
 
         Assert.Equal("{Binding Item.DisplayName}", (string?)coverFileName.Attribute("Text"));
         Assert.Equal("{Binding DisplayName}", (string?)secondaryFileName.Attribute("Text"));
-        Assert.Equal("抽屉", (string?)expandFileName.Attribute("Text"));
+        Assert.Equal(
+            "{Binding DataContext.DrawerExpandTileLabel, RelativeSource={RelativeSource AncestorType=Window}}",
+            (string?)expandFileName.Attribute("Text"));
         Assert.Equal(
             "{Binding DataContext.IsFileNameVisible, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BooleanToVisibilityConverter}}",
             (string?)coverFileName.Attribute("Visibility"));

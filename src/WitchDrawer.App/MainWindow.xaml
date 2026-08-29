@@ -1950,6 +1950,25 @@
                                                        Foreground="{DynamicResource TextMutedBrush}"
                                                        FontSize="11"
                                                        VerticalAlignment="Center" />
+                                            <Button Command="{Binding ImportMappingFolderCommand}"
+                                                    Visibility="{Binding SelectedBox.IsMappingBox, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                    Style="{StaticResource PrimaryButtonStyle}"
+                                                    Margin="10,0,0,0"
+                                                    Padding="10,4"
+                                                    VerticalAlignment="Center"
+                                                    ToolTip="注册一个映射文件夹：把里面的文件/子文件夹作为映射引用加入，之后在该文件夹新增的内容会自动同步到收纳盒">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <TextBlock Text="+"
+                                                               FontSize="13"
+                                                               FontWeight="Bold"
+                                                               VerticalAlignment="Center" />
+                                                    <TextBlock Text="添加映射文件夹"
+                                                               FontSize="11.5"
+                                                               FontWeight="SemiBold"
+                                                               Margin="4,0,0,0"
+                                                               VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
                                         </StackPanel>
                                         <Border HorizontalAlignment="Right"
                                                 Background="{DynamicResource PanelAltBrush}"
@@ -1961,6 +1980,58 @@
                                                        Foreground="{DynamicResource TextMutedBrush}" />
                                         </Border>
                                     </Grid>
+
+                                    <!-- 映射文件夹（仅映射盒显示）：已注册的映射源文件夹，可移除 -->
+                                    <Border DockPanel.Dock="Bottom"
+                                            Background="{DynamicResource PanelAltBrush}"
+                                            BorderBrush="{DynamicResource BorderBrushSoft}"
+                                            BorderThickness="1"
+                                            CornerRadius="10"
+                                            Padding="10,6"
+                                            Margin="2,0,2,6">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SelectedBox.IsMappingBox}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <StackPanel>
+                                            <TextBlock Text="映射文件夹（自动同步新增内容）"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TextMutedBrush}" />
+                                            <ItemsControl ItemsSource="{Binding MappingFolderPaths}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Grid Margin="0,3,0,0">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Text="{Binding}"
+                                                                       TextTrimming="CharacterEllipsis"
+                                                                       FontSize="11"
+                                                                       VerticalAlignment="Center"
+                                                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                            <Button Grid.Column="1"
+                                                                    Content="移除"
+                                                                    Command="{Binding DataContext.RemoveMappingFolderCommand, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
+                                                                    CommandParameter="{Binding}"
+                                                                    Style="{StaticResource GhostButtonStyle}"
+                                                                    Padding="8,2"
+                                                                    FontSize="10"
+                                                                    Margin="8,0,0,0"
+                                                                    ToolTip="停止自动同步并移除该文件夹来源的引用" />
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </Border>
 
                                     <Grid>
                                         <!-- Empty State -->
@@ -2753,6 +2824,39 @@
                                                       Command="{Binding ToggleEditorOpacityFollowCommand}"
                                                       AutomationProperties.Name="编辑页跟随透明度" />
                                     </Grid>
+                                </Grid>
+                                </Border>
+
+                                <!-- 收纳方式 Card -->
+                                <Border Background="{DynamicResource PanelBrush}"
+                                    BorderBrush="{DynamicResource BorderBrushSoft}"
+                                    BorderThickness="1"
+                                    CornerRadius="12"
+                                    Padding="10"
+                                    Margin="0,0,0,6">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="收纳方式"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="13"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <TextBlock Text="普通收纳盒和映射收纳盒也使用抽屉式收纳：放不下的图标自动折叠进最后一个图标，点击可展开查看"
+                                                   Margin="0,2,12,0"
+                                                   FontSize="11.5"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource TextMutedBrush}" />
+                                    </StackPanel>
+                                    <ToggleButton Grid.Column="1"
+                                                  Margin="12,0,0,0"
+                                                  VerticalAlignment="Center"
+                                                  Style="{StaticResource SettingsToggleButtonStyle}"
+                                                  IsChecked="{Binding DrawerStyleEnabled, Mode=OneWay}"
+                                                  Command="{Binding ToggleDrawerStyleCommand}"
+                                                  AutomationProperties.Name="抽屉式收纳" />
                                 </Grid>
                                 </Border>
 

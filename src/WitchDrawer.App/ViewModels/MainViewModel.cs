@@ -57,6 +57,7 @@ public sealed class MainViewModel : ObservableObject
     private bool _launchOnStartup;
     private bool _areDesktopIconsHidden;
     private bool _isDesktopDoubleClickEnabled;
+    private bool _drawerStyleEnabled;
     private string _updateStatusText = string.Empty;
     private bool _isCheckingUpdate;
     private string? _pendingUpdateSha256;
@@ -111,6 +112,10 @@ public sealed class MainViewModel : ObservableObject
         RenameSelectedBoxCommand = new AsyncRelayCommand<string?>(RenameSelectedBoxAsync, _ => SelectedBox is not null);
         OpenItemCommand = new AsyncRelayCommand<DrawerItemViewModel?>(OpenItemAsync);
         DeleteItemCommand = new AsyncRelayCommand<DrawerItemViewModel?>(DeleteItemAsync);
+        ImportMappingFolderCommand = new AsyncRelayCommand(
+            ImportMappingFolderAsync,
+            () => SelectedBox?.IsMappingBox == true);
+        RemoveMappingFolderCommand = new AsyncRelayCommand<string?>(RemoveMappingFolderAsync);
         RestoreArchivedTodoCommand = new AsyncRelayCommand<ArchivedTodoItemViewModel?>(RestoreArchivedTodoAsync);
         DeleteArchivedTodoCommand = new AsyncRelayCommand<ArchivedTodoItemViewModel?>(DeleteArchivedTodoAsync);
         SetCurrentTheme(AppThemeManager.CurrentTheme);
@@ -122,6 +127,7 @@ public sealed class MainViewModel : ObservableObject
         ToggleDesktopIconsCommand = new AsyncRelayCommand(ToggleDesktopIconsAsync);
         ToggleDesktopDoubleClickCommand = new AsyncRelayCommand(ToggleDesktopDoubleClickAsync);
         ToggleEditorOpacityFollowCommand = new AsyncRelayCommand(ToggleEditorOpacityFollowAsync);
+        ToggleDrawerStyleCommand = new AsyncRelayCommand(ToggleDrawerStyleAsync);
         CheckForUpdateCommand = new AsyncRelayCommand(CheckForUpdateAsync);
         ShowDashboardCommand = new RelayCommand(() =>
         {
@@ -218,6 +224,14 @@ public sealed class MainViewModel : ObservableObject
     public IAsyncRelayCommand ToggleDesktopDoubleClickCommand { get; }
 
     public IAsyncRelayCommand ToggleEditorOpacityFollowCommand { get; }
+
+    public IAsyncRelayCommand ToggleDrawerStyleCommand { get; }
+
+    public IAsyncRelayCommand ImportMappingFolderCommand { get; }
+
+    public IAsyncRelayCommand<string?> RemoveMappingFolderCommand { get; }
+
+    public ObservableCollection<string> MappingFolderPaths { get; } = [];
 
     public IAsyncRelayCommand CheckForUpdateCommand { get; }
 
@@ -362,6 +376,12 @@ public sealed class MainViewModel : ObservableObject
         private set => SetProperty(ref _isDesktopDoubleClickEnabled, value);
     }
 
+    public bool DrawerStyleEnabled
+    {
+        get => _drawerStyleEnabled;
+        private set => SetProperty(ref _drawerStyleEnabled, value);
+    }
+
     public string UpdateStatusText
     {
         get => _updateStatusText;
@@ -468,6 +488,11 @@ public sealed class MainViewModel : ObservableObject
             IsDesktopDoubleClickEnabled =
                 bool.TryParse(desktopDoubleClickSetting, out var desktopDoubleClickEnabled)
                 && desktopDoubleClickEnabled;
+            var drawerStyleSetting =
+                await _drawerService.GetSettingAsync(DesktopBoxViewModel.DrawerStyleSettingKey);
+            DrawerStyleEnabled =
+                bool.TryParse(drawerStyleSetting, out var drawerStyleEnabled)
+                && drawerStyleEnabled;
             StatusText = $"{Boxes.Count} 个收纳盒已同步到桌面";
             BoxesChanged?.Invoke(this, EventArgs.Empty);
         });
@@ -629,6 +654,80 @@ public sealed class MainViewModel : ObservableObject
                     : $"{selectedBox.Name} 已满，无法导入"
                 : $"已导入 {imported} 项到 {selectedBox.Name}";
             ItemsChanged?.Invoke(this, new BoxItemsChangedEventArgs(selectedBox.Id));
+        });
+    }
+
+    /// <summary>
+    /// 映射收纳盒：选择一个文件夹注册为"映射文件夹"，把里面的文件/子文件夹作为映射引用加入，
+    /// 之后往该文件夹新增的内容会在刷新/文件监视时自动同步进盒子。
+    /// 仅映射盒可用；拖动单个文件夹的行为不变（仍映射整个文件夹）。
+    /// </summary>
+    private async Task ImportMappingFolderAsync()
+    {
+        var selectedBox = SelectedBox;
+        if (selectedBox is not { IsMappingBox: true })
+        {
+            return;
+        }
+
+        var folder = PickMappingFolder();
+        if (string.IsNullOrWhiteSpace(folder))
+        {
+            return;
+        }
+
+        await RunBusyAsync(async () =>
+        {
+            await _drawerService.AddMappingFolderAsync(selectedBox.Id, folder);
+            var syncResult = await _drawerService.SyncMappingFoldersAsync(selectedBox.Id);
+            var imported = syncResult.Added;
+            await LoadItemsForSelectedBoxAsync(selectedBox);
+            await _quickPanelViewModel.RefreshBoxAsync(selectedBox.Id);
+            StatusText = imported > 0
+                ? $"已把文件夹内容 {imported} 项加入 {selectedBox.Name}（以后新增会自动同步）"
+                : $"已注册映射文件夹 {folder}，后续新增内容会自动同步";
+            ItemsChanged?.Invoke(this, new BoxItemsChangedEventArgs(selectedBox.Id));
+            BoxesChanged?.Invoke(this, EventArgs.Empty);
+        });
+    }
+
+    private static string? PickMappingFolder()
+    {
+        var dialog = new Microsoft.Win32.OpenFolderDialog
+        {
+            Title = "选择要映射内容的文件夹",
+            Multiselect = false
+        };
+        return dialog.ShowDialog() == true ? dialog.FolderName : null;
+    }
+
+    private async Task LoadMappingFoldersAsync(BoxViewModel box)
+    {
+        var folders = await _drawerService.GetMappingFolderPathsAsync(box.Id);
+        MappingFolderPaths.Clear();
+        foreach (var folder in folders)
+        {
+            MappingFolderPaths.Add(folder);
+        }
+    }
+
+    private async Task RemoveMappingFolderAsync(string? folderPath)
+    {
+        if (string.IsNullOrWhiteSpace(folderPath)
+            || SelectedBox is not { IsMappingBox: true } selectedBox)
+        {
+            return;
+        }
+
+        await RunBusyAsync(async () =>
+        {
+            await _drawerService.RemoveMappingFolderAsync(selectedBox.Id, folderPath);
+            MappingFolderPaths.Remove(folderPath);
+            await LoadItemsForSelectedBoxAsync(selectedBox);
+            await _quickPanelViewModel.RefreshBoxAsync(selectedBox.Id);
+            StatusText = $"已移除映射文件夹 {folderPath}";
+            ItemsChanged?.Invoke(this, new BoxItemsChangedEventArgs(selectedBox.Id));
+            BoxesChanged?.Invoke(this, EventArgs.Empty);
         });
     }
 
@@ -855,6 +954,15 @@ public sealed class MainViewModel : ObservableObject
         RenameSelectedBoxCommand.NotifyCanExecuteChanged();
         SetSelectedBoxVisualStyleCommand.NotifyCanExecuteChanged();
         ToggleSelectedBoxPositionLockCommand.NotifyCanExecuteChanged();
+        ImportMappingFolderCommand.NotifyCanExecuteChanged();
+        if (value?.IsMappingBox == true)
+        {
+            _ = LoadMappingFoldersAsync(value);
+        }
+        else
+        {
+            MappingFolderPaths.Clear();
+        }
         return true;
     }
 
@@ -1178,6 +1286,28 @@ public sealed class MainViewModel : ObservableObject
         {
             _logger.Error(exception, "Failed to save desktop double-click setting.");
             OnPropertyChanged(nameof(IsDesktopDoubleClickEnabled));
+            StatusText = exception.Message;
+        }
+    }
+
+    private async Task ToggleDrawerStyleAsync()
+    {
+        try
+        {
+            var enabled = !DrawerStyleEnabled;
+            await _drawerService.SetSettingAsync(
+                DesktopBoxViewModel.DrawerStyleSettingKey,
+                enabled.ToString());
+            DrawerStyleEnabled = enabled;
+            StatusText = enabled
+                ? "已为普通/映射收纳盒启用抽屉式收纳"
+                : "已关闭普通/映射收纳盒的抽屉式收纳";
+            BoxesChanged?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to save drawer style setting.");
+            OnPropertyChanged(nameof(DrawerStyleEnabled));
             StatusText = exception.Message;
         }
     }

@@ -95,12 +95,14 @@ public sealed partial class BoxViewModel : ObservableObject
 
     public bool IsTodoBox => Type == BoxType.Todo;
 
+    public bool IsMappingBox => Type == BoxType.Mapping;
+
     public bool IsDrawerBox => Type == BoxType.Drawer;
 
     /// <summary>
     /// 固定 m×n 格尺寸仅适用于普通网格收纳盒；其余盒型始终自适应。
     /// </summary>
-    public bool SupportsFixedSize => Type is BoxType.Normal or BoxType.Pixel;
+    public bool SupportsFixedSize => false;
 
     /// <summary>
     /// 排序（自由/名称/大小/类型/修改日期）适用于所有收纳类盒型；待办盒有自己的排序语义。

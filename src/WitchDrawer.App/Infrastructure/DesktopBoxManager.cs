@@ -45,6 +45,7 @@ public sealed class DesktopBoxManager
     private readonly Task _desktopMouseButtonProcessor;
     private readonly Func<bool> _isDesktopDoubleClickEnabled;
     private readonly HashSet<Guid> _overlapResolutionBoxIds = [];
+    private readonly MappingFolderWatcher _mappingFolderWatcher;
     private bool _closing;
     private bool _desktopIsForeground;
     private CancellationTokenSource? _foregroundChangeCts;
@@ -69,6 +70,10 @@ public sealed class DesktopBoxManager
         _boxVisualStyleStore = boxVisualStyleStore;
         _boxPositionLockStateStore = boxPositionLockStateStore;
         _isDesktopDoubleClickEnabled = isDesktopDoubleClickEnabled;
+        // 映射文件夹变化 -> 同步新项 -> 刷新对应盒子（实时自动识别）。
+        _mappingFolderWatcher = new MappingFolderWatcher(
+            drawerService,
+            boxId => RefreshItemsAsync(boxId));
         _foregroundWindowMonitor = new ForegroundWindowMonitor();
         _foregroundWindowMonitor.ForegroundWindowChanged += OnForegroundWindowChanged;
         _desktopIsForeground = ForegroundWindowMonitor.IsDesktopWindow(
@@ -187,6 +192,7 @@ public sealed class DesktopBoxManager
                     await viewModel.LoadFileNameVisibilityAsync();
                     await viewModel.LoadMappingViewModeAsync();
                     await viewModel.LoadMappingListWidthAsync();
+                    await viewModel.LoadDrawerStyleAsync();
                     // The persisted drawer height is snapped against the active row height.
                     // Load the file-name row first so a saved 4x4 cover stays 4x4 after restart.
                     await viewModel.LoadDrawerCoverSizeAsync();
@@ -248,11 +254,18 @@ public sealed class DesktopBoxManager
                 else
                 {
                     window.ViewModel.UpdateBox(box, visualStyle);
+                    await window.ViewModel.LoadDrawerStyleAsync();
                     window.SetPositionLocked(isPositionLocked);
                 }
 
                 window.SetDesktopForeground(_desktopIsForeground);
                 window.QueueSendToBottom();
+            }
+
+            // 让映射文件夹监视器与当前持久化的映射文件夹保持一致。
+            foreach (var box in boxes)
+            {
+                await _mappingFolderWatcher.SynchronizeAsync(box.Id);
             }
 
             ResolveWindowOverlaps();
@@ -669,6 +682,7 @@ public sealed class DesktopBoxManager
         _verticalGuide = null;
         _horizontalGuide?.Close();
         _horizontalGuide = null;
+        _mappingFolderWatcher.Dispose();
         WeakReferenceMessenger.Default.UnregisterAll(this);
     }
 

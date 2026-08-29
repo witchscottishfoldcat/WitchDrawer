@@ -640,6 +640,36 @@ public partial class DesktopBoxWindow : Window
         e.Handled = true;
     }
 
+    private void OnDrawerBottomResizeDelta(object sender, DragDeltaEventArgs e)
+    {
+        if (!GetCursorPos(out var currentCursor))
+        {
+            return;
+        }
+
+        var verticalDelta = currentCursor.Y - _drawerResizeStartCursor.Y;
+        var dpi = VisualTreeHelper.GetDpi(this);
+        ViewModel.ResizeDrawerCover(
+            _drawerResizeStartWidth,
+            _drawerResizeStartHeight + (verticalDelta / Math.Max(0.1, dpi.DpiScaleY)));
+        e.Handled = true;
+    }
+
+    private void OnDrawerRightResizeDelta(object sender, DragDeltaEventArgs e)
+    {
+        if (!GetCursorPos(out var currentCursor))
+        {
+            return;
+        }
+
+        var horizontalDelta = currentCursor.X - _drawerResizeStartCursor.X;
+        var dpi = VisualTreeHelper.GetDpi(this);
+        ViewModel.ResizeDrawerCover(
+            _drawerResizeStartWidth + (horizontalDelta / Math.Max(0.1, dpi.DpiScaleX)),
+            _drawerResizeStartHeight);
+        e.Handled = true;
+    }
+
     private async void OnDrawerResizeCompleted(object sender, DragCompletedEventArgs e)
     {
         if (e.Canceled)
@@ -699,6 +729,7 @@ public partial class DesktopBoxWindow : Window
         await ViewModel.SaveMappingListWidthAsync();
         e.Handled = true;
     }
+
 
     private void OnDrawerSurfacePreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {

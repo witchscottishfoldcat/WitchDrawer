@@ -1,3 +1,4 @@
+using System.Text.Json;
 using WitchDrawer.Core.Abstractions;
 using WitchDrawer.Core.Models;
 using WitchDrawer.Core.Storage;
@@ -176,6 +177,239 @@ public sealed class DrawerService
 
         await _repository.AddItemAsync(item, cancellationToken);
         return item;
+    }
+
+    /// <summary>
+    /// 批量导入一个文件夹的直接子项（文件/子文件夹）作为映射引用，
+    /// 用于映射收纳盒的"添加映射文件夹内内容"。仅映射盒可用；
+    /// 普通/像素盒不接受此批量导入（避免整目录被移动）。
+    /// </summary>
+    public async Task<int> ImportDirectoryContentsAsync(
+        Guid boxId,
+        string directoryPath,
+        CancellationToken cancellationToken = default)
+    {
+        var box = await _repository.GetBoxAsync(boxId, cancellationToken)
+            ?? throw new InvalidOperationException("Box does not exist.");
+        if (box.Type != BoxType.Mapping)
+        {
+            throw new InvalidOperationException(
+                "Mapping folder contents can only be added to a mapping box.");
+        }
+
+        var fullDirectoryPath = PathSafety.GetFullExistingPath(directoryPath);
+        if (!Directory.Exists(fullDirectoryPath))
+        {
+            throw new DirectoryNotFoundException(
+                $"Directory does not exist: {fullDirectoryPath}");
+        }
+
+        var entries = Directory.GetFileSystemEntries(fullDirectoryPath);
+        var imported = 0;
+        foreach (var entry in entries)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await ImportPathAsync(boxId, entry, cancellationToken: cancellationToken);
+            imported++;
+        }
+
+        return imported;
+    }
+
+    private const string MappingFoldersSettingPrefix = "MappingFolders:";
+
+    /// <summary>
+    /// 读取某映射收纳盒已注册的映射源文件夹列表（持久化于设置）。
+    /// </summary>
+    public async Task<IReadOnlyList<string>> GetMappingFolderPathsAsync(
+        Guid boxId,
+        CancellationToken cancellationToken = default)
+    {
+        var saved = await _repository.GetSettingAsync(
+            MappingFoldersSettingPrefix + boxId.ToString("N"),
+            cancellationToken);
+        if (string.IsNullOrWhiteSpace(saved))
+        {
+            return Array.Empty<string>();
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<List<string>>(saved) ?? [];
+        }
+        catch (JsonException)
+        {
+            return Array.Empty<string>();
+        }
+    }
+
+    public async Task SetMappingFolderPathsAsync(
+        Guid boxId,
+        IReadOnlyList<string> folderPaths,
+        CancellationToken cancellationToken = default)
+    {
+        var distinct = folderPaths
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(Path.GetFullPath)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var json = JsonSerializer.Serialize(distinct);
+        await _repository.SetSettingAsync(
+            MappingFoldersSettingPrefix + boxId.ToString("N"),
+            json,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// 把一个源文件夹注册为映射文件夹（持久化），并立即同步其当前内容。
+    /// </summary>
+    public async Task AddMappingFolderAsync(
+        Guid boxId,
+        string folderPath,
+        CancellationToken cancellationToken = default)
+    {
+        var box = await _repository.GetBoxAsync(boxId, cancellationToken)
+            ?? throw new InvalidOperationException("Box does not exist.");
+        if (box.Type != BoxType.Mapping)
+        {
+            throw new InvalidOperationException(
+                "Mapping folders can only be registered on a mapping box.");
+        }
+
+        var fullPath = Path.GetFullPath(folderPath);
+        if (!Directory.Exists(fullPath))
+        {
+            throw new DirectoryNotFoundException(
+                $"Directory does not exist: {fullPath}");
+        }
+
+        var current = (await GetMappingFolderPathsAsync(boxId, cancellationToken)).ToList();
+        if (!current.Contains(fullPath, StringComparer.OrdinalIgnoreCase))
+        {
+            current.Add(fullPath);
+            await SetMappingFolderPathsAsync(boxId, current, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// 同步映射文件夹：把文件夹里的新增子项（尚未在盒内）作为映射引用自动加入。
+    /// 新增的源子项自动加入；来源已不存在的引用自动移除（源文件始终不动）。
+    /// </summary>
+    public async Task<MappingFolderSyncResult> SyncMappingFoldersAsync(
+        Guid boxId,
+        CancellationToken cancellationToken = default)
+    {
+        var folders = await GetMappingFolderPathsAsync(boxId, cancellationToken);
+        if (folders.Count == 0)
+        {
+            return new MappingFolderSyncResult(0, 0);
+        }
+
+        var existingItems = await _repository.GetItemsAsync(boxId, cancellationToken);
+        var existingPaths = existingItems
+            .Select(item => item.SourcePath)
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var imported = 0;
+        var removed = 0;
+        foreach (var folder in folders)
+        {
+            // 1) 来源已不存在的引用自动移除（源文件/文件夹被删）。
+            foreach (var item in existingItems)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (string.IsNullOrWhiteSpace(item.SourcePath))
+                {
+                    continue;
+                }
+
+                var relative = Path.GetRelativePath(folder, item.SourcePath);
+                if (relative == "." || relative.StartsWith("..", StringComparison.Ordinal))
+                {
+                    continue; // 不在该映射文件夹下
+                }
+
+                if (!File.Exists(item.SourcePath) && !Directory.Exists(item.SourcePath))
+                {
+                    await _repository.RemoveItemAsync(item.Id, cancellationToken);
+                    existingPaths.Remove(item.SourcePath);
+                    removed++;
+                }
+            }
+
+            // 2) 导入新增子项。
+            if (!Directory.Exists(folder))
+            {
+                continue;
+            }
+
+            foreach (var entry in Directory.GetFileSystemEntries(folder))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!existingPaths.Contains(entry))
+                {
+                    await ImportPathAsync(boxId, entry, cancellationToken: cancellationToken);
+                    imported++;
+                }
+            }
+        }
+
+        return new MappingFolderSyncResult(imported, removed);
+    }
+
+    /// <summary>
+    /// 映射文件夹同步结果：新增/移除数量。
+    /// </summary>
+    public sealed record MappingFolderSyncResult(int Added, int Removed)
+    {
+        public bool Changed => Added > 0 || Removed > 0;
+    }
+
+    /// <summary>
+    /// 移除一个映射文件夹：从跟踪列表中去掉，并清理来源位于该文件夹内的映射引用
+    /// （只删引用记录，源文件不动）。返回是否原本处于跟踪中。
+    /// </summary>
+    public async Task<bool> RemoveMappingFolderAsync(
+        Guid boxId,
+        string folderPath,
+        CancellationToken cancellationToken = default)
+    {
+        var full = Path.GetFullPath(folderPath).TrimEnd(
+            Path.DirectorySeparatorChar,
+            Path.AltDirectorySeparatorChar);
+        var current = (await GetMappingFolderPathsAsync(boxId, cancellationToken)).ToList();
+        var tracked = current.RemoveAll(path =>
+            string.Equals(
+                Path.GetFullPath(path).TrimEnd(
+                    Path.DirectorySeparatorChar,
+                    Path.AltDirectorySeparatorChar),
+                full,
+                StringComparison.OrdinalIgnoreCase)) > 0;
+
+        var items = await _repository.GetItemsAsync(boxId, cancellationToken);
+        foreach (var item in items)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (string.IsNullOrWhiteSpace(item.SourcePath))
+            {
+                continue;
+            }
+
+            var relative = Path.GetRelativePath(full, item.SourcePath);
+            if (relative != "."
+                && !relative.StartsWith("..", StringComparison.Ordinal))
+            {
+                await _repository.RemoveItemAsync(item.Id, cancellationToken);
+            }
+        }
+
+        if (tracked)
+        {
+            await SetMappingFolderPathsAsync(boxId, current, cancellationToken);
+        }
+
+        return tracked;
     }
 
     public Task UpdateItemGridPositionAsync(

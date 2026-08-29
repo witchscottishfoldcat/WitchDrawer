@@ -185,8 +185,8 @@ public sealed class DesktopBoxLayoutSettingsTests
     }
 
     [Theory]
-    [InlineData(80, 80, 64, 148, 84, 2, 1)]
-    [InlineData(80, 120, 64, 148, 84, 2, 1)]
+    [InlineData(80, 80, 64, 84, 84, 1, 1)]
+    [InlineData(80, 120, 64, 84, 148, 1, 2)]
     [InlineData(300, 300, 64, 276, 276, 4, 4)]
     [InlineData(420.26, 180.74, 54, 398, 182, 7, 3)]
     public void DrawerResize_SnapsWidthAndHeightToIndependentGridSteps(
