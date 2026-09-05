@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Channels;
 using System.Windows;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.Messaging;
 using WitchDrawer.App.Messages;
 using WitchDrawer.App.ViewModels;
@@ -32,7 +33,10 @@ public sealed class DesktopBoxManager
     private readonly BoxVisualStyleStore _boxVisualStyleStore;
     private readonly BoxPositionLockStateStore _boxPositionLockStateStore;
     private readonly Dictionary<Guid, DesktopBoxWindow> _windows = [];
-    private readonly ForegroundWindowMonitor _foregroundWindowMonitor;
+    private readonly DesktopLayerMonitor _desktopLayerMonitor;
+    private readonly Dispatcher _dispatcher;
+    private DispatcherOperation? _desktopLayerUpdate;
+    private bool _maintainingDesktopLayer;
     private readonly GlobalMouseButtonMonitor _mouseButtonMonitor;
     private readonly DesktopDoubleClickDetector _desktopDoubleClickDetector = new();
     private readonly Channel<DesktopMouseButtonEvent> _desktopMouseButtonEvents =
@@ -46,9 +50,7 @@ public sealed class DesktopBoxManager
     private readonly Func<bool> _isDesktopDoubleClickEnabled;
     private readonly HashSet<Guid> _overlapResolutionBoxIds = [];
     private bool _closing;
-    private bool _desktopIsForeground;
-    private CancellationTokenSource? _foregroundChangeCts;
-    private long _showDesktopShortcutObservedUntilTick;
+    private nint _desktopHost;
     private GuideLineWindow? _verticalGuide;
     private GuideLineWindow? _horizontalGuide;
     private bool _isAdjustingPosition;
@@ -69,14 +71,9 @@ public sealed class DesktopBoxManager
         _boxVisualStyleStore = boxVisualStyleStore;
         _boxPositionLockStateStore = boxPositionLockStateStore;
         _isDesktopDoubleClickEnabled = isDesktopDoubleClickEnabled;
-        _foregroundWindowMonitor = new ForegroundWindowMonitor();
-        _foregroundWindowMonitor.ForegroundWindowChanged += OnForegroundWindowChanged;
-        _desktopIsForeground = ForegroundWindowMonitor.IsDesktopWindow(
-            ForegroundWindowMonitor.GetCurrentForegroundWindow());
-        if (!_foregroundWindowMonitor.IsActive)
-        {
-            _logger.Info("Foreground window monitoring is unavailable; Show Desktop layering may be limited.");
-        }
+        _dispatcher = Dispatcher.CurrentDispatcher;
+        _desktopLayerMonitor = new DesktopLayerMonitor();
+        _desktopLayerMonitor.LayerChanged += QueueDesktopLayerUpdate;
 
         // 盒子带 WS_EX_NOACTIVATE，点击不激活窗口，桌面点击不会产生 Deactivated
         // 事件，选中框无法自动清除。全局鼠标钩子补上"外部点击"信号。
@@ -114,8 +111,6 @@ public sealed class DesktopBoxManager
 
     public event EventHandler? DesktopBackgroundDoubleClicked;
 
-    public event EventHandler? ShowDesktopActivated;
-
     private int _refreshVersion;
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
 
@@ -152,6 +147,7 @@ public sealed class DesktopBoxManager
                 var win = _windows[removedId];
                 win.LocationChanged -= OnWindowLocationChanged;
                 win.PreviewMouseLeftButtonUp -= OnWindowMouseUp;
+                win.DesktopLayerChanged -= QueueDesktopLayerUpdate;
                 win.ForceClose();
                 _windows.Remove(removedId);
             }
@@ -205,6 +201,7 @@ public sealed class DesktopBoxManager
 
                     window.LocationChanged += OnWindowLocationChanged;
                     window.PreviewMouseLeftButtonUp += OnWindowMouseUp;
+                    window.DesktopLayerChanged += QueueDesktopLayerUpdate;
                     window.SetPositionChangedCallback(async (id) =>
                     {
                         _isAdjustingPosition = true;
@@ -220,13 +217,11 @@ public sealed class DesktopBoxManager
                         await SavePositionAsync(id);
                     });
 
-                    // 先创建句柄：OnSourceInitialized 里完成挂桌面 + 沉底，
-                    // 窗口首次可见时就已经在桌面层，不会先浮在最上层闪一帧再被压回。
+                    // Configure the independent HWND before showing the box.
                     new System.Windows.Interop.WindowInteropHelper(window).EnsureHandle();
                     window.Show();
+                    MaintainDesktopLayer();
                     window.SetPositionLocked(isPositionLocked);
-                    window.SetDesktopForeground(_desktopIsForeground);
-                    window.QueueSendToBottom();
                     await window.ViewModel.LoadAsync();
                     // 首次布局的测量约束来自初始 HWND 尺寸，内容稳定后强制重测一次，
                     // 否则窗口会一直停在错误的初始宽度（折叠抽屉盒封面两侧突出）。
@@ -251,15 +246,10 @@ public sealed class DesktopBoxManager
                     window.SetPositionLocked(isPositionLocked);
                 }
 
-                window.SetDesktopForeground(_desktopIsForeground);
-                window.QueueSendToBottom();
             }
 
             ResolveWindowOverlaps();
-            if (DesktopToolWindow.RepairShellLastActivePopup())
-            {
-                _logger.Info("Reset Progman last-active-popup after attaching desktop boxes.");
-            }
+            MaintainDesktopLayer();
         }
         finally
         {
@@ -413,11 +403,6 @@ public sealed class DesktopBoxManager
                         window.MoveToVisibleOriginPixels(origin.X, origin.Y);
                     }
 
-                    if (window.IsVisible)
-                    {
-                        window.QueueSendToBottom();
-                    }
-
                     restoredCount++;
                 }
             }
@@ -426,6 +411,7 @@ public sealed class DesktopBoxManager
                 _isAdjustingPosition = false;
             }
 
+            MaintainDesktopLayer();
             await SaveAllPositionsAsync();
             _logger.Info(
                 $"Restored layout backup slot {slot}: restored={restoredCount}, missing={missingCount}.");
@@ -438,9 +424,8 @@ public sealed class DesktopBoxManager
     }
 
     /// <summary>
-    /// Reattaches desktop boxes after Explorer recreates the Shell desktop.
-    /// If Explorer destroyed an owned HWND, remove the stale WPF window and let
-    /// the normal refresh path recreate it from persisted box data.
+    /// Invalidates the cached desktop host after Explorer recreates the Shell
+    /// desktop. Subsequent Shell window events also retry host discovery.
     /// </summary>
     public async Task RecoverDesktopHostsAsync()
     {
@@ -449,26 +434,18 @@ public sealed class DesktopBoxManager
             return;
         }
 
-        // TaskbarCreated is broadcast as Explorer comes back. Give Progman a
-        // short window to finish creating before resolving the new owner HWND.
-        await Task.Delay(350);
-        if (_closing)
-        {
-            return;
-        }
-
+        _desktopHost = nint.Zero;
         var recreateRequired = false;
         foreach (var (boxId, window) in _windows.ToArray())
         {
             if (window.IsNativeWindowAlive)
             {
-                window.RefreshDesktopHost();
-                window.QueueSendToBottom();
                 continue;
             }
 
             window.LocationChanged -= OnWindowLocationChanged;
             window.PreviewMouseLeftButtonUp -= OnWindowMouseUp;
+            window.DesktopLayerChanged -= QueueDesktopLayerUpdate;
             // 外部（Explorer 重建桌面）销毁 HWND 不会触发 WPF Closed，必须显式 ForceClose
             // 让 OnClosed 里的退订/清理执行，否则整棵窗口对象图被静态事件永久引用（僵尸泄漏）。
             window.ForceClose();
@@ -481,10 +458,7 @@ public sealed class DesktopBoxManager
             await RefreshAsync();
         }
 
-        if (DesktopToolWindow.RepairShellLastActivePopup())
-        {
-            _logger.Info("Reset Progman last-active-popup after recovering desktop hosts.");
-        }
+        MaintainDesktopLayer();
     }
 
     /// <summary>
@@ -508,7 +482,7 @@ public sealed class DesktopBoxManager
                 window.Show();
             }
 
-            window.QueueSendToBottom();
+            MaintainDesktopLayer();
             return true;
         }
 
@@ -545,8 +519,9 @@ public sealed class DesktopBoxManager
                 }
 
                 window.Show();
-                window.QueueSendToBottom();
             }
+
+            MaintainDesktopLayer();
         }
         finally
         {
@@ -629,7 +604,7 @@ public sealed class DesktopBoxManager
                 _isAdjustingPosition = false;
             }
 
-            window.QueueSendToBottom();
+            MaintainDesktopLayer();
             var key = BoxPositionSettingPrefix + boxId.ToString("N");
             var value = CaptureStoredPosition(window);
             await _drawerService.SetSettingAsync(key, value);
@@ -645,20 +620,19 @@ public sealed class DesktopBoxManager
     public async Task CloseAllAsync()
     {
         _closing = true;
+        _desktopLayerMonitor.LayerChanged -= QueueDesktopLayerUpdate;
+        _desktopLayerMonitor.Dispose();
+        _desktopLayerUpdate?.Abort();
         await SaveAllPositionsAsync();
         foreach (var window in _windows.Values)
         {
             window.LocationChanged -= OnWindowLocationChanged;
             window.PreviewMouseLeftButtonUp -= OnWindowMouseUp;
+            window.DesktopLayerChanged -= QueueDesktopLayerUpdate;
             window.ForceClose();
         }
 
         _windows.Clear();
-        var foregroundChangeCts = Interlocked.Exchange(ref _foregroundChangeCts, null);
-        foregroundChangeCts?.Cancel();
-        foregroundChangeCts?.Dispose();
-        _foregroundWindowMonitor.ForegroundWindowChanged -= OnForegroundWindowChanged;
-        _foregroundWindowMonitor.Dispose();
         _mouseButtonMonitor.MouseButtonDown -= OnGlobalMouseButtonDown;
         _mouseButtonMonitor.MouseButtonPressed -= OnGlobalMouseButtonPressed;
         _mouseButtonMonitor.Dispose();
@@ -770,73 +744,55 @@ public sealed class DesktopBoxManager
         }
     }
 
-    private void OnForegroundWindowChanged(nint windowHandle)
+    private void QueueDesktopLayerUpdate()
     {
-        if (_closing)
+        if (_closing || _maintainingDesktopLayer || _dispatcher.HasShutdownStarted
+            || _desktopLayerUpdate?.Status == DispatcherOperationStatus.Pending
+            || !_windows.Values.Any(window => window.Visibility == Visibility.Visible))
         {
             return;
         }
 
-        if (DesktopToolWindow.IsShowDesktopShortcutPressed())
+        _desktopLayerUpdate = _dispatcher.BeginInvoke(DispatcherPriority.Render, () =>
         {
-            Interlocked.Exchange(
-                ref _showDesktopShortcutObservedUntilTick,
-                Environment.TickCount64 + 750);
-        }
-
-        // Win+D emits a short burst of foreground changes (for example Progman,
-        // WorkerW and transient shell windows). Applying every intermediate handle
-        // moves all boxes up and down several times and produces a visible flash.
-        var next = new CancellationTokenSource();
-        var previous = Interlocked.Exchange(ref _foregroundChangeCts, next);
-        previous?.Cancel();
-        previous?.Dispose();
-        FireAndForget.Run(
-                ApplyForegroundWindowAfterSettlingAsync(next),
-                _logger,
-                "Failed to apply foreground window state after settling.");
+            _desktopLayerUpdate = null;
+            MaintainDesktopLayer();
+        });
     }
 
-    private async Task ApplyForegroundWindowAfterSettlingAsync(CancellationTokenSource changeCts)
+    private void MaintainDesktopLayer()
     {
-        var cancellationToken = changeCts.Token;
+        if (_closing || _maintainingDesktopLayer)
+        {
+            return;
+        }
+
+        var handles = _windows.Values
+            .Where(window => window.Visibility == Visibility.Visible && window.IsNativeWindowAlive)
+            .Select(window => window.NativeHandle)
+            .ToArray();
+        if (handles.Length == 0)
+        {
+            return;
+        }
+
+        _maintainingDesktopLayer = true;
         try
         {
-            await Task.Delay(80, cancellationToken).ConfigureAwait(false);
-            if (cancellationToken.IsCancellationRequested || Volatile.Read(ref _closing))
+            var previousHost = _desktopHost;
+            _desktopHost = DesktopToolWindow.MaintainDesktopLayer(_desktopHost, handles);
+            if (_desktopHost != nint.Zero && _desktopHost != previousHost)
             {
-                return;
+                _logger.Info($"Event-driven desktop layer: desktopHost=0x{_desktopHost.ToInt64():X}.");
             }
-
-            var windowHandle = ForegroundWindowMonitor.GetCurrentForegroundWindow();
-            var dispatcher = Application.Current?.Dispatcher;
-            if (dispatcher is null || dispatcher.HasShutdownStarted)
-            {
-                return;
-            }
-
-            await dispatcher.InvokeAsync(
-                () =>
-                {
-                    if (!cancellationToken.IsCancellationRequested)
-                    {
-                        ApplyForegroundWindow(windowHandle);
-                    }
-                },
-                System.Windows.Threading.DispatcherPriority.Background,
-                cancellationToken);
         }
-        catch (OperationCanceledException)
+        catch (Exception exception)
         {
+            _logger.Error(exception, "Failed to restore the desktop window layer.");
         }
         finally
         {
-            if (ReferenceEquals(
-                    Interlocked.CompareExchange(ref _foregroundChangeCts, null, changeCts),
-                    changeCts))
-            {
-                changeCts.Dispose();
-            }
+            _maintainingDesktopLayer = false;
         }
     }
 
@@ -846,59 +802,6 @@ public sealed class DesktopBoxManager
         uint Timestamp,
         GlobalMouseButton Button,
         bool IsDesktopDoubleClickEnabled);
-
-    private void ApplyForegroundWindow(nint windowHandle)
-    {
-        if (_closing || windowHandle == nint.Zero)
-        {
-            return;
-        }
-
-        var isDesktopWindow = ForegroundWindowMonitor.IsDesktopWindow(windowHandle);
-        var isDesktopBoxWindow = _windows.Values.Any(
-            window => window.NativeHandle == windowHandle);
-        var desktopIsForeground = ResolveDesktopForegroundState(
-            isDesktopWindow,
-            isDesktopBoxWindow);
-        SetDesktopForeground(desktopIsForeground);
-
-        if (ShouldLowerMainWindowForShowDesktop(
-                desktopIsForeground,
-                Environment.TickCount64,
-                Interlocked.Read(ref _showDesktopShortcutObservedUntilTick)))
-        {
-            Interlocked.Exchange(ref _showDesktopShortcutObservedUntilTick, 0);
-            ShowDesktopActivated?.Invoke(this, EventArgs.Empty);
-        }
-    }
-
-
-    internal static bool ResolveDesktopForegroundState(
-        bool isDesktopWindow,
-        bool isDesktopBoxWindow) =>
-        isDesktopWindow && !isDesktopBoxWindow;
-
-    internal static bool ShouldLowerMainWindowForShowDesktop(
-        bool desktopIsForeground,
-        long currentTick,
-        long shortcutObservedUntilTick) =>
-        desktopIsForeground
-        && shortcutObservedUntilTick > 0
-        && currentTick <= shortcutObservedUntilTick;
-
-    private void SetDesktopForeground(bool isForeground)
-    {
-        if (_desktopIsForeground == isForeground)
-        {
-            return;
-        }
-
-        _desktopIsForeground = isForeground;
-        foreach (var window in _windows.Values)
-        {
-            window.SetDesktopForeground(isForeground);
-        }
-    }
 
     private void ApplyBoxLayoutPreset(BoxLayoutPresetChangedMessage message)
     {

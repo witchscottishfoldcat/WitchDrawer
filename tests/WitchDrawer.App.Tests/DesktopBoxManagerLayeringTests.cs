@@ -1,54 +1,29 @@
-using WitchDrawer.App.Infrastructure;
-using WitchDrawer.App.Views;
+using WitchDrawer.Native.Windows;
 
 namespace WitchDrawer.App.Tests;
 
 public sealed class DesktopBoxManagerLayeringTests
 {
     [Theory]
-    [InlineData(true, 100, 200, true)]
-    [InlineData(false, 100, 200, false)]
-    [InlineData(true, 201, 200, false)]
-    [InlineData(true, 100, 0, false)]
-    public void ShouldLowerMainWindowForShowDesktop_RequiresRecentShortcutAndDesktop(
-        bool desktopIsForeground,
-        long currentTick,
-        long shortcutObservedUntilTick,
-        bool expected)
+    [InlineData(0x0000u, true)]
+    [InlineData(0x0003u, true)]
+    [InlineData(0x0004u, false)]
+    [InlineData(0x0017u, false)]
+    [InlineData(0x0044u, true)]
+    [InlineData(0x0084u, false)]
+    public void WindowPositionChange_OnlyReordersOrShowsNeedRepair(uint flags, bool expected)
     {
-        Assert.Equal(
-            expected,
-            DesktopBoxManager.ShouldLowerMainWindowForShowDesktop(
-                desktopIsForeground,
-                currentTick,
-                shortcutObservedUntilTick));
+        Assert.Equal(expected, DesktopToolWindow.AffectsDesktopLayer(flags));
     }
 
     [Theory]
-    [InlineData(true, false, true)]
-    [InlineData(false, true, false)]
-    [InlineData(false, false, false)]
-    public void ResolveDesktopForegroundState_OnlyKeepsDesktopWindowsRaised(
-        bool isDesktopWindow,
-        bool isDesktopBoxWindow,
-        bool expected)
+    [InlineData(DesktopToolWindow.SizeMessage, 1, true)]
+    [InlineData(DesktopToolWindow.SizeMessage, 0, false)]
+    [InlineData(DesktopToolWindow.SizeMessage, 2, false)]
+    [InlineData(DesktopToolWindow.WindowPositionChangedMessage, 0, false)]
+    [InlineData(0x000F, 1, false)]
+    public void NativeMessage_HandlesDirectMinimizeButNotResizeOrPaint(int message, int parameter, bool expected)
     {
-        Assert.Equal(
-            expected,
-            DesktopBoxManager.ResolveDesktopForegroundState(
-                isDesktopWindow,
-                isDesktopBoxWindow));
-    }
-
-    [Theory]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    public void ShouldSendToBottom_DoesNotRewriteZOrderDuringShowDesktop(
-        bool isDesktopForeground,
-        bool expected)
-    {
-        Assert.Equal(
-            expected,
-            DesktopBoxWindow.ShouldSendToBottom(isDesktopForeground));
+        Assert.Equal(expected, DesktopToolWindow.IsDesktopLayerChangeMessage(message, parameter, nint.Zero));
     }
 }
