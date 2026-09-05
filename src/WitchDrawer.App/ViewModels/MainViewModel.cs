@@ -20,6 +20,8 @@ public sealed class MainViewModel : ObservableObject
     private const double ItemIconSizeDip = 19;
     private const string ThemeSettingKey = "Theme";
     internal const string ThemeBoxOpacitySettingKeyPrefix = "ThemeBoxOpacity.";
+    internal const string BoxBorderOpacitySettingKeyPrefix = "DesktopBoxBorderOpacity.";
+    internal const string IconFrameOpacitySettingKeyPrefix = "DesktopIconFrameOpacity.";
     internal const string ThemeBoxOpacityMigrationVersionSettingKey = "ThemeBoxOpacityVersion";
     private const string ThemeBoxOpacityMigrationVersion = "2";
     internal const string EditorFollowsBoxOpacitySettingKey = "EditorFollowsBoxOpacity";
@@ -50,8 +52,11 @@ public sealed class MainViewModel : ObservableObject
     private string _themeLabel = "清透雅致";
     private AppTheme _currentTheme;
     private double _themeTransparencyPercent = (1 - AppThemeManager.DefaultBoxOpacity) * 100;
+    private double _boxBorderTransparencyPercent;
+    private double _iconFrameTransparencyPercent;
     private readonly object _themeOpacitySaveLock = new();
-    private readonly Dictionary<AppTheme, CancellationTokenSource> _themeOpacitySaveDelays = [];
+    private readonly Dictionary<string, CancellationTokenSource> _themeOpacitySaveDelays = [];
+    private readonly SemaphoreSlim _themeOpacityWriteGate = new(1, 1);
     private bool _isSynchronizingThemeTransparency;
     private bool _editorFollowsBoxOpacity;
     private bool _launchOnStartup;
@@ -118,6 +123,7 @@ public sealed class MainViewModel : ObservableObject
         ApplyMoeThemeCommand = new AsyncRelayCommand(() => ApplyThemeAsync(AppTheme.Moe));
         ApplyGlassThemeCommand = new AsyncRelayCommand(() => ApplyThemeAsync(AppTheme.Glass));
         ApplyCrystalThemeCommand = new AsyncRelayCommand(() => ApplyThemeAsync(AppTheme.Crystal));
+        ResetThemeTransparencyCommand = new RelayCommand(ResetThemeTransparency);
         ToggleLaunchOnStartupCommand = new AsyncRelayCommand(ToggleLaunchOnStartupAsync);
         ToggleDesktopIconsCommand = new AsyncRelayCommand(ToggleDesktopIconsAsync);
         ToggleDesktopDoubleClickCommand = new AsyncRelayCommand(ToggleDesktopDoubleClickAsync);
@@ -210,6 +216,8 @@ public sealed class MainViewModel : ObservableObject
     public IAsyncRelayCommand ApplyGlassThemeCommand { get; }
 
     public IAsyncRelayCommand ApplyCrystalThemeCommand { get; }
+
+    public IRelayCommand ResetThemeTransparencyCommand { get; }
 
     public IAsyncRelayCommand ToggleLaunchOnStartupCommand { get; }
 
@@ -327,16 +335,63 @@ public sealed class MainViewModel : ObservableObject
             {
                 OnPropertyChanged(nameof(ThemeTransparencyLabel));
                 var opacity = 1 - (normalized / 100);
-                AppThemeManager.SetBoxOpacity(CurrentTheme, opacity);
                 if (!_isSynchronizingThemeTransparency)
                 {
-                    QueueThemeOpacitySave(CurrentTheme, opacity);
+                    AppThemeManager.SetBoxOpacity(CurrentTheme, opacity);
+                    SynchronizeThemeTransparency();
+                    QueueThemeOpacitySave(GetThemeBoxOpacitySettingKey(CurrentTheme), FormatOpacity(opacity));
                 }
             }
         }
     }
 
     public string ThemeTransparencyLabel => $"{ThemeTransparencyPercent:0}%";
+
+    public double BoxBorderTransparencyPercent
+    {
+        get => _boxBorderTransparencyPercent;
+        set => SetAppearanceTransparency(ref _boxBorderTransparencyPercent, value,
+            nameof(BoxBorderTransparencyPercent), BoxBorderOpacitySettingKeyPrefix,
+            AppThemeManager.SetBoxBorderOpacity);
+    }
+
+    public double IconFrameTransparencyPercent
+    {
+        get => _iconFrameTransparencyPercent;
+        set => SetAppearanceTransparency(ref _iconFrameTransparencyPercent, value,
+            nameof(IconFrameTransparencyPercent), IconFrameOpacitySettingKeyPrefix,
+            AppThemeManager.SetIconFrameOpacity);
+    }
+
+    private void SetAppearanceTransparency(ref double field, double value, string propertyName,
+        string settingPrefix, Action<AppTheme, double?> apply)
+    {
+        if (!double.IsFinite(value))
+        {
+            return;
+        }
+
+        var normalized = Math.Clamp(Math.Round(value), 0, 100);
+        if (SetProperty(ref field, normalized, propertyName) && !_isSynchronizingThemeTransparency)
+        {
+            var opacity = 1 - normalized / 100;
+            apply(CurrentTheme, opacity);
+            QueueThemeOpacitySave(settingPrefix + CurrentTheme, FormatOpacity(opacity));
+        }
+    }
+
+    private void ResetThemeTransparency()
+    {
+        var theme = CurrentTheme;
+        var opacity = AppThemeManager.GetDefaultBoxOpacity(theme);
+        AppThemeManager.SetBoxOpacity(theme, opacity);
+        AppThemeManager.SetBoxBorderOpacity(theme, null);
+        AppThemeManager.SetIconFrameOpacity(theme, null);
+        SynchronizeThemeTransparency();
+        QueueThemeOpacitySave(GetThemeBoxOpacitySettingKey(theme), FormatOpacity(opacity));
+        QueueThemeOpacitySave(BoxBorderOpacitySettingKeyPrefix + theme, null);
+        QueueThemeOpacitySave(IconFrameOpacitySettingKeyPrefix + theme, null);
+    }
 
     public bool EditorFollowsBoxOpacity
     {
@@ -438,6 +493,7 @@ public sealed class MainViewModel : ObservableObject
             // 必须在首次启动标记写入前判断是否为旧安装，才能让新用户使用二段透明度，
             // 同时让升级用户保留旧主题原本的视觉效果。
             await RestoreThemeBoxOpacitiesAsync();
+            await RestoreAppearanceOpacitiesAsync();
             var editorOpacityFollowSetting =
                 await _drawerService.GetSettingAsync(EditorFollowsBoxOpacitySettingKey);
             EditorFollowsBoxOpacity = bool.TryParse(
@@ -1286,6 +1342,23 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
+    private async Task RestoreAppearanceOpacitiesAsync()
+    {
+        foreach (var theme in Enum.GetValues<AppTheme>())
+        {
+            AppThemeManager.SetBoxBorderOpacity(theme, ParseAppearanceOpacity(
+                await _drawerService.GetSettingAsync(BoxBorderOpacitySettingKeyPrefix + theme)));
+            AppThemeManager.SetIconFrameOpacity(theme, ParseAppearanceOpacity(
+                await _drawerService.GetSettingAsync(IconFrameOpacitySettingKeyPrefix + theme)));
+        }
+
+        SynchronizeThemeTransparency();
+    }
+
+    private static double? ParseAppearanceOpacity(string? value) =>
+        double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var opacity)
+        && double.IsFinite(opacity) && opacity >= 0 && opacity <= 1 ? opacity : null;
+
     private static bool IsVersionOneGeneratedDefault(double opacity)
     {
         return Math.Abs(opacity - AppThemeManager.DefaultBoxOpacity) < 0.0001
@@ -1299,6 +1372,10 @@ public sealed class MainViewModel : ObservableObject
         {
             ThemeTransparencyPercent =
                 Math.Round((1 - AppThemeManager.GetBoxOpacity(CurrentTheme)) * 100);
+            BoxBorderTransparencyPercent =
+                Math.Round((1 - AppThemeManager.GetBoxBorderOpacity(CurrentTheme)) * 100);
+            IconFrameTransparencyPercent =
+                Math.Round((1 - AppThemeManager.GetIconFrameOpacity(CurrentTheme)) * 100);
         }
         finally
         {
@@ -1306,35 +1383,48 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
-    private void QueueThemeOpacitySave(AppTheme theme, double opacity)
+    private void QueueThemeOpacitySave(string settingKey, string? value)
     {
         CancellationTokenSource delay;
         lock (_themeOpacitySaveLock)
         {
-            if (_themeOpacitySaveDelays.TryGetValue(theme, out var previousDelay))
+            if (_themeOpacitySaveDelays.TryGetValue(settingKey, out var previousDelay))
             {
                 previousDelay.Cancel();
             }
 
             delay = new CancellationTokenSource();
-            _themeOpacitySaveDelays[theme] = delay;
+            _themeOpacitySaveDelays[settingKey] = delay;
         }
 
-        _ = PersistThemeOpacityAfterDelayAsync(theme, opacity, delay);
+        _ = PersistThemeOpacityAfterDelayAsync(settingKey, value, delay);
     }
 
     private async Task PersistThemeOpacityAfterDelayAsync(
-        AppTheme theme,
-        double opacity,
+        string settingKey,
+        string? value,
         CancellationTokenSource delay)
     {
         try
         {
-            await Task.Delay(250, delay.Token);
-            await _drawerService.SetSettingAsync(
-                GetThemeBoxOpacitySettingKey(theme),
-                FormatOpacity(opacity),
-                delay.Token);
+            await Task.Delay(250, delay.Token).ConfigureAwait(false);
+            await _themeOpacityWriteGate.WaitAsync(delay.Token).ConfigureAwait(false);
+            try
+            {
+                delay.Token.ThrowIfCancellationRequested();
+                if (value is null)
+                {
+                    await _drawerService.DeleteSettingAsync(settingKey, delay.Token).ConfigureAwait(false);
+                }
+                else
+                {
+                    await _drawerService.SetSettingAsync(settingKey, value, delay.Token).ConfigureAwait(false);
+                }
+            }
+            finally
+            {
+                _themeOpacityWriteGate.Release();
+            }
         }
         catch (OperationCanceledException) when (delay.IsCancellationRequested)
         {
@@ -1342,16 +1432,16 @@ public sealed class MainViewModel : ObservableObject
         }
         catch (Exception exception)
         {
-            _logger.Error(exception, $"Failed to persist {theme} box opacity.");
+            _logger.Error(exception, $"Failed to persist {settingKey}.");
         }
         finally
         {
             lock (_themeOpacitySaveLock)
             {
-                if (_themeOpacitySaveDelays.TryGetValue(theme, out var currentDelay)
+                if (_themeOpacitySaveDelays.TryGetValue(settingKey, out var currentDelay)
                     && ReferenceEquals(currentDelay, delay))
                 {
-                    _themeOpacitySaveDelays.Remove(theme);
+                    _themeOpacitySaveDelays.Remove(settingKey);
                 }
             }
 

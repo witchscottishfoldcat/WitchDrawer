@@ -149,6 +149,14 @@ public static class AppThemeManager
 
     public static event EventHandler<AppTheme>? ThemeChanged;
 
+    // Missing overrides retain main's original appearance, including custom box opacity.
+    private static readonly Dictionary<AppTheme, double?> BoxBorderOpacities =
+        Enum.GetValues<AppTheme>().ToDictionary(theme => theme, _ => (double?)null);
+    private static readonly Dictionary<AppTheme, double?> IconFrameOpacities =
+        Enum.GetValues<AppTheme>().ToDictionary(theme => theme, _ => (double?)null);
+
+    public static event EventHandler<AppTheme>? DesktopBoxAppearanceChanged;
+
     public static event EventHandler<ThemeBoxOpacityChangedEventArgs>? BoxOpacityChanged;
 
     public static AppTheme CurrentTheme => _currentTheme;
@@ -183,6 +191,14 @@ public static class AppThemeManager
     }
 
     public static void ApplyDesktopBoxResources(ResourceDictionary resources)
+    {
+        ApplyBoxSurfaceResources(resources);
+        SetResourceColor(resources, "DesktopBoxBorderBrush", GetDesktopBoxBorderColor(_currentTheme));
+        SetResourceColor(resources, "DesktopIconFrameBrush", GetDesktopIconFrameColor(_currentTheme));
+        SetResourceColor(resources, "DesktopIconFrameBorderBrush", GetDesktopIconFrameBorderColor(_currentTheme));
+    }
+
+    private static void ApplyBoxSurfaceResources(ResourceDictionary resources)
     {
         ClearDesktopBoxResources(resources);
 
@@ -291,6 +307,8 @@ public static class AppThemeManager
     {
         foreach (var theme in Enum.GetValues<AppTheme>())
         {
+            BoxBorderOpacities[theme] = null;
+            IconFrameOpacities[theme] = null;
             BoxOpacities[theme] = opacity is null
                 ? GetDefaultBoxOpacity(theme)
                 : NormalizeOpacity(opacity.Value);
@@ -299,7 +317,7 @@ public static class AppThemeManager
 
     public static void ApplyEditorOpacityResources(ResourceDictionary resources)
     {
-        ApplyDesktopBoxResources(resources);
+        ApplyBoxSurfaceResources(resources);
     }
 
     internal static void ClearEditorOpacityResources(ResourceDictionary resources)
@@ -309,10 +327,85 @@ public static class AppThemeManager
 
     private static void ClearDesktopBoxResources(ResourceDictionary resources)
     {
+        resources.Remove("DesktopBoxBorderBrush");
+        resources.Remove("DesktopIconFrameBrush");
+        resources.Remove("DesktopIconFrameBorderBrush");
         foreach (var key in LegacyTransparentCrystalBoxColors.Keys)
         {
             resources.Remove(key);
         }
+    }
+
+    public static double GetBoxBorderOpacity(AppTheme theme) =>
+        BoxBorderOpacities[theme] ?? GetOriginalColor(theme, "GlassStrokeBrush").A / 255d;
+
+    public static double GetIconFrameOpacity(AppTheme theme) =>
+        IconFrameOpacities[theme] ?? GetOriginalColor(theme, "GlassInnerBrush").A / 255d;
+
+    public static void SetBoxBorderOpacity(AppTheme theme, double? opacity) =>
+        SetAppearanceOpacity(BoxBorderOpacities, theme, opacity);
+
+    public static void SetIconFrameOpacity(AppTheme theme, double? opacity) =>
+        SetAppearanceOpacity(IconFrameOpacities, theme, opacity);
+
+    internal static Color GetDesktopBoxBorderColor(AppTheme theme) =>
+        AdjustAppearanceAlpha(GetOriginalColor(theme, "GlassStrokeBrush"),
+            GetOriginalColor(theme, "GlassStrokeBrush").A, BoxBorderOpacities[theme]);
+
+    internal static Color GetDesktopIconFrameColor(AppTheme theme) =>
+        AdjustAppearanceAlpha(GetOriginalColor(theme, "GlassInnerBrush"),
+            GetOriginalColor(theme, "GlassInnerBrush").A, IconFrameOpacities[theme]);
+
+    internal static Color GetDesktopIconFrameBorderColor(AppTheme theme) =>
+        AdjustAppearanceAlpha(GetOriginalColor(theme, "GlassStrokeBrush"),
+            GetOriginalColor(theme, "GlassInnerBrush").A, IconFrameOpacities[theme]);
+
+    private static Color GetOriginalColor(AppTheme theme, string key) =>
+        GetDesktopBoxColor(theme, key, GetBoxOpacity(theme));
+
+    private static void SetAppearanceOpacity(Dictionary<AppTheme, double?> values, AppTheme theme, double? opacity)
+    {
+        if (opacity is { } value && !double.IsFinite(value))
+        {
+            return;
+        }
+
+        var normalized = opacity is null ? (double?)null : Math.Clamp(opacity.Value, 0, 1);
+        if (values[theme] == normalized)
+        {
+            return;
+        }
+
+        values[theme] = normalized;
+        DesktopBoxAppearanceChanged?.Invoke(null, theme);
+    }
+
+    private static Color AdjustAppearanceAlpha(Color original, byte referenceAlpha, double? opacity)
+    {
+        // Percent labels are rounded for display. Returning to that label must restore
+        // the exact original alpha, not quantize e.g. Crystal's #3D into #3E.
+        var baseline = referenceAlpha / 255d;
+        if (opacity is null || Math.Abs(opacity.Value - (1 - Math.Round((1 - baseline) * 100) / 100)) < 0.0001)
+        {
+            return original;
+        }
+
+        var requested = opacity.Value;
+        // Keep the icon's original fill/stroke relationship at the baseline, while
+        // allowing both to disappear at 100% transparency and become opaque at 0%.
+        var alpha = original.A == referenceAlpha
+            ? 255 * requested
+            : requested < baseline
+            ? original.A * requested / baseline
+            : original.A + (255 - original.A) * (requested - baseline) / (1 - baseline);
+        return Color.FromArgb(ToByte(alpha), original.R, original.G, original.B);
+    }
+
+    private static void SetResourceColor(ResourceDictionary resources, string key, Color color)
+    {
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        resources[key] = brush;
     }
 
     private static Color CreateEquivalentTransparentColor(string key, Color baseColor)
