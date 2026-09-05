@@ -153,10 +153,11 @@ public sealed class BoxSizeSettingsTests
         try
         {
             var (drawerService, repository) = await CreateDrawerServiceAsync(root);
+            // 抽屉 / 待办这类非网格盒不应支持固定尺寸;映射盒现已支持固定 m×n,不再属于此用例。
             var box = new Box(
                 Guid.NewGuid(),
-                "映射收纳盒",
-                BoxType.Mapping,
+                "抽屉收纳盒",
+                BoxType.Drawer,
                 null,
                 0,
                 DateTimeOffset.UtcNow,
