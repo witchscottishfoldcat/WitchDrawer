@@ -35,9 +35,6 @@ public partial class DesktopBoxWindow : Window
     private bool _isMappingViewTransitioning;
     private Point? _mappingViewTransitionVisibleOriginPixels;
     private bool _isRollTransitioning;
-    private bool _restoreAfterMinimizeQueued;
-    private bool _desktopOwnershipRestoreQueued;
-    private bool _desktopIsForeground;
     private bool _isPositionLocked;
     private HwndSource? _source;
     private DesktopToolWindow? _nativeWindow;
@@ -86,11 +83,8 @@ public partial class DesktopBoxWindow : Window
         SizeChanged += OnWindowSizeChanged;
         AppThemeManager.ThemeChanged += OnThemeChanged;
         AppThemeManager.BoxOpacityChanged += OnBoxOpacityChanged;
-        Activated += OnWindowActivated;
         Deactivated += OnWindowDeactivated;
-        StateChanged += OnWindowStateChanged;
-        PreviewMouseUp += OnWindowPreviewMouseUpForDesktopOwnership;
-        // Desktop boxes often stay non-activated (ShowActivated=false + HWND_BOTTOM/NOACTIVATE).
+        // Desktop boxes often stay non-activated (ShowActivated=false + WS_EX_NOACTIVATE).
         // Window.Deactivated therefore never runs after an external drop selection; clear when
         // the whole app loses foreground so a desktop click removes the selected-item chrome.
         Application.Current.Deactivated += OnApplicationDeactivated;
@@ -98,49 +92,9 @@ public partial class DesktopBoxWindow : Window
 
     public DesktopBoxViewModel ViewModel => (DesktopBoxViewModel)DataContext;
 
-    private void SendToBottom()
-    {
-        if (!ShouldSendToBottom(_desktopIsForeground))
-        {
-            return;
-        }
-
-        // Shell ownership keeps the box visible through Win+D. Keep it at the
-        // bottom of the normal band only while the desktop is not foreground.
-        // Moving an owned box during Show Desktop also moves Progman's owner
-        // chain and would bring ordinary app windows back above the desktop.
-        _nativeWindow?.SendToBottom();
-    }
-
-    internal static bool ShouldSendToBottom(bool isDesktopForeground) =>
-        !isDesktopForeground;
-
-    public void QueueSendToBottom()
-    {
-        SendToBottom();
-        Dispatcher.BeginInvoke(new Action(SendToBottom), DispatcherPriority.ApplicationIdle);
-    }
-
     /// <summary>
-    /// 把所有桌面盒压回桌面层。弹窗打开时属主链被 Windows 整体提前，单个盒子沉底不够，
-    /// 必须遍历所有盒子窗口统一复位。
-    /// </summary>
-    internal static void QueueSendToBottomAll()
-    {
-        if (Application.Current is null)
-        {
-            return;
-        }
-
-        foreach (var window in Application.Current.Windows.OfType<DesktopBoxWindow>())
-        {
-            window.QueueSendToBottom();
-        }
-    }
-
-    /// <summary>
-    /// 断开弹窗 HWND 的属主关系：之后对弹窗的置顶/沉底不再沿属主链
-    /// （盒子→桌面壳→所有盒子）传播。在 Opened 时同步执行，消除窗口期。
+    /// Detaches the popup HWND from its box so activating the popup cannot pull
+    /// the desktop box out of the desktop Z-order band.
     /// </summary>
     private void DetachDrawerPopupOwner()
     {
@@ -194,20 +148,9 @@ public partial class DesktopBoxWindow : Window
 
     public nint NativeHandle => _nativeWindow?.Handle ?? nint.Zero;
 
+    internal event Action? DesktopLayerChanged;
+
     public bool IsNativeWindowAlive => _nativeWindow?.IsAlive == true;
-
-    public bool RefreshDesktopHost()
-    {
-        return _nativeWindow?.TryAttachToDesktop() == true;
-    }
-
-    public void SetDesktopForeground(bool isForeground)
-    {
-        // When Show Desktop is active, leave Explorer's owner-chain Z order
-        // untouched. On exit, return the boxes behind ordinary app windows.
-        _desktopIsForeground = isForeground;
-        SendToBottom();
-    }
 
     private ListBox ActiveItemsList => ViewModel.IsMappingListMode ? FileList : IconList;
 
@@ -562,12 +505,9 @@ public partial class DesktopBoxWindow : Window
 
     private void OnDrawerSecondaryPopupOpened(object? sender, EventArgs e)
     {
-        // 弹窗 HWND 属主是盒子窗口，盒子窗口属主是桌面壳。弹窗打开时 Windows 会把
-        // 整条属主链提前。第一时间断开弹窗属主，再把所有盒子压回桌面层。
+        // Keep the popup independent so activating it cannot pull its box out of
+        // the desktop band. The manager's event handler maintains all box HWNDs.
         DetachDrawerPopupOwner();
-        QueueSendToBottomAll();
-        // 沉底在 ApplicationIdle 还会补一次，而压主窗口沉底会把它的属子弹窗一起拖下去；
-        // 置顶必须排在所有沉底调用之后，所以用 SystemIdle 优先级。
         Dispatcher.BeginInvoke(DispatcherPriority.SystemIdle, BringDrawerPopupToFront);
 
         Dispatcher.BeginInvoke(
@@ -715,7 +655,6 @@ public partial class DesktopBoxWindow : Window
         try
         {
             DragMove();
-            QueueSendToBottom();
             if (_positionChangedCallback is not null)
             {
                 FireAndForget.Run(
@@ -879,10 +818,7 @@ public partial class DesktopBoxWindow : Window
         DpiChanged -= OnDpiChanged;
         AppThemeManager.ThemeChanged -= OnThemeChanged;
         AppThemeManager.BoxOpacityChanged -= OnBoxOpacityChanged;
-        Activated -= OnWindowActivated;
         Deactivated -= OnWindowDeactivated;
-        StateChanged -= OnWindowStateChanged;
-        PreviewMouseUp -= OnWindowPreviewMouseUpForDesktopOwnership;
         _source?.RemoveHook(WindowMessageHook);
         _source = null;
         _nativeWindow = null;
@@ -902,7 +838,6 @@ public partial class DesktopBoxWindow : Window
         _nativeWindow.Configure();
         _source = HwndSource.FromHwnd(handle);
         _source?.AddHook(WindowMessageHook);
-        QueueSendToBottom();
     }
 
     private nint WindowMessageHook(
@@ -912,22 +847,6 @@ public partial class DesktopBoxWindow : Window
         nint longParameter,
         ref bool handled)
     {
-        if (DesktopToolWindow.IsMouseActivationMessage(message))
-        {
-            // Detach before mouse input so Explorer cannot record this box as
-            // Progman's last active popup. Explicit MA_NOACTIVATE still delivers
-            // the click, but guarantees that menu/selection input never makes a
-            // desktop box the foreground window.
-            _nativeWindow?.SuspendDesktopOwnershipForMouseInput();
-            handled = true;
-            return DesktopToolWindow.GetMouseActivateWithoutActivationResult();
-        }
-
-        if (DesktopToolWindow.IsMouseInteractionCompletionMessage(message))
-        {
-            QueueRestoreDesktopOwnershipAfterMouseInput();
-        }
-
         if (DesktopToolWindow.IsMinimizeSystemCommand(message, wordParameter))
         {
             // Win+D / Show Desktop normally minimizes top-level windows. A desktop
@@ -935,75 +854,12 @@ public partial class DesktopBoxWindow : Window
             handled = true;
         }
 
+        if (DesktopToolWindow.IsDesktopLayerChangeMessage(message, wordParameter, longParameter))
+        {
+            DesktopLayerChanged?.Invoke();
+        }
+
         return nint.Zero;
-    }
-
-    private void QueueRestoreDesktopOwnershipAfterMouseInput()
-    {
-        if (_desktopOwnershipRestoreQueued)
-        {
-            return;
-        }
-
-        _desktopOwnershipRestoreQueued = true;
-        _ = Dispatcher.BeginInvoke(
-            DispatcherPriority.Input,
-            () =>
-            {
-                _desktopOwnershipRestoreQueued = false;
-                if (!_forceClose)
-                {
-                    _nativeWindow?.RestoreDesktopOwnershipAfterMouseInput();
-                }
-            });
-    }
-
-    private void OnWindowPreviewMouseUpForDesktopOwnership(
-        object sender,
-        MouseButtonEventArgs e)
-    {
-        // WPF fallback for controls that complete input before the HWND hook
-        // observes the native button-up message.
-        QueueRestoreDesktopOwnershipAfterMouseInput();
-    }
-
-    private void OnWindowStateChanged(object? sender, EventArgs e)
-    {
-        if (_forceClose
-            || WindowState != WindowState.Minimized
-            || _restoreAfterMinimizeQueued)
-        {
-            return;
-        }
-
-        // Some shell versions minimize via ShowWindow instead of WM_SYSCOMMAND.
-        // Restore after the shell's burst of Z-order changes has settled.
-        _restoreAfterMinimizeQueued = true;
-        FireAndForget.Run(
-                RestoreAfterShellMinimizeAsync(),
-                ViewModel.Logger,
-                $"Failed to restore box window {ViewModel.BoxId:N} after shell minimize.");
-    }
-
-    private async Task RestoreAfterShellMinimizeAsync()
-    {
-        await Task.Delay(120).ConfigureAwait(false);
-        if (Dispatcher.HasShutdownStarted)
-        {
-            return;
-        }
-
-        await Dispatcher.InvokeAsync(() =>
-        {
-            _restoreAfterMinimizeQueued = false;
-            if (!_forceClose && WindowState == WindowState.Minimized)
-            {
-                _nativeWindow?.RestoreWithoutActivation();
-                // RestoreWithoutActivation no longer changes Z order. Apply exactly
-                // one layer operation based on the stabilized desktop state.
-                SendToBottom();
-            }
-        });
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -1021,7 +877,6 @@ public partial class DesktopBoxWindow : Window
         {
             ActiveItemsList.Focus();
         }
-        QueueSendToBottom();
     }
 
     private void OnDpiChanged(object sender, DpiChangedEventArgs e)
@@ -1062,16 +917,10 @@ public partial class DesktopBoxWindow : Window
         AppThemeManager.ApplyToWindow(this);
     }
 
-    private void OnWindowActivated(object? sender, EventArgs e)
-    {
-        QueueSendToBottom();
-    }
-
     private void OnWindowDeactivated(object? sender, EventArgs e)
     {
         ClearItemSelection();
         ResetDragVisualState();
-        QueueSendToBottom();
     }
 
     private void OnApplicationDeactivated(object? sender, EventArgs e)
@@ -1165,7 +1014,6 @@ public partial class DesktopBoxWindow : Window
             }
 
             _isRollTransitioning = false;
-            QueueSendToBottom();
         }
     }
 
@@ -1403,7 +1251,6 @@ public partial class DesktopBoxWindow : Window
             RestoreMappingViewTransitionOrigin();
             _mappingViewTransitionVisibleOriginPixels = null;
             _isMappingViewTransitioning = false;
-            QueueSendToBottom();
         }
     }
 
@@ -1687,7 +1534,6 @@ public partial class DesktopBoxWindow : Window
             try
             {
                 DragMove();
-                QueueSendToBottom();
                 if (_positionChangedCallback is not null)
                 {
                     FireAndForget.Run(
@@ -2141,7 +1987,6 @@ public partial class DesktopBoxWindow : Window
                 Mouse.Capture(null);
             }
             dragSource.Focus();
-            QueueSendToBottom();
         }
     }
 
