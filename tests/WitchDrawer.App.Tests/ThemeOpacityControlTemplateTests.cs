@@ -78,6 +78,24 @@ public sealed class ThemeOpacityControlTemplateTests
             (string?)toggle.Attribute("AutomationProperties.Name"));
     }
 
+    [Fact]
+    public void TransparencyDefaults_CanBeRestoredForTheCurrentTheme()
+    {
+        var document = XDocument.Load(GetMainWindowXamlPath());
+        var button = Assert.Single(
+            document.Descendants(PresentationNamespace + "Button"),
+            element => (string?)element.Attribute(XamlNamespace + "Name")
+                == "ThemeTransparencyResetButton");
+
+        Assert.Equal("恢复默认", (string?)button.Attribute("Content"));
+        Assert.Equal(
+            "{Binding ResetThemeTransparencyCommand}",
+            (string?)button.Attribute("Command"));
+        Assert.Equal(
+            "恢复当前主题透明度默认值",
+            (string?)button.Attribute("AutomationProperties.Name"));
+    }
+
     private static string GetMainWindowXamlPath() =>
         Path.GetFullPath(
             Path.Combine(

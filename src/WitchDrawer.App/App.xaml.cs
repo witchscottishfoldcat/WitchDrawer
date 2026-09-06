@@ -490,6 +490,24 @@ public partial class App : Application
         _taskbarIcon?.Dispose();
         _taskbarIcon = null;
 
+        if (_mainWindow is not null)
+        {
+            try
+            {
+                await _mainWindow.ViewModel
+                    .FlushPendingOpacitySavesAsync()
+                    .WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            catch (TimeoutException exception)
+            {
+                _logger?.Error(exception, "Timed out while flushing opacity settings during shutdown.");
+            }
+            catch (Exception exception)
+            {
+                _logger?.Error(exception, "Failed to flush opacity settings during shutdown.");
+            }
+        }
+
         var desktopBoxManager = _desktopBoxManager;
         _desktopBoxManager = null;
         if (desktopBoxManager is not null)

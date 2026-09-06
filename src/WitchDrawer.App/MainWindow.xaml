@@ -2559,6 +2559,7 @@
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -2852,6 +2853,27 @@
                                                       IsChecked="{Binding EditorFollowsBoxOpacity, Mode=OneWay}"
                                                       Command="{Binding ToggleEditorOpacityFollowCommand}"
                                                       AutomationProperties.Name="编辑页跟随透明度" />
+                                    </Grid>
+                                    <Grid Grid.Row="5"
+                                          Grid.ColumnSpan="2"
+                                          Margin="0,9,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="恢复当前主题的三项透明度默认值"
+                                                   VerticalAlignment="Center"
+                                                   FontSize="10.5"
+                                                   Foreground="{DynamicResource TextMutedBrush}" />
+                                        <Button x:Name="ThemeTransparencyResetButton"
+                                                Grid.Column="1"
+                                                Content="恢复默认"
+                                                Margin="12,0,0,0"
+                                                Padding="12,5"
+                                                Command="{Binding ResetThemeTransparencyCommand}"
+                                                Style="{StaticResource GhostButtonStyle}"
+                                                Foreground="{DynamicResource AccentBrush}"
+                                                AutomationProperties.Name="恢复当前主题透明度默认值" />
                                     </Grid>
                                 </Grid>
                                 </Border>

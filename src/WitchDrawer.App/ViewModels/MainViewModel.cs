@@ -56,10 +56,15 @@ public sealed class MainViewModel : ObservableObject
     private double _iconFrameTransparencyPercent;
     private readonly object _themeOpacitySaveLock = new();
     private readonly Dictionary<AppTheme, CancellationTokenSource> _themeOpacitySaveDelays = [];
+    private readonly Dictionary<CancellationTokenSource, Task> _themeOpacitySaveTasks = [];
+    private readonly Dictionary<AppTheme, double> _pendingThemeOpacityValues = [];
     private bool _isSynchronizingThemeTransparency;
     private readonly object _desktopChromeOpacitySaveLock = new();
     private readonly Dictionary<string, CancellationTokenSource> _desktopChromeOpacitySaveDelays = [];
+    private readonly Dictionary<CancellationTokenSource, Task> _desktopChromeOpacitySaveTasks = [];
+    private readonly Dictionary<string, double> _pendingDesktopChromeOpacityValues = [];
     private bool _isSynchronizingDesktopChromeTransparency;
+    private bool _isOpacityPersistenceStopping;
     private bool _editorFollowsBoxOpacity;
     private bool _launchOnStartup;
     private bool _areDesktopIconsHidden;
@@ -125,6 +130,7 @@ public sealed class MainViewModel : ObservableObject
         ApplyMoeThemeCommand = new AsyncRelayCommand(() => ApplyThemeAsync(AppTheme.Moe));
         ApplyGlassThemeCommand = new AsyncRelayCommand(() => ApplyThemeAsync(AppTheme.Glass));
         ApplyCrystalThemeCommand = new AsyncRelayCommand(() => ApplyThemeAsync(AppTheme.Crystal));
+        ResetThemeTransparencyCommand = new RelayCommand(ResetThemeTransparency);
         ToggleLaunchOnStartupCommand = new AsyncRelayCommand(ToggleLaunchOnStartupAsync);
         ToggleDesktopIconsCommand = new AsyncRelayCommand(ToggleDesktopIconsAsync);
         ToggleDesktopDoubleClickCommand = new AsyncRelayCommand(ToggleDesktopDoubleClickAsync);
@@ -217,6 +223,8 @@ public sealed class MainViewModel : ObservableObject
     public IAsyncRelayCommand ApplyGlassThemeCommand { get; }
 
     public IAsyncRelayCommand ApplyCrystalThemeCommand { get; }
+
+    public IRelayCommand ResetThemeTransparencyCommand { get; }
 
     public IAsyncRelayCommand ToggleLaunchOnStartupCommand { get; }
 
@@ -1162,6 +1170,29 @@ public sealed class MainViewModel : ObservableObject
         UpdateThemeLabel();
     }
 
+    private void ResetThemeTransparency()
+    {
+        var theme = CurrentTheme;
+        var boxOpacity = AppThemeManager.GetDefaultBoxOpacity(theme);
+        var borderOpacity = AppThemeManager.GetDefaultBoxBorderOpacity(theme);
+        var iconFrameOpacity = AppThemeManager.GetDefaultIconFrameOpacity(theme);
+
+        AppThemeManager.SetBoxOpacity(theme, boxOpacity);
+        AppThemeManager.SetBoxBorderOpacity(theme, borderOpacity);
+        AppThemeManager.SetIconFrameOpacity(theme, iconFrameOpacity);
+        SynchronizeThemeTransparency();
+        SynchronizeDesktopChromeTransparency();
+
+        QueueThemeOpacitySave(theme, boxOpacity);
+        QueueDesktopChromeOpacitySave(
+            GetThemeBoxBorderOpacitySettingKey(theme),
+            borderOpacity);
+        QueueDesktopChromeOpacitySave(
+            GetThemeIconFrameOpacitySettingKey(theme),
+            iconFrameOpacity);
+        StatusText = $"已恢复 {ThemeLabel} 的透明度默认值";
+    }
+
     private void UpdateThemeLabel()
     {
         ThemeLabel = CurrentTheme switch
@@ -1288,16 +1319,21 @@ public sealed class MainViewModel : ObservableObject
 
     private async Task RestoreThemeBoxOpacitiesAsync()
     {
-        var migrationVersion =
-            await _drawerService.GetSettingAsync(ThemeBoxOpacityMigrationVersionSettingKey);
+        var themes = Enum.GetValues<AppTheme>();
+        var settingKeys = themes
+            .Select(GetThemeBoxOpacitySettingKey)
+            .Prepend(ThemeBoxOpacityMigrationVersionSettingKey)
+            .ToArray();
+        var savedSettings = await LoadSettingsOffUiAsync(settingKeys);
+        var migrationVersion = savedSettings[ThemeBoxOpacityMigrationVersionSettingKey];
         if (string.Equals(
                 migrationVersion,
                 ThemeBoxOpacityMigrationVersion,
                 StringComparison.Ordinal))
         {
-            foreach (var theme in Enum.GetValues<AppTheme>())
+            foreach (var theme in themes)
             {
-                var savedOpacity = await _drawerService.GetSettingAsync(GetThemeBoxOpacitySettingKey(theme));
+                var savedOpacity = savedSettings[GetThemeBoxOpacitySettingKey(theme)];
                 AppThemeManager.SetBoxOpacity(theme, ParseSavedOpacity(savedOpacity));
             }
 
@@ -1305,13 +1341,14 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
 
-        foreach (var theme in Enum.GetValues<AppTheme>())
+        var settingsToPersist = new List<(string Key, string Value)>();
+        foreach (var theme in themes)
         {
             var opacity = AppThemeManager.GetDefaultBoxOpacity(theme);
             if (string.Equals(migrationVersion, "1", StringComparison.Ordinal))
             {
                 var savedOpacity = ParseSavedOpacity(
-                    await _drawerService.GetSettingAsync(GetThemeBoxOpacitySettingKey(theme)));
+                    savedSettings[GetThemeBoxOpacitySettingKey(theme)]);
                 if (!IsVersionOneGeneratedDefault(savedOpacity))
                 {
                     opacity = savedOpacity;
@@ -1319,14 +1356,13 @@ public sealed class MainViewModel : ObservableObject
             }
 
             AppThemeManager.SetBoxOpacity(theme, opacity);
-            await _drawerService.SetSettingAsync(
-                GetThemeBoxOpacitySettingKey(theme),
-                FormatOpacity(opacity));
+            settingsToPersist.Add(
+                (GetThemeBoxOpacitySettingKey(theme), FormatOpacity(opacity)));
         }
 
-        await _drawerService.SetSettingAsync(
-            ThemeBoxOpacityMigrationVersionSettingKey,
-            ThemeBoxOpacityMigrationVersion);
+        settingsToPersist.Add(
+            (ThemeBoxOpacityMigrationVersionSettingKey, ThemeBoxOpacityMigrationVersion));
+        await PersistSettingsOffUiAsync(settingsToPersist);
         SynchronizeThemeTransparency();
     }
 
@@ -1353,31 +1389,43 @@ public sealed class MainViewModel : ObservableObject
 
     private async Task RestoreDesktopBoxChromeOpacitiesAsync()
     {
-        foreach (var theme in Enum.GetValues<AppTheme>())
+        var themes = Enum.GetValues<AppTheme>();
+        var settingKeys = themes
+            .SelectMany(theme => new[]
+            {
+                GetThemeBoxBorderOpacitySettingKey(theme),
+                GetThemeIconFrameOpacitySettingKey(theme)
+            })
+            .ToArray();
+        var savedSettings = await LoadSettingsOffUiAsync(settingKeys);
+        var settingsToPersist = new List<(string Key, string Value)>();
+
+        foreach (var theme in themes)
         {
             var borderSettingKey = GetThemeBoxBorderOpacitySettingKey(theme);
-            var savedBorderOpacity = await _drawerService.GetSettingAsync(borderSettingKey);
+            var savedBorderOpacity = savedSettings[borderSettingKey];
             var borderOpacity = ParseUnitOpacity(
                 savedBorderOpacity,
                 AppThemeManager.GetExistingBoxBorderOpacity(theme));
             AppThemeManager.SetBoxBorderOpacity(theme, borderOpacity);
             if (!IsValidUnitOpacity(savedBorderOpacity))
             {
-                await _drawerService.SetSettingAsync(borderSettingKey, FormatOpacity(borderOpacity));
+                settingsToPersist.Add((borderSettingKey, FormatOpacity(borderOpacity)));
             }
 
             var iconFrameSettingKey = GetThemeIconFrameOpacitySettingKey(theme);
-            var savedIconFrameOpacity = await _drawerService.GetSettingAsync(iconFrameSettingKey);
+            var savedIconFrameOpacity = savedSettings[iconFrameSettingKey];
             var iconFrameOpacity = ParseUnitOpacity(
                 savedIconFrameOpacity,
                 AppThemeManager.GetExistingIconFrameOpacity(theme));
             AppThemeManager.SetIconFrameOpacity(theme, iconFrameOpacity);
             if (!IsValidUnitOpacity(savedIconFrameOpacity))
             {
-                await _drawerService.SetSettingAsync(iconFrameSettingKey, FormatOpacity(iconFrameOpacity));
+                settingsToPersist.Add((iconFrameSettingKey, FormatOpacity(iconFrameOpacity)));
             }
         }
 
+        await PersistSettingsOffUiAsync(settingsToPersist);
         SynchronizeDesktopChromeTransparency();
     }
 
@@ -1419,19 +1467,24 @@ public sealed class MainViewModel : ObservableObject
 
     private void QueueThemeOpacitySave(AppTheme theme, double opacity)
     {
-        CancellationTokenSource delay;
         lock (_themeOpacitySaveLock)
         {
+            if (_isOpacityPersistenceStopping)
+            {
+                return;
+            }
+
             if (_themeOpacitySaveDelays.TryGetValue(theme, out var previousDelay))
             {
                 previousDelay.Cancel();
             }
 
-            delay = new CancellationTokenSource();
+            var delay = new CancellationTokenSource();
             _themeOpacitySaveDelays[theme] = delay;
+            _pendingThemeOpacityValues[theme] = opacity;
+            var saveTask = PersistThemeOpacityAfterDelayAsync(theme, opacity, delay);
+            _themeOpacitySaveTasks[delay] = saveTask;
         }
-
-        _ = PersistThemeOpacityAfterDelayAsync(theme, opacity, delay);
     }
 
     private async Task PersistThemeOpacityAfterDelayAsync(
@@ -1441,11 +1494,11 @@ public sealed class MainViewModel : ObservableObject
     {
         try
         {
-            await Task.Delay(250, delay.Token);
+            await Task.Delay(250, delay.Token).ConfigureAwait(false);
             await _drawerService.SetSettingAsync(
                 GetThemeBoxOpacitySettingKey(theme),
                 FormatOpacity(opacity),
-                delay.Token);
+                delay.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (delay.IsCancellationRequested)
         {
@@ -1463,7 +1516,10 @@ public sealed class MainViewModel : ObservableObject
                     && ReferenceEquals(currentDelay, delay))
                 {
                     _themeOpacitySaveDelays.Remove(theme);
+                    _pendingThemeOpacityValues.Remove(theme);
                 }
+
+                _themeOpacitySaveTasks.Remove(delay);
             }
 
             delay.Dispose();
@@ -1472,19 +1528,24 @@ public sealed class MainViewModel : ObservableObject
 
     private void QueueDesktopChromeOpacitySave(string settingKey, double opacity)
     {
-        CancellationTokenSource delay;
         lock (_desktopChromeOpacitySaveLock)
         {
+            if (_isOpacityPersistenceStopping)
+            {
+                return;
+            }
+
             if (_desktopChromeOpacitySaveDelays.TryGetValue(settingKey, out var previousDelay))
             {
                 previousDelay.Cancel();
             }
 
-            delay = new CancellationTokenSource();
+            var delay = new CancellationTokenSource();
             _desktopChromeOpacitySaveDelays[settingKey] = delay;
+            _pendingDesktopChromeOpacityValues[settingKey] = opacity;
+            var saveTask = PersistDesktopChromeOpacityAfterDelayAsync(settingKey, opacity, delay);
+            _desktopChromeOpacitySaveTasks[delay] = saveTask;
         }
-
-        _ = PersistDesktopChromeOpacityAfterDelayAsync(settingKey, opacity, delay);
     }
 
     private async Task PersistDesktopChromeOpacityAfterDelayAsync(
@@ -1494,11 +1555,11 @@ public sealed class MainViewModel : ObservableObject
     {
         try
         {
-            await Task.Delay(250, delay.Token);
+            await Task.Delay(250, delay.Token).ConfigureAwait(false);
             await _drawerService.SetSettingAsync(
                 settingKey,
                 FormatOpacity(opacity),
-                delay.Token);
+                delay.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (delay.IsCancellationRequested)
         {
@@ -1516,11 +1577,86 @@ public sealed class MainViewModel : ObservableObject
                     && ReferenceEquals(currentDelay, delay))
                 {
                     _desktopChromeOpacitySaveDelays.Remove(settingKey);
+                    _pendingDesktopChromeOpacityValues.Remove(settingKey);
                 }
+
+                _desktopChromeOpacitySaveTasks.Remove(delay);
             }
 
             delay.Dispose();
         }
+    }
+
+    internal async Task FlushPendingOpacitySavesAsync(CancellationToken cancellationToken = default)
+    {
+        _isOpacityPersistenceStopping = true;
+
+        var settings = new List<(string Key, string Value)>();
+        var pendingTasks = new List<Task>();
+
+        lock (_themeOpacitySaveLock)
+        {
+            settings.AddRange(_pendingThemeOpacityValues.Select(value =>
+                (GetThemeBoxOpacitySettingKey(value.Key), FormatOpacity(value.Value))));
+            var themeDelays = _themeOpacitySaveDelays.Values.ToArray();
+            pendingTasks.AddRange(_themeOpacitySaveTasks.Values);
+            foreach (var delay in themeDelays)
+            {
+                delay.Cancel();
+            }
+        }
+
+        lock (_desktopChromeOpacitySaveLock)
+        {
+            settings.AddRange(_pendingDesktopChromeOpacityValues.Select(value =>
+                (value.Key, FormatOpacity(value.Value))));
+            var desktopChromeDelays = _desktopChromeOpacitySaveDelays.Values.ToArray();
+            pendingTasks.AddRange(_desktopChromeOpacitySaveTasks.Values);
+            foreach (var delay in desktopChromeDelays)
+            {
+                delay.Cancel();
+            }
+        }
+
+        await Task.WhenAll(pendingTasks).WaitAsync(cancellationToken).ConfigureAwait(false);
+        await PersistSettingsOffUiAsync(settings, cancellationToken).ConfigureAwait(false);
+    }
+
+    private Task<Dictionary<string, string?>> LoadSettingsOffUiAsync(
+        IReadOnlyCollection<string> settingKeys)
+    {
+        var keys = settingKeys.ToArray();
+        return Task.Run(async () =>
+        {
+            var settings = new Dictionary<string, string?>(StringComparer.Ordinal);
+            foreach (var key in keys)
+            {
+                settings[key] = await _drawerService.GetSettingAsync(key).ConfigureAwait(false);
+            }
+
+            return settings;
+        });
+    }
+
+    private Task PersistSettingsOffUiAsync(
+        IReadOnlyCollection<(string Key, string Value)> settings,
+        CancellationToken cancellationToken = default)
+    {
+        if (settings.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        var values = settings.ToArray();
+        return Task.Run(async () =>
+        {
+            foreach (var (key, value) in values)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await _drawerService.SetSettingAsync(key, value, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+        }, cancellationToken);
     }
 
     internal static string GetThemeBoxOpacitySettingKey(AppTheme theme)

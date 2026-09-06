@@ -146,7 +146,6 @@ public static class AppThemeManager
         "PanelAltBrush",
         "BorderBrushSoft",
         "GlassSurfaceBrush",
-        "GlassStrokeBrush",
         "DrawerSecondarySurfaceBrush",
         "HoverBrush",
         "DropZoneBrush",
@@ -156,12 +155,12 @@ public static class AppThemeManager
     private static readonly Dictionary<AppTheme, double> BoxBorderOpacities =
         Enum.GetValues<AppTheme>().ToDictionary(
             theme => theme,
-            theme => GetExistingResourceOpacity(theme, "GlassStrokeBrush", GetDefaultBoxOpacity(theme)));
+            GetDefaultBoxBorderOpacity);
 
     private static readonly Dictionary<AppTheme, double> IconFrameOpacities =
         Enum.GetValues<AppTheme>().ToDictionary(
             theme => theme,
-            theme => GetExistingResourceOpacity(theme, "GlassInnerBrush", GetDefaultBoxOpacity(theme)));
+            GetDefaultIconFrameOpacity);
 
     public static event EventHandler<AppTheme>? ThemeChanged;
 
@@ -330,6 +329,22 @@ public static class AppThemeManager
         return theme == AppTheme.Crystal
             ? DefaultBoxOpacity
             : GetLegacyBoxOpacity(theme);
+    }
+
+    internal static double GetDefaultBoxBorderOpacity(AppTheme theme)
+    {
+        return GetExistingResourceOpacity(
+            theme,
+            "GlassStrokeBrush",
+            GetDefaultBoxOpacity(theme));
+    }
+
+    internal static double GetDefaultIconFrameOpacity(AppTheme theme)
+    {
+        return GetExistingResourceOpacity(
+            theme,
+            "GlassInnerBrush",
+            GetDefaultBoxOpacity(theme));
     }
 
     internal static double GetExistingBoxBorderOpacity(AppTheme theme)

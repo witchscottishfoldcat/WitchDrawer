@@ -91,23 +91,41 @@ public sealed class AppThemeManagerTests
         Assert.Equal((Color)ColorConverter.ConvertFromString("#FF2C2C2E"), surface);
     }
 
-    [Theory]
-    [InlineData(AppTheme.Moe)]
-    [InlineData(AppTheme.Glass)]
-    [InlineData(AppTheme.Crystal)]
-    public void GlassStrokeColorCurve_FollowsBoxOpacity(AppTheme theme)
+    [Fact]
+    public void GlassStrokeColorCurve_PreservesLegacyOpacityBehavior()
     {
-        var transparentStroke = AppThemeManager.GetDesktopBoxColor(
-            theme,
+        var moeStroke = AppThemeManager.GetDesktopBoxColor(
+            AppTheme.Moe,
             "GlassStrokeBrush",
             AppThemeManager.MinimumBoxOpacity);
-        var opaqueStroke = AppThemeManager.GetDesktopBoxColor(
-            theme,
+        var glassStroke = AppThemeManager.GetDesktopBoxColor(
+            AppTheme.Glass,
+            "GlassStrokeBrush",
+            AppThemeManager.MinimumBoxOpacity);
+        var crystalTransparentStroke = AppThemeManager.GetDesktopBoxColor(
+            AppTheme.Crystal,
+            "GlassStrokeBrush",
+            AppThemeManager.MinimumBoxOpacity);
+        var crystalOpaqueStroke = AppThemeManager.GetDesktopBoxColor(
+            AppTheme.Crystal,
             "GlassStrokeBrush",
             AppThemeManager.MaximumBoxOpacity);
 
-        Assert.True(transparentStroke.A < opaqueStroke.A);
-        Assert.Equal(byte.MaxValue, opaqueStroke.A);
+        Assert.Equal(byte.MaxValue, moeStroke.A);
+        Assert.Equal(0x33, glassStroke.A);
+        Assert.Equal(0x66, crystalTransparentStroke.A);
+        Assert.Equal(0xA6, crystalOpaqueStroke.A);
+    }
+
+    [Fact]
+    public void DesktopChromeDefaults_ReproduceEachThemesOriginalVisuals()
+    {
+        Assert.Equal(1.00, AppThemeManager.GetDefaultBoxBorderOpacity(AppTheme.Moe), 3);
+        Assert.Equal(0.20, AppThemeManager.GetDefaultBoxBorderOpacity(AppTheme.Glass), 3);
+        Assert.Equal(0.40, AppThemeManager.GetDefaultBoxBorderOpacity(AppTheme.Crystal), 3);
+        Assert.Equal(1.00, AppThemeManager.GetDefaultIconFrameOpacity(AppTheme.Moe), 3);
+        Assert.Equal(0x1F / 255d, AppThemeManager.GetDefaultIconFrameOpacity(AppTheme.Glass), 3);
+        Assert.Equal(0x3D / 255d, AppThemeManager.GetDefaultIconFrameOpacity(AppTheme.Crystal), 3);
     }
 
     [Fact]

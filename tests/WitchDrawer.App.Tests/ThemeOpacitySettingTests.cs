@@ -242,6 +242,50 @@ public sealed class ThemeOpacitySettingTests
     }
 
     [Fact]
+    public async Task UpgradeWithoutChromeSettings_PreservesLegacyBorderOpacityForCustomBoxOpacity()
+    {
+        await using var workspace = await ThemeWorkspace.CreateAsync();
+        await workspace.DrawerService.SetSettingAsync(
+            MainViewModel.ThemeBoxOpacityMigrationVersionSettingKey,
+            "2");
+        await workspace.DrawerService.SetSettingAsync(
+            MainViewModel.GetThemeBoxOpacitySettingKey(AppTheme.Moe),
+            "0.40");
+        await workspace.DrawerService.SetSettingAsync(
+            MainViewModel.GetThemeBoxOpacitySettingKey(AppTheme.Glass),
+            "0.40");
+        await workspace.DrawerService.SetSettingAsync(
+            MainViewModel.GetThemeBoxOpacitySettingKey(AppTheme.Crystal),
+            "0.10");
+        AppThemeManager.ResetBoxOpacitiesForTests();
+
+        try
+        {
+            await workspace.ViewModel.LoadAsync();
+
+            Assert.Equal(1.00, AppThemeManager.GetBoxBorderOpacity(AppTheme.Moe), 3);
+            Assert.Equal(0.20, AppThemeManager.GetBoxBorderOpacity(AppTheme.Glass), 3);
+            Assert.Equal(0.40, AppThemeManager.GetBoxBorderOpacity(AppTheme.Crystal), 3);
+            Assert.Equal(
+                "1.00",
+                await workspace.DrawerService.GetSettingAsync(
+                    MainViewModel.GetThemeBoxBorderOpacitySettingKey(AppTheme.Moe)));
+            Assert.Equal(
+                "0.20",
+                await workspace.DrawerService.GetSettingAsync(
+                    MainViewModel.GetThemeBoxBorderOpacitySettingKey(AppTheme.Glass)));
+            Assert.Equal(
+                "0.40",
+                await workspace.DrawerService.GetSettingAsync(
+                    MainViewModel.GetThemeBoxBorderOpacitySettingKey(AppTheme.Crystal)));
+        }
+        finally
+        {
+            AppThemeManager.ResetBoxOpacitiesForTests();
+        }
+    }
+
+    [Fact]
     public async Task ChangingDesktopChromeSliders_AppliesAndPersistsFullRange()
     {
         await using var workspace = await ThemeWorkspace.CreateAsync();
@@ -273,6 +317,93 @@ public sealed class ThemeOpacitySettingTests
             Assert.Equal(0.63, AppThemeManager.GetIconFrameOpacity(AppThemeManager.CurrentTheme), 3);
             Assert.Equal("0.00", savedBorderOpacity);
             Assert.Equal("0.63", savedIconFrameOpacity);
+        }
+        finally
+        {
+            AppThemeManager.ResetBoxOpacitiesForTests();
+        }
+    }
+
+    [Fact]
+    public async Task ResetThemeTransparency_RestoresAndPersistsCurrentThemeDefaults()
+    {
+        await using var workspace = await ThemeWorkspace.CreateAsync();
+        AppThemeManager.ResetBoxOpacitiesForTests();
+
+        try
+        {
+            await workspace.ViewModel.LoadAsync();
+
+            workspace.ViewModel.ThemeTransparencyPercent = 60;
+            workspace.ViewModel.BoxBorderTransparencyPercent = 80;
+            workspace.ViewModel.IconFrameTransparencyPercent = 90;
+
+            workspace.ViewModel.ResetThemeTransparencyCommand.Execute(null);
+
+            Assert.Equal(0, workspace.ViewModel.ThemeTransparencyPercent);
+            Assert.Equal(0, workspace.ViewModel.BoxBorderTransparencyPercent);
+            Assert.Equal(0, workspace.ViewModel.IconFrameTransparencyPercent);
+            Assert.Equal(1, AppThemeManager.GetBoxOpacity(AppTheme.Moe));
+            Assert.Equal(1, AppThemeManager.GetBoxBorderOpacity(AppTheme.Moe));
+            Assert.Equal(1, AppThemeManager.GetIconFrameOpacity(AppTheme.Moe));
+            Assert.Equal("已恢复 清透雅致 的透明度默认值", workspace.ViewModel.StatusText);
+
+            await workspace.ViewModel.FlushPendingOpacitySavesAsync();
+
+            Assert.Equal(
+                "1.00",
+                await workspace.DrawerService.GetSettingAsync(
+                    MainViewModel.GetThemeBoxOpacitySettingKey(AppTheme.Moe)));
+            Assert.Equal(
+                "1.00",
+                await workspace.DrawerService.GetSettingAsync(
+                    MainViewModel.GetThemeBoxBorderOpacitySettingKey(AppTheme.Moe)));
+            Assert.Equal(
+                "1.00",
+                await workspace.DrawerService.GetSettingAsync(
+                    MainViewModel.GetThemeIconFrameOpacitySettingKey(AppTheme.Moe)));
+        }
+        finally
+        {
+            AppThemeManager.ResetBoxOpacitiesForTests();
+        }
+    }
+
+    [Fact]
+    public async Task FlushPendingOpacitySaves_PersistsLatestValuesWithoutWaitingForDebounce()
+    {
+        await using var workspace = await ThemeWorkspace.CreateAsync();
+        AppThemeManager.ResetBoxOpacitiesForTests();
+
+        try
+        {
+            await workspace.ViewModel.LoadAsync();
+
+            workspace.ViewModel.ThemeTransparencyPercent = 12;
+            workspace.ViewModel.ThemeTransparencyPercent = 33;
+            workspace.ViewModel.ThemeTransparencyPercent = 41;
+            workspace.ViewModel.BoxBorderTransparencyPercent = 24;
+            workspace.ViewModel.BoxBorderTransparencyPercent = 51;
+            workspace.ViewModel.BoxBorderTransparencyPercent = 72;
+            workspace.ViewModel.IconFrameTransparencyPercent = 60;
+            workspace.ViewModel.IconFrameTransparencyPercent = 39;
+            workspace.ViewModel.IconFrameTransparencyPercent = 18;
+
+            await workspace.ViewModel.FlushPendingOpacitySavesAsync();
+
+            var theme = AppThemeManager.CurrentTheme;
+            Assert.Equal(
+                "0.59",
+                await workspace.DrawerService.GetSettingAsync(
+                    MainViewModel.GetThemeBoxOpacitySettingKey(theme)));
+            Assert.Equal(
+                "0.28",
+                await workspace.DrawerService.GetSettingAsync(
+                    MainViewModel.GetThemeBoxBorderOpacitySettingKey(theme)));
+            Assert.Equal(
+                "0.82",
+                await workspace.DrawerService.GetSettingAsync(
+                    MainViewModel.GetThemeIconFrameOpacitySettingKey(theme)));
         }
         finally
         {
