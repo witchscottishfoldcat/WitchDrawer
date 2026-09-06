@@ -28,7 +28,6 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private const double MaximumDrawerSecondaryPanelDimension = 320;
     private const double EdgeExpandThreshold = 14;
     private const double VisibleHeaderRowHeight = 24;
-    private const double HiddenGridContentInset = 6;
     private const string MappingViewModeSettingPrefix = "MappingViewMode:";
     private const string MappingListWidthSettingPrefix = "MappingListWidth:";
     private const string MappingListViewMode = "List";
@@ -42,7 +41,8 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private const double DefaultDrawerCoverWidth = 180;
     private const double DefaultDrawerCoverHeight = 112;
     private const double MaximumDrawerCoverDimension = 720;
-    private const double DrawerTitleHeightCompensation = 9;
+    // A visible header replaces the normal grid's 6 DIP hidden-header spacer.
+    private const double DrawerTitleHeightCompensation = DesktopBoxLayoutSettings.HiddenGridContentInset;
     internal const double MinimumMappingListWidth = 180;
     internal const double MaximumMappingListWidth = 720;
 
@@ -290,18 +290,19 @@ public sealed class DesktopBoxViewModel : ObservableObject
         DrawerSecondaryRows,
         LayoutSettings.ItemSlotHeight);
 
-    public double DrawerSecondaryPanelWidth => Math.Clamp(
+    // The grid already has at least two columns and one row. Independent
+    // minimum dimensions add unequal whitespace to small (especially 2x2)
+    // menus; use the same chrome around the actual grid on both axes.
+    public double DrawerSecondaryPanelWidth => Math.Min(
         (DrawerSecondaryColumns
             * LayoutSettings.ItemSlotWidth)
         + DrawerSecondaryPanelChrome,
-        110,
         MaximumDrawerSecondaryPanelDimension);
 
-    public double DrawerSecondaryPanelHeight => Math.Clamp(
+    public double DrawerSecondaryPanelHeight => Math.Min(
         (Math.Min(5, DrawerSecondaryRows)
             * LayoutSettings.ItemSlotHeight)
         + DrawerSecondaryPanelChrome,
-        96,
         MaximumDrawerSecondaryPanelDimension);
 
     public bool IsMappingListMode => IsMappingBox && _isMappingListMode;
@@ -372,7 +373,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
         return isMappingListMode
             ? Math.Max(0, contentBottomMargin - contentTopMargin)
-            : HiddenGridContentInset;
+            : DesktopBoxLayoutSettings.HiddenGridContentInset;
     }
 
     public string NewTodoTitle

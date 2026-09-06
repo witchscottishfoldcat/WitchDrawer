@@ -7,7 +7,9 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
 {
     public const string DefaultPreset = "6x6";
     public const string DefaultDrawerPreset = "4x4";
-    public const double DrawerSurfaceInset = 10;
+    // Match the normal grid: 6 DIP outer margin + 3 DIP list viewport inset.
+    public const double DrawerSurfaceInset = 9;
+    internal const double HiddenGridContentInset = 6;
 
     /// <summary>
     /// 图标项容器（DesktopBoxWindow.xaml 中 ListBoxItem 的 Root Border）的描边厚度。
@@ -204,6 +206,9 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
     };
 
     public double DrawerSurfacePadding => DrawerSurfaceInset;
+
+    public Thickness DrawerSurfacePaddingWithTitle => new(
+        DrawerSurfaceInset, DrawerSurfaceInset - HiddenGridContentInset, DrawerSurfaceInset, DrawerSurfaceInset);
 
     /// <summary>
     /// 固定模式视口的精确 chrome 尺寸，与 DesktopBoxWindow.xaml 中 IconList 的

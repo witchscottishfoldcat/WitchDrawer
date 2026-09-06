@@ -946,7 +946,7 @@
                                     Value="{Binding LayoutSettings.DrawerSurfacePadding}" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsTitleVisible}" Value="True">
-                                    <Setter Property="Margin" Value="10,3,10,10" />
+                                    <Setter Property="Margin" Value="{Binding LayoutSettings.DrawerSurfacePaddingWithTitle}" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
