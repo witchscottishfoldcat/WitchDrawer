@@ -41,6 +41,7 @@ public sealed class DesktopToolWindow
 
     private readonly nint _handle;
     private nint _originalOwner;
+    private bool _originalOwnerCaptured;
     private nint _desktopOwner;
     private bool _desktopOwnershipSuspendedForInput;
 
@@ -109,6 +110,18 @@ public sealed class DesktopToolWindow
     public static bool RepairShellLastActivePopup()
     {
         var shellWindow = GetShellWindow();
+        var repaired = RepairLastActivePopup(shellWindow);
+        var desktopOwner = DesktopShellHost.ResolveOwner(shellWindow);
+        if (desktopOwner != shellWindow)
+        {
+            repaired |= RepairLastActivePopup(desktopOwner);
+        }
+
+        return repaired;
+    }
+
+    private static bool RepairLastActivePopup(nint shellWindow)
+    {
         if (shellWindow == nint.Zero || !IsWindow(shellWindow))
         {
             return false;
@@ -183,13 +196,17 @@ public sealed class DesktopToolWindow
     /// </summary>
     public bool TryAttachToDesktop()
     {
+        return TryAttachToDesktop(DesktopShellHost.ResolveOwner(GetShellWindow()));
+    }
+
+    internal bool TryAttachToDesktop(nint shellWindow)
+    {
         if (!IsAlive)
         {
             _desktopOwner = nint.Zero;
             return false;
         }
 
-        var shellWindow = GetShellWindow();
         if (shellWindow == nint.Zero || !IsWindow(shellWindow))
         {
             RestoreOriginalOwner();
@@ -203,11 +220,12 @@ public sealed class DesktopToolWindow
             return true;
         }
 
-        if (_originalOwner == nint.Zero
-            && currentOwner != nint.Zero
-            && IsWindow(currentOwner))
+        if (!_originalOwnerCaptured)
         {
-            _originalOwner = currentOwner;
+            _originalOwner = currentOwner != nint.Zero && IsWindow(currentOwner)
+                ? currentOwner
+                : nint.Zero;
+            _originalOwnerCaptured = true;
         }
 
         SetWindowLongPtr(_handle, WindowOwnerIndex, shellWindow);
@@ -219,6 +237,17 @@ public sealed class DesktopToolWindow
 
         _desktopOwner = shellWindow;
         return true;
+    }
+
+    public void RefreshDesktopHostForShowDesktop()
+    {
+        // Wallpaper/Explorer changes may migrate the view between Progman and
+        // WorkerW. Re-resolve on the existing settled foreground event, without
+        // polling, showing hidden boxes, or interrupting mouse ownership.
+        if (DesktopShellHost.UsesLegacyDesktopHost && !_desktopOwnershipSuspendedForInput)
+        {
+            TryAttachToDesktop();
+        }
     }
 
     /// <summary>
@@ -255,7 +284,7 @@ public sealed class DesktopToolWindow
     /// Reattaches the box after the mouse interaction has fully completed.
     /// Reattaching does not activate the box or change its Z-order band.
     /// </summary>
-    public bool RestoreDesktopOwnershipAfterMouseInput()
+    public bool RestoreDesktopOwnershipAfterMouseInput(bool isDesktopForeground = false)
     {
         if (!_desktopOwnershipSuspendedForInput)
         {
@@ -264,7 +293,7 @@ public sealed class DesktopToolWindow
 
         _desktopOwnershipSuspendedForInput = false;
         var restored = TryAttachToDesktop();
-        if (restored)
+        if (restored && !(DesktopShellHost.UsesLegacyDesktopHost && isDesktopForeground))
         {
             SendToBottom();
         }
@@ -291,9 +320,12 @@ public sealed class DesktopToolWindow
     {
         _desktopOwnershipSuspendedForInput = false;
         _desktopOwner = nint.Zero;
-        if (_originalOwner != nint.Zero && IsWindow(_originalOwner))
+        if (_originalOwnerCaptured && IsAlive)
         {
-            SetWindowLongPtr(_handle, WindowOwnerIndex, _originalOwner);
+            var owner = _originalOwner != nint.Zero && IsWindow(_originalOwner)
+                ? _originalOwner
+                : nint.Zero;
+            SetWindowLongPtr(_handle, WindowOwnerIndex, owner);
         }
     }
 

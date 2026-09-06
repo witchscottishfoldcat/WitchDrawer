@@ -204,6 +204,11 @@ public partial class DesktopBoxWindow : Window
 
     public void SetDesktopForeground(bool isForeground)
     {
+        if (isForeground)
+        {
+            _nativeWindow?.RefreshDesktopHostForShowDesktop();
+        }
+
         // When Show Desktop is active, leave Explorer's owner-chain Z order
         // untouched. On exit, return the boxes behind ordinary app windows.
         _desktopIsForeground = isForeground;
@@ -955,7 +960,7 @@ public partial class DesktopBoxWindow : Window
                 _desktopOwnershipRestoreQueued = false;
                 if (!_forceClose)
                 {
-                    _nativeWindow?.RestoreDesktopOwnershipAfterMouseInput();
+                    _nativeWindow?.RestoreDesktopOwnershipAfterMouseInput(_desktopIsForeground);
                 }
             });
     }
