@@ -1,14 +1,17 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using WitchDrawer.App.Infrastructure;
 using WitchDrawer.App.Messages;
+using WitchDrawer.Core;
 using WitchDrawer.Core.Abstractions;
 using WitchDrawer.Core.Logging;
 using WitchDrawer.Core.Models;
 using WitchDrawer.Core.Services;
+using WitchDrawer.Native.Windows;
 
 namespace WitchDrawer.App.ViewModels;
 
@@ -16,7 +19,12 @@ public sealed class MainViewModel : ObservableObject
 {
     private const double ItemIconSizeDip = 19;
     private const string ThemeSettingKey = "Theme";
-    private const string CrystalBoxTransparencySettingKey = "CrystalBoxTransparency";
+    internal const string ThemeBoxOpacitySettingKeyPrefix = "ThemeBoxOpacity.";
+    internal const string ThemeBoxOpacityMigrationVersionSettingKey = "ThemeBoxOpacityVersion";
+    private const string ThemeBoxOpacityMigrationVersion = "2";
+    internal const string EditorFollowsBoxOpacitySettingKey = "EditorFollowsBoxOpacity";
+    internal const string DesktopDoubleClickSettingKey = "DesktopDoubleClickToggle";
+    internal const string AboutPageShownSettingKey = "AboutPageShown";
     private const string StartupRegistryKeyName = "WitchDrawer";
 
     private readonly IDrawerService _drawerService;
@@ -27,18 +35,28 @@ public sealed class MainViewModel : ObservableObject
     private readonly IUpdateService _updateService;
     private readonly BoxVisualStyleStore _boxVisualStyleStore;
     private readonly BoxPositionLockStateStore _boxPositionLockStateStore;
+    private readonly AppPaths _appPaths;
+    private readonly DataStorageMigrationService _dataStorageMigrationService;
     private BoxViewModel? _selectedBox;
     private CancellationTokenSource? _itemsLoadCts;
     private int _itemsLoadVersion;
     private bool _isBusy;
+    private bool _pendingDesktopReload;
+    private Guid? _pendingDesktopReloadBoxId;
     private bool _isSettingsPage;
     private bool _isAboutPage;
     private bool _isArchivePage;
     private string _statusText = "准备就绪";
     private string _themeLabel = "清透雅致";
     private AppTheme _currentTheme;
-    private bool _isTransparentCrystalBoxes;
+    private double _themeTransparencyPercent = (1 - AppThemeManager.DefaultBoxOpacity) * 100;
+    private readonly object _themeOpacitySaveLock = new();
+    private readonly Dictionary<AppTheme, CancellationTokenSource> _themeOpacitySaveDelays = [];
+    private bool _isSynchronizingThemeTransparency;
+    private bool _editorFollowsBoxOpacity;
     private bool _launchOnStartup;
+    private bool _areDesktopIconsHidden;
+    private bool _isDesktopDoubleClickEnabled;
     private string _updateStatusText = string.Empty;
     private bool _isCheckingUpdate;
     private string? _pendingUpdateSha256;
@@ -53,7 +71,9 @@ public sealed class MainViewModel : ObservableObject
         QuickPanelViewModel quickPanelViewModel,
         IUpdateService updateService,
         BoxVisualStyleStore boxVisualStyleStore,
-        BoxPositionLockStateStore boxPositionLockStateStore)
+        BoxPositionLockStateStore boxPositionLockStateStore,
+        AppPaths appPaths,
+        DataStorageMigrationService dataStorageMigrationService)
     {
         _drawerService = drawerService;
         _todoService = todoService;
@@ -63,8 +83,11 @@ public sealed class MainViewModel : ObservableObject
         _updateService = updateService;
         _boxVisualStyleStore = boxVisualStyleStore;
         _boxPositionLockStateStore = boxPositionLockStateStore;
+        _appPaths = appPaths;
+        _dataStorageMigrationService = dataStorageMigrationService;
         TodoBoxDetail = new TodoBoxDetailViewModel(todoService, logger);
         TodoBoxDetail.ItemsChanged += OnTodoBoxDetailItemsChanged;
+        BoxSizeSettings = new BoxSizeSettingsViewModel(drawerService, logger);
 
         LoadCommand = new AsyncRelayCommand(LoadAsync);
         CreateNormalBoxCommand = new AsyncRelayCommand(
@@ -83,6 +106,7 @@ public sealed class MainViewModel : ObservableObject
                 ToggleSelectedBoxPositionLockAsync,
                 () => SelectedBox is not null);
         CreateTodoBoxCommand = new AsyncRelayCommand(() => CreateBoxAsync(BoxType.Todo));
+        CreateDrawerBoxCommand = new AsyncRelayCommand(() => CreateBoxAsync(BoxType.Drawer));
         DeleteSelectedBoxCommand = new AsyncRelayCommand(DeleteSelectedBoxAsync, () => SelectedBox is not null);
         RenameSelectedBoxCommand = new AsyncRelayCommand<string?>(RenameSelectedBoxAsync, _ => SelectedBox is not null);
         OpenItemCommand = new AsyncRelayCommand<DrawerItemViewModel?>(OpenItemAsync);
@@ -93,8 +117,11 @@ public sealed class MainViewModel : ObservableObject
 
         ApplyMoeThemeCommand = new AsyncRelayCommand(() => ApplyThemeAsync(AppTheme.Moe));
         ApplyGlassThemeCommand = new AsyncRelayCommand(() => ApplyThemeAsync(AppTheme.Glass));
-        ApplyCrystalThemeCommand = new AsyncRelayCommand(ApplyCrystalThemeAsync);
+        ApplyCrystalThemeCommand = new AsyncRelayCommand(() => ApplyThemeAsync(AppTheme.Crystal));
         ToggleLaunchOnStartupCommand = new AsyncRelayCommand(ToggleLaunchOnStartupAsync);
+        ToggleDesktopIconsCommand = new AsyncRelayCommand(ToggleDesktopIconsAsync);
+        ToggleDesktopDoubleClickCommand = new AsyncRelayCommand(ToggleDesktopDoubleClickAsync);
+        ToggleEditorOpacityFollowCommand = new AsyncRelayCommand(ToggleEditorOpacityFollowAsync);
         CheckForUpdateCommand = new AsyncRelayCommand(CheckForUpdateAsync);
         ShowDashboardCommand = new RelayCommand(() =>
         {
@@ -105,12 +132,15 @@ public sealed class MainViewModel : ObservableObject
         ShowArchiveCommand = new AsyncRelayCommand(ShowArchiveAsync);
         ShowSettingsCommand = new RelayCommand(() =>
         {
+            SelectedBox = null;
+            AreDesktopIconsHidden = DesktopIconVisibility.IsHidden();
             IsArchivePage = false;
             IsSettingsPage = true;
             IsAboutPage = false;
         });
         ShowAboutCommand = new RelayCommand(() =>
         {
+            SelectedBox = null;
             IsArchivePage = false;
             IsSettingsPage = false;
             IsAboutPage = true;
@@ -119,15 +149,17 @@ public sealed class MainViewModel : ObservableObject
 
     public event EventHandler? BoxesChanged;
 
-    public event EventHandler? ItemsChanged;
+    public event EventHandler<BoxItemsChangedEventArgs>? ItemsChanged;
 
     public ObservableCollection<BoxViewModel> Boxes { get; } = [];
 
-    public ObservableCollection<DrawerItemViewModel> Items { get; } = [];
+    public ResettableObservableCollection<DrawerItemViewModel> Items { get; } = [];
 
     public ObservableCollection<ArchivedTodoItemViewModel> ArchivedTodos { get; } = [];
 
     public TodoBoxDetailViewModel TodoBoxDetail { get; }
+
+    public BoxSizeSettingsViewModel BoxSizeSettings { get; }
 
     public IReadOnlyList<BoxVisualStyleOption> BoxVisualStyleOptions =>
         BoxVisualStyleCatalog.Options;
@@ -159,6 +191,8 @@ public sealed class MainViewModel : ObservableObject
 
     public IAsyncRelayCommand CreateTodoBoxCommand { get; }
 
+    public IAsyncRelayCommand CreateDrawerBoxCommand { get; }
+
     public IAsyncRelayCommand DeleteSelectedBoxCommand { get; }
 
     public IAsyncRelayCommand<string?> RenameSelectedBoxCommand { get; }
@@ -178,6 +212,12 @@ public sealed class MainViewModel : ObservableObject
     public IAsyncRelayCommand ApplyCrystalThemeCommand { get; }
 
     public IAsyncRelayCommand ToggleLaunchOnStartupCommand { get; }
+
+    public IAsyncRelayCommand ToggleDesktopIconsCommand { get; }
+
+    public IAsyncRelayCommand ToggleDesktopDoubleClickCommand { get; }
+
+    public IAsyncRelayCommand ToggleEditorOpacityFollowCommand { get; }
 
     public IAsyncRelayCommand CheckForUpdateCommand { get; }
 
@@ -235,6 +275,14 @@ public sealed class MainViewModel : ObservableObject
         private set => SetProperty(ref _statusText, value);
     }
 
+    internal void ReportStatus(string message)
+    {
+        if (!string.IsNullOrWhiteSpace(message))
+        {
+            StatusText = message;
+        }
+    }
+
     public string ThemeLabel
     {
         get => _themeLabel;
@@ -261,22 +309,57 @@ public sealed class MainViewModel : ObservableObject
 
     public bool IsCrystalTheme => CurrentTheme == AppTheme.Crystal;
 
-    public bool IsTransparentCrystalBoxes
+    public double ThemeTransparencyPercent
     {
-        get => _isTransparentCrystalBoxes;
-        private set
+        get => _themeTransparencyPercent;
+        set
         {
-            if (SetProperty(ref _isTransparentCrystalBoxes, value))
+            if (!double.IsFinite(value))
             {
-                UpdateThemeLabel();
+                return;
+            }
+
+            var normalized = Math.Clamp(
+                Math.Round(value),
+                0,
+                (1 - AppThemeManager.MinimumBoxOpacity) * 100);
+            if (SetProperty(ref _themeTransparencyPercent, normalized))
+            {
+                OnPropertyChanged(nameof(ThemeTransparencyLabel));
+                var opacity = 1 - (normalized / 100);
+                AppThemeManager.SetBoxOpacity(CurrentTheme, opacity);
+                if (!_isSynchronizingThemeTransparency)
+                {
+                    QueueThemeOpacitySave(CurrentTheme, opacity);
+                }
             }
         }
+    }
+
+    public string ThemeTransparencyLabel => $"{ThemeTransparencyPercent:0}%";
+
+    public bool EditorFollowsBoxOpacity
+    {
+        get => _editorFollowsBoxOpacity;
+        private set => SetProperty(ref _editorFollowsBoxOpacity, value);
     }
 
     public bool LaunchOnStartup
     {
         get => _launchOnStartup;
         private set => SetProperty(ref _launchOnStartup, value);
+    }
+
+    public bool AreDesktopIconsHidden
+    {
+        get => _areDesktopIconsHidden;
+        private set => SetProperty(ref _areDesktopIconsHidden, value);
+    }
+
+    public bool IsDesktopDoubleClickEnabled
+    {
+        get => _isDesktopDoubleClickEnabled;
+        private set => SetProperty(ref _isDesktopDoubleClickEnabled, value);
     }
 
     public string UpdateStatusText
@@ -300,6 +383,37 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// 当前生效的数据根目录（数据库与收纳盒文件所在位置）。
+    /// </summary>
+    public string CurrentDataDirectory => _appPaths.RootDirectory;
+
+    /// <summary>
+    /// 将数据目录整体迁移到新文件夹。成功后需重启应用才会切换到新目录。
+    /// </summary>
+    public async Task MigrateDataDirectoryAsync(string targetDirectory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(targetDirectory);
+        IsBusy = true;
+        StatusText = "正在迁移数据目录…";
+        try
+        {
+            var newPaths = await _dataStorageMigrationService.MigrateAsync(targetDirectory);
+            StatusText = "数据已迁移，重启后生效";
+            _logger.Info($"Data directory migrated to {newPaths.RootDirectory}. Restart required.");
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Data directory migration failed.");
+            StatusText = "数据目录迁移失败";
+            throw;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
     public async Task LoadAsync()
     {
         await RunBusyAsync(async () =>
@@ -315,14 +429,45 @@ public sealed class MainViewModel : ObservableObject
                     box,
                     _drawerService,
                     visualStyle,
-                    isPositionLocked));
+                    isPositionLocked,
+                    _logger));
             }
 
             await SelectBoxAsync(Boxes.FirstOrDefault(box => box.Id == existingSelection) ?? Boxes.FirstOrDefault());
 
-            LaunchOnStartup = ReadStartupRegistry();
-            await RestoreCrystalBoxTransparencyAsync();
+            // 必须在首次启动标记写入前判断是否为旧安装，才能让新用户使用二段透明度，
+            // 同时让升级用户保留旧主题原本的视觉效果。
+            await RestoreThemeBoxOpacitiesAsync();
+            var editorOpacityFollowSetting =
+                await _drawerService.GetSettingAsync(EditorFollowsBoxOpacitySettingKey);
+            EditorFollowsBoxOpacity = bool.TryParse(
+                editorOpacityFollowSetting,
+                out var editorFollowsBoxOpacity)
+                && editorFollowsBoxOpacity;
 
+            var aboutPageShown = await _drawerService.GetSettingAsync(AboutPageShownSettingKey);
+            if (!bool.TryParse(aboutPageShown, out var hasShownAboutPage) || !hasShownAboutPage)
+            {
+                ShowAboutCommand.Execute(null);
+                try
+                {
+                    await _drawerService.SetSettingAsync(AboutPageShownSettingKey, bool.TrueString);
+                }
+                catch (Exception exception)
+                {
+                    // The guide is still useful if the preference cannot be persisted;
+                    // try again on the next launch instead of failing startup.
+                    _logger.Error(exception, "Failed to persist first-launch about-page preference.");
+                }
+            }
+
+            LaunchOnStartup = ReadStartupRegistry();
+            AreDesktopIconsHidden = DesktopIconVisibility.IsHidden();
+            var desktopDoubleClickSetting =
+                await _drawerService.GetSettingAsync(DesktopDoubleClickSettingKey);
+            IsDesktopDoubleClickEnabled =
+                bool.TryParse(desktopDoubleClickSetting, out var desktopDoubleClickEnabled)
+                && desktopDoubleClickEnabled;
             StatusText = $"{Boxes.Count} 个收纳盒已同步到桌面";
             BoxesChanged?.Invoke(this, EventArgs.Empty);
         });
@@ -331,22 +476,38 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>
     /// Reloads items/quick-panel state without raising BoxesChanged (avoids desktop refresh loops).
     /// </summary>
-    public async Task ReloadItemsFromDesktopAsync()
+    public async Task ReloadItemsFromDesktopAsync(Guid? affectedBoxId = null)
     {
         if (IsBusy)
         {
+            // 忙时合流而非丢弃：记录一次待刷，忙完补刷；null 表示全量，
+            // 一旦出现第二个不同盒子的变更就保持全量。
+            _pendingDesktopReloadBoxId = _pendingDesktopReload
+                ? (_pendingDesktopReloadBoxId == affectedBoxId ? affectedBoxId : null)
+                : affectedBoxId;
+            _pendingDesktopReload = true;
             return;
         }
 
         try
         {
             IsBusy = true;
-            await LoadItemsForSelectedBoxAsync(SelectedBox);
+            if (affectedBoxId is null || SelectedBox?.Id == affectedBoxId.Value)
+            {
+                await LoadItemsForSelectedBoxAsync(SelectedBox);
+            }
             if (IsArchivePage)
             {
                 await LoadArchivedTodosAsync();
             }
-            await _quickPanelViewModel.LoadAsync();
+            if (affectedBoxId is Guid boxId)
+            {
+                await _quickPanelViewModel.RefreshBoxAsync(boxId);
+            }
+            else
+            {
+                await _quickPanelViewModel.LoadAsync();
+            }
         }
         catch (Exception exception)
         {
@@ -356,7 +517,21 @@ public sealed class MainViewModel : ObservableObject
         finally
         {
             IsBusy = false;
+            FlushPendingDesktopReload();
         }
+    }
+
+    private void FlushPendingDesktopReload()
+    {
+        if (!_pendingDesktopReload || IsBusy)
+        {
+            return;
+        }
+
+        _pendingDesktopReload = false;
+        var boxId = _pendingDesktopReloadBoxId;
+        _pendingDesktopReloadBoxId = null;
+        _ = ReloadItemsFromDesktopAsync(boxId);
     }
 
     public async Task ReorderBoxAsync(Guid draggedBoxId, Guid targetBoxId, bool insertAfter)
@@ -424,17 +599,36 @@ public sealed class MainViewModel : ObservableObject
 
         await RunBusyAsync(async () =>
         {
+            // 固定格数盒的硬约束：主窗口导入同样不得超容量（桌面盒拖入路径已有同等约束）。
+            // 超容量的项目若入库，会因无格位被分配到固定边界外，在盒内不可见也不可选。
+            var pathsToImport = pathList;
+            var skippedForCapacity = 0;
+            if (selectedBox.SupportsFixedSize && BoxSizeSettings.IsFixedMode)
+            {
+                var capacity = BoxSizeSettings.FixedColumns * BoxSizeSettings.FixedRows;
+                var remaining = Math.Max(0, capacity - Items.Count);
+                if (remaining < pathList.Length)
+                {
+                    pathsToImport = pathList.Take(remaining).ToArray();
+                    skippedForCapacity = pathList.Length - pathsToImport.Length;
+                }
+            }
+
             var imported = 0;
-            foreach (var path in pathList)
+            foreach (var path in pathsToImport)
             {
                 await _drawerService.ImportPathAsync(selectedBox.Id, path);
                 imported++;
             }
 
             await LoadItemsForSelectedBoxAsync(selectedBox);
-            await _quickPanelViewModel.LoadAsync();
-            StatusText = $"已导入 {imported} 项到 {selectedBox.Name}";
-            ItemsChanged?.Invoke(this, EventArgs.Empty);
+            await _quickPanelViewModel.RefreshBoxAsync(selectedBox.Id);
+            StatusText = skippedForCapacity > 0
+                ? imported > 0
+                    ? $"已导入 {imported} 项到 {selectedBox.Name}，盒子已满（{skippedForCapacity} 项未导入）"
+                    : $"{selectedBox.Name} 已满，无法导入"
+                : $"已导入 {imported} 项到 {selectedBox.Name}";
+            ItemsChanged?.Invoke(this, new BoxItemsChangedEventArgs(selectedBox.Id));
         });
     }
 
@@ -457,6 +651,7 @@ public sealed class MainViewModel : ObservableObject
                 BoxType.Mapping => "映射收纳盒",
                 BoxType.Pixel => "像素收纳盒",
                 BoxType.Todo => "待办收纳盒",
+                BoxType.Drawer => "抽屉盒",
                 _ => "收纳盒"
             };
             var matchingBoxCount = type == BoxType.Normal
@@ -464,6 +659,12 @@ public sealed class MainViewModel : ObservableObject
                 : Boxes.Count(box => box.Type == type);
             var name = $"{prefix} {matchingBoxCount + 1}";
             var box = await _drawerService.CreateBoxAsync(name, type);
+            if (type == BoxType.Drawer)
+            {
+                await _drawerService.SetSettingAsync(
+                    BoxViewModel.GetLayoutPresetSettingKey(box.Id),
+                    DesktopBoxLayoutSettings.DefaultDrawerPreset);
+            }
             var effectiveStyle = visualStyle ?? BoxVisualStyle.Modern;
             if (type == BoxType.Normal)
             {
@@ -482,7 +683,8 @@ public sealed class MainViewModel : ObservableObject
                 box,
                 _drawerService,
                 effectiveStyle,
-                isPositionLocked: false);
+                isPositionLocked: false,
+                logger: _logger);
             Boxes.Add(viewModel);
             await SelectBoxAsync(viewModel);
             StatusText = $"已创建 {name}，桌面收纳栏已生成";
@@ -503,7 +705,7 @@ public sealed class MainViewModel : ObservableObject
             await _boxVisualStyleStore.SaveAsync(selectedBox.Id, option.Style);
             selectedBox.ApplyVisualStyle(option.Style);
             await LoadItemsForSelectedBoxAsync(selectedBox);
-            await _quickPanelViewModel.LoadAsync();
+            await _quickPanelViewModel.RefreshBoxAsync(selectedBox.Id);
             StatusText = $"已将“{selectedBox.Name}”切换为{option.Name}";
             BoxesChanged?.Invoke(this, EventArgs.Empty);
         });
@@ -561,9 +763,9 @@ public sealed class MainViewModel : ObservableObject
                     _boxPositionLockStateStore.LoadAsync(box.Id);
                 await Task.WhenAll(visualStyleTask, positionLockStateTask);
                 return (
-                    box,
-                    await visualStyleTask,
-                    await positionLockStateTask);
+                    Box: box,
+                    VisualStyle: await visualStyleTask,
+                    IsPositionLocked: await positionLockStateTask);
             }));
     }
 
@@ -588,7 +790,8 @@ public sealed class MainViewModel : ObservableObject
                     box,
                     _drawerService,
                     visualStyle,
-                    isPositionLocked));
+                    isPositionLocked,
+                    _logger));
             }
 
             await SelectBoxAsync(
@@ -596,10 +799,10 @@ public sealed class MainViewModel : ObservableObject
                     ? Boxes.FirstOrDefault()
                     : Boxes.FirstOrDefault(box => box.Id == result.BoxId) ?? Boxes.FirstOrDefault());
 
-            await _quickPanelViewModel.LoadAsync();
+            await _quickPanelViewModel.RefreshBoxAsync(selectedBox.Id);
             StatusText = result.StatusMessage;
             BoxesChanged?.Invoke(this, EventArgs.Empty);
-            ItemsChanged?.Invoke(this, EventArgs.Empty);
+            ItemsChanged?.Invoke(this, new BoxItemsChangedEventArgs(selectedBox.Id));
         });
     }
 
@@ -624,12 +827,13 @@ public sealed class MainViewModel : ObservableObject
                     box,
                     _drawerService,
                     visualStyle,
-                    isPositionLocked));
+                    isPositionLocked,
+                    _logger));
             }
 
             await SelectBoxAsync(Boxes.FirstOrDefault(b => b.Id == selectedBox.Id) ?? Boxes.FirstOrDefault());
 
-            await _quickPanelViewModel.LoadAsync();
+            await _quickPanelViewModel.RefreshBoxAsync(selectedBox.Id);
             StatusText = $"已重命名收纳盒为 {newName.Trim()}";
             BoxesChanged?.Invoke(this, EventArgs.Empty);
         });
@@ -643,6 +847,7 @@ public sealed class MainViewModel : ObservableObject
         }
 
         _selectedBox = value;
+        BoxSizeSettings.SetTargetBox(value);
         OnPropertyChanged(nameof(SelectedBox));
         OnPropertyChanged(nameof(IsSelectedTodoBox));
         OnPropertyChanged(nameof(CanImportFiles));
@@ -696,7 +901,7 @@ public sealed class MainViewModel : ObservableObject
         {
             if (IsCurrentItemsLoad(selectedBox, version))
             {
-                Items.Clear();
+                Items.ReplaceAll([]);
             }
 
             await TodoBoxDetail.LoadAsync(selectedBox.Id);
@@ -708,7 +913,7 @@ public sealed class MainViewModel : ObservableObject
         {
             if (IsCurrentItemsLoad(null, version))
             {
-                Items.Clear();
+                Items.ReplaceAll([]);
             }
 
             return;
@@ -725,16 +930,13 @@ public sealed class MainViewModel : ObservableObject
             }
 
             var isPixelated = selectedBox.IsPixelStyle;
-            Items.Clear();
-            foreach (var item in items)
-            {
-                Items.Add(new DrawerItemViewModel(
+            Items.ReplaceAll(items.Select(item =>
+                new DrawerItemViewModel(
                     item,
                     selectedBox.Name,
                     isPixelated,
                     GetIconPixelSize(isPixelated),
-                    _logger));
-            }
+                    _logger)));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -791,14 +993,15 @@ public sealed class MainViewModel : ObservableObject
         {
             var result = await _drawerService.DeleteItemAsync(item.Id);
             await LoadItemsForSelectedBoxAsync(SelectedBox);
-            await _quickPanelViewModel.LoadAsync();
+            await _quickPanelViewModel.RefreshBoxAsync(item.Model.BoxId);
             StatusText = result.StatusMessage;
-            ItemsChanged?.Invoke(this, EventArgs.Empty);
+            ItemsChanged?.Invoke(this, new BoxItemsChangedEventArgs(item.Model.BoxId));
         });
     }
 
     private async Task ShowArchiveAsync()
     {
+        SelectedBox = null;
         IsArchivePage = true;
         IsSettingsPage = false;
         IsAboutPage = false;
@@ -822,7 +1025,7 @@ public sealed class MainViewModel : ObservableObject
             }
 
             StatusText = $"已将“{todo.Title}”恢复到 {todo.BoxName}";
-            ItemsChanged?.Invoke(this, EventArgs.Empty);
+            ItemsChanged?.Invoke(this, new BoxItemsChangedEventArgs(todo.Model.BoxId));
         });
     }
 
@@ -865,18 +1068,16 @@ public sealed class MainViewModel : ObservableObject
     private void OnTodoBoxDetailItemsChanged(object? sender, EventArgs e)
     {
         StatusText = TodoBoxDetail.StatusText;
-        ItemsChanged?.Invoke(this, EventArgs.Empty);
+        if (TodoBoxDetail.BoxId is Guid boxId)
+        {
+            ItemsChanged?.Invoke(this, new BoxItemsChangedEventArgs(boxId));
+        }
     }
 
     private async Task ApplyThemeAsync(AppTheme theme)
     {
         try
         {
-            if (theme != AppTheme.Crystal)
-            {
-                await SetCrystalBoxTransparencyAsync(false);
-            }
-
             AppThemeManager.Apply(theme);
             SetCurrentTheme(theme);
             await _drawerService.SetSettingAsync(ThemeSettingKey, theme.ToString());
@@ -889,34 +1090,10 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
-    private async Task ApplyCrystalThemeAsync()
-    {
-        if (CurrentTheme == AppTheme.Crystal)
-        {
-            var useTransparentBoxes = !IsTransparentCrystalBoxes;
-            await SetCrystalBoxTransparencyAsync(useTransparentBoxes);
-            StatusText = useTransparentBoxes
-                ? "桌面收纳盒已切换为透明水晶"
-                : "桌面收纳盒已切换为清晰水晶";
-            return;
-        }
-
-        await SetCrystalBoxTransparencyAsync(false);
-        await ApplyThemeAsync(AppTheme.Crystal);
-    }
-
-    private async Task SetCrystalBoxTransparencyAsync(bool enabled)
-    {
-        IsTransparentCrystalBoxes = enabled;
-        AppThemeManager.SetCrystalBoxTransparency(enabled);
-        await _drawerService.SetSettingAsync(
-            CrystalBoxTransparencySettingKey,
-            enabled.ToString());
-    }
-
     private void SetCurrentTheme(AppTheme theme)
     {
         CurrentTheme = theme;
+        SynchronizeThemeTransparency();
         UpdateThemeLabel();
     }
 
@@ -925,7 +1102,6 @@ public sealed class MainViewModel : ObservableObject
         ThemeLabel = CurrentTheme switch
         {
             AppTheme.Glass => "暗黑曜石",
-            AppTheme.Crystal when IsTransparentCrystalBoxes => "全透水晶 · 透明盒",
             AppTheme.Crystal => "全透水晶",
             _ => "清透雅致"
         };
@@ -951,6 +1127,7 @@ public sealed class MainViewModel : ObservableObject
         finally
         {
             IsBusy = false;
+            FlushPendingDesktopReload();
         }
     }
 
@@ -966,6 +1143,41 @@ public sealed class MainViewModel : ObservableObject
         catch (Exception exception)
         {
             _logger.Error(exception, "Failed to toggle startup registry key.");
+            StatusText = exception.Message;
+        }
+    }
+
+    private async Task ToggleDesktopIconsAsync()
+    {
+        try
+        {
+            var hidden = !AreDesktopIconsHidden;
+            await DesktopIconVisibility.SetHiddenAsync(hidden);
+            AreDesktopIconsHidden = hidden;
+            StatusText = hidden ? "已隐藏 Windows 桌面图标" : "已显示 Windows 桌面图标";
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to toggle Windows desktop icons.");
+            StatusText = exception.Message;
+        }
+    }
+
+    private async Task ToggleDesktopDoubleClickAsync()
+    {
+        try
+        {
+            var enabled = !IsDesktopDoubleClickEnabled;
+            await _drawerService.SetSettingAsync(
+                DesktopDoubleClickSettingKey,
+                enabled.ToString());
+            IsDesktopDoubleClickEnabled = enabled;
+            StatusText = enabled ? "已开启桌面双击切换图标" : "已关闭桌面双击切换图标";
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to save desktop double-click setting.");
+            OnPropertyChanged(nameof(IsDesktopDoubleClickEnabled));
             StatusText = exception.Message;
         }
     }
@@ -1009,14 +1221,166 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
-    private async Task RestoreCrystalBoxTransparencyAsync()
+    private async Task RestoreThemeBoxOpacitiesAsync()
     {
-        var savedValue = await _drawerService.GetSettingAsync(CrystalBoxTransparencySettingKey);
-        var enabled = CurrentTheme == AppTheme.Crystal
-            && bool.TryParse(savedValue, out var savedEnabled)
-            && savedEnabled;
-        IsTransparentCrystalBoxes = enabled;
-        AppThemeManager.SetCrystalBoxTransparency(enabled);
+        var migrationVersion =
+            await _drawerService.GetSettingAsync(ThemeBoxOpacityMigrationVersionSettingKey);
+        if (string.Equals(
+                migrationVersion,
+                ThemeBoxOpacityMigrationVersion,
+                StringComparison.Ordinal))
+        {
+            foreach (var theme in Enum.GetValues<AppTheme>())
+            {
+                var savedOpacity = await _drawerService.GetSettingAsync(GetThemeBoxOpacitySettingKey(theme));
+                AppThemeManager.SetBoxOpacity(theme, ParseSavedOpacity(savedOpacity));
+            }
+
+            SynchronizeThemeTransparency();
+            return;
+        }
+
+        foreach (var theme in Enum.GetValues<AppTheme>())
+        {
+            var opacity = AppThemeManager.GetDefaultBoxOpacity(theme);
+            if (string.Equals(migrationVersion, "1", StringComparison.Ordinal))
+            {
+                var savedOpacity = ParseSavedOpacity(
+                    await _drawerService.GetSettingAsync(GetThemeBoxOpacitySettingKey(theme)));
+                if (!IsVersionOneGeneratedDefault(savedOpacity))
+                {
+                    opacity = savedOpacity;
+                }
+            }
+
+            AppThemeManager.SetBoxOpacity(theme, opacity);
+            await _drawerService.SetSettingAsync(
+                GetThemeBoxOpacitySettingKey(theme),
+                FormatOpacity(opacity));
+        }
+
+        await _drawerService.SetSettingAsync(
+            ThemeBoxOpacityMigrationVersionSettingKey,
+            ThemeBoxOpacityMigrationVersion);
+        SynchronizeThemeTransparency();
+    }
+
+    private async Task ToggleEditorOpacityFollowAsync()
+    {
+        try
+        {
+            var enabled = !EditorFollowsBoxOpacity;
+            await _drawerService.SetSettingAsync(
+                EditorFollowsBoxOpacitySettingKey,
+                enabled.ToString());
+            EditorFollowsBoxOpacity = enabled;
+            StatusText = enabled
+                ? "编辑页已跟随桌面盒子透明度"
+                : "编辑页已保持标准透明度";
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to save editor opacity follow setting.");
+            OnPropertyChanged(nameof(EditorFollowsBoxOpacity));
+            StatusText = exception.Message;
+        }
+    }
+
+    private static bool IsVersionOneGeneratedDefault(double opacity)
+    {
+        return Math.Abs(opacity - AppThemeManager.DefaultBoxOpacity) < 0.0001
+            || Math.Abs(opacity - AppThemeManager.MaximumBoxOpacity) < 0.0001;
+    }
+
+    private void SynchronizeThemeTransparency()
+    {
+        _isSynchronizingThemeTransparency = true;
+        try
+        {
+            ThemeTransparencyPercent =
+                Math.Round((1 - AppThemeManager.GetBoxOpacity(CurrentTheme)) * 100);
+        }
+        finally
+        {
+            _isSynchronizingThemeTransparency = false;
+        }
+    }
+
+    private void QueueThemeOpacitySave(AppTheme theme, double opacity)
+    {
+        CancellationTokenSource delay;
+        lock (_themeOpacitySaveLock)
+        {
+            if (_themeOpacitySaveDelays.TryGetValue(theme, out var previousDelay))
+            {
+                previousDelay.Cancel();
+            }
+
+            delay = new CancellationTokenSource();
+            _themeOpacitySaveDelays[theme] = delay;
+        }
+
+        _ = PersistThemeOpacityAfterDelayAsync(theme, opacity, delay);
+    }
+
+    private async Task PersistThemeOpacityAfterDelayAsync(
+        AppTheme theme,
+        double opacity,
+        CancellationTokenSource delay)
+    {
+        try
+        {
+            await Task.Delay(250, delay.Token);
+            await _drawerService.SetSettingAsync(
+                GetThemeBoxOpacitySettingKey(theme),
+                FormatOpacity(opacity),
+                delay.Token);
+        }
+        catch (OperationCanceledException) when (delay.IsCancellationRequested)
+        {
+            // 连续拖动时只保存停止后的最终值。
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, $"Failed to persist {theme} box opacity.");
+        }
+        finally
+        {
+            lock (_themeOpacitySaveLock)
+            {
+                if (_themeOpacitySaveDelays.TryGetValue(theme, out var currentDelay)
+                    && ReferenceEquals(currentDelay, delay))
+                {
+                    _themeOpacitySaveDelays.Remove(theme);
+                }
+            }
+
+            delay.Dispose();
+        }
+    }
+
+    internal static string GetThemeBoxOpacitySettingKey(AppTheme theme)
+    {
+        return ThemeBoxOpacitySettingKeyPrefix + theme;
+    }
+
+    private static string FormatOpacity(double opacity)
+    {
+        return opacity.ToString("0.00", CultureInfo.InvariantCulture);
+    }
+
+    private static double ParseSavedOpacity(string? value)
+    {
+        return double.TryParse(
+                value,
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out var opacity)
+            ? Math.Clamp(
+                opacity,
+                AppThemeManager.MinimumBoxOpacity,
+                AppThemeManager.MaximumBoxOpacity)
+            : AppThemeManager.DefaultBoxOpacity;
     }
 
     private async Task CheckForUpdateAsync()

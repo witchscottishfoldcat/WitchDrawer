@@ -220,6 +220,84 @@ public sealed class DrawerRepository
         await transaction.CommitAsync(cancellationToken);
     }
 
+    public async Task UpdateItemGridPositionsAsync(
+        IReadOnlyDictionary<Guid, (int GridColumn, int GridRow)> positions,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        var command = connection.CreateCommand();
+        command.Transaction = (SqliteTransaction)transaction;
+        command.CommandText =
+            """
+            UPDATE Items
+            SET GridColumn = $column, GridRow = $row, UpdatedAt = $updatedAt
+            WHERE Id = $id;
+            """;
+        var idParameter = command.Parameters.Add("$id", SqliteType.Text);
+        var columnParameter = command.Parameters.Add("$column", SqliteType.Integer);
+        var rowParameter = command.Parameters.Add("$row", SqliteType.Integer);
+        var updatedAtParameter = command.Parameters.Add("$updatedAt", SqliteType.Text);
+        var updatedAt = ToDb(DateTimeOffset.UtcNow);
+
+        foreach (var (itemId, position) in positions)
+        {
+            idParameter.Value = itemId.ToString();
+            columnParameter.Value = position.GridColumn;
+            rowParameter.Value = position.GridRow;
+            updatedAtParameter.Value = updatedAt;
+
+            if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+            {
+                throw new InvalidOperationException("Cannot update grid position for an item that does not exist.");
+            }
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    public async Task UpdateBoxStoragePathAsync(
+        Guid boxId,
+        string storagePath,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            UPDATE Boxes
+            SET StoragePath = $path, UpdatedAt = $updatedAt
+            WHERE Id = $id;
+            """;
+        command.Parameters.AddWithValue("$id", boxId.ToString());
+        command.Parameters.AddWithValue("$path", storagePath);
+        command.Parameters.AddWithValue("$updatedAt", ToDb(DateTimeOffset.UtcNow));
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task UpdateItemStoredPathAsync(
+        Guid itemId,
+        string storedPath,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            UPDATE Items
+            SET StoredPath = $path, UpdatedAt = $updatedAt
+            WHERE Id = $id;
+            """;
+        command.Parameters.AddWithValue("$id", itemId.ToString());
+        command.Parameters.AddWithValue("$path", storedPath);
+        command.Parameters.AddWithValue("$updatedAt", ToDb(DateTimeOffset.UtcNow));
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     public async Task RemoveBoxAsync(Guid boxId, CancellationToken cancellationToken = default)
     {
         await using var connection = CreateConnection();
@@ -288,12 +366,12 @@ public sealed class DrawerRepository
             """
             SELECT Id, BoxId, DisplayName, ItemKind, SourcePath, StoredPath, SortOrder, CreatedAt, UpdatedAt, GridColumn, GridRow
             FROM Items
-            WHERE $query = '' OR DisplayName LIKE $like OR SourcePath LIKE $like OR StoredPath LIKE $like
+            WHERE $query = '' OR DisplayName LIKE $like ESCAPE '\' OR SourcePath LIKE $like ESCAPE '\' OR StoredPath LIKE $like ESCAPE '\'
             ORDER BY COALESCE(GridRow, 1000000), COALESCE(GridColumn, 1000000), SortOrder, DisplayName
             LIMIT $limit;
             """;
         command.Parameters.AddWithValue("$query", query);
-        command.Parameters.AddWithValue("$like", $"%{query}%");
+        command.Parameters.AddWithValue("$like", $"%{EscapeLikePattern(query)}%");
         command.Parameters.AddWithValue("$limit", limit);
 
         var items = new List<DrawerItem>();
@@ -304,6 +382,18 @@ public sealed class DrawerRepository
         }
 
         return items;
+    }
+
+    /// <summary>
+    /// 转义 SQLite LIKE 通配符（%/_/反斜杠），使搜索键按字面匹配。
+    /// 与 Rust 核心 <c>escape_like_pattern</c> 行为一致。
+    /// </summary>
+    internal static string EscapeLikePattern(string input)
+    {
+        return input
+            .Replace("\\", "\\\\")
+            .Replace("%", "\\%")
+            .Replace("_", "\\_");
     }
 
     public async Task<DrawerItem?> GetItemAsync(Guid itemId, CancellationToken cancellationToken = default)

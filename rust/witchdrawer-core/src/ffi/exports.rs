@@ -539,6 +539,78 @@ pub unsafe extern "C" fn wd_set_setting(
     })
 }
 
+/// Batch-update multiple items' grid positions.
+/// `json_positions` is a JSON array of `{"id": "<uuid>", "col": N, "row": N}`.
+#[no_mangle]
+pub unsafe extern "C" fn wd_update_grid_positions(
+    ctx: *mut Context,
+    json_positions: *const c_char,
+) -> *mut c_char {
+    ffi_catch(|| {
+        let ctx = match unsafe { ctx.as_ref() } {
+            Some(c) => c,
+            None => return ffi_err("null context"),
+        };
+        let json_str = match unsafe { cstr_to_string(json_positions) } {
+            Some(s) => s,
+            None => return ffi_err("invalid json"),
+        };
+        #[derive(serde::Deserialize)]
+        struct Pos {
+            id: String,
+            col: i32,
+            row: i32,
+        }
+        let positions: Vec<Pos> = match serde_json::from_str(&json_str) {
+            Ok(v) => v,
+            Err(e) => return ffi_err(&format!("invalid JSON array: {}", e)),
+        };
+        let mut out = Vec::with_capacity(positions.len());
+        for p in positions {
+            match uuid::Uuid::parse_str(&p.id) {
+                Ok(u) => out.push((u, p.col, p.row)),
+                Err(e) => return ffi_err(&format!("invalid UUID '{}': {}", p.id, e)),
+            }
+        }
+        match ctx.drawer.update_item_grid_positions(&out) {
+            Ok(()) => ffi_ok(serde_json::Value::Null),
+            Err(e) => ffi_err(&e.message),
+        }
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn wd_delete_setting(ctx: *mut Context, key: *const c_char) -> *mut c_char {
+    ffi_catch(|| {
+        let ctx = match unsafe { ctx.as_ref() } {
+            Some(c) => c,
+            None => return ffi_err("null context"),
+        };
+        let key = match unsafe { cstr_to_string(key) } {
+            Some(value) => value,
+            None => return ffi_err("invalid setting key"),
+        };
+        match ctx.drawer.delete_setting(&key) {
+            Ok(b) => ffi_ok(serde_json::Value::Bool(b)),
+            Err(e) => ffi_err(&e.message),
+        }
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn wd_checkpoint(ctx: *mut Context) -> *mut c_char {
+    ffi_catch(|| {
+        let ctx = match unsafe { ctx.as_ref() } {
+            Some(c) => c,
+            None => return ffi_err("null context"),
+        };
+        match ctx.drawer.checkpoint() {
+            Ok(()) => ffi_ok(serde_json::Value::Null),
+            Err(e) => ffi_err(&e.message),
+        }
+    })
+}
+
 // ---------------------------------------------------------------------------
 // Todo operations
 // ---------------------------------------------------------------------------
@@ -808,6 +880,22 @@ pub unsafe extern "C" fn wd_cleanup_legacy_updater_artifacts(ctx: *mut Context) 
 
         let removed_count = UpdateService::cleanup_legacy_updater_artifacts(&app_directory);
         ffi_ok(removed_count)
+    })
+}
+
+/// Confirm the app started successfully after a self-update by writing the
+/// startup-success marker (validated to live inside the temp update session).
+#[no_mangle]
+pub unsafe extern "C" fn wd_confirm_update_startup(ctx: *mut Context) -> *mut c_char {
+    ffi_catch(|| {
+        let ctx = match unsafe { ctx.as_ref() } {
+            Some(c) => c,
+            None => return ffi_err("null context"),
+        };
+        match ctx.update.confirm_update_startup() {
+            Ok(confirmed) => ffi_ok(serde_json::Value::Bool(confirmed)),
+            Err(e) => ffi_err(&e.message),
+        }
     })
 }
 

@@ -359,6 +359,12 @@ del "%~f0" >nul 2>&1
         return clean[..maxLength] + "...";
     }
 
+    public Task<bool> ConfirmUpdateStartupAsync()
+    {
+        // Legacy reference implementation: no-op.
+        return Task.FromResult(false);
+    }
+
     private sealed class GitHubReleaseResponse
     {
         [JsonPropertyName("tag_name")]

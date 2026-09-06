@@ -103,6 +103,19 @@ internal static class RustCore
         [MarshalAs(UnmanagedType.LPUTF8Str)] string value);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern IntPtr wd_update_grid_positions(
+        RustContextHandle ctx,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string jsonPositions);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern IntPtr wd_delete_setting(
+        RustContextHandle ctx,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string key);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern IntPtr wd_checkpoint(RustContextHandle ctx);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern IntPtr wd_get_todos(
         RustContextHandle ctx,
         [MarshalAs(UnmanagedType.LPUTF8Str)] string boxId);
@@ -151,6 +164,9 @@ internal static class RustCore
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern IntPtr wd_cleanup_legacy_updater_artifacts(
         RustContextHandle ctx);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern IntPtr wd_confirm_update_startup(RustContextHandle ctx);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern void wd_free_string(IntPtr ptr);
@@ -664,6 +680,24 @@ public sealed class RustDrawerService : IDisposable, IDrawerService
         RustCore.CallVoid(() => RustCore.wd_set_setting(Context, key, value));
     }
 
+    public void UpdateItemGridPositions(IReadOnlyDictionary<Guid, (int GridColumn, int GridRow)> positions)
+    {
+        var payload = positions.Select(
+            e => new { id = e.Key.ToString(), col = e.Value.GridColumn, row = e.Value.GridRow });
+        var json = System.Text.Json.JsonSerializer.Serialize(payload);
+        RustCore.CallVoid(() => RustCore.wd_update_grid_positions(Context, json));
+    }
+
+    public bool DeleteSetting(string key)
+    {
+        return RustCore.Call<bool>(() => RustCore.wd_delete_setting(Context, key));
+    }
+
+    public void Checkpoint()
+    {
+        RustCore.CallVoid(() => RustCore.wd_checkpoint(Context));
+    }
+
     public Task InitializeAsync(CancellationToken cancellationToken = default)
     {
         return RunAsync(() => { _ = Context; }, cancellationToken);
@@ -747,6 +781,19 @@ public sealed class RustDrawerService : IDisposable, IDrawerService
         CancellationToken cancellationToken = default) =>
         RunExclusiveAsync(() => SetSetting(key, value), cancellationToken);
 
+    public Task UpdateItemGridPositionsAsync(
+        IReadOnlyDictionary<Guid, (int GridColumn, int GridRow)> positions,
+        CancellationToken cancellationToken = default) =>
+        RunExclusiveAsync(() => UpdateItemGridPositions(positions), cancellationToken);
+
+    public Task<bool> DeleteSettingAsync(
+        string key,
+        CancellationToken cancellationToken = default) =>
+        RunExclusiveAsync(() => DeleteSetting(key), cancellationToken);
+
+    public Task CheckpointAsync(CancellationToken cancellationToken = default) =>
+        RunExclusiveAsync(() => Checkpoint(), cancellationToken);
+
     public Task RenameBoxAsync(
         Guid boxId,
         string newName,
@@ -828,6 +875,9 @@ public sealed class RustDrawerService : IDisposable, IDrawerService
 /// </summary>
 public sealed class RustTodoService : ITodoService
 {
+    /// <summary>Maximum allowed todo title length. Mirrors upstream <c>TodoService.MaximumTitleLength</c>.</summary>
+    public const int MaximumTitleLength = 200;
+
     private readonly RustDrawerService _owner;
 
     /// <summary>
@@ -1037,6 +1087,20 @@ public sealed class RustUpdateService : IUpdateService
         {
             _logger?.Error(exception, "Rust core failed to clean legacy updater artifacts.");
             return Task.FromResult(0);
+        }
+    }
+
+    public Task<bool> ConfirmUpdateStartupAsync()
+    {
+        try
+        {
+            return Task.FromResult(RustCore.Call<bool>(() =>
+                RustCore.wd_confirm_update_startup(_owner.Context)));
+        }
+        catch (Exception exception)
+        {
+            _logger?.Error(exception, "Rust core failed to confirm update startup.");
+            return Task.FromResult(false);
         }
     }
 }

@@ -37,6 +37,15 @@ fn parse_uuid(s: &str) -> Result<Uuid, rusqlite::Error> {
         .map_err(|e| rusqlite::Error::InvalidParameterName(format!("Invalid UUID '{}': {}", s, e)))
 }
 
+/// Escape `%`, `_`, and `\` so a user query is treated as a literal in `LIKE`.
+/// Mirrors the C# `DrawerRepository.EscapeLikePattern`.
+fn escape_like_pattern(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
+}
+
 // ── row readers ────────────────────────────────────────────
 
 /// Read a `DrawerBox` from a row with columns:
@@ -391,14 +400,16 @@ impl DrawerRepository {
     }
 
     /// Full-text search across DisplayName, SourcePath, StoredPath.
+    /// LIKE wildcards in the query are escaped so user input matches literally.
     pub fn search_items(&self, query: &str, limit: i32) -> AppResult<Vec<DrawerItem>> {
         let conn = self.create_connection()?;
-        let like = format!("%{}%", query);
+        let like = format!("%{}%", escape_like_pattern(query));
         let mut stmt = conn.prepare(
             "SELECT Id, BoxId, DisplayName, ItemKind, SourcePath, StoredPath,
                     SortOrder, CreatedAt, UpdatedAt, GridColumn, GridRow
              FROM Items
-             WHERE ?1 = '' OR DisplayName LIKE ?2 OR SourcePath LIKE ?2 OR StoredPath LIKE ?2
+             WHERE ?1 = '' OR DisplayName LIKE ?2 ESCAPE '\\'
+                OR SourcePath LIKE ?2 ESCAPE '\\' OR StoredPath LIKE ?2 ESCAPE '\\'
              ORDER BY COALESCE(GridRow, 1000000), COALESCE(GridColumn, 1000000),
                       SortOrder, DisplayName
              LIMIT ?3;",
@@ -693,6 +704,67 @@ impl DrawerRepository {
              ON CONFLICT(Key) DO UPDATE SET Value = excluded.Value;",
             params![key, value],
         )?;
+        Ok(())
+    }
+
+    /// Delete a setting by key. Returns `true` if a row was removed.
+    pub fn delete_setting(&self, key: &str) -> AppResult<bool> {
+        let conn = self.create_connection()?;
+        let affected = conn.execute("DELETE FROM AppSettings WHERE Key = ?1;", params![key])?;
+        Ok(affected > 0)
+    }
+
+    /// Update a box's storage path and touch UpdatedAt.
+    pub fn update_box_storage_path(&self, box_id: Uuid, storage_path: &str) -> AppResult<()> {
+        let conn = self.create_connection()?;
+        let now = to_db(Utc::now());
+        let affected = conn.execute(
+            "UPDATE Boxes SET StoragePath = ?1, UpdatedAt = ?2 WHERE Id = ?3;",
+            params![storage_path, now, box_id.to_string()],
+        )?;
+        if affected != 1 {
+            return Err(AppError::db_error("Box does not exist."));
+        }
+        Ok(())
+    }
+
+    /// Update an item's stored path and touch UpdatedAt.
+    pub fn update_item_stored_path(&self, item_id: Uuid, stored_path: &str) -> AppResult<()> {
+        let conn = self.create_connection()?;
+        let now = to_db(Utc::now());
+        let affected = conn.execute(
+            "UPDATE Items SET StoredPath = ?1, UpdatedAt = ?2 WHERE Id = ?3;",
+            params![stored_path, now, item_id.to_string()],
+        )?;
+        if affected != 1 {
+            return Err(AppError::db_error("Item does not exist."));
+        }
+        Ok(())
+    }
+
+    /// Batch-update multiple items' grid positions in a single transaction.
+    /// Mirrors the C# `UpdateItemGridPositionsAsync`.
+    pub fn update_item_grid_positions(&self, positions: &[(Uuid, i32, i32)]) -> AppResult<()> {
+        let conn = self.create_connection()?;
+        let now = to_db(Utc::now());
+        let tx = conn.unchecked_transaction()?;
+        {
+            let mut stmt = tx.prepare(
+                "UPDATE Items SET GridColumn = ?1, GridRow = ?2, UpdatedAt = ?3
+                 WHERE Id = ?4;",
+            )?;
+            for (item_id, col, row) in positions {
+                stmt.execute(params![col, row, now, item_id.to_string()])?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Force a WAL checkpoint (TRUNCATE). Mirrors the C# `CheckpointAsync`.
+    pub fn checkpoint(&self) -> AppResult<()> {
+        let conn = self.create_connection()?;
+        conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")?;
         Ok(())
     }
 

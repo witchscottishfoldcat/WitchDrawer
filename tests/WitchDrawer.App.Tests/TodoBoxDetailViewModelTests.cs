@@ -6,6 +6,7 @@ using WitchDrawer.Core.Abstractions;
 using WitchDrawer.Core.Logging;
 using WitchDrawer.Core.Models;
 using WitchDrawer.Core.Services;
+using WitchDrawer.Core.Storage;
 
 namespace WitchDrawer.App.Tests;
 
@@ -112,6 +113,7 @@ public sealed class TodoBoxDetailViewModelTests
             launcher,
             logger,
             visualStyleStore);
+        var paths = new AppPaths(workspace.Root);
         var viewModel = new MainViewModel(
             workspace.DrawerService,
             workspace.TodoService,
@@ -120,7 +122,12 @@ public sealed class TodoBoxDetailViewModelTests
             quickPanel,
             new RustUpdateService(workspace.DrawerService, logger),
             visualStyleStore,
-            new BoxPositionLockStateStore(workspace.DrawerService, logger));
+            new BoxPositionLockStateStore(workspace.DrawerService, logger),
+            paths,
+            new DataStorageMigrationService(
+                paths,
+                ct => workspace.DrawerService.CheckpointAsync(ct),
+                new StorageLocationStore(Path.Combine(workspace.Root, "storage-location.json"))));
         await viewModel.LoadAsync();
 
         viewModel.SelectedBox = Assert.Single(
@@ -198,7 +205,7 @@ public sealed class TodoBoxDetailViewModelTests
             {
                 if (Directory.Exists(Root))
                 {
-                    Directory.Delete(Root, recursive: true);
+                    TestCleanup.DeleteDirectory(Root);
                 }
             }
             catch

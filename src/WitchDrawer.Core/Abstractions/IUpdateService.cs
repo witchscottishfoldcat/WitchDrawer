@@ -9,4 +9,5 @@ public interface IUpdateService
         string downloadUrl,
         IProgress<int>? progress = null,
         string? expectedSha256 = null);
+    Task<bool> ConfirmUpdateStartupAsync();
 }

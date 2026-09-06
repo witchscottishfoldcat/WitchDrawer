@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.ComponentModel;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -21,6 +22,7 @@ public partial class MainWindow : Window
     private const string BoxListDragFormat = "WitchDrawer.BoxListOrder";
     private const int WmHotKey = 0x0312;
     private const int QuickPanelHotKeyId = 0x5744;
+    internal const string SupportPageUri = "https://www.witchcat.cn/zh/support";
 
     private readonly QuickPanelWindow _quickPanel;
     private readonly IAppLogger _logger;
@@ -36,9 +38,19 @@ public partial class MainWindow : Window
     private ListBoxItem? _boxDropTarget;
     private bool _isBoxVisualStylePageOpen;
     private bool _isBoxVisualStyleTransitioning;
+    private bool _isEditorOpacityRefreshQueued;
+    private readonly HashSet<int> _recordedLayoutBackupSlots = [];
     public event EventHandler? WindowHidden;
     public event EventHandler? WindowClosing;
     public event EventHandler? DesktopShellRestarted;
+
+    public event EventHandler<int>? RecordLayoutBackupRequested;
+
+    public event EventHandler<int>? RestoreLayoutBackupRequested;
+
+    public event EventHandler<int>? DeleteLayoutBackupRequested;
+
+    public event EventHandler<Guid>? RecallBoxToScreenCenterRequested;
 
     /// <summary>
     /// Raised when the user asks to reopen a desktop box window (e.g. by
@@ -63,6 +75,8 @@ public partial class MainWindow : Window
         Loaded += OnLoaded;
         DpiChanged += OnDpiChanged;
         AppThemeManager.ThemeChanged += OnThemeChanged;
+        AppThemeManager.BoxOpacityChanged += OnBoxOpacityChanged;
+        ViewModel.PropertyChanged += OnViewModelPropertyChanged;
     }
 
     private bool _forceClosing;
@@ -81,6 +95,17 @@ public partial class MainWindow : Window
         Topmost = true;
         Topmost = false;
         Focus();
+    }
+
+    internal void SendBehindDesktop()
+    {
+        if (!IsVisible)
+        {
+            return;
+        }
+
+        DesktopToolWindow.SendToBottomWithoutActivation(
+            new WindowInteropHelper(this).Handle);
     }
 
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
@@ -129,6 +154,8 @@ public partial class MainWindow : Window
         Loaded -= OnLoaded;
         DpiChanged -= OnDpiChanged;
         AppThemeManager.ThemeChanged -= OnThemeChanged;
+        AppThemeManager.BoxOpacityChanged -= OnBoxOpacityChanged;
+        ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
         _source?.RemoveHook(WndProc);
         _hotKey?.Dispose();
         _quickPanel.ForceClose();
@@ -139,7 +166,7 @@ public partial class MainWindow : Window
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         UpdateIconDisplayMetrics(VisualTreeHelper.GetDpi(this));
-        AppThemeManager.ApplyToWindow(this);
+        ApplyThemeAppearance();
         WindowMotion.PopIn(this, 0.985, 160);
     }
 
@@ -155,7 +182,59 @@ public partial class MainWindow : Window
 
     private void OnThemeChanged(object? sender, AppTheme theme)
     {
+        ApplyThemeAppearance();
+    }
+
+    private void OnBoxOpacityChanged(object? sender, ThemeBoxOpacityChangedEventArgs e)
+    {
+        if (e.Theme != AppThemeManager.CurrentTheme || !ViewModel.EditorFollowsBoxOpacity)
+        {
+            return;
+        }
+
+        QueueEditorOpacityRefresh();
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MainViewModel.EditorFollowsBoxOpacity))
+        {
+            QueueEditorOpacityRefresh();
+        }
+    }
+
+    private void QueueEditorOpacityRefresh()
+    {
+        if (_isEditorOpacityRefreshQueued)
+        {
+            return;
+        }
+
+        _isEditorOpacityRefreshQueued = true;
+        _ = Dispatcher.BeginInvoke(
+            System.Windows.Threading.DispatcherPriority.Background,
+            () =>
+            {
+                _isEditorOpacityRefreshQueued = false;
+                RefreshEditorOpacityResources();
+            });
+    }
+
+    private void ApplyThemeAppearance()
+    {
         AppThemeManager.ApplyToWindow(this);
+        RefreshEditorOpacityResources();
+    }
+
+    private void RefreshEditorOpacityResources()
+    {
+        if (ViewModel.EditorFollowsBoxOpacity)
+        {
+            AppThemeManager.ApplyEditorOpacityResources(Resources);
+            return;
+        }
+
+        AppThemeManager.ClearEditorOpacityResources(Resources);
     }
 
     private void RegisterInitialHotKey()
@@ -191,6 +270,82 @@ public partial class MainWindow : Window
         QuickPanelHotKeyStatusText.Text = "需包含 Ctrl、Alt 或 Win；Esc 取消";
         QuickPanelHotKeyButton.Focus();
         Keyboard.Focus(QuickPanelHotKeyButton);
+    }
+
+    private async void OnChangeDataDirectoryClick(object sender, RoutedEventArgs e)
+    {
+        var viewModel = ViewModel;
+        var dialog = new Microsoft.Win32.OpenFolderDialog
+        {
+            Title = "选择新的数据存储文件夹（请使用空文件夹）"
+        };
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        var targetDirectory = dialog.FolderName;
+        if (string.Equals(
+                Path.GetFullPath(targetDirectory),
+                Path.GetFullPath(viewModel.CurrentDataDirectory),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            MessageBox.Show(
+                this,
+                "所选文件夹就是当前数据目录，无需迁移。",
+                "数据存储位置",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        var confirm = MessageBox.Show(
+            this,
+            $"将把数据从\n{viewModel.CurrentDataDirectory}\n\n迁移到\n{targetDirectory}\n\n迁移完成后需要重启应用才会使用新目录，是否继续？",
+            "迁移数据存储位置",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Question);
+        if (confirm != MessageBoxResult.OK)
+        {
+            return;
+        }
+
+        try
+        {
+            await viewModel.MigrateDataDirectoryAsync(targetDirectory);
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Data directory migration failed.");
+            MessageBox.Show(
+                this,
+                "数据迁移失败：\n" + exception.Message,
+                "数据存储位置",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            return;
+        }
+
+        var restart = MessageBox.Show(
+            this,
+            "数据已迁移完成。是否立即重启 WitchDrawer 以使用新目录？\n注意：若不立即重启，此后对盒子内容的修改在重启后不会保留。\n（原目录会保留作为备份，可稍后手动删除）",
+            "迁移完成",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+        if (restart != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        // 交给 App 统一编排：布置"等本进程退出后再启动"的辅助进程，然后走完整关闭流程。
+        if (Application.Current is App app)
+        {
+            await app.RestartApplicationAsync();
+            return;
+        }
+
+        _forceClosing = true;
+        Application.Current.Shutdown();
     }
 
     private async void OnQuickPanelHotKeyPreviewKeyDown(object sender, KeyEventArgs e)
@@ -729,6 +884,230 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnOpenDrawerSortMenu(object sender, RoutedEventArgs e)
+    {
+        DrawerSortPopup.IsOpen = true;
+        e.Handled = true;
+    }
+
+    private void OnDrawerSortOptionClicked(object sender, RoutedEventArgs e)
+    {
+        DrawerSortPopup.IsOpen = false;
+    }
+
+    private void OnOpenBoxActionsMenu(object sender, RoutedEventArgs e)
+    {
+        BoxActionsPopup.IsOpen = !BoxActionsPopup.IsOpen;
+        e.Handled = true;
+    }
+
+    private void OnBoxActionMenuItemClicked(object sender, RoutedEventArgs e)
+    {
+        BoxActionsPopup.IsOpen = false;
+    }
+
+    private void OnShowDesktopBoxClicked(object sender, RoutedEventArgs e)
+    {
+        BoxActionsPopup.IsOpen = false;
+        if (ViewModel.SelectedBox is { } box)
+        {
+            ReopenBoxRequested?.Invoke(this, box.Id);
+        }
+    }
+
+    private void OnRecordLayoutBackupClicked(object sender, RoutedEventArgs e)
+    {
+        if (!TryGetLayoutBackupSlot(sender, out var slot))
+        {
+            return;
+        }
+
+        if (_recordedLayoutBackupSlots.Contains(slot))
+        {
+            var result = System.Windows.MessageBox.Show(
+                this,
+                $"备份槽位 {slot} 已有记录。\n\n是否确认覆盖原有整体布局备份？",
+                "确认覆盖布局备份",
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Warning);
+            if (result != MessageBoxResult.OK)
+            {
+                return;
+            }
+        }
+
+        RecordLayoutBackupRequested?.Invoke(this, slot);
+    }
+
+    private void OnRestoreLayoutBackupClicked(object sender, RoutedEventArgs e)
+    {
+        if (!TryGetLayoutBackupSlot(sender, out var slot))
+        {
+            return;
+        }
+
+        if (!_recordedLayoutBackupSlots.Contains(slot))
+        {
+            return;
+        }
+
+        var result = System.Windows.MessageBox.Show(
+            this,
+            $"是否恢复备份槽位 {slot}？\n\n当前仍存在的盒子将移动到备份中记录的位置。",
+            "恢复整体布局",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Question);
+        if (result == MessageBoxResult.OK)
+        {
+            RestoreLayoutBackupRequested?.Invoke(this, slot);
+        }
+    }
+
+    private void OnDeleteLayoutBackupClicked(object sender, RoutedEventArgs e)
+    {
+        if (!TryGetLayoutBackupSlot(sender, out var slot)
+            || !_recordedLayoutBackupSlots.Contains(slot))
+        {
+            return;
+        }
+
+        var result = System.Windows.MessageBox.Show(
+            this,
+            $"是否删除备份槽位 {slot}？\n\n删除后无法恢复该槽位中记录的整体布局。",
+            "删除布局备份",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Warning);
+        if (result == MessageBoxResult.OK)
+        {
+            DeleteLayoutBackupRequested?.Invoke(this, slot);
+        }
+    }
+
+    internal void SetLayoutBackupSlotState(int slot, bool hasBackup)
+    {
+        var controls = slot switch
+        {
+            1 => (LayoutBackupSlot1Status, LayoutBackupSlot1RecordButton, LayoutBackupSlot1RestoreButton, LayoutBackupSlot1DeleteButton),
+            2 => (LayoutBackupSlot2Status, LayoutBackupSlot2RecordButton, LayoutBackupSlot2RestoreButton, LayoutBackupSlot2DeleteButton),
+            3 => (LayoutBackupSlot3Status, LayoutBackupSlot3RecordButton, LayoutBackupSlot3RestoreButton, LayoutBackupSlot3DeleteButton),
+            _ => throw new ArgumentOutOfRangeException(nameof(slot), slot, "Layout backup slot must be from 1 to 3.")
+        };
+        var presentation = GetLayoutBackupSlotPresentation(hasBackup);
+
+        if (hasBackup)
+        {
+            _recordedLayoutBackupSlots.Add(slot);
+        }
+        else
+        {
+            _recordedLayoutBackupSlots.Remove(slot);
+        }
+
+        controls.Item1.Text = presentation.StatusText;
+        controls.Item1.FontWeight = hasBackup ? FontWeights.SemiBold : FontWeights.Normal;
+        controls.Item1.SetResourceReference(
+            TextBlock.ForegroundProperty,
+            hasBackup ? "AccentBrush" : "TextMutedBrush");
+        controls.Item2.Content = presentation.RecordButtonText;
+        controls.Item3.Visibility = presentation.CanRestore ? Visibility.Visible : Visibility.Collapsed;
+        controls.Item4.Visibility = presentation.CanDelete ? Visibility.Visible : Visibility.Collapsed;
+        System.Windows.Automation.AutomationProperties.SetName(
+            controls.Item2,
+            hasBackup
+                ? $"覆盖备份槽位 {slot} 的整体布局"
+                : $"记录整体布局到备份槽位 {slot}");
+    }
+
+    internal static LayoutBackupSlotPresentation GetLayoutBackupSlotPresentation(bool hasBackup) =>
+        hasBackup
+            ? new LayoutBackupSlotPresentation("已记录", "覆盖", true, true)
+            : new LayoutBackupSlotPresentation("未记录", "记录", false, false);
+
+    private static bool TryGetLayoutBackupSlot(object sender, out int slot)
+    {
+        slot = 0;
+        return sender is FrameworkElement { Tag: string raw }
+            && int.TryParse(raw, out slot)
+            && slot is >= 1 and <= 3;
+    }
+
+    internal readonly record struct LayoutBackupSlotPresentation(
+        string StatusText,
+        string RecordButtonText,
+        bool CanRestore,
+        bool CanDelete);
+
+    private void OnThemeTransparencyInputKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || sender is not TextBox input)
+        {
+            return;
+        }
+
+        var binding = input.GetBindingExpression(TextBox.TextProperty);
+        binding?.UpdateSource();
+        binding?.UpdateTarget();
+        e.Handled = true;
+    }
+
+    private void OnThemeTransparencyInputLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is not TextBox input)
+        {
+            return;
+        }
+
+        var binding = input.GetBindingExpression(TextBox.TextProperty);
+        binding?.UpdateSource();
+        binding?.UpdateTarget();
+    }
+
+    private void OnRecallBoxClicked(object sender, RoutedEventArgs e)
+    {
+        BoxActionsPopup.IsOpen = false;
+        RecallBoxConfirmPopup.IsOpen = ViewModel.SelectedBox is not null;
+    }
+
+    private void OnCancelRecallBoxClicked(object sender, RoutedEventArgs e)
+    {
+        RecallBoxConfirmPopup.IsOpen = false;
+    }
+
+    private void OnConfirmRecallBoxClicked(object sender, RoutedEventArgs e)
+    {
+        RecallBoxConfirmPopup.IsOpen = false;
+        if (ViewModel.SelectedBox is { } box)
+        {
+            RecallBoxToScreenCenterRequested?.Invoke(this, box.Id);
+        }
+    }
+
+    private void OnMainWindowPreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (!BoxActionsPopup.IsOpen || e.OriginalSource is not DependencyObject source)
+        {
+            return;
+        }
+
+        if (ReferenceEquals(source, BtnMoreBoxActions) || BtnMoreBoxActions.IsAncestorOf(source))
+        {
+            return;
+        }
+
+        BoxActionsPopup.IsOpen = false;
+    }
+
+    private void OnMainWindowDeactivated(object? sender, EventArgs e)
+    {
+        BoxActionsPopup.IsOpen = false;
+    }
+
+    private async void OnCreateDrawerBoxClicked(object sender, RoutedEventArgs e)
+    {
+        CreateBoxPopup.IsOpen = false;
+        await ViewModel.CreateDrawerBoxCommand.ExecuteAsync(null);
+    }
+
     private void TryAnimateVisualStyleSelection(Button button)
     {
         try
@@ -806,6 +1185,7 @@ public partial class MainWindow : Window
 
     private void OnDeleteBoxClicked(object sender, RoutedEventArgs e)
     {
+        BoxActionsPopup.IsOpen = false;
         DeleteConfirmPopup.IsOpen = true;
     }
 
@@ -887,6 +1267,11 @@ public partial class MainWindow : Window
     {
         e.Handled = true;
         OpenExternalUri("https://www.witchcat.cn");
+    }
+
+    private void OnOpenSupportLinkClicked(object sender, RoutedEventArgs e)
+    {
+        OpenExternalUri(SupportPageUri);
     }
 
     private void OpenExternalUri(string uri)

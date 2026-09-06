@@ -5,25 +5,26 @@ namespace WitchDrawer.App.Tests;
 public sealed class AppThemeManagerTests
 {
     [Fact]
-    public void SetCrystalBoxTransparency_RaisesEventOnlyWhenValueChanges()
+    public void SetBoxOpacity_RaisesEventOnlyWhenValueChanges()
     {
-        AppThemeManager.SetCrystalBoxTransparency(false);
-        var changes = new List<bool>();
-        EventHandler<bool> handler = (_, enabled) => changes.Add(enabled);
-        AppThemeManager.CrystalBoxTransparencyChanged += handler;
+        var theme = AppTheme.Crystal;
+        AppThemeManager.SetBoxOpacity(theme, AppThemeManager.DefaultBoxOpacity);
+        var changes = new List<double>();
+        EventHandler<ThemeBoxOpacityChangedEventArgs> handler = (_, e) => changes.Add(e.Opacity);
+        AppThemeManager.BoxOpacityChanged += handler;
 
         try
         {
-            AppThemeManager.SetCrystalBoxTransparency(true);
-            AppThemeManager.SetCrystalBoxTransparency(true);
-            AppThemeManager.SetCrystalBoxTransparency(false);
+            AppThemeManager.SetBoxOpacity(theme, 0.5);
+            AppThemeManager.SetBoxOpacity(theme, 0.5);
+            AppThemeManager.SetBoxOpacity(theme, 0.8);
 
-            Assert.Equal([true, false], changes);
+            Assert.Equal([0.5, 0.8], changes);
         }
         finally
         {
-            AppThemeManager.CrystalBoxTransparencyChanged -= handler;
-            AppThemeManager.SetCrystalBoxTransparency(false);
+            AppThemeManager.BoxOpacityChanged -= handler;
+            AppThemeManager.SetBoxOpacity(theme, AppThemeManager.DefaultBoxOpacity);
         }
     }
 }

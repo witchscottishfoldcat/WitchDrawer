@@ -60,7 +60,7 @@ public sealed class ShellIconProviderTests
         }
         finally
         {
-            Directory.Delete(tempDirectory, recursive: true);
+            TestCleanup.DeleteDirectory(tempDirectory);
         }
     }
 

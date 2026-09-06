@@ -62,7 +62,7 @@ public sealed class QuickPanelHotKeyTests
         {
             if (Directory.Exists(root))
             {
-                Directory.Delete(root, recursive: true);
+                TestCleanup.DeleteDirectory(root);
             }
         }
     }
@@ -89,7 +89,7 @@ public sealed class QuickPanelHotKeyTests
         {
             if (Directory.Exists(root))
             {
-                Directory.Delete(root, recursive: true);
+                TestCleanup.DeleteDirectory(root);
             }
         }
     }

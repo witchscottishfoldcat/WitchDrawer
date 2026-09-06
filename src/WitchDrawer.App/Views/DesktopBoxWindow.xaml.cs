@@ -2,11 +2,15 @@ using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
+using WitchDrawer.App.Controls;
+using WitchDrawer.App.Features.DesktopItems;
+using WitchDrawer.App.Features.ItemContextMenu;
 using WitchDrawer.App.Infrastructure;
 using WitchDrawer.App.ViewModels;
 using WitchDrawer.Native.Windows;
@@ -16,6 +20,8 @@ namespace WitchDrawer.App.Views;
 public partial class DesktopBoxWindow : Window
 {
     private const string InternalDrawerItemDragFormat = "WitchDrawer.DesktopBoxItem";
+    private const double DrawerPopupGap = 8;
+    private const double DrawerPopupCollisionPadding = 4;
 
     private static readonly HashSet<Guid> CompletedInternalDragIds = [];
     private static readonly HashSet<Guid> CompletedInternalItemIds = [];
@@ -23,16 +29,28 @@ public partial class DesktopBoxWindow : Window
     private Point? _dragStartPoint;
     private DrawerItemViewModel? _dragStartItem;
     private readonly DragOperationGate _itemDragGate = new();
+    private readonly DrawerItemContextMenuCoordinator _itemContextMenu;
     private DrawerItemViewModel? _keyboardDeleteTarget;
     private Func<Guid, Task>? _positionChangedCallback;
     private bool _isMappingViewTransitioning;
+    private Point? _mappingViewTransitionVisibleOriginPixels;
+    private bool _isRollTransitioning;
     private bool _restoreAfterMinimizeQueued;
+    private bool _desktopOwnershipRestoreQueued;
     private bool _desktopIsForeground;
     private bool _isPositionLocked;
     private HwndSource? _source;
     private DesktopToolWindow? _nativeWindow;
+    private double _drawerResizeStartWidth;
+    private double _drawerResizeStartHeight;
+    private NativePoint _drawerResizeStartCursor;
+    private double _mappingListResizeStartWidth;
+    private NativePoint _mappingListResizeStartCursor;
+    private bool _suppressDrawerItemClick;
+    private bool _isBoxOpacityRefreshQueued;
+    private bool _isVisibleBoundsClampingEnabled;
 
-    private sealed class DesktopBoxDragPayload(Guid dragId, Guid itemId, Guid sourceBoxId)
+    internal sealed class DesktopBoxDragPayload(Guid dragId, Guid itemId, Guid sourceBoxId)
     {
         private readonly TaskCompletionSource<bool> _dropCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -59,16 +77,19 @@ public partial class DesktopBoxWindow : Window
 
     public DesktopBoxWindow(DesktopBoxViewModel viewModel)
     {
+        _itemContextMenu = new DrawerItemContextMenuCoordinator(viewModel);
         DataContext = viewModel;
         InitializeComponent();
         SourceInitialized += OnSourceInitialized;
         Loaded += OnLoaded;
         DpiChanged += OnDpiChanged;
+        SizeChanged += OnWindowSizeChanged;
         AppThemeManager.ThemeChanged += OnThemeChanged;
-        AppThemeManager.CrystalBoxTransparencyChanged += OnCrystalBoxTransparencyChanged;
+        AppThemeManager.BoxOpacityChanged += OnBoxOpacityChanged;
         Activated += OnWindowActivated;
         Deactivated += OnWindowDeactivated;
         StateChanged += OnWindowStateChanged;
+        PreviewMouseUp += OnWindowPreviewMouseUpForDesktopOwnership;
         // Desktop boxes often stay non-activated (ShowActivated=false + HWND_BOTTOM/NOACTIVATE).
         // Window.Deactivated therefore never runs after an external drop selection; clear when
         // the whole app loses foreground so a desktop click removes the selected-item chrome.
@@ -79,15 +100,20 @@ public partial class DesktopBoxWindow : Window
 
     private void SendToBottom()
     {
-        if (_desktopIsForeground)
+        if (!ShouldSendToBottom(_desktopIsForeground))
         {
-            _nativeWindow?.BringAboveDesktop();
+            return;
         }
-        else
-        {
-            _nativeWindow?.SendToBottom();
-        }
+
+        // Shell ownership keeps the box visible through Win+D. Keep it at the
+        // bottom of the normal band only while the desktop is not foreground.
+        // Moving an owned box during Show Desktop also moves Progman's owner
+        // chain and would bring ordinary app windows back above the desktop.
+        _nativeWindow?.SendToBottom();
     }
+
+    internal static bool ShouldSendToBottom(bool isDesktopForeground) =>
+        !isDesktopForeground;
 
     public void QueueSendToBottom()
     {
@@ -95,9 +121,75 @@ public partial class DesktopBoxWindow : Window
         Dispatcher.BeginInvoke(new Action(SendToBottom), DispatcherPriority.ApplicationIdle);
     }
 
+    /// <summary>
+    /// 把所有桌面盒压回桌面层。弹窗打开时属主链被 Windows 整体提前，单个盒子沉底不够，
+    /// 必须遍历所有盒子窗口统一复位。
+    /// </summary>
+    internal static void QueueSendToBottomAll()
+    {
+        if (Application.Current is null)
+        {
+            return;
+        }
+
+        foreach (var window in Application.Current.Windows.OfType<DesktopBoxWindow>())
+        {
+            window.QueueSendToBottom();
+        }
+    }
+
+    /// <summary>
+    /// 断开弹窗 HWND 的属主关系：之后对弹窗的置顶/沉底不再沿属主链
+    /// （盒子→桌面壳→所有盒子）传播。在 Opened 时同步执行，消除窗口期。
+    /// </summary>
+    private void DetachDrawerPopupOwner()
+    {
+        if (PresentationSource.FromVisual(DrawerSecondaryPopupRoot) is HwndSource popupSource
+            && popupSource.Handle != nint.Zero)
+        {
+            SetWindowLongPtr(popupSource.Handle, WindowOwnerIndex, 0);
+        }
+    }
+
+    /// <summary>
+    /// 弹窗按"菜单"语义激活：置顶并获取前台。弹窗已断开属主（Opened 时），激活只影响
+    /// 弹窗自身——盒子不动。激活后 WPF 原生的 StaysOpen=False 完整生效：
+    /// 点击桌面/其他程序/其他盒子都会自动收起，无需额外兜底。
+    /// </summary>
+    private void BringDrawerPopupToFront()
+    {
+        if (PresentationSource.FromVisual(DrawerSecondaryPopupRoot) is HwndSource popupSource
+            && popupSource.Handle != nint.Zero)
+        {
+            SetWindowPos(
+                popupSource.Handle,
+                WindowPositionTopmost,
+                0,
+                0,
+                0,
+                0,
+                SetWindowPosNoMove | SetWindowPosNoSize | SetWindowPosNoActivate);
+            SetForegroundWindow(popupSource.Handle);
+        }
+    }
+
     public void SetPositionLocked(bool isPositionLocked)
     {
+        if (_isPositionLocked == isPositionLocked)
+        {
+            return;
+        }
+
         _isPositionLocked = isPositionLocked;
+
+        // A lock transition must never leave a control holding mouse capture.
+        // In particular, the old drawer-cover Thumb path could keep a completed
+        // locked gesture around and make the next unlocked gesture appear inert.
+        if (Mouse.Captured is DependencyObject captured
+            && (ReferenceEquals(captured, this) || IsAncestorOf(captured)))
+        {
+            Mouse.Capture(null);
+        }
     }
 
     public nint NativeHandle => _nativeWindow?.Handle ?? nint.Zero;
@@ -111,15 +203,9 @@ public partial class DesktopBoxWindow : Window
 
     public void SetDesktopForeground(bool isForeground)
     {
-        if (_desktopIsForeground == isForeground)
-        {
-            return;
-        }
-
+        // When Show Desktop is active, leave Explorer's owner-chain Z order
+        // untouched. On exit, return the boxes behind ordinary app windows.
         _desktopIsForeground = isForeground;
-        // Foreground monitoring is already coalesced by DesktopBoxManager.
-        // Apply the resulting layer once; a second idle-time SetWindowPos is
-        // visible as a flash during the Win+D compositor transition.
         SendToBottom();
     }
 
@@ -130,8 +216,643 @@ public partial class DesktopBoxWindow : Window
         _positionChangedCallback = callback;
     }
 
+    private void OnExpandDrawerClick(object sender, RoutedEventArgs e)
+    {
+        ViewModel.SyncDrawerSecondaryFromItems();
+        PrepareDrawerSecondaryPopupForOpen();
+        if (sender is UIElement centerTarget)
+        {
+            ConfigureDrawerSecondaryPopupPlacement(centerTarget);
+        }
+
+        DrawerSecondaryPopup.IsOpen = true;
+        ClearItemSelection();
+        e.Handled = true;
+    }
+
+    private void PrepareDrawerSecondaryPopupForOpen()
+    {
+        DrawerSecondaryPopupRoot.BeginAnimation(OpacityProperty, null);
+        DrawerSecondaryPopupRoot.Opacity = 0;
+        PrepareDrawerPopupScaleForPlacement(DrawerSecondaryPopupScale);
+    }
+
+    internal static void PrepareDrawerPopupScaleForPlacement(ScaleTransform scale)
+    {
+        ArgumentNullException.ThrowIfNull(scale);
+
+        // Popup creates its HWND using the child's current transformed bounds. A
+        // reduced scale here shifts the first HWND up/left; when the animation
+        // later reaches 1, the full-size content is left at that stale position.
+        // Position with a neutral transform and apply the visual scale only after
+        // the Popup has opened.
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        scale.ScaleX = 1;
+        scale.ScaleY = 1;
+    }
+
+    private void ConfigureDrawerSecondaryPopupPlacement(UIElement centerTarget)
+    {
+        var popupSize = new Size(
+            ViewModel.DrawerSecondaryPanelWidth,
+            ViewModel.DrawerSecondaryPanelHeight);
+        var anchor = GetVisibleBounds();
+        var occupiedBounds = Application.Current.Windows
+            .OfType<DesktopBoxWindow>()
+            .Where(window => window != this && window.IsVisible)
+            .Select(window => window.GetVisibleBounds())
+            .ToArray();
+        var placement = DrawerPopupPlacementSelector.Select(
+            anchor,
+            popupSize,
+            occupiedBounds,
+            DrawerPopupGap,
+            DrawerPopupCollisionPadding,
+            SystemParameters.WorkArea);
+
+        DrawerSecondaryPopup.HorizontalOffset = 0;
+        DrawerSecondaryPopup.VerticalOffset = 0;
+        if (placement == DrawerPopupPlacement.Center)
+        {
+            DrawerSecondaryPopup.PlacementTarget = centerTarget;
+            DrawerSecondaryPopup.Placement = PlacementMode.Center;
+            return;
+        }
+
+        // Keep the collision-aware side selected above. Relative Popup placement
+        // can be flipped by WPF near a screen edge, potentially putting it back on
+        // top of a neighboring box.
+        var target = DrawerPopupPlacementSelector.GetCandidateBounds(
+            placement,
+            anchor,
+            popupSize,
+            DrawerPopupGap);
+        DrawerSecondaryPopup.PlacementTarget = null;
+        DrawerSecondaryPopup.Placement = PlacementMode.Absolute;
+        DrawerSecondaryPopup.HorizontalOffset = target.Left;
+        DrawerSecondaryPopup.VerticalOffset = target.Top;
+    }
+
+    /// <summary>
+    /// 初始布局稳定后强制重测。SizeToContent 窗口的首次测量以初始 HWND 尺寸为约束，
+    /// 若内容之后不再变化（如折叠抽屉盒的封面），窗口会一直停留在错误的初始宽度上
+    /// （封面两侧突出）。一次 InvalidateMeasure 即可让窗口贴合真实内容。
+    /// </summary>
+    internal void ResyncSizeToContent()
+    {
+        if (SizeToContent != SizeToContent.Manual)
+        {
+            InvalidateMeasure();
+        }
+    }
+
+    /// <summary>
+    /// Enables work-area clamping after the manager has restored the saved origin,
+    /// loaded the box contents and completed the first stable SizeToContent pass.
+    /// Startup SizeChanged events use provisional template dimensions and must not
+    /// move the window before its final size is known.
+    /// </summary>
+    internal void EnableVisibleBoundsClamping()
+    {
+        _isVisibleBoundsClampingEnabled = true;
+    }
+
+    internal Rect GetVisibleBounds() =>
+        ComputeVisibleBounds(Left, Top, ActualWidth, ActualHeight, WindowBorder.Margin);
+
+    /// <summary>
+    /// Returns the native window rectangle in virtual-desktop physical pixels.
+    /// Cross-window and cross-monitor operations must use this coordinate space:
+    /// WPF Left/Top are monitor-DPI-dependent DIPs and cannot be compared safely
+    /// when monitors use different scale factors.
+    /// </summary>
+    internal bool TryGetWindowBoundsPixels(out Rect bounds)
+    {
+        var handle = new WindowInteropHelper(this).Handle;
+        if (handle != nint.Zero
+            && GetWindowRect(handle, out var nativeBounds)
+            && nativeBounds.Right > nativeBounds.Left
+            && nativeBounds.Bottom > nativeBounds.Top)
+        {
+            bounds = new Rect(
+                nativeBounds.Left,
+                nativeBounds.Top,
+                nativeBounds.Right - nativeBounds.Left,
+                nativeBounds.Bottom - nativeBounds.Top);
+            return true;
+        }
+
+        bounds = Rect.Empty;
+        return false;
+    }
+
+    internal Rect GetVisibleBoundsPixels()
+    {
+        if (!TryGetWindowBoundsPixels(out var windowBounds))
+        {
+            return Rect.Empty;
+        }
+
+        return ComputeVisibleBoundsPixels(windowBounds, WindowBorder.Margin, GetDpiScale());
+    }
+
+    /// <summary>
+    /// SizeToContent 窗口在首次显示前，HWND 矩形仍是初始尺寸而非内容尺寸，
+    /// 直接读 <see cref="GetVisibleBoundsPixels"/> 会把正常落位误判为越界并错误钳制。
+    /// 这里用 Measure 后的 <see cref="UIElement.DesiredSize"/>（按当前 DPI 换算物理像素）
+    /// 替代 HWND 尺寸，供显示前的落位钳制使用；HWND 位置部分仍以真实矩形为准。
+    /// </summary>
+    internal Rect GetMeasuredVisibleBoundsPixels()
+    {
+        if (!TryGetWindowBoundsPixels(out var windowBounds))
+        {
+            return Rect.Empty;
+        }
+
+        var dpi = GetDpiScale();
+        var measured = ComputeMeasuredWindowBoundsPixels(windowBounds, DesiredSize, dpi);
+        return ComputeVisibleBoundsPixels(measured, WindowBorder.Margin, dpi);
+    }
+
+    /// <summary>
+    /// 与 <see cref="GetMeasuredVisibleBoundsPixels"/> 同理，但用布局完成后的
+    /// <see cref="FrameworkElement.ActualWidth"/>/<see cref="FrameworkElement.ActualHeight"/>。
+    /// SizeChanged 事件触发时 SizeToContent 的 HWND 可能尚未缩放到位，此时读 HWND
+    /// 矩形会拿到初始尺寸；ActualWidth/Height 才是此刻的真实内容尺寸。
+    /// </summary>
+    internal Rect GetLayoutVisibleBoundsPixels()
+    {
+        if (!TryGetWindowBoundsPixels(out var windowBounds))
+        {
+            return Rect.Empty;
+        }
+
+        var dpi = GetDpiScale();
+        var measured = ComputeMeasuredWindowBoundsPixels(
+            windowBounds, new Size(ActualWidth, ActualHeight), dpi);
+        return ComputeVisibleBoundsPixels(measured, WindowBorder.Margin, dpi);
+    }
+
+    internal static Rect ComputeMeasuredWindowBoundsPixels(
+        Rect hwndBoundsPixels,
+        Size desiredSizeDip,
+        DpiScale dpi) =>
+        new(
+            hwndBoundsPixels.Left,
+            hwndBoundsPixels.Top,
+            Math.Max(0, desiredSizeDip.Width * dpi.DpiScaleX),
+            Math.Max(0, desiredSizeDip.Height * dpi.DpiScaleY));
+
+    internal DpiScale GetDpiScale() => VisualTreeHelper.GetDpi(this);
+
+    internal void MoveWindowOriginPixels(double leftPixels, double topPixels)
+    {
+        var helper = new WindowInteropHelper(this);
+        var handle = helper.Handle;
+        if (handle == nint.Zero)
+        {
+            handle = helper.EnsureHandle();
+        }
+
+        SetWindowPos(
+            handle,
+            nint.Zero,
+            ToNativeCoordinate(leftPixels),
+            ToNativeCoordinate(topPixels),
+            0,
+            0,
+            SetWindowPosNoSize | SetWindowPosNoActivate | SetWindowPosNoZOrder);
+    }
+
+    internal void MoveToVisibleOriginPixels(double visibleLeftPixels, double visibleTopPixels)
+    {
+        var origin = ComputeWindowOriginPixels(
+            visibleLeftPixels,
+            visibleTopPixels,
+            WindowBorder.Margin,
+            GetDpiScale());
+        MoveWindowOriginPixels(origin.X, origin.Y);
+    }
+
+    /// <summary>
+    /// <see cref="GetVisibleBounds"/> 的逆运算：把可视区域原点换算回窗口 Left/Top。
+    /// 重叠消解在可视区域坐标系里计算，写回窗口位置时必须减去阴影留白 Margin，
+    /// 否则每执行一次消解窗口就会按 Margin 平移一次（位置漂移）。
+    /// </summary>
+    internal void MoveToVisibleOrigin(double visibleLeft, double visibleTop)
+    {
+        var (left, top) = ComputeWindowOrigin(visibleLeft, visibleTop, WindowBorder.Margin);
+        Left = left;
+        Top = top;
+    }
+
+    /// <summary>
+    /// SizeToContent 窗口以左上角为锚点随内容向右下生长。内容尺寸变化（切换图标预设、
+    /// 固定格数、增删项目）可能把右/下边缘推出工作区——表现为盒子边缘被屏幕"吞掉"。
+    /// 尺寸变化后把可视区域钳回工作区；只做显示性校正，不写回已保存位置。
+    /// </summary>
+    private void OnWindowSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (_mappingViewTransitionVisibleOriginPixels is Point anchoredOrigin
+            && IsVisible
+            && e.PreviousSize != e.NewSize)
+        {
+            MoveToVisibleOriginPixels(anchoredOrigin.X, anchoredOrigin.Y);
+            return;
+        }
+
+        if (!ShouldClampVisibleBounds(
+                _isVisibleBoundsClampingEnabled,
+                _isMappingViewTransitioning,
+                IsVisible,
+                e.PreviousSize != e.NewSize))
+        {
+            return;
+        }
+
+        // 尺寸必须取布局结果（ActualWidth/Height）而非 HWND 矩形：SizeToContent 的
+        // HWND 缩放与 SizeChanged 事件不同步，事件触发时 HWND 可能仍是初始尺寸，
+        // 读 HWND 会把正常窗口误判为越界并错误钳回左上（首次显示时必现）。
+        var bounds = GetLayoutVisibleBoundsPixels();
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+        {
+            return;
+        }
+
+        var workArea = GetWorkAreaPixels();
+        if (workArea.IsEmpty)
+        {
+            return;
+        }
+        var visibleLeft = bounds.Left;
+        var visibleTop = bounds.Top;
+        if (bounds.Right > workArea.Right)
+        {
+            visibleLeft = workArea.Right - bounds.Width;
+        }
+
+        if (bounds.Bottom > workArea.Bottom)
+        {
+            visibleTop = workArea.Bottom - bounds.Height;
+        }
+
+        // 盒子比工作区还大时，左/上钳制优先，保证标题栏可见。
+        visibleLeft = Math.Max(workArea.Left, visibleLeft);
+        visibleTop = Math.Max(workArea.Top, visibleTop);
+        if (Math.Abs(visibleLeft - bounds.Left) > 0.5
+            || Math.Abs(visibleTop - bounds.Top) > 0.5)
+        {
+            MoveToVisibleOriginPixels(visibleLeft, visibleTop);
+        }
+    }
+
+    internal static bool ShouldClampVisibleBounds(
+        bool isClampingEnabled,
+        bool isMappingViewTransitioning,
+        bool isVisible,
+        bool sizeChanged) =>
+        isClampingEnabled
+        && !isMappingViewTransitioning
+        && isVisible
+        && sizeChanged;
+
+    internal static Rect ComputeVisibleBounds(
+        double windowLeft,
+        double windowTop,
+        double windowWidth,
+        double windowHeight,
+        Thickness margin) =>
+        new(
+            windowLeft + margin.Left,
+            windowTop + margin.Top,
+            Math.Max(0, windowWidth - margin.Left - margin.Right),
+            Math.Max(0, windowHeight - margin.Top - margin.Bottom));
+
+    internal static (double Left, double Top) ComputeWindowOrigin(
+        double visibleLeft,
+        double visibleTop,
+        Thickness margin) =>
+        (visibleLeft - margin.Left, visibleTop - margin.Top);
+
+    internal static Rect ComputeVisibleBoundsPixels(
+        Rect windowBoundsPixels,
+        Thickness marginDip,
+        DpiScale dpi) =>
+        new(
+            windowBoundsPixels.Left + (marginDip.Left * dpi.DpiScaleX),
+            windowBoundsPixels.Top + (marginDip.Top * dpi.DpiScaleY),
+            Math.Max(
+                0,
+                windowBoundsPixels.Width
+                - ((marginDip.Left + marginDip.Right) * dpi.DpiScaleX)),
+            Math.Max(
+                0,
+                windowBoundsPixels.Height
+                - ((marginDip.Top + marginDip.Bottom) * dpi.DpiScaleY)));
+
+    internal static Point ComputeWindowOriginPixels(
+        double visibleLeftPixels,
+        double visibleTopPixels,
+        Thickness marginDip,
+        DpiScale dpi) =>
+        new(
+            visibleLeftPixels - (marginDip.Left * dpi.DpiScaleX),
+            visibleTopPixels - (marginDip.Top * dpi.DpiScaleY));
+
+    private void OnDrawerSecondaryPopupOpened(object? sender, EventArgs e)
+    {
+        // 弹窗 HWND 属主是盒子窗口，盒子窗口属主是桌面壳。弹窗打开时 Windows 会把
+        // 整条属主链提前。第一时间断开弹窗属主，再把所有盒子压回桌面层。
+        DetachDrawerPopupOwner();
+        QueueSendToBottomAll();
+        // 沉底在 ApplicationIdle 还会补一次，而压主窗口沉底会把它的属子弹窗一起拖下去；
+        // 置顶必须排在所有沉底调用之后，所以用 SystemIdle 优先级。
+        Dispatcher.BeginInvoke(DispatcherPriority.SystemIdle, BringDrawerPopupToFront);
+
+        Dispatcher.BeginInvoke(
+            DispatcherPriority.Loaded,
+            () =>
+            {
+                var initialScaleX = Math.Clamp(
+                    ViewModel.LayoutSettings.DrawerPrimaryIconFrameSize
+                        / Math.Max(1, DrawerSecondaryPopupRoot.ActualWidth),
+                    0.08,
+                    0.24);
+                var initialScaleY = Math.Clamp(
+                    ViewModel.LayoutSettings.DrawerPrimaryIconFrameSize
+                        / Math.Max(1, DrawerSecondaryPopupRoot.ActualHeight),
+                    0.08,
+                    0.32);
+                var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
+                var duration = TimeSpan.FromMilliseconds(190);
+                DrawerSecondaryPopupRoot.CacheMode = new BitmapCache
+                {
+                    EnableClearType = true
+                };
+                DrawerSecondaryPopupScale.BeginAnimation(
+                    ScaleTransform.ScaleXProperty,
+                    new DoubleAnimation(initialScaleX, 1, duration) { EasingFunction = easing });
+                DrawerSecondaryPopupScale.BeginAnimation(
+                    ScaleTransform.ScaleYProperty,
+                    new DoubleAnimation(initialScaleY, 1, duration) { EasingFunction = easing });
+                var opacityAnimation = new DoubleAnimation(
+                    0,
+                    1,
+                    TimeSpan.FromMilliseconds(145))
+                {
+                    EasingFunction = easing
+                };
+                opacityAnimation.Completed += (_, _) =>
+                    DrawerSecondaryPopupRoot.CacheMode = null;
+                DrawerSecondaryPopupRoot.BeginAnimation(OpacityProperty, opacityAnimation);
+            });
+    }
+
+    private void OnCollapseDrawerClick(object sender, RoutedEventArgs e)
+    {
+        ViewModel.IsDrawerExpanded = false;
+        ClearItemSelection();
+        e.Handled = true;
+    }
+
+    private void OnDrawerResizeStarted(object sender, DragStartedEventArgs e)
+    {
+        _drawerResizeStartWidth = ViewModel.DrawerCoverWidth;
+        _drawerResizeStartHeight = ViewModel.DrawerCoverHeight;
+        GetCursorPos(out _drawerResizeStartCursor);
+        e.Handled = true;
+    }
+
+    private void OnDrawerResizeDelta(object sender, DragDeltaEventArgs e)
+    {
+        if (!GetCursorPos(out var currentCursor))
+        {
+            return;
+        }
+
+        var horizontalDelta = currentCursor.X - _drawerResizeStartCursor.X;
+        var verticalDelta = currentCursor.Y - _drawerResizeStartCursor.Y;
+        var dpi = VisualTreeHelper.GetDpi(this);
+        ViewModel.ResizeDrawerCover(
+            _drawerResizeStartWidth + (horizontalDelta / Math.Max(0.1, dpi.DpiScaleX)),
+            _drawerResizeStartHeight + (verticalDelta / Math.Max(0.1, dpi.DpiScaleY)));
+        e.Handled = true;
+    }
+
+    private async void OnDrawerResizeCompleted(object sender, DragCompletedEventArgs e)
+    {
+        if (e.Canceled)
+        {
+            // 拖拽被取消（如捕获丢失/Alt+Tab 切走）：回滚到拖拽前的尺寸，不保存。
+            ViewModel.ResizeDrawerCover(_drawerResizeStartWidth, _drawerResizeStartHeight);
+            e.Handled = true;
+            return;
+        }
+
+        try
+        {
+            await ViewModel.SaveDrawerCoverSizeAsync();
+        }
+        catch (Exception exception)
+        {
+            ViewModel.ResizeDrawerCover(
+                _drawerResizeStartWidth,
+                _drawerResizeStartHeight);
+            _ = exception;
+        }
+
+        e.Handled = true;
+    }
+
+    private void OnMappingListResizeStarted(object sender, DragStartedEventArgs e)
+    {
+        _mappingListResizeStartWidth = ViewModel.MappingListWidth;
+        GetCursorPos(out _mappingListResizeStartCursor);
+        e.Handled = true;
+    }
+
+    private void OnMappingListResizeDelta(object sender, DragDeltaEventArgs e)
+    {
+        if (!GetCursorPos(out var currentCursor))
+        {
+            return;
+        }
+
+        var dpi = VisualTreeHelper.GetDpi(this);
+        var horizontalDelta = currentCursor.X - _mappingListResizeStartCursor.X;
+        ViewModel.ResizeMappingListWidth(
+            _mappingListResizeStartWidth
+            + (horizontalDelta / Math.Max(0.1, dpi.DpiScaleX)));
+        e.Handled = true;
+    }
+
+    private async void OnMappingListResizeCompleted(object sender, DragCompletedEventArgs e)
+    {
+        if (e.Canceled)
+        {
+            ViewModel.ResizeMappingListWidth(_mappingListResizeStartWidth);
+            e.Handled = true;
+            return;
+        }
+
+        await ViewModel.SaveMappingListWidthAsync();
+        e.Handled = true;
+    }
+
+    private void OnDrawerSurfacePreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (_isPositionLocked
+            || e.LeftButton != MouseButtonState.Pressed
+            || e.OriginalSource is not DependencyObject source
+            || FindVisualAncestor<Button>(source) is not null
+            || FindVisualAncestor<Thumb>(source) is not null)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        try
+        {
+            DragMove();
+            QueueSendToBottom();
+            if (_positionChangedCallback is not null)
+            {
+                FireAndForget.Run(
+                    _positionChangedCallback(ViewModel.BoxId),
+                    ViewModel.Logger,
+                    $"Failed to run position callback for box {ViewModel.BoxId:N}.");
+            }
+        }
+        catch (InvalidOperationException)
+        {
+        }
+    }
+
+    private async void OnDrawerIconPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not Button { DataContext: DrawerCoverTileViewModel { Item: not null } tile })
+        {
+            return;
+        }
+
+        if (e.ClickCount >= 2)
+        {
+            // 双击才打开：单击只选中（与图标网格一致），避免误触直接启动。
+            ClearPendingIconDrag();
+            await ViewModel.OpenItemCommand.ExecuteAsync(tile.Item);
+            e.Handled = true;
+            return;
+        }
+
+        SelectCoverTile(tile);
+        _suppressDrawerItemClick = false;
+        _dragStartPoint = e.GetPosition(this);
+        _dragStartItem = tile.Item;
+    }
+
+    private void SelectCoverTile(DrawerCoverTileViewModel selectedTile)
+    {
+        foreach (var coverTile in ViewModel.DrawerCoverTiles)
+        {
+            coverTile.IsSelected = ReferenceEquals(coverTile, selectedTile);
+        }
+
+        // 与网格选中互斥：任何时刻全局只有一个选中项。
+        IconList.SelectedItem = null;
+        FileList.SelectedItem = null;
+        _keyboardDeleteTarget = null;
+    }
+
+    private async void OnDrawerIconMouseMove(object sender, MouseEventArgs e)
+    {
+        if (_dragStartPoint is null || _dragStartItem is null)
+        {
+            return;
+        }
+
+        if (e.LeftButton != MouseButtonState.Pressed)
+        {
+            ClearPendingIconDrag();
+            return;
+        }
+
+        IInputElement coordinateSpace = ReferenceEquals(sender, DrawerSecondaryPopupRoot)
+            ? DrawerSecondaryPopupRoot
+            : this;
+        var current = e.GetPosition(coordinateSpace);
+        if (Math.Abs(current.X - _dragStartPoint.Value.X) < SystemParameters.MinimumHorizontalDragDistance
+            && Math.Abs(current.Y - _dragStartPoint.Value.Y) < SystemParameters.MinimumVerticalDragDistance)
+        {
+            return;
+        }
+
+        var drawerItem = _dragStartItem;
+        ClearPendingIconDrag();
+        if (!_itemDragGate.TryEnter())
+        {
+            return;
+        }
+
+        // 只有弹窗磁贴的拖拽要吞掉随后的 Click；封面磁贴已不挂 Click（双击才打开）。
+        _suppressDrawerItemClick = ReferenceEquals(sender, DrawerSecondaryPopupRoot);
+        try
+        {
+            await RunItemDragAsync(drawerItem, sender as UIElement ?? IconList);
+        }
+        finally
+        {
+            _itemDragGate.Exit();
+        }
+    }
+
+    private void OnDrawerSecondaryIconPreviewMouseLeftButtonDown(
+        object sender,
+        MouseButtonEventArgs e)
+    {
+        if (sender is not Button { DataContext: DrawerItemViewModel item })
+        {
+            return;
+        }
+
+        _suppressDrawerItemClick = false;
+        _dragStartPoint = e.GetPosition(DrawerSecondaryPopupRoot);
+        _dragStartItem = item;
+    }
+
+    private async void OnDrawerSecondaryItemClick(object sender, RoutedEventArgs e)
+    {
+        if (_suppressDrawerItemClick)
+        {
+            _suppressDrawerItemClick = false;
+            e.Handled = true;
+            return;
+        }
+
+        if (sender is Button { DataContext: DrawerItemViewModel item })
+        {
+            await ViewModel.OpenItemCommand.ExecuteAsync(item);
+            e.Handled = true;
+        }
+    }
+
+    private static T? FindVisualAncestor<T>(DependencyObject source)
+        where T : DependencyObject
+    {
+        for (var current = source; current is not null; current = VisualTreeHelper.GetParent(current))
+        {
+            if (current is T typed)
+            {
+                return typed;
+            }
+        }
+
+        return null;
+    }
+
     public void ForceClose()
     {
+        _itemContextMenu.CloseActiveMenu();
         _forceClose = true;
         Close();
     }
@@ -144,6 +865,7 @@ public partial class DesktopBoxWindow : Window
             ResetDragVisualState();
             ClearPendingIconDrag();
             Hide();
+            ViewModel.ReleaseHiddenWindowItems();
             return;
         }
 
@@ -156,13 +878,15 @@ public partial class DesktopBoxWindow : Window
         Loaded -= OnLoaded;
         DpiChanged -= OnDpiChanged;
         AppThemeManager.ThemeChanged -= OnThemeChanged;
-        AppThemeManager.CrystalBoxTransparencyChanged -= OnCrystalBoxTransparencyChanged;
+        AppThemeManager.BoxOpacityChanged -= OnBoxOpacityChanged;
         Activated -= OnWindowActivated;
         Deactivated -= OnWindowDeactivated;
         StateChanged -= OnWindowStateChanged;
+        PreviewMouseUp -= OnWindowPreviewMouseUpForDesktopOwnership;
         _source?.RemoveHook(WindowMessageHook);
         _source = null;
         _nativeWindow = null;
+        _itemContextMenu.Dispose();
         if (Application.Current is not null)
         {
             Application.Current.Deactivated -= OnApplicationDeactivated;
@@ -188,6 +912,22 @@ public partial class DesktopBoxWindow : Window
         nint longParameter,
         ref bool handled)
     {
+        if (DesktopToolWindow.IsMouseActivationMessage(message))
+        {
+            // Detach before mouse input so Explorer cannot record this box as
+            // Progman's last active popup. Explicit MA_NOACTIVATE still delivers
+            // the click, but guarantees that menu/selection input never makes a
+            // desktop box the foreground window.
+            _nativeWindow?.SuspendDesktopOwnershipForMouseInput();
+            handled = true;
+            return DesktopToolWindow.GetMouseActivateWithoutActivationResult();
+        }
+
+        if (DesktopToolWindow.IsMouseInteractionCompletionMessage(message))
+        {
+            QueueRestoreDesktopOwnershipAfterMouseInput();
+        }
+
         if (DesktopToolWindow.IsMinimizeSystemCommand(message, wordParameter))
         {
             // Win+D / Show Desktop normally minimizes top-level windows. A desktop
@@ -196,6 +936,35 @@ public partial class DesktopBoxWindow : Window
         }
 
         return nint.Zero;
+    }
+
+    private void QueueRestoreDesktopOwnershipAfterMouseInput()
+    {
+        if (_desktopOwnershipRestoreQueued)
+        {
+            return;
+        }
+
+        _desktopOwnershipRestoreQueued = true;
+        _ = Dispatcher.BeginInvoke(
+            DispatcherPriority.Input,
+            () =>
+            {
+                _desktopOwnershipRestoreQueued = false;
+                if (!_forceClose)
+                {
+                    _nativeWindow?.RestoreDesktopOwnershipAfterMouseInput();
+                }
+            });
+    }
+
+    private void OnWindowPreviewMouseUpForDesktopOwnership(
+        object sender,
+        MouseButtonEventArgs e)
+    {
+        // WPF fallback for controls that complete input before the HWND hook
+        // observes the native button-up message.
+        QueueRestoreDesktopOwnershipAfterMouseInput();
     }
 
     private void OnWindowStateChanged(object? sender, EventArgs e)
@@ -210,7 +979,10 @@ public partial class DesktopBoxWindow : Window
         // Some shell versions minimize via ShowWindow instead of WM_SYSCOMMAND.
         // Restore after the shell's burst of Z-order changes has settled.
         _restoreAfterMinimizeQueued = true;
-        _ = RestoreAfterShellMinimizeAsync();
+        FireAndForget.Run(
+                RestoreAfterShellMinimizeAsync(),
+                ViewModel.Logger,
+                $"Failed to restore box window {ViewModel.BoxId:N} after shell minimize.");
     }
 
     private async Task RestoreAfterShellMinimizeAsync()
@@ -267,9 +1039,21 @@ public partial class DesktopBoxWindow : Window
         ApplyThemeAppearance();
     }
 
-    private void OnCrystalBoxTransparencyChanged(object? sender, bool enabled)
+    private void OnBoxOpacityChanged(object? sender, ThemeBoxOpacityChangedEventArgs e)
     {
-        ApplyThemeAppearance();
+        if (e.Theme != AppThemeManager.CurrentTheme || _isBoxOpacityRefreshQueued)
+        {
+            return;
+        }
+
+        _isBoxOpacityRefreshQueued = true;
+        _ = Dispatcher.BeginInvoke(
+            DispatcherPriority.Background,
+            () =>
+            {
+                _isBoxOpacityRefreshQueued = false;
+                AppThemeManager.ApplyDesktopBoxResources(Resources);
+            });
     }
 
     private void ApplyThemeAppearance()
@@ -296,11 +1080,25 @@ public partial class DesktopBoxWindow : Window
         ResetDragVisualState();
     }
 
+    /// <summary>
+    /// 全局鼠标钩子发现点击落在本盒子之外（桌面/其他程序/其他盒子）时调用。
+    /// 盒子带 WS_EX_NOACTIVATE，外部点击不会产生任何 Deactivated 事件，
+    /// 选中框只能靠这个显式信号清除。
+    /// </summary>
+    internal void ClearSelectionFromOutside()
+    {
+        ClearItemSelection();
+    }
+
     private void ClearItemSelection()
     {
         IconList.SelectedItem = null;
         FileList.SelectedItem = null;
         _keyboardDeleteTarget = null;
+        foreach (var coverTile in ViewModel.DrawerCoverTiles)
+        {
+            coverTile.IsSelected = false;
+        }
     }
 
     private void OnWindowPreviewMouseDown(object sender, MouseButtonEventArgs e)
@@ -317,6 +1115,114 @@ public partial class DesktopBoxWindow : Window
     private void OnCloseClick(object sender, RoutedEventArgs e)
     {
         Close();
+    }
+
+    private async void OnToggleRollUpClick(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (_isRollTransitioning || _isMappingViewTransitioning || !ViewModel.SupportsRollUp)
+        {
+            return;
+        }
+
+        _isRollTransitioning = true;
+        var rollUp = !ViewModel.IsRolledUp;
+        try
+        {
+            var startWidth = ActualWidth;
+            var startHeight = ActualHeight;
+            SizeToContent = SizeToContent.Manual;
+            MinHeight = 0;
+            Width = startWidth;
+            Height = startHeight;
+
+            ViewModel.ApplyRollUpState(rollUp);
+            await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
+            WindowBorder.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            var targetHeight = WindowBorder.DesiredSize.Height;
+
+            if (rollUp)
+            {
+                ViewModel.ApplyRollUpState(false);
+                await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
+            }
+
+            await AnimateWindowSizeAsync(startWidth, startHeight, startWidth, targetHeight);
+            ViewModel.ApplyRollUpState(rollUp);
+            await ViewModel.SaveRollUpStateAsync();
+        }
+        finally
+        {
+            BeginAnimation(WidthProperty, null);
+            BeginAnimation(HeightProperty, null);
+            SizeToContent = SizeToContent.WidthAndHeight;
+            ClearValue(MinHeightProperty);
+            ClearValue(WidthProperty);
+            ClearValue(HeightProperty);
+            if (!rollUp)
+            {
+                await RefreshGridLayoutAfterRollTransitionAsync();
+            }
+
+            _isRollTransitioning = false;
+            QueueSendToBottom();
+        }
+    }
+
+    private async Task RefreshGridLayoutAfterRollTransitionAsync()
+    {
+        // Clearing the manual Height does not synchronously finish the SizeToContent pass.
+        // Wait until WPF has restored the expanded viewport, then force the recycling panel
+        // to realize every row that intersects that viewport. A second render-priority pass
+        // handles the HWND resize generated by SizeToContent itself.
+        InvalidateMeasure();
+        WindowBorder.InvalidateMeasure();
+        await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Loaded);
+
+        InvalidateExpandedGridLayout();
+        UpdateLayout();
+        await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Render);
+        InvalidateExpandedGridLayout();
+        UpdateLayout();
+    }
+
+    private void InvalidateExpandedGridLayout()
+    {
+        FindVisualChild<VirtualizingCanvas>(IconList)?.InvalidateMeasure();
+        IconList.InvalidateMeasure();
+        FileList.InvalidateMeasure();
+        WindowBorder.InvalidateMeasure();
+        InvalidateMeasure();
+    }
+
+    private static T? FindVisualChild<T>(DependencyObject parent)
+        where T : DependencyObject
+    {
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(parent); index++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, index);
+            if (child is T match)
+            {
+                return match;
+            }
+
+            var descendant = FindVisualChild<T>(child);
+            if (descendant is not null)
+            {
+                return descendant;
+            }
+        }
+
+        return null;
+    }
+
+    private void OnTodoTitlePreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        // 待办输入需要键盘焦点：盒子是 NOACTIVATE，点击本身不激活窗口，
+        // 这里显式激活（用户明确要开始输入，盒子短暂到前面、点别处即收回）。
+        Activate();
+        TodoTitleTextBox.Focus();
+        Keyboard.Focus(TodoTitleTextBox);
     }
 
     private async void OnTodoTitleKeyDown(object sender, KeyEventArgs e)
@@ -350,7 +1256,13 @@ public partial class DesktopBoxWindow : Window
             return;
         }
 
+        var visibleBoundsBeforeTransition = GetLayoutVisibleBoundsPixels();
+        _mappingViewTransitionVisibleOriginPixels =
+            visibleBoundsBeforeTransition.Width > 0 && visibleBoundsBeforeTransition.Height > 0
+                ? new Point(visibleBoundsBeforeTransition.Left, visibleBoundsBeforeTransition.Top)
+                : null;
         _isMappingViewTransitioning = true;
+        var outgoingList = useListMode ? IconList : FileList;
         var incomingList = useListMode ? FileList : IconList;
 
         try
@@ -359,13 +1271,50 @@ public partial class DesktopBoxWindow : Window
             var startHeight = Math.Max(MinHeight, ActualHeight);
 
             // SizeToContent would otherwise apply the target view's desired size in one frame.
-            // Freeze the current size first, then animate to the newly measured target size.
             SizeToContent = SizeToContent.Manual;
+            // 样式里的 MinWidth/MinHeight 会阻止窗口收拢到标题栏，过渡期间用本地值放行，
+            // finally 里 ClearValue 还给样式。
+            MinWidth = 0;
+            MinHeight = 0;
             Width = startWidth;
             Height = startHeight;
-            incomingList.BeginAnimation(OpacityProperty, null);
-            incomingList.Opacity = 0;
 
+            outgoingList.IsHitTestVisible = false;
+            incomingList.IsHitTestVisible = false;
+            incomingList.Opacity = 0;
+            // 收拢/展开途中可视口临时比内容矮，Auto 滚动条会闪现一下再消失；
+            // 过渡期间禁用滚动条（本地值），finally 里 ClearValue 还给 XAML。
+            ScrollViewer.SetVerticalScrollBarVisibility(outgoingList, ScrollBarVisibility.Disabled);
+            ScrollViewer.SetVerticalScrollBarVisibility(incomingList, ScrollBarVisibility.Disabled);
+
+            // 两段式时序：旧视图先淡出收拢，全部收回后新视图再展开，两阶段不重叠，
+            // 避免两种布局同时显影造成的双影抖动。
+            //
+            // 收回阶段：旧视图淡出并轻微缩小，窗口高度同步收拢到标题栏下沿。
+            var listTop = outgoingList.TranslatePoint(new Point(0, 0), WindowRoot).Y;
+            var collapsedHeight = Math.Max(
+                36,
+                listTop + WindowBorder.Margin.Bottom + WindowBorder.BorderThickness.Bottom);
+
+            var collapseEase = new CubicEase { EasingMode = EasingMode.EaseIn };
+            outgoingList.RenderTransformOrigin = new Point(0.5, 0.5);
+            var outScale = new ScaleTransform();
+            outgoingList.RenderTransform = outScale;
+            outScale.BeginAnimation(
+                ScaleTransform.ScaleXProperty,
+                new DoubleAnimation(1, 0.92, TimeSpan.FromMilliseconds(150)) { EasingFunction = collapseEase });
+            outScale.BeginAnimation(
+                ScaleTransform.ScaleYProperty,
+                new DoubleAnimation(1, 0.92, TimeSpan.FromMilliseconds(150)) { EasingFunction = collapseEase });
+            outgoingList.BeginAnimation(
+                OpacityProperty,
+                new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(130)) { EasingFunction = collapseEase });
+
+            await AnimateWindowSizeAsync(
+                startWidth, startHeight, startWidth, collapsedHeight,
+                durationMs: 160, EasingMode.EaseInOut);
+
+            // 模式翻转（同步改绑定，异步写 SQLite 持久化）。
             var modeChangeTask = useListMode
                 ? ViewModel.UseMappingListModeCommand.ExecuteAsync(null)
                 : ViewModel.UseMappingGridModeCommand.ExecuteAsync(null);
@@ -374,34 +1323,95 @@ public partial class DesktopBoxWindow : Window
                 () => { },
                 DispatcherPriority.DataBind);
 
-            WindowBorder.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            var targetWidth = Math.Max(MinWidth, WindowBorder.DesiredSize.Width);
-            var targetHeight = Math.Max(MinHeight, WindowBorder.DesiredSize.Height);
+            // 手动 Measure 与真实布局结果不一致（列表会先出滚动条再二次展开），
+            // 把尺寸交还给 SizeToContent 做一轮真实布局、直接读稳态尺寸；
+            // 同一同步块内立即收回收拢态，不会产生中间渲染帧。
+            SizeToContent = SizeToContent.WidthAndHeight;
+            ClearValue(WidthProperty);
+            ClearValue(HeightProperty);
+            UpdateLayout();
+            var targetWidth = ActualWidth;
+            var targetHeight = ActualHeight;
+            SizeToContent = SizeToContent.Manual;
+            Width = startWidth;
+            Height = collapsedHeight;
 
-            incomingList.Opacity = 1;
+            // 展开阶段：窗口从收拢态缓动到稳态尺寸，新视图淡入并轻微放大回位；
+            // 结束时尺寸已经是 SizeToContent 的稳态值，恢复时不再回跳。
+            var expandEase = new CubicEase { EasingMode = EasingMode.EaseOut };
+            incomingList.RenderTransformOrigin = new Point(0.5, 0.5);
+            var inScale = new ScaleTransform(0.96, 0.96);
+            incomingList.RenderTransform = inScale;
+            inScale.BeginAnimation(
+                ScaleTransform.ScaleXProperty,
+                new DoubleAnimation(0.96, 1, TimeSpan.FromMilliseconds(220))
+                {
+                    BeginTime = TimeSpan.FromMilliseconds(40),
+                    EasingFunction = expandEase
+                });
+            inScale.BeginAnimation(
+                ScaleTransform.ScaleYProperty,
+                new DoubleAnimation(0.96, 1, TimeSpan.FromMilliseconds(220))
+                {
+                    BeginTime = TimeSpan.FromMilliseconds(40),
+                    EasingFunction = expandEase
+                });
             incomingList.BeginAnimation(
                 OpacityProperty,
-                new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(160))
+                new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(180))
                 {
-                    BeginTime = TimeSpan.FromMilliseconds(45),
-                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                    BeginTime = TimeSpan.FromMilliseconds(70),
+                    EasingFunction = expandEase
                 });
 
             await Task.WhenAll(
                 modeChangeTask,
-                AnimateWindowSizeAsync(startWidth, startHeight, targetWidth, targetHeight));
+                AnimateWindowSizeAsync(
+                    startWidth, collapsedHeight, targetWidth, targetHeight,
+                    durationMs: 230, EasingMode.EaseOut),
+                // 等淡入与回位动画走完再拆除，避免结尾处状态突变。
+                Task.Delay(TimeSpan.FromMilliseconds(310)));
         }
         finally
         {
+            outgoingList.BeginAnimation(OpacityProperty, null);
+            outgoingList.Opacity = 1;
+            outgoingList.RenderTransform = null;
+            outgoingList.IsHitTestVisible = true;
             incomingList.BeginAnimation(OpacityProperty, null);
             incomingList.Opacity = 1;
+            incomingList.RenderTransform = null;
+            incomingList.IsHitTestVisible = true;
+            // XAML 里的滚动条可见性本身是本地值，ClearValue 会把它一起抹掉，
+            // 这里显式恢复各自的原始值（IconList 恒禁用，FileList 为 Auto）。
+            ScrollViewer.SetVerticalScrollBarVisibility(IconList, ScrollBarVisibility.Disabled);
+            ScrollViewer.SetVerticalScrollBarVisibility(FileList, ScrollBarVisibility.Auto);
             BeginAnimation(WidthProperty, null);
             BeginAnimation(HeightProperty, null);
+            ClearValue(MinWidthProperty);
+            ClearValue(MinHeightProperty);
             SizeToContent = SizeToContent.WidthAndHeight;
             ClearValue(WidthProperty);
             ClearValue(HeightProperty);
+            // SizeToContent 的最终布局也必须在过渡保护期内完成，否则靠近工作区
+            // 底边的盒子会被 SizeChanged 越界修正向上推，看起来像切换后“弹走”。
+            await Dispatcher.InvokeAsync(UpdateLayout, DispatcherPriority.Loaded);
+            RestoreMappingViewTransitionOrigin();
+            // ClearValue(Size) 后 WPF 还可能把一次 SizeToContent 布局排到当前事件之后。
+            // 等到队列空闲再恢复一次，确保延迟 SizeChanged 也无法改变左上锚点。
+            await Dispatcher.InvokeAsync(UpdateLayout, DispatcherPriority.ContextIdle);
+            RestoreMappingViewTransitionOrigin();
+            _mappingViewTransitionVisibleOriginPixels = null;
             _isMappingViewTransitioning = false;
             QueueSendToBottom();
+        }
+    }
+
+    private void RestoreMappingViewTransitionOrigin()
+    {
+        if (_mappingViewTransitionVisibleOriginPixels is Point anchoredOrigin)
+        {
+            MoveToVisibleOriginPixels(anchoredOrigin.X, anchoredOrigin.Y);
         }
     }
 
@@ -409,11 +1419,13 @@ public partial class DesktopBoxWindow : Window
         double startWidth,
         double startHeight,
         double targetWidth,
-        double targetHeight)
+        double targetHeight,
+        int durationMs = 220,
+        EasingMode easingMode = EasingMode.EaseOut)
     {
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var duration = TimeSpan.FromMilliseconds(220);
-        var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var duration = TimeSpan.FromMilliseconds(durationMs);
+        var easing = new CubicEase { EasingMode = easingMode };
 
         Width = targetWidth;
         Height = targetHeight;
@@ -436,6 +1448,9 @@ public partial class DesktopBoxWindow : Window
 
     private void OnPreviewDragOver(object sender, DragEventArgs e)
     {
+        // 紧跟 DragLeave 的 DragOver 说明只是 resize churn：取消待执行的复位。
+        CancelPendingDragLeaveReset();
+
         if (ViewModel.IsTodoBox)
         {
             ViewModel.IsDragOver = false;
@@ -449,30 +1464,44 @@ public partial class DesktopBoxWindow : Window
         if (e.Data.GetDataPresent(InternalDrawerItemDragFormat))
         {
             acceptsDrop = TryGetInternalDragPayload(e.Data, out var payload);
-            showPreview = acceptsDrop;
+            // 固定模式（硬约束）：盒已满时拒绝拖入。
+        if (acceptsDrop && !ViewModel.HasFreeSlotForDrop(
+                payload.SourceBoxId == ViewModel.BoxId ? payload.ItemId : (Guid?)null))
+        {
+            acceptsDrop = false;
+        }
+
+        // 排序模式的落点由排序键决定（盒内拖动为空操作），槽位预览会误导：
+        // 只保留盒子高亮，不显示落点框。
+        showPreview = acceptsDrop && ViewModel.IsFreeSort;
             e.Effects = acceptsDrop ? DragDropEffects.Move : DragDropEffects.None;
             if (showPreview)
             {
-                var slot = GetDropSlot(e, payload);
-                ViewModel.ShowDragPreview(slot.Column, slot.Row);
+                ShowDropPreview(e, payload);
             }
         }
         else
         {
             var dropEffect = ChooseFileDropEffect(e.AllowedEffects);
             acceptsDrop = e.Data.GetDataPresent(DataFormats.FileDrop) && dropEffect != DragDropEffects.None;
-            showPreview = acceptsDrop;
+            // 固定模式（硬约束）：盒已满时拒绝拖入文件。
+            if (acceptsDrop && !ViewModel.HasFreeSlotForDrop())
+            {
+                acceptsDrop = false;
+            }
+
+            showPreview = acceptsDrop && ViewModel.IsFreeSort;
             e.Effects = acceptsDrop ? dropEffect : DragDropEffects.None;
             if (showPreview)
             {
-                var slot = GetDropSlot(e);
-                ViewModel.ShowDragPreview(slot.Column, slot.Row);
+                ShowDropPreview(e, null);
             }
         }
 
         if (!showPreview)
         {
             ViewModel.HideDragPreview();
+            HideMappingListDropIndicator();
         }
 
         ViewModel.IsDragOver = acceptsDrop;
@@ -482,11 +1511,44 @@ public partial class DesktopBoxWindow : Window
 
     private void OnPreviewDragLeave(object sender, DragEventArgs e)
     {
-        // DragLeave is also raised when a drag is cancelled while the pointer is still
-        // inside the list. Coordinate checks therefore leave IsDragOver stuck true.
-        // If the pointer only crossed a child boundary, the next DragOver immediately
-        // restores the preview.
-        ResetDragVisualState();
+        // SizeToContent 窗口随拖拽预览在指针下方生长时，OLE 会补发 DragLeave/DragEnter 对
+        // （churn）。若在此同步复位，就会出现"复位→下一帧 DragOver 再显示→再复位"的疯狂频闪。
+        // 改为延迟复位：churn 场景紧跟的 DragOver 会取消它；真正离开/取消时没有后续
+        // DragOver，复位在极短延迟后生效（肉眼不可辨）。
+        var cts = new CancellationTokenSource();
+        var previous = Interlocked.Exchange(ref _dragLeaveResetCts, cts);
+        previous?.Cancel();
+        previous?.Dispose();
+        FireAndForget.Run(
+                ResetDragVisualStateAfterSettlingAsync(cts),
+                ViewModel.Logger,
+                $"Failed to reset drag visual state for box {ViewModel.BoxId:N}.");
+    }
+
+    private CancellationTokenSource? _dragLeaveResetCts;
+
+    private async Task ResetDragVisualStateAfterSettlingAsync(CancellationTokenSource cts)
+    {
+        try
+        {
+            await Task.Delay(90, cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        if (!cts.IsCancellationRequested)
+        {
+            ResetDragVisualState();
+        }
+    }
+
+    private void CancelPendingDragLeaveReset()
+    {
+        var cts = Interlocked.Exchange(ref _dragLeaveResetCts, null);
+        cts?.Cancel();
+        cts?.Dispose();
     }
 
     private async void OnFilesDropped(object sender, DragEventArgs e)
@@ -512,13 +1574,23 @@ public partial class DesktopBoxWindow : Window
             {
                 if (TryGetInternalDragPayload(e.Data, out var payload))
                 {
+                    var slot = GetDropSlot(e, payload);
+                    if (slot is null)
+                    {
+                        // 固定模式盒已满：拒绝落放，不标记为内部移动，项目保留在原盒。
+                        e.Effects = DragDropEffects.None;
+                        return;
+                    }
+
                     e.Effects = DragDropEffects.Move;
                     // Mark synchronously (same object instance, in-process) so the source
                     // box sees it immediately after DoDragDrop returns and treats this as
                     // an internal move/rearrange rather than a move-out to the desktop.
                     payload.WasDroppedInsideWitchDrawer = true;
-                    var slot = GetDropSlot(e, payload);
-                    _ = CompleteInternalDropAsync(payload, slot);
+                    FireAndForget.Run(
+                        CompleteInternalDropAsync(payload, slot.Value),
+                        ViewModel.Logger,
+                        $"Failed to complete internal drop for box {ViewModel.BoxId:N}.");
                 }
 
                 return;
@@ -527,9 +1599,16 @@ public partial class DesktopBoxWindow : Window
             if (e.Data.GetData(DataFormats.FileDrop) is string[] paths)
             {
                 var slot = GetDropSlot(e);
+                if (slot is null)
+                {
+                    // 固定模式盒已满：拒绝导入，文件保持原样。
+                    e.Effects = DragDropEffects.None;
+                    return;
+                }
+
                 e.Effects = paths.Length > 0 ? ChooseFileDropEffect(e.AllowedEffects) : DragDropEffects.None;
                 // ImportPathsAsync already reloads the box internally; no extra LoadAsync here.
-                var importedIds = await ViewModel.ImportPathsAsync(paths, slot.Column, slot.Row);
+                var importedIds = await ViewModel.ImportPathsAsync(paths, slot.Value.Column, slot.Value.Row);
                 e.Effects = importedIds.Count > 0 ? ChooseFileDropEffect(e.AllowedEffects) : DragDropEffects.None;
                 var lastImportedId = importedIds.LastOrDefault();
                 var importedItem = lastImportedId != Guid.Empty
@@ -611,7 +1690,10 @@ public partial class DesktopBoxWindow : Window
                 QueueSendToBottom();
                 if (_positionChangedCallback is not null)
                 {
-                    _ = _positionChangedCallback(ViewModel.BoxId);
+                    FireAndForget.Run(
+                    _positionChangedCallback(ViewModel.BoxId),
+                    ViewModel.Logger,
+                    $"Failed to run position callback for box {ViewModel.BoxId:N}.");
                 }
             }
             catch (InvalidOperationException)
@@ -666,6 +1748,8 @@ public partial class DesktopBoxWindow : Window
 
         try
         {
+            // 拖拽不需要窗口激活：OLE 模态循环自行处理 Esc 取消与光标反馈，
+            // 激活只会把盒子抬起来闪一帧。
             await RunItemDragAsync(drawerItem, itemList);
         }
         finally
@@ -674,11 +1758,19 @@ public partial class DesktopBoxWindow : Window
         }
     }
 
-    private (int Column, int Row) GetDropSlot(DragEventArgs e, DesktopBoxDragPayload? payload = null)
+    private (int Column, int Row)? GetDropSlot(DragEventArgs e, DesktopBoxDragPayload? payload = null)
     {
         var movingItemId = payload?.SourceBoxId == ViewModel.BoxId ? payload.ItemId : (Guid?)null;
         if (ViewModel.IsMappingListMode)
         {
+            return (0, GetMappingListDropIndex(e, movingItemId));
+        }
+
+        if (ViewModel.IsDrawerCollapsed)
+        {
+            // The collapsed drawer cover is not the item grid (the IconList is hidden and
+            // has zero size), so pointer coordinates cannot select a grid cell. Append
+            // after the last item, the same fallback the mapping list view uses.
             return ViewModel.GetListDropSlot(movingItemId);
         }
 
@@ -691,7 +1783,199 @@ public partial class DesktopBoxWindow : Window
             Math.Max(0, itemList.ActualWidth - padding.Left - padding.Right),
             Math.Max(0, itemList.ActualHeight - padding.Top - padding.Bottom));
 
-        return ViewModel.GetAvailableDropSlot(rawSlot.Column, rawSlot.Row, movingItemId);
+        // 固定模式（硬约束）：盒内找不到空位时返回 null，调用方据此拒绝拖放。
+        return ViewModel.TryGetAvailableDropSlot(rawSlot.Column, rawSlot.Row, movingItemId, out var slot)
+            ? slot
+            : null;
+    }
+
+    private int GetMappingListDropIndex(DragEventArgs e, Guid? movingItemId)
+    {
+        var sourceIndex = movingItemId is Guid itemId
+            ? ViewModel.Items.ToList().FindIndex(item => item.Id == itemId)
+            : -1;
+        var source = e.OriginalSource as DependencyObject;
+        var container = source is null
+            ? null
+            : ItemsControl.ContainerFromElement(FileList, source) as ListBoxItem;
+        if (container is null)
+        {
+            return ViewModel.Items.Count - (sourceIndex >= 0 ? 1 : 0);
+        }
+
+        var hoveredIndex = FileList.ItemContainerGenerator.IndexFromContainer(container);
+        var insertAfter = e.GetPosition(container).Y >= container.ActualHeight / 2;
+        return CalculateListInsertionIndex(
+            ViewModel.Items.Count,
+            sourceIndex,
+            hoveredIndex,
+            insertAfter);
+    }
+
+    internal static int CalculateListInsertionIndex(
+        int itemCount,
+        int sourceIndex,
+        int hoveredIndex,
+        bool insertAfter)
+    {
+        itemCount = Math.Max(0, itemCount);
+        var hasSource = sourceIndex >= 0 && sourceIndex < itemCount;
+        var boundary = Math.Clamp(hoveredIndex, 0, Math.Max(0, itemCount - 1))
+            + (insertAfter ? 1 : 0);
+        if (hasSource && sourceIndex < boundary)
+        {
+            boundary--;
+        }
+
+        var remainingCount = itemCount - (hasSource ? 1 : 0);
+        return Math.Clamp(boundary, 0, remainingCount);
+    }
+
+    private void ShowDropPreview(DragEventArgs e, DesktopBoxDragPayload? payload)
+    {
+        if (ViewModel.IsMappingListMode)
+        {
+            var movingItemId = payload?.SourceBoxId == ViewModel.BoxId
+                ? payload.ItemId
+                : (Guid?)null;
+            ViewModel.HideDragPreview();
+            ShowMappingListDropIndicator(e, movingItemId);
+            return;
+        }
+
+        HideMappingListDropIndicator();
+        if (ViewModel.IsDrawerCollapsed)
+        {
+            var coverMovingItemId = payload?.SourceBoxId == ViewModel.BoxId ? payload.ItemId : (Guid?)null;
+            ShowDrawerCoverDropPreview(coverMovingItemId);
+            return;
+        }
+
+        var slot = GetDropSlot(e, payload);
+        if (slot is null)
+        {
+            // 固定模式盒已满：不显示落点预览，DragOver 已给出禁止光标。
+            ViewModel.HideDragPreview();
+            return;
+        }
+
+        ViewModel.ShowDragPreview(slot.Value.Column, slot.Value.Row);
+    }
+
+    private void ShowMappingListDropIndicator(DragEventArgs e, Guid? movingItemId)
+    {
+        var insertionIndex = GetMappingListDropIndex(e, movingItemId);
+        var remainingItems = ViewModel.Items
+            .Where(item => movingItemId is null || item.Id != movingItemId.Value)
+            .ToList();
+
+        FrameworkElement? boundaryContainer = null;
+        var useContainerBottom = false;
+        if (remainingItems.Count > 0)
+        {
+            if (insertionIndex < remainingItems.Count)
+            {
+                boundaryContainer = FileList.ItemContainerGenerator.ContainerFromItem(
+                    remainingItems[insertionIndex]) as FrameworkElement;
+            }
+            else
+            {
+                boundaryContainer = FileList.ItemContainerGenerator.ContainerFromItem(
+                    remainingItems[^1]) as FrameworkElement;
+                useContainerBottom = true;
+            }
+        }
+
+        Point boundaryPoint;
+        if (boundaryContainer is not null)
+        {
+            boundaryPoint = boundaryContainer.TranslatePoint(
+                new Point(0, useContainerBottom ? boundaryContainer.ActualHeight : 0),
+                MappingListDropOverlay);
+        }
+        else
+        {
+            var source = e.OriginalSource as DependencyObject;
+            var hoveredContainer = source is null
+                ? null
+                : ItemsControl.ContainerFromElement(FileList, source) as FrameworkElement;
+            boundaryPoint = hoveredContainer is null
+                ? FileList.TranslatePoint(
+                    new Point(0, FileList.Padding.Top),
+                    MappingListDropOverlay)
+                : hoveredContainer.TranslatePoint(
+                    new Point(
+                        0,
+                        e.GetPosition(hoveredContainer).Y >= hoveredContainer.ActualHeight / 2
+                            ? hoveredContainer.ActualHeight
+                            : 0),
+                    MappingListDropOverlay);
+        }
+
+        var listOrigin = FileList.TranslatePoint(new Point(0, 0), MappingListDropOverlay);
+        var horizontalInset = Math.Max(6, FileList.Padding.Left);
+        Canvas.SetLeft(MappingListInsertionIndicator, listOrigin.X + horizontalInset);
+        Canvas.SetTop(MappingListInsertionIndicator, boundaryPoint.Y - 1);
+        MappingListInsertionIndicator.Width = Math.Max(
+            MappingListInsertionIndicator.MinWidth,
+            FileList.ActualWidth - horizontalInset - Math.Max(6, FileList.Padding.Right));
+        MappingListDropOverlay.Visibility = Visibility.Visible;
+    }
+
+    private void HideMappingListDropIndicator()
+    {
+        MappingListDropOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    private void ShowDrawerCoverDropPreview(Guid? movingItemId)
+    {
+        // Dropped items append after the last item (see GetDropSlot), so the preview
+        // frame marks the exact cover cell the item will occupy -- the same
+        // "frame == landing spot" contract the normal grid boxes have.
+        var insertIndex = ViewModel.Items.Count(item => movingItemId is null || item.Id != movingItemId.Value);
+        if (insertIndex >= ViewModel.DrawerCoverCapacity
+            || DrawerCoverItems.ActualWidth <= 0
+            || DrawerCoverItems.ActualHeight <= 0)
+        {
+            // The item lands in the overflow popup (or the cover is not measured yet):
+            // there is no cover cell to point at, keep just the box highlight.
+            ViewModel.HideDragPreview();
+            return;
+        }
+
+        var cellRect = CalculateCoverCellRect(
+            insertIndex,
+            ViewModel.DrawerCoverColumns,
+            ViewModel.DrawerCoverRows,
+            DrawerCoverItems.ActualWidth,
+            DrawerCoverItems.ActualHeight,
+            ViewModel.LayoutSettings.ItemSpacing);
+        var origin = DrawerCoverItems.TranslatePoint(
+            new Point(cellRect.Left, cellRect.Top),
+            DragPreviewCanvas);
+        ViewModel.ShowDragPreviewAt(origin.X, origin.Y, cellRect.Width, cellRect.Height);
+    }
+
+    internal static Rect CalculateCoverCellRect(
+        int cellIndex,
+        int columns,
+        int rows,
+        double surfaceWidth,
+        double surfaceHeight,
+        double inset)
+    {
+        var safeColumns = Math.Max(1, columns);
+        var safeRows = Math.Max(1, rows);
+        var cellWidth = surfaceWidth / safeColumns;
+        var cellHeight = surfaceHeight / safeRows;
+        var safeIndex = Math.Max(0, cellIndex);
+        var cellColumn = safeIndex % safeColumns;
+        var cellRow = safeIndex / safeColumns;
+        return new Rect(
+            (cellColumn * cellWidth) + inset,
+            (cellRow * cellHeight) + inset,
+            Math.Max(1, cellWidth - (inset * 2)),
+            Math.Max(1, cellHeight - (inset * 2)));
     }
 
     private void SelectItem(Guid itemId)
@@ -727,11 +2011,8 @@ public partial class DesktopBoxWindow : Window
 
     private void BeginIconDrag(MouseButtonEventArgs e, ListBox itemList)
     {
-        // Bring the box to the foreground so keyboard input (e.g. Delete) reaches this window.
-        Activate();
-        itemList.Focus();
-        Keyboard.Focus(itemList);
-        QueueSendToBottom();
+        // 不在按下时激活：盒子窗口带 WS_EX_NOACTIVATE，刻意让点选不抬升（防闪帧）。
+        // 键盘激活推迟到拖拽真正开始时（OnIconMouseMove 超过阈值后）。
         _dragStartPoint = e.GetPosition(itemList);
         _dragStartItem = null;
 
@@ -758,23 +2039,19 @@ public partial class DesktopBoxWindow : Window
     //   - dropped on the same box  -> rearrange
     //   - dropped on another box   -> move into that box
     //   - dropped outside the app  -> move out to the desktop
-    private async Task RunItemDragAsync(DrawerItemViewModel drawerItem, ListBox dragSourceList)
+    private async Task RunItemDragAsync(DrawerItemViewModel drawerItem, UIElement dragSource)
     {
         var payload = DesktopBoxDragPayload.Create(drawerItem.Id, ViewModel.BoxId);
         var data = new DataObject();
         data.SetData(InternalDrawerItemDragFormat, payload, autoConvert: false);
         var canExportPath = PathExists(drawerItem.PathLabel);
 
-        var endedByMouseDrop = false;
+        var dragWasCanceled = false;
         QueryContinueDragEventHandler queryContinueDrag = (_, args) =>
         {
-            // We only need to know whether the gesture ended by releasing the (left) mouse
-            // button rather than by Esc. Reading KeyStates is reliable regardless of the
-            // default handler's ordering.
-            if (!args.EscapePressed
-                && (args.KeyStates & DragDropKeyStates.LeftMouseButton) == 0)
+            if (args.EscapePressed)
             {
-                endedByMouseDrop = true;
+                dragWasCanceled = true;
             }
         };
 
@@ -798,14 +2075,28 @@ public partial class DesktopBoxWindow : Window
         };
 
         drawerItem.IsDragSource = true;
-        dragSourceList.QueryContinueDrag += queryContinueDrag;
-        dragSourceList.GiveFeedback += giveFeedback;
+        dragSource.QueryContinueDrag += queryContinueDrag;
+        dragSource.GiveFeedback += giveFeedback;
+
+        // The secondary drawer popup is StaysOpen="False", so the OLE drag's mouse capture
+        // would close it mid-drag and detach the drag source (killing GiveFeedback /
+        // QueryContinueDrag and the cursor override). Keep it open for the drag's duration.
+        var keepDrawerPopupOpen = DrawerSecondaryPopup.IsOpen
+            && dragSource is Visual dragVisual
+            && IsSameOrVisualDescendant(DrawerSecondaryPopupRoot, dragVisual);
+        if (keepDrawerPopupOpen)
+        {
+            DrawerSecondaryPopup.StaysOpen = true;
+        }
+
         try
         {
-            DragDrop.DoDragDrop(dragSourceList, data, DragDropEffects.Move);
+            DragDrop.DoDragDrop(dragSource, data, DragDropEffects.Move);
             var internalDropSucceeded = payload.WasDroppedInsideWitchDrawer
                 || ConsumeDroppedInsideWitchDrawer(payload);
-            var cursorOverApp = IsCursorOverWitchDrawerWindow();
+            var cursorOverWindow = IsCursorOverWitchDrawerWindow();
+            var cursorOverPopup = IsCursorOverOpenDrawerPopup();
+            var cursorOverApp = cursorOverWindow || cursorOverPopup;
 
             if (internalDropSucceeded)
             {
@@ -819,7 +2110,11 @@ public partial class DesktopBoxWindow : Window
                     _keyboardDeleteTarget = null;
                 }
             }
-            else if (endedByMouseDrop && canExportPath && !cursorOverApp)
+            else if (ShouldExportItemAfterDrag(
+                         dragWasCanceled,
+                         canExportPath,
+                         cursorOverApp,
+                         internalDropSucceeded))
             {
                 // Released outside every WitchDrawer window → move the file to the desktop.
                 var exported = await ViewModel.ExportItemToDesktopAsync(drawerItem);
@@ -832,8 +2127,12 @@ public partial class DesktopBoxWindow : Window
         }
         finally
         {
-            dragSourceList.QueryContinueDrag -= queryContinueDrag;
-            dragSourceList.GiveFeedback -= giveFeedback;
+            if (keepDrawerPopupOpen)
+            {
+                DrawerSecondaryPopup.StaysOpen = false;
+            }
+            dragSource.QueryContinueDrag -= queryContinueDrag;
+            dragSource.GiveFeedback -= giveFeedback;
             drawerItem.IsDragSource = false;
             ResetAllDragVisualStates();
             ResetDragCursor();
@@ -841,14 +2140,29 @@ public partial class DesktopBoxWindow : Window
             {
                 Mouse.Capture(null);
             }
-            dragSourceList.Focus();
+            dragSource.Focus();
             QueueSendToBottom();
         }
     }
 
+    internal static bool ShouldExportItemAfterDrag(
+        bool dragWasCanceled,
+        bool canExportPath,
+        bool cursorOverApp,
+        bool internalDropSucceeded)
+    {
+        return !dragWasCanceled
+            && canExportPath
+            && !cursorOverApp
+            && !internalDropSucceeded;
+    }
+
     private void ResetDragVisualState()
     {
+        // 立即复位（落放/拖拽结束/全局清理）：任何延迟复位都取消。
+        CancelPendingDragLeaveReset();
         ViewModel.HideDragPreview();
+        HideMappingListDropIndicator();
         ViewModel.IsDragOver = false;
     }
 
@@ -911,14 +2225,22 @@ public partial class DesktopBoxWindow : Window
                 : DragDropEffects.None;
     }
 
-    private static void MarkDroppedInsideWitchDrawer(DesktopBoxDragPayload payload)
+    internal static void MarkDroppedInsideWitchDrawer(DesktopBoxDragPayload payload)
     {
+        // 目标盒的 Drop 处理器在 DoDragDrop 返回前就会同步置位 WasDroppedInsideWitchDrawer，
+        // 源端靠该标志位即可识别内部落放；静态集合只是"同步标记缺失"时的兜底通道。
+        // 已有同步标记时再写入集合，条目永远不会被消费（源端 || 短路），残留 ItemId 会把
+        // 该项目之后的"拖出到桌面"误判成内部落放，导致首次拖出静默失效。
+        if (!payload.WasDroppedInsideWitchDrawer)
+        {
+            CompletedInternalDragIds.Add(payload.DragId);
+            CompletedInternalItemIds.Add(payload.ItemId);
+        }
+
         payload.WasDroppedInsideWitchDrawer = true;
-        CompletedInternalDragIds.Add(payload.DragId);
-        CompletedInternalItemIds.Add(payload.ItemId);
     }
 
-    private static bool ConsumeDroppedInsideWitchDrawer(DesktopBoxDragPayload payload)
+    internal static bool ConsumeDroppedInsideWitchDrawer(DesktopBoxDragPayload payload)
     {
         var matchedByDrag = CompletedInternalDragIds.Remove(payload.DragId);
         var matchedByItem = CompletedInternalItemIds.Remove(payload.ItemId);
@@ -949,6 +2271,176 @@ public partial class DesktopBoxWindow : Window
     [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
     private static extern bool GetCursorPos(out NativePoint lpPoint);
 
+    private static readonly nint WindowPositionTopmost = -1;
+    private const int WindowOwnerIndex = -8;
+    private const uint SetWindowPosNoSize = 0x0001;
+    private const uint SetWindowPosNoMove = 0x0002;
+    private const uint SetWindowPosNoZOrder = 0x0004;
+    private const uint SetWindowPosNoActivate = 0x0010;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool SetWindowPos(
+        nint hWnd,
+        nint hWndInsertAfter,
+        int x,
+        int y,
+        int cx,
+        int cy,
+        uint flags);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool GetWindowRect(nint hWnd, out NativeRect lpRect);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern nint SetWindowLongPtr(nint hWnd, int index, nint newValue);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool SetForegroundWindow(nint hWnd);
+
+    private const uint MonitorDefaultToNearest = 2;
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct NativeRect
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [System.Runtime.InteropServices.StructLayout(
+        System.Runtime.InteropServices.LayoutKind.Sequential,
+        CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private struct NativeMonitorInfo
+    {
+        public int Size;
+        public NativeRect Monitor;
+        public NativeRect WorkArea;
+        public uint Flags;
+        [System.Runtime.InteropServices.MarshalAs(
+            System.Runtime.InteropServices.UnmanagedType.ByValTStr, SizeConst = 32)]
+        public string DeviceName;
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern nint MonitorFromWindow(nint hwnd, uint dwFlags);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern nint MonitorFromPoint(NativePoint point, uint dwFlags);
+
+    // 必须显式指定 CharSet.Unicode：默认 CharSet.None 会绑定 ANSI 版 GetMonitorInfoA，
+    // 而 NativeMonitorInfo 按 Unicode 布局（ByValTStr SizeConst=32，cbSize=104），
+    // GetMonitorInfoA 只接受 40/72 字节的 cbSize，会静默返回 false，导致召回屏幕中心被跳过。
+    [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool GetMonitorInfo(nint hMonitor, ref NativeMonitorInfo lpmi);
+
+    /// <summary>
+    /// Gets the current monitor work area in virtual-desktop physical pixels.
+    /// This coordinate space remains stable across monitor DPI boundaries.
+    /// </summary>
+    internal Rect GetWorkAreaPixels()
+    {
+        var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        if (handle == nint.Zero)
+        {
+            return Rect.Empty;
+        }
+
+        var monitor = MonitorFromWindow(handle, MonitorDefaultToNearest);
+        if (monitor == nint.Zero)
+        {
+            return Rect.Empty;
+        }
+
+        var info = new NativeMonitorInfo
+        {
+            Size = System.Runtime.InteropServices.Marshal.SizeOf<NativeMonitorInfo>()
+        };
+        if (!GetMonitorInfo(monitor, ref info))
+        {
+            return Rect.Empty;
+        }
+
+        return new Rect(
+            info.WorkArea.Left,
+            info.WorkArea.Top,
+            info.WorkArea.Right - info.WorkArea.Left,
+            info.WorkArea.Bottom - info.WorkArea.Top);
+    }
+
+    internal static Rect GetPrimaryWorkAreaPixels()
+    {
+        // The primary monitor owns virtual-desktop origin (0,0).
+        var monitor = MonitorFromPoint(new NativePoint(), MonitorDefaultToNearest);
+        if (monitor == nint.Zero)
+        {
+            return Rect.Empty;
+        }
+
+        var info = new NativeMonitorInfo
+        {
+            Size = System.Runtime.InteropServices.Marshal.SizeOf<NativeMonitorInfo>()
+        };
+        if (!GetMonitorInfo(monitor, ref info))
+        {
+            return Rect.Empty;
+        }
+
+        return new Rect(
+            info.WorkArea.Left,
+            info.WorkArea.Top,
+            info.WorkArea.Right - info.WorkArea.Left,
+            info.WorkArea.Bottom - info.WorkArea.Top);
+    }
+
+    private static int ToNativeCoordinate(double value) =>
+        checked((int)Math.Round(value, MidpointRounding.AwayFromZero));
+
+    private bool IsCursorOverOpenDrawerPopup()
+    {
+        // Popups are not part of Application.Current.Windows, so the window hit-test above
+        // misses releases over the secondary drawer popup. Treat those as inside the app;
+        // otherwise a short drag ending on the popup would wrongly move the item to the desktop.
+        if (!DrawerSecondaryPopup.IsOpen
+            || !DrawerSecondaryPopupRoot.IsVisible
+            || !GetCursorPos(out var cursor))
+        {
+            return false;
+        }
+
+        try
+        {
+            var topLeft = DrawerSecondaryPopupRoot.PointToScreen(new Point(0, 0));
+            var bottomRight = DrawerSecondaryPopupRoot.PointToScreen(
+                new Point(DrawerSecondaryPopupRoot.ActualWidth, DrawerSecondaryPopupRoot.ActualHeight));
+            return IsScreenPointInside(cursor.X, cursor.Y, topLeft, bottomRight);
+        }
+        catch (InvalidOperationException)
+        {
+            // Popup content has no presentation source yet; skip it.
+            return false;
+        }
+    }
+
+    internal static bool IsScreenPointInside(int x, int y, Point topLeft, Point bottomRight)
+    {
+        return x >= topLeft.X
+            && x <= bottomRight.X
+            && y >= topLeft.Y
+            && y <= bottomRight.Y;
+    }
+
+    internal static bool IsSameOrVisualDescendant(Visual root, Visual candidate)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+        ArgumentNullException.ThrowIfNull(candidate);
+        return ReferenceEquals(root, candidate) || root.IsAncestorOf(candidate);
+    }
+
     private static bool IsCursorOverWitchDrawerWindow()
     {
         // Mouse.GetPosition is stale right after DoDragDrop; use the real cursor screen
@@ -969,10 +2461,7 @@ public partial class DesktopBoxWindow : Window
             {
                 var topLeft = window.PointToScreen(new Point(0, 0));
                 var bottomRight = window.PointToScreen(new Point(window.ActualWidth, window.ActualHeight));
-                if (cursor.X >= topLeft.X
-                    && cursor.X <= bottomRight.X
-                    && cursor.Y >= topLeft.Y
-                    && cursor.Y <= bottomRight.Y)
+                if (IsScreenPointInside(cursor.X, cursor.Y, topLeft, bottomRight))
                 {
                     return true;
                 }
@@ -988,10 +2477,53 @@ public partial class DesktopBoxWindow : Window
 
     private async void OnItemsMouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
+        if (!DesktopItemInputRules.ShouldOpenOnDoubleClick(e.ChangedButton))
+        {
+            return;
+        }
+
         if (TryGetDrawerItem(e.OriginalSource, out var drawerItem))
         {
             await ViewModel.OpenItemCommand.ExecuteAsync(drawerItem);
         }
+    }
+
+    private void OnIconPreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!TryGetDrawerItem(e.OriginalSource, out var item))
+        {
+            return;
+        }
+
+        e.Handled = true;
+        SelectItem(item.Id);
+        ClearPendingIconDrag();
+        _ = _itemContextMenu.ShowAsync(item);
+    }
+
+    private void OnDrawerCoverIconMouseRightButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not Button { DataContext: DrawerCoverTileViewModel { Item: not null } tile })
+        {
+            return;
+        }
+
+        e.Handled = true;
+        SelectCoverTile(tile);
+        ClearPendingIconDrag();
+        _ = _itemContextMenu.ShowAsync(tile.Item);
+    }
+
+    private void OnDrawerSecondaryIconMouseRightButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not Button { DataContext: DrawerItemViewModel item })
+        {
+            return;
+        }
+
+        e.Handled = true;
+        ClearPendingIconDrag();
+        _ = _itemContextMenu.ShowAsync(item);
     }
 
     private bool TryGetDrawerItem(object? source, out DrawerItemViewModel drawerItem)

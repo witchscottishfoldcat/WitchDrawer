@@ -10,6 +10,7 @@ using WitchDrawer.Core;
 using WitchDrawer.Core.Abstractions;
 using WitchDrawer.Core.Logging;
 using WitchDrawer.Core.Services;
+using WitchDrawer.Core.Storage;
 using WitchDrawer.Native.Files;
 using WitchDrawer.Native.Shell;
 using WitchDrawer.Native.Windows;
@@ -28,13 +29,40 @@ public partial class App : Application
     private TaskbarIcon? _taskbarIcon;
     private MainWindow? _mainWindow;
     private DesktopBoxManager? _desktopBoxManager;
-    private RustDrawerService? _rustDrawerService;
+    private IAppLogger? _logger;
+    private int _shutdownStarted;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
+        if (ProcessElevation.RequiresUnelevatedRelaunch())
+        {
+            var executablePath = Environment.ProcessPath;
+            var nativeErrorCode = 0;
+            if (!string.IsNullOrWhiteSpace(executablePath)
+                && ProcessElevation.TryRelaunchCurrentProcessUnelevated(
+                    executablePath,
+                    e.Args,
+                    AppContext.BaseDirectory,
+                    out nativeErrorCode))
+            {
+                Shutdown(0);
+                return;
+            }
+
+            MessageBox.Show(
+                $"WitchDrawer 当前以管理员身份运行，Windows 会阻止桌面文件拖入盒子。\n\n"
+                + $"自动切换到普通权限失败（错误码 {nativeErrorCode}）。请退出后直接双击启动，不要选择“以管理员身份运行”。",
+                "WitchDrawer 无法接收桌面拖放",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            Shutdown(-1);
+            return;
+        }
+
         var silentStart = StartupLaunchPolicy.IsSilent(e.Args);
 
         _singleInstanceMutex = new Mutex(true, SingleInstanceMutexName, out var isFirstInstance);
@@ -55,6 +83,7 @@ public partial class App : Application
             var paths = AppPaths.ForCurrentUser();
 
             var logger = new FileAppLogger(paths.LogsDirectory);
+            _logger = logger;
             var shortcutMigration = await Task.Run(() =>
                 StartupShortcutMigration.EnsureSilentArguments(
                     Environment.ProcessPath,
@@ -71,7 +100,6 @@ public partial class App : Application
             }
 
             var drawerService = new RustDrawerService(paths.RootDirectory);
-            _rustDrawerService = drawerService;
             var launcher = new ShellFileLauncher();
             var todoService = new RustTodoService(drawerService);
             var updateService = new RustUpdateService(drawerService, logger);
@@ -80,6 +108,12 @@ public partial class App : Application
             var boxVisualStyleStore = new BoxVisualStyleStore(drawerService, logger);
             var boxPositionLockStateStore =
                 new BoxPositionLockStateStore(drawerService, logger);
+            var storageLocationStore = StorageLocationStore.ForCurrentUser();
+            var dataStorageMigrationService =
+                new DataStorageMigrationService(
+                    paths,
+                    ct => drawerService.CheckpointAsync(ct),
+                    storageLocationStore);
 
             logger.Info("Data directory: " + paths.RootDirectory);
             logger.Info("Database path: " + paths.DatabasePath);
@@ -103,38 +137,102 @@ public partial class App : Application
                 quickPanelViewModel,
                 updateService,
                 boxVisualStyleStore,
-                boxPositionLockStateStore);
+                boxPositionLockStateStore,
+                paths,
+                dataStorageMigrationService);
             _desktopBoxManager = new DesktopBoxManager(
                 drawerService,
                 todoService,
                 launcher,
                 logger,
                 boxVisualStyleStore,
-                boxPositionLockStateStore);
+                boxPositionLockStateStore,
+                () => mainViewModel.IsDesktopDoubleClickEnabled);
             _mainWindow = new MainWindow(
                 mainViewModel,
                 quickPanel,
                 logger,
                 quickPanelHotKeySettings,
                 quickPanelHotKey);
+            _desktopBoxManager.ShowDesktopActivated += (_, _) =>
+                _mainWindow.SendBehindDesktop();
             StartSingleInstanceServer(logger);
 
-            mainViewModel.BoxesChanged += async (_, _) => await _desktopBoxManager.RefreshAsync();
-            mainViewModel.ItemsChanged += async (_, _) =>
+            // 这些事件处理器是 async void：刷新期间的异常（如 SQLite 写入失败）会直接逃出
+            // 成为进程级未处理异常，必须就地捕获记录。
+            mainViewModel.BoxesChanged += async (_, _) =>
+                await GuardRefreshAsync(() => _desktopBoxManager.RefreshAsync(), "RefreshAsync", logger);
+            mainViewModel.ItemsChanged += async (_, eventArgs) =>
+                await GuardRefreshAsync(() => _desktopBoxManager.RefreshItemsAsync(eventArgs.BoxId), "RefreshItemsAsync", logger);
+            _desktopBoxManager.ItemsChanged += async (_, eventArgs) =>
+                await GuardRefreshAsync(
+                    () => mainViewModel.ReloadItemsFromDesktopAsync(eventArgs.BoxId),
+                    "ReloadItemsFromDesktopAsync",
+                    logger);
+            _desktopBoxManager.DesktopBackgroundDoubleClicked += (_, _) =>
             {
-                await quickPanelViewModel.LoadAsync();
-                await _desktopBoxManager.RefreshItemsAsync();
-            };
-            _desktopBoxManager.ItemsChanged += async (_, _) =>
-            {
-                // Desktop boxes already mutated their own UI; only sync main/quick panel.
-                await mainViewModel.ReloadItemsFromDesktopAsync();
+                if (mainViewModel.ToggleDesktopIconsCommand.CanExecute(null))
+                {
+                    mainViewModel.ToggleDesktopIconsCommand.Execute(null);
+                }
             };
             _mainWindow.ReopenBoxRequested += async (_, boxId) => await _desktopBoxManager.ShowAsync(boxId);
+            _mainWindow.RecordLayoutBackupRequested += async (_, slot) =>
+                await GuardRefreshAsync(
+                    async () =>
+                    {
+                        var count = await _desktopBoxManager.RecordLayoutBackupAsync(slot);
+                        _mainWindow.SetLayoutBackupSlotState(slot, hasBackup: true);
+                        mainViewModel.ReportStatus($"已将 {count} 个盒子记录到布局备份槽位 {slot}");
+                    },
+                    "RecordLayoutBackupAsync",
+                    logger);
+            _mainWindow.RestoreLayoutBackupRequested += async (_, slot) =>
+                await GuardRefreshAsync(
+                    async () =>
+                    {
+                        var result = await _desktopBoxManager.RestoreLayoutBackupAsync(slot);
+                        if (!result.BackupFound)
+                        {
+                            _mainWindow.SetLayoutBackupSlotState(slot, hasBackup: false);
+                            mainViewModel.ReportStatus($"布局备份槽位 {slot} 为空或不可用");
+                            return;
+                        }
+
+                        var missingText = result.MissingCount > 0
+                            ? $"，另有 {result.MissingCount} 个已删除盒子被跳过"
+                            : string.Empty;
+                        mainViewModel.ReportStatus(
+                            $"已从布局备份槽位 {slot} 恢复 {result.RestoredCount} 个盒子{missingText}");
+                    },
+                    "RestoreLayoutBackupAsync",
+                    logger);
+            _mainWindow.DeleteLayoutBackupRequested += async (_, slot) =>
+                await GuardRefreshAsync(
+                    async () =>
+                    {
+                        var deleted = await _desktopBoxManager.DeleteLayoutBackupAsync(slot);
+                        _mainWindow.SetLayoutBackupSlotState(slot, hasBackup: false);
+                        mainViewModel.ReportStatus(
+                            deleted
+                                ? $"已删除布局备份槽位 {slot}"
+                                : $"布局备份槽位 {slot} 已经为空");
+                    },
+                    "DeleteLayoutBackupAsync",
+                    logger);
+            _mainWindow.RecallBoxToScreenCenterRequested += async (_, boxId) =>
+                await GuardRefreshAsync(
+                    async () =>
+                    {
+                        if (await _desktopBoxManager.CenterBoxOnScreenAsync(boxId))
+                        {
+                            mainViewModel.ReportStatus("已将盒子召回主屏中心");
+                        }
+                    },
+                    "CenterBoxOnScreenAsync",
+                    logger);
             _mainWindow.DesktopShellRestarted += async (_, _) =>
                 await _desktopBoxManager.RecoverDesktopHostsAsync();
-            _mainWindow.Closed += async (_, _) => await _desktopBoxManager.CloseAllAsync();
-
             mainViewModel.UpdateRequested += async (_, result) =>
             {
                 var versionText = $"v{result.LatestVersion.Major}.{result.LatestVersion.Minor}.{result.LatestVersion.Build}";
@@ -150,10 +248,18 @@ public partial class App : Application
                 }
             };
 
-            mainViewModel.UpdateConfirmed += (_, _) =>
+            mainViewModel.UpdateConfirmed += async (_, _) =>
             {
-                PerformShutdown();
+                await PerformShutdownAsync();
             };
+
+            var layoutBackupStates = await Task.WhenAll(
+                Enumerable.Range(1, 3).Select(async slot =>
+                    (Slot: slot, HasBackup: await _desktopBoxManager.HasLayoutBackupAsync(slot))));
+            foreach (var state in layoutBackupStates)
+            {
+                _mainWindow.SetLayoutBackupSlotState(state.Slot, state.HasBackup);
+            }
 
             InitializeTaskbarIcon(paths, logger);
 
@@ -169,7 +275,7 @@ public partial class App : Application
             await mainViewModel.LoadAsync();
             await quickPanelViewModel.LoadAsync();
             await _desktopBoxManager.RefreshAsync();
-            logger.Info("Application startup complete.");
+            await updateService.ConfirmUpdateStartupAsync();
         }
         catch (Exception exception)
         {
@@ -206,6 +312,18 @@ public partial class App : Application
         return Enum.TryParse<AppTheme>(savedTheme, ignoreCase: true, out var theme)
             ? theme
             : AppTheme.Moe;
+    }
+
+    private static async Task GuardRefreshAsync(Func<Task> refresh, string operationName, IAppLogger logger)
+    {
+        try
+        {
+            await refresh();
+        }
+        catch (Exception exception)
+        {
+            logger.Error(exception, $"Desktop box refresh failed during {operationName}.");
+        }
     }
 
     private void StartSingleInstanceServer(IAppLogger logger)
@@ -320,14 +438,15 @@ public partial class App : Application
             var menu = CreatePopupMenu();
             var showOrHideText = _mainWindow.IsVisible ? "隐藏主窗口" : "显示主窗口";
             AppendMenuW(menu, 0, 1, showOrHideText);
-            AppendMenuW(menu, 0, 2, "退出 WitchDrawer");
+            AppendMenuW(menu, 0, 2, "显示全部收纳盒");
+            AppendMenuW(menu, 0, 3, "退出 WitchDrawer");
 
             var pt = GetCursorPosition();
             _taskbarIcon.ShowContextMenu(menu, pt.X, pt.Y);
             DestroyMenu(menu);
         };
 
-        _taskbarIcon.MenuCommand += (_, e) =>
+        _taskbarIcon.MenuCommand += async (_, e) =>
         {
             switch (e.CommandId)
             {
@@ -347,7 +466,16 @@ public partial class App : Application
                     }
                     break;
                 case 2:
-                    PerformShutdown();
+                    if (_desktopBoxManager is not null)
+                    {
+                        await GuardRefreshAsync(
+                            () => _desktopBoxManager.ShowAllAsync(),
+                            "ShowAllAsync",
+                            logger);
+                    }
+                    break;
+                case 3:
+                    await PerformShutdownAsync();
                     break;
             }
         };
@@ -355,18 +483,80 @@ public partial class App : Application
         _taskbarIcon.Show();
     }
 
-    private void PerformShutdown()
+    private async Task PerformShutdownAsync()
     {
+        if (Interlocked.Exchange(ref _shutdownStarted, 1) != 0)
+        {
+            return;
+        }
+
         _taskbarIcon?.Dispose();
         _taskbarIcon = null;
-        _desktopBoxManager?.CloseAllAsync().GetAwaiter().GetResult();
+
+        var desktopBoxManager = _desktopBoxManager;
+        _desktopBoxManager = null;
+        if (desktopBoxManager is not null)
+        {
+            try
+            {
+                // Keep the dispatcher free while positions are saved and desktop windows close.
+                // A synchronous wait here deadlocks because CloseAllAsync resumes on the UI thread.
+                await desktopBoxManager.CloseAllAsync().WaitAsync(TimeSpan.FromSeconds(10));
+            }
+            catch (TimeoutException exception)
+            {
+                _logger?.Error(exception, "Timed out while closing desktop boxes during shutdown.");
+            }
+            catch (Exception exception)
+            {
+                // Shutdown must remain available even if position persistence or native cleanup fails.
+                _logger?.Error(exception, "Failed to close desktop boxes during shutdown.");
+            }
+        }
 
         if (_mainWindow is not null)
         {
             _mainWindow.ForceClose();
+            _mainWindow = null;
         }
 
         Shutdown(0);
+    }
+
+    /// <summary>
+    /// 数据目录迁移后的重启：先布置一个分离的"等待当前进程退出再启动"的辅助进程，
+    /// 再走完整关闭流程。直接启动新进程会被单实例检测吸收（新实例信号旧实例后自行退出），
+    /// 导致重启落空；绕过 PerformShutdownAsync 又可能丢掉位置保存等收尾工作。
+    /// </summary>
+    internal async Task RestartApplicationAsync()
+    {
+        try
+        {
+            var processPath = Environment.ProcessPath;
+            if (!string.IsNullOrWhiteSpace(processPath))
+            {
+                var arguments =
+                    "-NoProfile -WindowStyle Hidden -Command \""
+                    + $"while (Get-Process -Id {Environment.ProcessId} -ErrorAction SilentlyContinue) "
+                    + "{ Start-Sleep -Milliseconds 300 }; "
+                    + $"Start-Process -FilePath '{processPath}' -WorkingDirectory '{AppContext.BaseDirectory}'\"";
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "powershell.exe",
+                    Arguments = arguments,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden
+                });
+            }
+        }
+        catch (Exception exception)
+        {
+            // 重启安排失败不阻塞关闭：用户可手动启动。
+            _logger?.Error(exception, "Failed to schedule application restart after migration.");
+        }
+
+        await PerformShutdownAsync();
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -374,7 +564,6 @@ public partial class App : Application
         _singleInstancePipeCts?.Cancel();
         _singleInstancePipeCts?.Dispose();
         _taskbarIcon?.Dispose();
-        _rustDrawerService?.Dispose();
         _singleInstanceMutex?.Dispose();
         base.OnExit(e);
     }

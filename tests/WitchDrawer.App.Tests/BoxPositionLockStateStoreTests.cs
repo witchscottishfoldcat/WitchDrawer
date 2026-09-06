@@ -94,7 +94,7 @@ public sealed class BoxPositionLockStateStoreTests
 
             if (Directory.Exists(Root))
             {
-                Directory.Delete(Root, recursive: true);
+                TestCleanup.DeleteDirectory(Root);
             }
 
             return ValueTask.CompletedTask;

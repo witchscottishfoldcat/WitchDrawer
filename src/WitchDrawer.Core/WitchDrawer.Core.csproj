@@ -16,6 +16,10 @@
              CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="WitchDrawer.Core.Tests" />
+  </ItemGroup>
+
   <Target Name="BuildRustCore" BeforeTargets="PrepareForBuild" Condition="'$(SkipRustBuild)' != 'true'">
     <Exec Command="cargo build --release --manifest-path=&quot;$(RustManifestPath)&quot;" />
   </Target>

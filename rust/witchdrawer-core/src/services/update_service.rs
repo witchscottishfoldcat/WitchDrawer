@@ -18,6 +18,29 @@ const GITHUB_RELEASE_PAGE: &str =
     "https://github.com/witchscottishfoldcat/WitchDrawer/releases/latest";
 const VERSION_TAG_PREFIX: &str = "v";
 
+const UPDATE_ROOT_FOLDER_NAME: &str = "WitchDrawerUpdate";
+const STARTUP_SUCCESS_MARKER_FILE_NAME: &str = "startup-succeeded.marker";
+const STARTUP_SUCCESS_MARKER_ENV: &str = "WITCHDRAWER_STARTUP_SUCCESS_MARKER";
+
+/// Check whether `s` is a 32-char hex GUID in the N-format (no dashes).
+fn is_n_guid(s: &str) -> bool {
+    s.len() == 32 && s.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+/// Compare two paths for equality, ignoring trailing separators and case
+/// (Windows). Mirrors the C# `Path.GetFullPath(...)` + `OrdinalIgnoreCase`
+/// comparison used by `TryResolveStartupSuccessMarkerPath`.
+fn paths_same(a: &Path, b: &Path) -> bool {
+    fn norm(p: &Path) -> String {
+        let mut s = p.to_string_lossy().replace('/', "\\");
+        while s.ends_with('\\') {
+            s.pop();
+        }
+        s
+    }
+    norm(a).eq_ignore_ascii_case(&norm(b))
+}
+
 // ---------------------------------------------------------------------------
 // GitHub API response types
 // ---------------------------------------------------------------------------
@@ -378,6 +401,60 @@ impl UpdateService {
         removed_count
     }
 
+    /// Confirm that the application started successfully after a self-update.
+    /// Writes the startup-success marker to the path supplied via the
+    /// `WITCHDRAWER_STARTUP_SUCCESS_MARKER` environment variable (set by the
+    /// updater). The path is validated to be inside the temp update session
+    /// directory before writing. Mirrors the C# `ConfirmUpdateStartupAsync`.
+    pub fn confirm_update_startup(&self) -> AppResult<bool> {
+        let marker_path = match std::env::var(STARTUP_SUCCESS_MARKER_ENV) {
+            Ok(p) if !p.trim().is_empty() => p,
+            _ => return Ok(false),
+        };
+
+        let full = match std::path::absolute(Path::new(&marker_path)) {
+            Ok(p) => p,
+            Err(e) => {
+                return Err(AppError::io_error(format!(
+                    "invalid startup marker path: {}",
+                    e
+                )))
+            }
+        };
+
+        // The marker file must be named `startup-succeeded.marker`.
+        let file_name = full.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        if !file_name.eq_ignore_ascii_case(STARTUP_SUCCESS_MARKER_FILE_NAME) {
+            return Ok(false);
+        }
+
+        // Its parent directory must be `<temp>/WitchDrawerUpdate/<uuid-N>`.
+        let session_dir = match full.parent() {
+            Some(d) => d,
+            None => return Ok(false),
+        };
+        let session_name = session_dir
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("");
+        if !is_n_guid(session_name) || !session_dir.exists() {
+            return Ok(false);
+        }
+        let expected_parent = std::env::temp_dir().join(UPDATE_ROOT_FOLDER_NAME);
+        if !session_dir
+            .parent()
+            .map(|p| paths_same(p, &expected_parent))
+            .unwrap_or(false)
+        {
+            return Ok(false);
+        }
+
+        let timestamp = chrono::Utc::now().to_rfc3339();
+        fs::write(&full, timestamp)
+            .map_err(|e| AppError::io_error(format!("failed to write startup marker: {}", e)))?;
+        Ok(true)
+    }
+
     // =======================================================================
     // Internal helpers
     // =======================================================================
@@ -631,6 +708,7 @@ pub(crate) fn create_updater_start_info(
     let mut command = std::process::Command::new("cmd.exe");
     command
         .args(["/d", "/s", "/c", &format!("\"{}\"", updater_path.display())])
+        .current_dir(updater_path.parent().unwrap_or_else(|| Path::new(".")))
         .env("WITCHDRAWER_UPDATE_ROOT", temp_root)
         .env("WITCHDRAWER_PAYLOAD", payload_directory)
         .env("WITCHDRAWER_APP_DIR", app_directory)
@@ -798,6 +876,72 @@ mod tests {
         let input = "line1\r\nline2\r\nline3";
         let result = UpdateService::truncate_release_notes(input, 500);
         assert_eq!(result, "line1\nline2\nline3");
+    }
+
+    #[test]
+    fn updater_start_info_runs_hidden_cmd_from_script_directory_with_env_paths() {
+        let temp_root = std::env::temp_dir()
+            .join("WitchDrawer StartInfo Tests")
+            .join(uuid::Uuid::new_v4().simple().to_string());
+        let payload_directory = temp_root.join("payload");
+        let app_directory = Path::new(r"D:\应用\WitchDrawer");
+        let updater_path = temp_root.join("updater.bat");
+        let app_executable_path = app_directory.join("WitchDrawer.App.exe");
+        let log_path = Path::new(r"C:\Users\Test\AppData\Local\WitchDrawer\Logs\updater.log");
+
+        let start_info = create_updater_start_info(
+            &updater_path,
+            &temp_root,
+            &payload_directory,
+            app_directory,
+            &app_executable_path,
+            "WitchDrawer.App.exe",
+            log_path,
+        );
+
+        // cmd.exe + /d /s /c ""updater.bat"" (same shape as C# Arguments).
+        let args: Vec<String> = start_info
+            .get_args()
+            .map(|s| s.to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(
+            args,
+            vec![
+                "/d".to_string(),
+                "/s".to_string(),
+                "/c".to_string(),
+                format!("\"{}\"", updater_path.display())
+            ]
+        );
+
+        // WorkingDirectory = script's directory.
+        let expected_dir = updater_path.parent().unwrap();
+        assert_eq!(start_info.get_current_dir(), Some(expected_dir));
+
+        // All paths travel through environment variables, nothing hard-coded.
+        let envs: std::collections::HashMap<String, String> = start_info
+            .get_envs()
+            .filter_map(|(key, value)| match (key.to_str(), value) {
+                (Some(key_str), Some(value_os)) => value_os
+                    .to_str()
+                    .map(|value_str| (key_str.to_string(), value_str.to_string())),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(envs["WITCHDRAWER_UPDATE_ROOT"], temp_root.to_string_lossy());
+        assert_eq!(
+            envs["WITCHDRAWER_PAYLOAD"],
+            payload_directory.to_string_lossy()
+        );
+        assert_eq!(envs["WITCHDRAWER_APP_DIR"], app_directory.to_string_lossy());
+        assert_eq!(
+            envs["WITCHDRAWER_APP_EXE"],
+            app_executable_path.to_string_lossy()
+        );
+        assert_eq!(envs["WITCHDRAWER_EXE_NAME"], "WitchDrawer.App.exe");
+        assert_eq!(envs["WITCHDRAWER_UPDATE_LOG"], log_path.to_string_lossy());
+
+        let _ = std::fs::remove_dir_all(&temp_root);
     }
 
     #[test]

@@ -6,6 +6,14 @@ namespace WitchDrawer.App.ViewModels;
 public sealed partial class DesktopBoxLayoutSettings : ObservableObject
 {
     public const string DefaultPreset = "6x6";
+    public const string DefaultDrawerPreset = "4x4";
+    public const double DrawerSurfaceInset = 10;
+
+    /// <summary>
+    /// 图标项容器（DesktopBoxWindow.xaml 中 ListBoxItem 的 Root Border）的描边厚度。
+    /// 图标框内容区不变式依赖该值，修改 XAML 描边厚度时必须同步。
+    /// </summary>
+    public const double ItemBorderThickness = 1.2;
 
     private double _iconSize = 20;
     private double _iconFrameSize = 30;
@@ -16,10 +24,12 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
     private double _iconFontSize = 9;
     private TextWrapping _iconTextWrapping = TextWrapping.NoWrap;
     private double _iconTextMaxHeight = 14;
+    private bool _isFileNameVisible;
     private CornerRadius _itemCornerRadius = new CornerRadius(8);
     private CornerRadius _iconCornerRadius = new CornerRadius(6);
     private int _columns = 5;
     private string _currentPreset = DefaultPreset;
+    private readonly bool _isDrawerMode;
     private Func<string, Task>? _presetChangedCallback;
 
     public double IconSize
@@ -49,13 +59,26 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
     public double ItemSlotWidth
     {
         get => _itemSlotWidth;
-        set => SetProperty(ref _itemSlotWidth, value);
+        set
+        {
+            if (SetProperty(ref _itemSlotWidth, value))
+            {
+                OnPropertyChanged(nameof(DrawerCoverCellWidth));
+                OnPropertyChanged(nameof(DrawerCoverCellSize));
+            }
+        }
     }
 
     public double ItemSlotHeight
     {
-        get => _itemSlotHeight;
-        set => SetProperty(ref _itemSlotHeight, value);
+        get => _itemSlotHeight + (IsFileNameVisible ? IconTextMaxHeight : 0);
+        set
+        {
+            if (SetProperty(ref _itemSlotHeight, value))
+            {
+                OnPropertyChanged(nameof(DrawerCoverCellHeight));
+            }
+        }
     }
 
     public Thickness ItemPadding
@@ -79,7 +102,27 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
     public double IconTextMaxHeight
     {
         get => _iconTextMaxHeight;
-        set => SetProperty(ref _iconTextMaxHeight, value);
+        set
+        {
+            if (SetProperty(ref _iconTextMaxHeight, value) && IsFileNameVisible)
+            {
+                OnPropertyChanged(nameof(ItemSlotHeight));
+                OnPropertyChanged(nameof(DrawerCoverCellHeight));
+            }
+        }
+    }
+
+    public bool IsFileNameVisible
+    {
+        get => _isFileNameVisible;
+        set
+        {
+            if (SetProperty(ref _isFileNameVisible, value))
+            {
+                OnPropertyChanged(nameof(ItemSlotHeight));
+                OnPropertyChanged(nameof(DrawerCoverCellHeight));
+            }
+        }
     }
 
     public CornerRadius ItemCornerRadius
@@ -106,6 +149,8 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
 
     public string CurrentPreset => _currentPreset;
 
+    public bool IsDrawerMode => _isDrawerMode;
+
     public string CurrentSizeLabel => _currentPreset switch
     {
         "3x3" => "超",
@@ -123,6 +168,51 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
     public bool IsSmallPreset => _currentPreset == DefaultPreset;
 
     public bool IsCompactPreset => _currentPreset == "6x6";
+
+    public double DrawerCoverCellWidth => ItemSlotWidth;
+
+    public double DrawerCoverCellHeight => ItemSlotHeight;
+
+    public double DrawerCoverCellSize => DrawerCoverCellWidth;
+
+    public double DrawerPrimaryIconFrameSize => IconFrameSize;
+
+    public double DrawerPrimaryIconSize => IconSize;
+
+    public double DrawerPreviewIconFrameSize => _currentPreset switch
+    {
+        "3x3" => 26,
+        "4x4" => 19,
+        "5x5" => 15,
+        _ => 12
+    };
+
+    public double DrawerPreviewIconSize => _currentPreset switch
+    {
+        "3x3" => 22,
+        "4x4" => 16,
+        "5x5" => 12,
+        _ => 10
+    };
+
+    public double DrawerPreviewGap => _currentPreset switch
+    {
+        "3x3" => 1,
+        "4x4" => 1,
+        "5x5" => 0.75,
+        _ => 0.5
+    };
+
+    public double DrawerSurfacePadding => DrawerSurfaceInset;
+
+    /// <summary>
+    /// 固定模式视口的精确 chrome 尺寸，与 DesktopBoxWindow.xaml 中 IconList 的
+    /// Padding (2px × 2) 加 ListBox Border (1px × 2) 一一对应：改动 XAML 中任一数值时
+    /// 必须同步更新此处，否则固定模式最右/最下列图标会被裁掉（与自适应模式失配）。
+    /// </summary>
+    public const double GridViewportFixedChromeInset = 6;
+
+    public Thickness DrawerHoverMargin => ItemMargin;
 
     // Mapping list mode uses the small preset as its visual baseline. Each larger
     // step grows by 15% so switching sizes does not make the horizontal box jump.
@@ -200,8 +290,10 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
 
     public Thickness MappingListWindowMargin => new(Math.Round(4 * MappingListScale, 1));
 
-    public DesktopBoxLayoutSettings()
+    public DesktopBoxLayoutSettings(bool isDrawerMode = false)
     {
+        _isDrawerMode = isDrawerMode;
+        _currentPreset = isDrawerMode ? DefaultDrawerPreset : DefaultPreset;
         UpdateDimensions();
     }
 
@@ -231,13 +323,14 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
 
     private bool ApplyPresetCore(string? preset)
     {
-        if (preset is not ("3x3" or "4x4" or "5x5" or "6x6")
+        var isValidPreset = preset is "3x3" or "4x4" or "5x5" or "6x6";
+        if (!isValidPreset
             || string.Equals(_currentPreset, preset, StringComparison.Ordinal))
         {
             return false;
         }
 
-        _currentPreset = preset;
+        _currentPreset = preset!;
         UpdateDimensions();
         OnPropertyChanged(nameof(CurrentPreset));
         OnPropertyChanged(nameof(CurrentSizeLabel));
@@ -246,6 +339,16 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
         OnPropertyChanged(nameof(IsMediumPreset));
         OnPropertyChanged(nameof(IsSmallPreset));
         OnPropertyChanged(nameof(IsCompactPreset));
+        OnPropertyChanged(nameof(DrawerCoverCellWidth));
+        OnPropertyChanged(nameof(DrawerCoverCellHeight));
+        OnPropertyChanged(nameof(DrawerCoverCellSize));
+        OnPropertyChanged(nameof(DrawerPrimaryIconFrameSize));
+        OnPropertyChanged(nameof(DrawerPrimaryIconSize));
+        OnPropertyChanged(nameof(DrawerPreviewIconFrameSize));
+        OnPropertyChanged(nameof(DrawerPreviewIconSize));
+        OnPropertyChanged(nameof(DrawerPreviewGap));
+        OnPropertyChanged(nameof(DrawerSurfacePadding));
+        OnPropertyChanged(nameof(DrawerHoverMargin));
         OnPropertyChanged(nameof(MappingListWidth));
         OnPropertyChanged(nameof(MappingListRowHeight));
         OnPropertyChanged(nameof(MappingListMinHeight));
@@ -266,6 +369,9 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
 
     private void UpdateDimensions()
     {
+        // 不变式：IconFrameSize 必须 ≤ 项内容区 = ItemSlot - 2×ItemMargin - 2×(项边框 1.2 + ItemPadding)。
+        // 否则图标框溢出内容区，其 1px 描边会在右/下（水平居中+垂直顶对齐的溢出方向）被裁掉，
+        // 表现为"图标框缺边"。调整本表时由 IconFrame_FitsInsideItemContentArea 测试把关。
         switch (_currentPreset)
         {
             case "3x3":
@@ -275,10 +381,10 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
                 Columns = 3;
                 ItemSlotWidth = 74;
                 ItemSlotHeight = 74;
-                ItemPadding = new Thickness(4);
+                ItemPadding = new Thickness(3);
                 IconFontSize = 11;
-                IconTextWrapping = TextWrapping.Wrap;
-                IconTextMaxHeight = 32;
+                IconTextWrapping = TextWrapping.NoWrap;
+                IconTextMaxHeight = 16;
                 ItemCornerRadius = new CornerRadius(14);
                 IconCornerRadius = new CornerRadius(12);
                 break;
@@ -289,7 +395,7 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
                 Columns = 4;
                 ItemSlotWidth = 55;
                 ItemSlotHeight = 55;
-                ItemPadding = new Thickness(3);
+                ItemPadding = new Thickness(1);
                 IconFontSize = 10;
                 IconTextWrapping = TextWrapping.NoWrap;
                 IconTextMaxHeight = 16;
@@ -303,7 +409,7 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
                 Columns = 5;
                 ItemSlotWidth = 44;
                 ItemSlotHeight = 44;
-                ItemPadding = new Thickness(2);
+                ItemPadding = new Thickness(1);
                 IconFontSize = 9;
                 IconTextWrapping = TextWrapping.NoWrap;
                 IconTextMaxHeight = 14;

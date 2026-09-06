@@ -29,7 +29,9 @@ internal static class FileNameService
 
     private static bool Exists(string path, bool isDirectory)
     {
-        return isDirectory ? Directory.Exists(path) : File.Exists(path);
+        // Avoid conflicts with any existing file OR directory, regardless of target type.
+        _ = isDirectory;
+        return File.Exists(path) || Directory.Exists(path);
     }
 }
 

@@ -19,6 +19,7 @@ pub enum BoxType {
     Mapping = 1,
     Pixel = 2,
     Todo = 3,
+    Drawer = 4,
 }
 
 impl BoxType {
@@ -28,6 +29,7 @@ impl BoxType {
             1 => Some(Self::Mapping),
             2 => Some(Self::Pixel),
             3 => Some(Self::Todo),
+            4 => Some(Self::Drawer),
             _ => None,
         }
     }

@@ -1,0 +1,156 @@
+<Window x:Class="WitchDrawer.App.Features.ItemContextMenu.DrawerItemContextMenuWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="项目菜单"
+        Width="172"
+        SizeToContent="Height"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        AllowsTransparency="True"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        Topmost="False"
+        Background="Transparent"
+        Opacity="0"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        PreviewKeyDown="OnPreviewKeyDown">
+    <Window.Resources>
+        <Style x:Key="ContextActionButtonStyle" TargetType="{x:Type Button}">
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="Padding" Value="7,2" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="ItemRoot"
+                                Padding="{TemplateBinding Padding}"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="{Binding ItemCornerRadius, RelativeSource={RelativeSource AncestorType={x:Type Window}}}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ContentPresenter Grid.Column="0"
+                                                  Width="14"
+                                                  Height="14"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"
+                                                  ContentSource="Tag" />
+                                <ContentPresenter Grid.Column="1"
+                                                  Margin="7,0,3,0"
+                                                  VerticalAlignment="Center"
+                                                  ContentSource="Content"
+                                                  TextElement.Foreground="{TemplateBinding Foreground}" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ItemRoot"
+                                        Property="Background"
+                                        Value="{DynamicResource AccentSoftBrush}" />
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ItemRoot" Property="Opacity" Value="0.72" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DangerContextActionButtonStyle"
+               TargetType="{x:Type Button}"
+               BasedOn="{StaticResource ContextActionButtonStyle}">
+            <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+        </Style>
+    </Window.Resources>
+
+    <Border x:Name="MenuSurface"
+            Padding="4"
+            Background="{DynamicResource DrawerSecondarySurfaceBrush}"
+            BorderBrush="{DynamicResource GlassStrokeBrush}"
+            BorderThickness="1"
+            CornerRadius="{Binding SurfaceCornerRadius, RelativeSource={RelativeSource AncestorType={x:Type Window}}}">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="10"
+                              ShadowDepth="2"
+                              Direction="270"
+                              Color="#50000000"
+                              Opacity="0.28" />
+        </Border.Effect>
+        <StackPanel>
+            <Button Content="打开"
+                    AutomationProperties.Name="打开"
+                    Style="{StaticResource ContextActionButtonStyle}"
+                    Click="OnOpenClick">
+                <Button.Tag>
+                    <Path Data="M 3,8 L 13,8 M 9,4 L 13,8 L 9,12"
+                          Stretch="Uniform"
+                          Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                          StrokeThickness="1.6"
+                          StrokeStartLineCap="Round"
+                          StrokeEndLineCap="Round"
+                          StrokeLineJoin="Round" />
+                </Button.Tag>
+            </Button>
+
+            <Button x:Name="RunAsAdministratorButton"
+                    Content="以管理员身份启动"
+                    AutomationProperties.Name="以管理员身份启动"
+                    Style="{StaticResource ContextActionButtonStyle}"
+                    Click="OnRunAsAdministratorClick">
+                <Button.Tag>
+                    <Path Data="M 8,2 L 13,4 L 12.3,9.5 C 11.8,12 10,13.5 8,14 C 6,13.5 4.2,12 3.7,9.5 L 3,4 Z M 8,5 L 8,9 M 8,11.5 L 8,11.6"
+                          Stretch="Uniform"
+                          Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                          StrokeThickness="1.6"
+                          StrokeStartLineCap="Round"
+                          StrokeEndLineCap="Round"
+                          StrokeLineJoin="Round" />
+                </Button.Tag>
+            </Button>
+
+            <Button Content="打开所在位置"
+                    AutomationProperties.Name="打开所在位置"
+                    Style="{StaticResource ContextActionButtonStyle}"
+                    Click="OnRevealClick">
+                <Button.Tag>
+                    <Path Data="M 2.5,5 L 6.3,5 L 7.7,6.5 L 13.5,6.5 L 12.5,12.5 L 3.5,12.5 Z M 3,5 L 3,3.5 L 7,3.5 L 8.3,5"
+                          Stretch="Uniform"
+                          Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                          StrokeThickness="1.6"
+                          StrokeStartLineCap="Round"
+                          StrokeEndLineCap="Round"
+                          StrokeLineJoin="Round" />
+                </Button.Tag>
+            </Button>
+
+            <Button x:Name="RemoveButton"
+                    Content="移出收纳盒"
+                    AutomationProperties.Name="移出收纳盒"
+                    Style="{StaticResource DangerContextActionButtonStyle}"
+                    Click="OnRemoveClick">
+                <Button.Tag>
+                    <Path Data="M 4,5 L 12,5 M 6,5 L 6.5,13 L 9.5,13 L 10,5 M 6,3 L 10,3"
+                          Stretch="Uniform"
+                          Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                          StrokeThickness="1.6"
+                          StrokeStartLineCap="Round"
+                          StrokeEndLineCap="Round"
+                          StrokeLineJoin="Round" />
+                </Button.Tag>
+            </Button>
+        </StackPanel>
+    </Border>
+</Window>

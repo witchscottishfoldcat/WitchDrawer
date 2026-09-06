@@ -1,3 +1,5 @@
+using WitchDrawer.Core.Storage;
+
 namespace WitchDrawer.Core;
 
 /// <summary>
@@ -57,6 +59,23 @@ public sealed record AppPaths(string RootDirectory)
             var configuredPaths = new AppPaths(Path.GetFullPath(configuredRoot.Trim()));
             configuredPaths.EnsureCreatedAndWritable();
             return configuredPaths;
+        }
+
+        string? settingsConfiguredRoot = null;
+        try
+        {
+            settingsConfiguredRoot = StorageLocationStore.ForCurrentUser().LoadConfiguredDirectory();
+        }
+        catch
+        {
+            // 引导配置不可读时回退默认目录，避免应用无法启动。
+        }
+
+        if (!string.IsNullOrWhiteSpace(settingsConfiguredRoot))
+        {
+            var settingsPaths = new AppPaths(settingsConfiguredRoot);
+            settingsPaths.EnsureCreatedAndWritable();
+            return settingsPaths;
         }
 
         var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);

@@ -9,14 +9,14 @@
         <infra:NonEmptyToVisibilityConverter x:Key="NonEmptyToVisibilityConverter" />
         <infra:BoxVisualStyleEqualityConverter x:Key="BoxVisualStyleEqualityConverter" />
 
-        <Color x:Key="AppBackgroundColor">#F4F6F8</Color>
+        <Color x:Key="AppBackgroundColor">#F5F5F7</Color>
         <Color x:Key="PanelColor">#FFFFFF</Color>
-        <Color x:Key="PanelAltColor">#F8FAFC</Color>
-        <Color x:Key="BorderSoftColor">#D8DEE8</Color>
-        <Color x:Key="TextPrimaryColor">#111827</Color>
-        <Color x:Key="TextMutedColor">#667085</Color>
-        <Color x:Key="AccentColor">#007AFF</Color>
-        <Color x:Key="AccentSoftColor">#EAF3FF</Color>
+        <Color x:Key="PanelAltColor">#F2F2F7</Color>
+        <Color x:Key="BorderSoftColor">#D9D9DE</Color>
+        <Color x:Key="TextPrimaryColor">#1D1D1F</Color>
+        <Color x:Key="TextMutedColor">#6E6E73</Color>
+        <Color x:Key="AccentColor">#0071E3</Color>
+        <Color x:Key="AccentSoftColor">#E7F1FF</Color>
 
         <SolidColorBrush x:Key="AppBackgroundBrush" Color="{StaticResource AppBackgroundColor}" />
         <SolidColorBrush x:Key="PanelBrush" Color="{StaticResource PanelColor}" />
@@ -25,29 +25,32 @@
         <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimaryColor}" />
         <SolidColorBrush x:Key="TextMutedBrush" Color="{StaticResource TextMutedColor}" />
         <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
+        <SolidColorBrush x:Key="AccentHoverBrush" Color="#0068D1" />
+        <SolidColorBrush x:Key="AccentPressedBrush" Color="#0059B3" />
         <SolidColorBrush x:Key="AccentSoftBrush" Color="{StaticResource AccentSoftColor}" />
         <SolidColorBrush x:Key="GlassSurfaceBrush" Color="#FFFFFF" />
-        <SolidColorBrush x:Key="GlassInnerBrush" Color="#FAFAFC" />
+        <SolidColorBrush x:Key="GlassInnerBrush" Color="#F5F5F7" />
         <SolidColorBrush x:Key="GlassStrokeBrush" Color="#E5E5EA" />
         <SolidColorBrush x:Key="PositiveBrush" Color="#34C759" />
         <SolidColorBrush x:Key="PositiveSoftBrush" Color="#E9F8EE" />
         <SolidColorBrush x:Key="DangerBrush" Color="#FF3B30" />
         <SolidColorBrush x:Key="DangerSoftBrush" Color="#FFF1F0" />
-        <SolidColorBrush x:Key="HoverBrush" Color="#F2F2F7" />
-        <SolidColorBrush x:Key="CardShadowBrush" Color="#121D1D1F" />
-        <SolidColorBrush x:Key="DropZoneBrush" Color="#FAFAFC" />
+        <SolidColorBrush x:Key="HoverBrush" Color="#EBEBF0" />
+        <SolidColorBrush x:Key="CardShadowBrush" Color="#12000000" />
+        <SolidColorBrush x:Key="DropZoneBrush" Color="#F7F7F9" />
         <SolidColorBrush x:Key="WindowOverlayBrush" Color="#00FFFFFF" />
-        <SolidColorBrush x:Key="ControlCenterSurfaceBrush" Color="#F5F8FC" />
+        <SolidColorBrush x:Key="ControlCenterSurfaceBrush" Color="#FBFBFD" />
 
         <Style TargetType="{x:Type Button}">
             <Setter Property="Background" Value="{DynamicResource PanelBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushSoft}" />
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="MinHeight" Value="34" />
+            <Setter Property="MinHeight" Value="32" />
             <Setter Property="Padding" Value="12,6" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type Button}">
@@ -55,50 +58,26 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="10"
+                                CornerRadius="9"
                                 Padding="{TemplateBinding Padding}"
                                 RenderTransformOrigin="0.5,0.5">
                             <Border.RenderTransform>
                                 <ScaleTransform x:Name="RootScale" ScaleX="1" ScaleY="1" />
                             </Border.RenderTransform>
-                            <ContentPresenter HorizontalAlignment="Center"
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                               VerticalAlignment="Center"
                                               RecognizesAccessKey="True" />
                         </Border>
                         <ControlTemplate.Triggers>
-                            <EventTrigger RoutedEvent="MouseEnter">
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="RootScale"
-                                                         Storyboard.TargetProperty="ScaleX"
-                                                         To="1.025"
-                                                         Duration="0:0:0.1" />
-                                        <DoubleAnimation Storyboard.TargetName="RootScale"
-                                                         Storyboard.TargetProperty="ScaleY"
-                                                         To="1.025"
-                                                         Duration="0:0:0.1" />
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </EventTrigger>
-                            <EventTrigger RoutedEvent="MouseLeave">
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="RootScale"
-                                                         Storyboard.TargetProperty="ScaleX"
-                                                         To="1"
-                                                         Duration="0:0:0.12" />
-                                        <DoubleAnimation Storyboard.TargetName="RootScale"
-                                                         Storyboard.TargetProperty="ScaleY"
-                                                         To="1"
-                                                         Duration="0:0:0.12" />
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </EventTrigger>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="Root" Property="Background" Value="{DynamicResource HoverBrush}" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Root" Property="Opacity" Value="0.8" />
+                                <Setter TargetName="Root" Property="Opacity" Value="0.88" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                <Setter TargetName="Root" Property="BorderThickness" Value="2" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="Root" Property="Opacity" Value="0.5" />
@@ -114,12 +93,42 @@
             <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
             <Setter Property="Foreground" Value="White" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
-                    <Setter Property="Opacity" Value="0.88" />
-                </Trigger>
-            </Style.Triggers>
+            <!-- 独立模板:悬停/按下用实色变体,不被默认模板的 HoverBrush/Opacity 覆盖 -->
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="9"
+                                Padding="{TemplateBinding Padding}"
+                                RenderTransformOrigin="0.5,0.5">
+                            <Border.RenderTransform>
+                                <ScaleTransform x:Name="RootScale" ScaleX="1" ScaleY="1" />
+                            </Border.RenderTransform>
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center"
+                                              RecognizesAccessKey="True" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource AccentHoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource AccentPressedBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Root" Property="BorderBrush" Value="White" />
+                                <Setter TargetName="Root" Property="BorderThickness" Value="2" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style x:Key="DangerButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource {x:Type Button}}">
@@ -297,11 +306,8 @@
                                 Background="Transparent"
                                 BorderThickness="1"
                                 BorderBrush="Transparent"
-                                CornerRadius="12"
+                                CornerRadius="10"
                                 RenderTransformOrigin="0.5,0.5">
-                            <Border.RenderTransform>
-                                <ScaleTransform x:Name="ItemScale" ScaleX="1" ScaleY="1" />
-                            </Border.RenderTransform>
                             <ContentPresenter />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -310,35 +316,7 @@
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
                                 <Setter TargetName="Root" Property="Background" Value="{DynamicResource AccentSoftBrush}" />
-                                <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource BorderBrushSoft}" />
-                                <Trigger.EnterActions>
-                                    <BeginStoryboard>
-                                        <Storyboard>
-                                            <DoubleAnimation Storyboard.TargetName="ItemScale"
-                                                             Storyboard.TargetProperty="ScaleX"
-                                                             To="1.01"
-                                                             Duration="0:0:0.1" />
-                                            <DoubleAnimation Storyboard.TargetName="ItemScale"
-                                                             Storyboard.TargetProperty="ScaleY"
-                                                             To="1.01"
-                                                             Duration="0:0:0.1" />
-                                        </Storyboard>
-                                    </BeginStoryboard>
-                                </Trigger.EnterActions>
-                                <Trigger.ExitActions>
-                                    <BeginStoryboard>
-                                        <Storyboard>
-                                            <DoubleAnimation Storyboard.TargetName="ItemScale"
-                                                             Storyboard.TargetProperty="ScaleX"
-                                                             To="1"
-                                                             Duration="0:0:0.1" />
-                                            <DoubleAnimation Storyboard.TargetName="ItemScale"
-                                                             Storyboard.TargetProperty="ScaleY"
-                                                             To="1"
-                                                             Duration="0:0:0.1" />
-                                        </Storyboard>
-                                    </BeginStoryboard>
-                                </Trigger.ExitActions>
+                                <Setter TargetName="Root" Property="BorderBrush" Value="Transparent" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>

@@ -2,8 +2,9 @@ using System.Collections.ObjectModel;
 using System.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using WitchDrawer.Core.Abstractions;
 using WitchDrawer.Core.Logging;
+using WitchDrawer.Core.Abstractions;
+using WitchDrawer.Core.Services;
 
 namespace WitchDrawer.App.ViewModels;
 
@@ -176,7 +177,7 @@ public sealed class TodoBoxDetailViewModel : ObservableObject
         var normalizedTitle = NewTodoTitle.Trim();
         return BoxId is not null
             && !IsBusy
-            && normalizedTitle.Length is > 0 and <= 200;
+            && normalizedTitle.Length is > 0 and <= RustTodoService.MaximumTitleLength;
     }
 
     private async Task AddTodoAsync()
