@@ -86,6 +86,7 @@ public partial class DesktopBoxWindow : Window
         SizeChanged += OnWindowSizeChanged;
         AppThemeManager.ThemeChanged += OnThemeChanged;
         AppThemeManager.BoxOpacityChanged += OnBoxOpacityChanged;
+        AppThemeManager.DesktopBoxAppearanceChanged += OnDesktopBoxAppearanceChanged;
         Activated += OnWindowActivated;
         Deactivated += OnWindowDeactivated;
         StateChanged += OnWindowStateChanged;
@@ -203,6 +204,11 @@ public partial class DesktopBoxWindow : Window
 
     public void SetDesktopForeground(bool isForeground)
     {
+        if (isForeground)
+        {
+            _nativeWindow?.RefreshDesktopHostForShowDesktop();
+        }
+
         // When Show Desktop is active, leave Explorer's owner-chain Z order
         // untouched. On exit, return the boxes behind ordinary app windows.
         _desktopIsForeground = isForeground;
@@ -879,6 +885,7 @@ public partial class DesktopBoxWindow : Window
         DpiChanged -= OnDpiChanged;
         AppThemeManager.ThemeChanged -= OnThemeChanged;
         AppThemeManager.BoxOpacityChanged -= OnBoxOpacityChanged;
+        AppThemeManager.DesktopBoxAppearanceChanged -= OnDesktopBoxAppearanceChanged;
         Activated -= OnWindowActivated;
         Deactivated -= OnWindowDeactivated;
         StateChanged -= OnWindowStateChanged;
@@ -953,7 +960,7 @@ public partial class DesktopBoxWindow : Window
                 _desktopOwnershipRestoreQueued = false;
                 if (!_forceClose)
                 {
-                    _nativeWindow?.RestoreDesktopOwnershipAfterMouseInput();
+                    _nativeWindow?.RestoreDesktopOwnershipAfterMouseInput(_desktopIsForeground);
                 }
             });
     }
@@ -1041,7 +1048,12 @@ public partial class DesktopBoxWindow : Window
 
     private void OnBoxOpacityChanged(object? sender, ThemeBoxOpacityChangedEventArgs e)
     {
-        if (e.Theme != AppThemeManager.CurrentTheme || _isBoxOpacityRefreshQueued)
+        OnDesktopBoxAppearanceChanged(sender, e.Theme);
+    }
+
+    private void OnDesktopBoxAppearanceChanged(object? sender, AppTheme theme)
+    {
+        if (theme != AppThemeManager.CurrentTheme || _isBoxOpacityRefreshQueued)
         {
             return;
         }
