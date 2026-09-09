@@ -97,6 +97,10 @@
             <!-- 左侧名称 / 视图切换 / 卷起 / 关闭。 -->
             <Grid Grid.Row="0"
                   Background="Transparent"
+                  MouseLeftButtonDown="OnHeaderMouseLeftButtonDown"
+                  MouseMove="OnHeaderMouseMove"
+                  MouseLeftButtonUp="OnHeaderMouseLeftButtonUp"
+                  LostMouseCapture="OnHeaderLostMouseCapture"
                   Visibility="{Binding IsHeaderVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />

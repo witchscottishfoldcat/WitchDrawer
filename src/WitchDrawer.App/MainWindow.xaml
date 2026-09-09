@@ -3282,6 +3282,39 @@
                                     </Grid>
                                 </Border>
 
+                                <!-- Header click roll-up -->
+                                <Border Background="{DynamicResource PanelBrush}"
+                                        BorderBrush="{DynamicResource BorderBrushSoft}"
+                                        BorderThickness="1"
+                                        CornerRadius="12"
+                                        Padding="10"
+                                        Margin="0,0,0,6">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="单击标题栏收起／展开"
+                                                       FontWeight="SemiBold"
+                                                       FontSize="13"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                                            <TextBlock Text="点击收纳盒标题文字或空白处收起／展开；按住拖动仍可移动窗口"
+                                                       Margin="0,2,12,0"
+                                                       FontSize="11.5"
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource TextMutedBrush}" />
+                                        </StackPanel>
+                                        <ToggleButton Grid.Column="1"
+                                                      Margin="12,0,0,0"
+                                                      VerticalAlignment="Center"
+                                                      Style="{StaticResource SettingsToggleButtonStyle}"
+                                                      IsChecked="{Binding IsHeaderClickRollUpEnabled, Mode=OneWay}"
+                                                      Command="{Binding ToggleHeaderClickRollUpCommand}"
+                                                      AutomationProperties.Name="单击标题栏收起／展开" />
+                                    </Grid>
+                                </Border>
+
                                 <!-- Custom Widget Rules Card -->
                                 <Border Background="{DynamicResource PanelBrush}"
                                     BorderBrush="{DynamicResource BorderBrushSoft}"

@@ -144,7 +144,8 @@ public partial class App : Application
                 logger,
                 boxVisualStyleStore,
                 boxPositionLockStateStore,
-                () => mainViewModel.IsDesktopDoubleClickEnabled);
+                () => mainViewModel.IsDesktopDoubleClickEnabled,
+                () => mainViewModel.IsHeaderClickRollUpEnabled);
             _mainWindow = new MainWindow(
                 mainViewModel,
                 quickPanel,

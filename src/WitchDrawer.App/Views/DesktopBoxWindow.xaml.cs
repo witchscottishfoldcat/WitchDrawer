@@ -35,6 +35,8 @@ public partial class DesktopBoxWindow : Window
     private bool _isMappingViewTransitioning;
     private Point? _mappingViewTransitionVisibleOriginPixels;
     private bool _isRollTransitioning;
+    private Point? _headerPressPoint;
+    private readonly Func<bool> _isHeaderClickRollUpEnabled;
     private bool _restoreAfterMinimizeQueued;
     private bool _desktopOwnershipRestoreQueued;
     private bool _desktopIsForeground;
@@ -75,8 +77,9 @@ public partial class DesktopBoxWindow : Window
         }
     }
 
-    public DesktopBoxWindow(DesktopBoxViewModel viewModel)
+    public DesktopBoxWindow(DesktopBoxViewModel viewModel, Func<bool>? isHeaderClickRollUpEnabled = null)
     {
+        _isHeaderClickRollUpEnabled = isHeaderClickRollUpEnabled ?? (() => false);
         _itemContextMenu = new DrawerItemContextMenuCoordinator(viewModel);
         DataContext = viewModel;
         InitializeComponent();
@@ -1680,6 +1683,75 @@ public partial class DesktopBoxWindow : Window
         }
     }
 
+    private void OnHeaderMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (!_isHeaderClickRollUpEnabled() || !ViewModel.SupportsRollUp || sender is not UIElement header)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        ClearItemSelection();
+        if (header.CaptureMouse())
+        {
+            _headerPressPoint = e.GetPosition(header);
+        }
+    }
+
+    private void OnHeaderMouseMove(object sender, MouseEventArgs e)
+    {
+        if (_headerPressPoint is not Point start || sender is not UIElement header)
+        {
+            return;
+        }
+
+        var current = e.GetPosition(header);
+        if (e.LeftButton != MouseButtonState.Pressed)
+        {
+            _headerPressPoint = null;
+            header.ReleaseMouseCapture();
+            return;
+        }
+
+        if (Math.Abs(current.X - start.X) < SystemParameters.MinimumHorizontalDragDistance
+            && Math.Abs(current.Y - start.Y) < SystemParameters.MinimumVerticalDragDistance)
+        {
+            return;
+        }
+
+        // Cancel the click before entering the native move loop, even when position is locked.
+        _headerPressPoint = null;
+        header.ReleaseMouseCapture();
+        e.Handled = true;
+        if (!_isPositionLocked)
+        {
+            MoveWindowFromSurface();
+        }
+    }
+
+    private void OnHeaderMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_headerPressPoint is null || sender is not FrameworkElement header)
+        {
+            return;
+        }
+
+        var point = e.GetPosition(header);
+        _headerPressPoint = null;
+        header.ReleaseMouseCapture();
+        e.Handled = true;
+        if (_isHeaderClickRollUpEnabled() && point.X >= 0 && point.Y >= 0
+            && point.X <= header.ActualWidth && point.Y <= header.ActualHeight)
+        {
+            OnToggleRollUpClick(sender, e);
+        }
+    }
+
+    private void OnHeaderLostMouseCapture(object sender, MouseEventArgs e)
+    {
+        _headerPressPoint = null;
+    }
+
     private void OnSurfaceMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (TryGetDrawerItem(e.OriginalSource, out _))
@@ -1696,21 +1768,26 @@ public partial class DesktopBoxWindow : Window
 
         if (e.ButtonState == MouseButtonState.Pressed)
         {
-            try
+            MoveWindowFromSurface();
+        }
+    }
+
+    private void MoveWindowFromSurface()
+    {
+        try
+        {
+            DragMove();
+            QueueSendToBottom();
+            if (_positionChangedCallback is not null)
             {
-                DragMove();
-                QueueSendToBottom();
-                if (_positionChangedCallback is not null)
-                {
-                    FireAndForget.Run(
-                    _positionChangedCallback(ViewModel.BoxId),
-                    ViewModel.Logger,
-                    $"Failed to run position callback for box {ViewModel.BoxId:N}.");
-                }
+                FireAndForget.Run(
+                _positionChangedCallback(ViewModel.BoxId),
+                ViewModel.Logger,
+                $"Failed to run position callback for box {ViewModel.BoxId:N}.");
             }
-            catch (InvalidOperationException)
-            {
-            }
+        }
+        catch (InvalidOperationException)
+        {
         }
     }
 
