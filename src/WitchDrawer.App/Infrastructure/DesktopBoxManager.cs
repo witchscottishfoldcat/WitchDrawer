@@ -44,6 +44,7 @@ public sealed class DesktopBoxManager
         });
     private readonly Task _desktopMouseButtonProcessor;
     private readonly Func<bool> _isDesktopDoubleClickEnabled;
+    private readonly Func<bool> _isHeaderClickRollUpEnabled;
     private readonly HashSet<Guid> _overlapResolutionBoxIds = [];
     private bool _closing;
     private bool _desktopIsForeground;
@@ -60,7 +61,8 @@ public sealed class DesktopBoxManager
         IAppLogger logger,
         BoxVisualStyleStore boxVisualStyleStore,
         BoxPositionLockStateStore boxPositionLockStateStore,
-        Func<bool> isDesktopDoubleClickEnabled)
+        Func<bool> isDesktopDoubleClickEnabled,
+        Func<bool>? isHeaderClickRollUpEnabled = null)
     {
         _drawerService = drawerService;
         _todoService = todoService;
@@ -69,6 +71,7 @@ public sealed class DesktopBoxManager
         _boxVisualStyleStore = boxVisualStyleStore;
         _boxPositionLockStateStore = boxPositionLockStateStore;
         _isDesktopDoubleClickEnabled = isDesktopDoubleClickEnabled;
+        _isHeaderClickRollUpEnabled = isHeaderClickRollUpEnabled ?? (() => false);
         _foregroundWindowMonitor = new ForegroundWindowMonitor();
         _foregroundWindowMonitor.ForegroundWindowChanged += OnForegroundWindowChanged;
         _desktopIsForeground = ForegroundWindowMonitor.IsDesktopWindow(
@@ -197,7 +200,7 @@ public sealed class DesktopBoxManager
                         this,
                         new BoxItemsChangedEventArgs(viewModel.BoxId));
 
-                    window = new DesktopBoxWindow(viewModel);
+                    window = new DesktopBoxWindow(viewModel, _isHeaderClickRollUpEnabled);
                     var requiresOverlapResolution =
                         await PlaceWindowAsync(window, box.Id, index);
 

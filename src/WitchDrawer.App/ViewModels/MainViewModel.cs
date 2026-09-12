@@ -26,6 +26,7 @@ public sealed class MainViewModel : ObservableObject
     private const string ThemeBoxOpacityMigrationVersion = "2";
     internal const string EditorFollowsBoxOpacitySettingKey = "EditorFollowsBoxOpacity";
     internal const string DesktopDoubleClickSettingKey = "DesktopDoubleClickToggle";
+    internal const string HeaderClickRollUpSettingKey = "HeaderClickRollUp";
     internal const string AboutPageShownSettingKey = "AboutPageShown";
     private const string StartupRegistryKeyName = "WitchDrawer";
 
@@ -62,6 +63,7 @@ public sealed class MainViewModel : ObservableObject
     private bool _launchOnStartup;
     private bool _areDesktopIconsHidden;
     private bool _isDesktopDoubleClickEnabled;
+    private bool _isHeaderClickRollUpEnabled;
     private string _updateStatusText = string.Empty;
     private bool _isCheckingUpdate;
     private string? _pendingUpdateSha256;
@@ -127,6 +129,7 @@ public sealed class MainViewModel : ObservableObject
         ToggleLaunchOnStartupCommand = new AsyncRelayCommand(ToggleLaunchOnStartupAsync);
         ToggleDesktopIconsCommand = new AsyncRelayCommand(ToggleDesktopIconsAsync);
         ToggleDesktopDoubleClickCommand = new AsyncRelayCommand(ToggleDesktopDoubleClickAsync);
+        ToggleHeaderClickRollUpCommand = new AsyncRelayCommand(ToggleHeaderClickRollUpAsync);
         ToggleEditorOpacityFollowCommand = new AsyncRelayCommand(ToggleEditorOpacityFollowAsync);
         CheckForUpdateCommand = new AsyncRelayCommand(CheckForUpdateAsync);
         ShowDashboardCommand = new RelayCommand(() =>
@@ -224,6 +227,7 @@ public sealed class MainViewModel : ObservableObject
     public IAsyncRelayCommand ToggleDesktopIconsCommand { get; }
 
     public IAsyncRelayCommand ToggleDesktopDoubleClickCommand { get; }
+    public IAsyncRelayCommand ToggleHeaderClickRollUpCommand { get; }
 
     public IAsyncRelayCommand ToggleEditorOpacityFollowCommand { get; }
 
@@ -417,6 +421,12 @@ public sealed class MainViewModel : ObservableObject
         private set => SetProperty(ref _isDesktopDoubleClickEnabled, value);
     }
 
+    public bool IsHeaderClickRollUpEnabled
+    {
+        get => _isHeaderClickRollUpEnabled;
+        private set => SetProperty(ref _isHeaderClickRollUpEnabled, value);
+    }
+
     public string UpdateStatusText
     {
         get => _updateStatusText;
@@ -525,6 +535,9 @@ public sealed class MainViewModel : ObservableObject
                 bool.TryParse(desktopDoubleClickSetting, out var desktopDoubleClickEnabled)
                 && desktopDoubleClickEnabled;
             StatusText = $"{Boxes.Count} 个收纳盒已同步到桌面";
+            IsHeaderClickRollUpEnabled = bool.TryParse(
+                await _drawerService.GetSettingAsync(HeaderClickRollUpSettingKey),
+                out var headerClickRollUpEnabled) && headerClickRollUpEnabled;
             BoxesChanged?.Invoke(this, EventArgs.Empty);
         });
     }
@@ -1234,6 +1247,23 @@ public sealed class MainViewModel : ObservableObject
         {
             _logger.Error(exception, "Failed to save desktop double-click setting.");
             OnPropertyChanged(nameof(IsDesktopDoubleClickEnabled));
+            StatusText = exception.Message;
+        }
+    }
+
+    private async Task ToggleHeaderClickRollUpAsync()
+    {
+        try
+        {
+            var enabled = !IsHeaderClickRollUpEnabled;
+            await _drawerService.SetSettingAsync(HeaderClickRollUpSettingKey, enabled.ToString());
+            IsHeaderClickRollUpEnabled = enabled;
+            StatusText = enabled ? "已开启单击标题栏收起／展开" : "已关闭单击标题栏收起／展开";
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to save header click roll-up setting.");
+            OnPropertyChanged(nameof(IsHeaderClickRollUpEnabled));
             StatusText = exception.Message;
         }
     }
