@@ -46,6 +46,14 @@ public partial class DesktopBoxWindow : Window
     private NativePoint _drawerResizeStartCursor;
     private double _mappingListResizeStartWidth;
     private NativePoint _mappingListResizeStartCursor;
+    private double _todoBoxResizeStartWidth;
+    private double _todoBoxResizeStartHeight;
+    private NativePoint _todoBoxResizeStartCursor;
+    private double _fixedGridResizeStartWidth;
+    private double _fixedGridResizeStartHeight;
+    private NativePoint _fixedGridResizeStartCursor;
+    private double _mappingListHeightResizeStartHeight;
+    private NativePoint _mappingListHeightResizeStartCursor;
     private bool _suppressDrawerItemClick;
     private bool _isBoxOpacityRefreshQueued;
     private bool _isVisibleBoundsClampingEnabled;
@@ -703,6 +711,159 @@ public partial class DesktopBoxWindow : Window
         }
 
         await ViewModel.SaveMappingListWidthAsync();
+        e.Handled = true;
+    }
+
+    private void OnTodoBoxResizeStarted(object sender, DragStartedEventArgs e)
+    {
+        _todoBoxResizeStartWidth = ViewModel.TodoBoxWidth;
+        _todoBoxResizeStartHeight = ViewModel.TodoBoxHeight;
+        GetCursorPos(out _todoBoxResizeStartCursor);
+        e.Handled = true;
+    }
+
+    private void OnTodoBoxResizeDelta(object sender, DragDeltaEventArgs e)
+    {
+        if (!GetCursorPos(out var currentCursor))
+        {
+            return;
+        }
+
+        var horizontalDelta = currentCursor.X - _todoBoxResizeStartCursor.X;
+        var verticalDelta = currentCursor.Y - _todoBoxResizeStartCursor.Y;
+        var dpi = VisualTreeHelper.GetDpi(this);
+        ViewModel.ResizeTodoBox(
+            _todoBoxResizeStartWidth + (horizontalDelta / Math.Max(0.1, dpi.DpiScaleX)),
+            _todoBoxResizeStartHeight + (verticalDelta / Math.Max(0.1, dpi.DpiScaleY)));
+        e.Handled = true;
+    }
+
+    private async void OnTodoBoxResizeCompleted(object sender, DragCompletedEventArgs e)
+    {
+        if (e.Canceled)
+        {
+            ViewModel.ResizeTodoBox(_todoBoxResizeStartWidth, _todoBoxResizeStartHeight);
+            e.Handled = true;
+            return;
+        }
+
+        try
+        {
+            await ViewModel.SaveTodoBoxSizeAsync();
+        }
+        catch (Exception exception)
+        {
+            ViewModel.ResizeTodoBox(
+                _todoBoxResizeStartWidth,
+                _todoBoxResizeStartHeight);
+            _ = exception;
+        }
+
+        e.Handled = true;
+    }
+
+    private void OnFixedGridResizeStarted(object sender, DragStartedEventArgs e)
+    {
+        if (ViewModel.IsFixedSize)
+        {
+            var columns = ViewModel.SizeMode.Columns;
+            var rows = ViewModel.SizeMode.Rows;
+            _fixedGridResizeStartWidth = columns * ViewModel.LayoutSettings.ItemSlotWidth;
+            _fixedGridResizeStartHeight = rows * ViewModel.LayoutSettings.ItemSlotHeight;
+        }
+        else
+        {
+            // 用 GridCanvasWidth/Height (实际内容尺寸) 当起点,而不是 IconList.ActualWidth (含虚拟滚动只是视口大小)
+            _fixedGridResizeStartWidth = Math.Max(1, ViewModel.GridCanvasWidth);
+            _fixedGridResizeStartHeight = Math.Max(1, ViewModel.GridCanvasHeight);
+        }
+        GetCursorPos(out _fixedGridResizeStartCursor);
+        e.Handled = true;
+    }
+
+    private void OnFixedGridResizeDelta(object sender, DragDeltaEventArgs e)
+    {
+        if (!GetCursorPos(out var currentCursor))
+        {
+            return;
+        }
+
+        var horizontalDelta = currentCursor.X - _fixedGridResizeStartCursor.X;
+        var verticalDelta = currentCursor.Y - _fixedGridResizeStartCursor.Y;
+        var dpi = VisualTreeHelper.GetDpi(this);
+        ViewModel.ResizeFixedGrid(
+            _fixedGridResizeStartWidth + (horizontalDelta / Math.Max(0.1, dpi.DpiScaleX)),
+            _fixedGridResizeStartHeight + (verticalDelta / Math.Max(0.1, dpi.DpiScaleY)));
+        e.Handled = true;
+    }
+
+    private async void OnFixedGridResizeCompleted(object sender, DragCompletedEventArgs e)
+    {
+        if (e.Canceled)
+        {
+            // 拖拽被取消：回滚到拖拽前的 m×n（按当前 SizeMode）。
+            ViewModel.ResizeFixedGrid(
+                _fixedGridResizeStartWidth,
+                _fixedGridResizeStartHeight);
+            e.Handled = true;
+            return;
+        }
+
+        try
+        {
+            await ViewModel.SaveSizeModeAsync();
+        }
+        catch (Exception exception)
+        {
+            ViewModel.ResizeFixedGrid(
+                _fixedGridResizeStartWidth,
+                _fixedGridResizeStartHeight);
+            _ = exception;
+        }
+
+        e.Handled = true;
+    }
+
+    private void OnMappingListHeightResizeStarted(object sender, DragStartedEventArgs e)
+    {
+        _mappingListHeightResizeStartHeight = ViewModel.MappingListHeight;
+        GetCursorPos(out _mappingListHeightResizeStartCursor);
+        e.Handled = true;
+    }
+
+    private void OnMappingListHeightResizeDelta(object sender, DragDeltaEventArgs e)
+    {
+        if (!GetCursorPos(out var currentCursor))
+        {
+            return;
+        }
+
+        var verticalDelta = currentCursor.Y - _mappingListHeightResizeStartCursor.Y;
+        var dpi = VisualTreeHelper.GetDpi(this);
+        ViewModel.ResizeMappingListHeight(
+            _mappingListHeightResizeStartHeight + (verticalDelta / Math.Max(0.1, dpi.DpiScaleY)));
+        e.Handled = true;
+    }
+
+    private async void OnMappingListHeightResizeCompleted(object sender, DragCompletedEventArgs e)
+    {
+        if (e.Canceled)
+        {
+            ViewModel.ResizeMappingListHeight(_mappingListHeightResizeStartHeight);
+            e.Handled = true;
+            return;
+        }
+
+        try
+        {
+            await ViewModel.SaveMappingListHeightAsync();
+        }
+        catch (Exception exception)
+        {
+            ViewModel.ResizeMappingListHeight(_mappingListHeightResizeStartHeight);
+            _ = exception;
+        }
+
         e.Handled = true;
     }
 

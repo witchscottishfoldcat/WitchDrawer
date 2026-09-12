@@ -436,12 +436,41 @@
                 </ListBox.ItemTemplate>
             </ListBox>
 
+            <!-- 普通 / 像素网格盒固定 m×n 模式下的自由拖动 Thumb：右下角斜向，溢出到 border 外便于抓握 -->
+            <Thumb x:Name="FixedGridResizeThumb"
+                   Grid.Row="1"
+                   Panel.ZIndex="12"
+                   Width="20"
+                   Height="20"
+                   HorizontalAlignment="Right"
+                   VerticalAlignment="Bottom"
+                   Margin="0,0,-8,-8"
+                   Cursor="SizeNWSE"
+                   Opacity="0.42"
+                   Visibility="{Binding ShowFixedResizeHandle, Converter={StaticResource BooleanToVisibilityConverter}}"
+                   DragStarted="OnFixedGridResizeStarted"
+                   DragDelta="OnFixedGridResizeDelta"
+                   DragCompleted="OnFixedGridResizeCompleted">
+                <Thumb.Template>
+                    <ControlTemplate TargetType="{x:Type Thumb}">
+                        <Grid Background="Transparent">
+                            <Path Data="M 5,15 L 15,5 M 10,15 L 15,10"
+                                  Stroke="{DynamicResource TextMutedBrush}"
+                                  StrokeThickness="1.4"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round" />
+                        </Grid>
+                    </ControlTemplate>
+                </Thumb.Template>
+            </Thumb>
+
             <ListBox x:Name="FileList"
                      Grid.Row="1"
                      Panel.ZIndex="1"
                       Width="{Binding MappingListWidth}"
+                      Height="{Binding MappingListHeight}"
                       MinHeight="{Binding LayoutSettings.MappingListMinHeight}"
-                      MaxHeight="{Binding LayoutSettings.MappingListMaxHeight}"
+                      MaxHeight="{Binding MappingListHeight}"
                       Margin="{Binding LayoutSettings.MappingListMargin}"
                       Padding="{Binding LayoutSettings.MappingListPadding}"
                      HorizontalAlignment="Left"
@@ -580,12 +609,33 @@
                 </Thumb.Template>
             </Thumb>
 
+            <!-- 映射盒列表模式垂直拖动：底部一行，不与 FileList 重叠命中 -->
+            <Thumb x:Name="MappingListResizeHeightThumb"
+                   Grid.Row="1"
+                   Panel.ZIndex="12"
+                   Height="10"
+                   Margin="5,0,5,-1"
+                   HorizontalAlignment="Stretch"
+                   VerticalAlignment="Bottom"
+                   Cursor="SizeNS"
+                   Visibility="{Binding IsMappingListMode, Converter={StaticResource BooleanToVisibilityConverter}}"
+                   DragStarted="OnMappingListHeightResizeStarted"
+                   DragDelta="OnMappingListHeightResizeDelta"
+                   DragCompleted="OnMappingListHeightResizeCompleted">
+                <Thumb.Template>
+                    <ControlTemplate TargetType="{x:Type Thumb}">
+                        <Grid Background="Transparent" />
+                    </ControlTemplate>
+                </Thumb.Template>
+            </Thumb>
+
             <!-- 待办收纳盒：与文件盒共用原生桌面浮窗外壳，但拥有独立的持久化内容。 -->
             <Grid Grid.Row="1"
                   Panel.ZIndex="3"
-                  Width="310"
-                  MinHeight="190"
-                  MaxHeight="430"
+                  Width="{Binding TodoBoxWidth}"
+                  Height="{Binding TodoBoxHeight}"
+                  MinHeight="160"
+                  MaxHeight="720"
                   Margin="8,4,8,10"
                   HorizontalAlignment="Left"
                   VerticalAlignment="Top">
@@ -794,6 +844,32 @@
                         </ListBox.ItemTemplate>
                     </ListBox>
                 </Grid>
+
+                <!-- 待办盒右下角斜向拖动 Thumb：与抽屉盒一致样式，溢出到 border 外便于抓握 -->
+                <Thumb Grid.RowSpan="3"
+                       Panel.ZIndex="20"
+                       Width="20"
+                       Height="20"
+                       HorizontalAlignment="Right"
+                       VerticalAlignment="Bottom"
+                       Margin="0,0,-8,-8"
+                       Cursor="SizeNWSE"
+                       Opacity="0.42"
+                       DragStarted="OnTodoBoxResizeStarted"
+                       DragDelta="OnTodoBoxResizeDelta"
+                       DragCompleted="OnTodoBoxResizeCompleted">
+                    <Thumb.Template>
+                        <ControlTemplate TargetType="{x:Type Thumb}">
+                            <Grid Background="Transparent">
+                                <Path Data="M 5,15 L 15,5 M 10,15 L 15,10"
+                                      Stroke="{DynamicResource TextMutedBrush}"
+                                      StrokeThickness="1.4"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round" />
+                            </Grid>
+                        </ControlTemplate>
+                    </Thumb.Template>
+                </Thumb>
             </Grid>
 
             <Popup x:Name="DrawerSecondaryPopup"

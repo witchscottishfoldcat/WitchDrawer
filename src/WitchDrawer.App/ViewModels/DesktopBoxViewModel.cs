@@ -38,6 +38,8 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private const string FileNameVisibilitySettingPrefix = "BoxFileNameVisible:";
     private const string RollUpSettingPrefix = "BoxRolledUp:";
     private const string DrawerSortModeSettingPrefix = "DrawerSortMode:";
+    private const string TodoBoxSizeSettingPrefix = "TodoBoxSize:";
+    private const string MappingListHeightSettingPrefix = "MappingListHeight:";
     private const double DefaultDrawerCoverWidth = 180;
     private const double DefaultDrawerCoverHeight = 112;
     private const double MaximumDrawerCoverDimension = 720;
@@ -45,6 +47,12 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private const double DrawerTitleHeightCompensation = DesktopBoxLayoutSettings.HiddenGridContentInset;
     internal const double MinimumMappingListWidth = 180;
     internal const double MaximumMappingListWidth = 720;
+    private const double DefaultTodoBoxWidth = 310;
+    private const double DefaultTodoBoxHeight = 320;
+    private const double MinimumTodoBoxWidth = 240;
+    private const double MaximumTodoBoxWidth = 720;
+    private const double MinimumTodoBoxHeight = 160;
+    private const double MaximumTodoBoxHeight = 720;
 
     private readonly DrawerService _drawerService;
     private readonly TodoService _todoService;
@@ -86,6 +94,9 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private BoxSizeModeState _sizeMode = BoxSizeModeState.Adaptive;
     private int _occupiedColumns = 1;
     private int _occupiedRows = 1;
+    private double _todoBoxWidth = DefaultTodoBoxWidth;
+    private double _todoBoxHeight = DefaultTodoBoxHeight;
+    private double? _mappingListHeightOverride;
 
     public DesktopBoxViewModel(
         Box box,
@@ -121,6 +132,13 @@ public sealed class DesktopBoxViewModel : ObservableObject
     public DesktopBoxLayoutSettings LayoutSettings => _layoutSettings;
 
     public double MappingListWidth => _mappingListWidth;
+
+    /// <summary>
+    /// 映射盒列表模式的有效高度：用户拖动覆盖的固定值优先；未拖动时回退到
+    /// 当前 preset 的 MappingListMaxHeight（与 MinHeight 取大值保证行内容可见）。
+    /// </summary>
+    public double MappingListHeight => _mappingListHeightOverride
+        ?? Math.Max(LayoutSettings.MappingListMinHeight, LayoutSettings.MappingListMaxHeight);
 
     /// <summary>供窗口层包装 fire-and-forget 任务时记录异常。</summary>
     internal IAppLogger Logger => _logger;
@@ -191,11 +209,20 @@ public sealed class DesktopBoxViewModel : ObservableObject
     /// <summary>
     /// 固定 m×n 格尺寸仅适用于普通网格收纳盒；其余盒型始终自适应。
     /// </summary>
-    public bool SupportsFixedSize => Type is BoxType.Normal or BoxType.Pixel;
+    public bool SupportsFixedSize => Type is BoxType.Normal or BoxType.Pixel or BoxType.Mapping;
 
     public BoxSizeModeState SizeMode => _sizeMode;
 
     public bool IsFixedSize => SupportsFixedSize && _sizeMode.IsFixed;
+
+    public bool ShowFixedResizeHandle =>
+        SupportsFixedSize
+        && !IsTodoBox
+        && !(IsMappingBox && IsMappingListMode);
+
+    public double TodoBoxWidth => _todoBoxWidth;
+
+    public double TodoBoxHeight => _todoBoxHeight;
 
     /// <summary>
     /// 网格视口宽度：固定模式下按 m×n 格物理尺寸 + 共享 chrome 预留渲染，
@@ -1143,6 +1170,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
             }
 
             OnPropertyChanged(nameof(IsGridMode));
+            OnPropertyChanged(nameof(ShowFixedResizeHandle));
             OnPropertyChanged(nameof(HeaderRowHeight));
             HideDragPreview();
             UpdateItemIconSizes();
@@ -1727,6 +1755,174 @@ public sealed class DesktopBoxViewModel : ObservableObject
             $"{DrawerCoverWidth:0.##},{DrawerCoverHeight:0.##}");
         return _drawerService.SetSettingAsync(GetDrawerCoverSizeSettingKey(BoxId), value);
     }
+
+    public void ResizeTodoBox(double width, double height)
+    {
+        if (!IsTodoBox)
+        {
+            return;
+        }
+
+        var clampedWidth = double.IsFinite(width)
+            ? Math.Clamp(width, MinimumTodoBoxWidth, MaximumTodoBoxWidth)
+            : _todoBoxWidth;
+        var clampedHeight = double.IsFinite(height)
+            ? Math.Clamp(height, MinimumTodoBoxHeight, MaximumTodoBoxHeight)
+            : _todoBoxHeight;
+        SetProperty(ref _todoBoxWidth, clampedWidth, nameof(TodoBoxWidth));
+        SetProperty(ref _todoBoxHeight, clampedHeight, nameof(TodoBoxHeight));
+    }
+
+    public async Task LoadTodoBoxSizeAsync()
+    {
+        if (!IsTodoBox)
+        {
+            return;
+        }
+
+        try
+        {
+            var saved = await _drawerService.GetSettingAsync(GetTodoBoxSizeSettingKey(BoxId));
+            if (TryParseDrawerCoverSize(saved, out var width, out var height))
+            {
+                ResizeTodoBox(width, height);
+            }
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to load todo box size.");
+        }
+    }
+
+    public Task SaveTodoBoxSizeAsync()
+    {
+        if (!IsTodoBox)
+        {
+            return Task.CompletedTask;
+        }
+
+        var value = string.Create(
+            CultureInfo.InvariantCulture,
+            $"{_todoBoxWidth:0.##},{_todoBoxHeight:0.##}");
+        return _drawerService.SetSettingAsync(GetTodoBoxSizeSettingKey(BoxId), value);
+    }
+
+    public void ResizeMappingListHeight(double heightDip)
+    {
+        if (!IsMappingBox)
+        {
+            return;
+        }
+
+        // 吸附到行高整数倍,避免像素级自由缩放导致的视觉错位
+        var rowHeight = Math.Max(1, LayoutSettings.MappingListRowHeight);
+
+        var min = LayoutSettings.MappingListMinHeight;
+        var max = Math.Max(min, LayoutSettings.MappingListMaxHeight);
+        double? newOverride;
+        if (!double.IsFinite(heightDip))
+        {
+            newOverride = null;
+        }
+        else if (heightDip >= max - rowHeight * 0.5)
+        {
+            // 拖到接近 layout max 时视为清空覆写,回到默认行高
+            newOverride = null;
+        }
+        else
+        {
+            var snapped = Math.Round(heightDip / rowHeight) * rowHeight;
+            newOverride = Math.Clamp(snapped, min, max);
+        }
+
+        if (Nullable.Equals(_mappingListHeightOverride, newOverride))
+        {
+            return;
+        }
+
+        _mappingListHeightOverride = newOverride;
+        OnPropertyChanged(nameof(MappingListHeight));
+    }
+
+    public async Task LoadMappingListHeightAsync()
+    {
+        if (!IsMappingBox)
+        {
+            return;
+        }
+
+        try
+        {
+            var saved = await _drawerService.GetSettingAsync(GetMappingListHeightSettingKey(BoxId));
+            if (double.TryParse(saved, NumberStyles.Float, CultureInfo.InvariantCulture, out var height)
+                && double.IsFinite(height))
+            {
+                ResizeMappingListHeight(height);
+            }
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to load mapping list height.");
+        }
+    }
+
+    public Task SaveMappingListHeightAsync()
+    {
+        if (!IsMappingBox)
+        {
+            return Task.CompletedTask;
+        }
+
+        var height = _mappingListHeightOverride;
+        var key = GetMappingListHeightSettingKey(BoxId);
+        if (height is null)
+        {
+            return _drawerService.DeleteSettingAsync(key);
+        }
+
+        return _drawerService.SetSettingAsync(
+            key,
+            height.Value.ToString("R", CultureInfo.InvariantCulture));
+    }
+
+    public void ResizeFixedGrid(double widthDip, double heightDip)
+    {
+        if (!SupportsFixedSize)
+        {
+            return;
+        }
+
+        var slotWidth = Math.Max(1, LayoutSettings.ItemSlotWidth);
+        var slotHeight = Math.Max(1, LayoutSettings.ItemSlotHeight);
+        var cols = double.IsFinite(widthDip)
+            ? Math.Max(1, (int)Math.Round(widthDip / slotWidth))
+            : _sizeMode.Columns;
+        var rows = double.IsFinite(heightDip)
+            ? Math.Max(1, (int)Math.Round(heightDip / slotHeight))
+            : _sizeMode.Rows;
+
+        var clampedColumns = BoxSizeModeState.ClampColumns(Math.Max(cols, OccupiedColumns));
+        var clampedRows = BoxSizeModeState.ClampRows(Math.Max(rows, OccupiedRows));
+        ApplySizeMode(new BoxSizeModeState(true, clampedColumns, clampedRows));
+    }
+
+    public Task SaveSizeModeAsync()
+    {
+        if (!SupportsFixedSize)
+        {
+            return Task.CompletedTask;
+        }
+
+        return _drawerService.SetSettingAsync(
+            BoxViewModel.GetSizeModeSettingKey(BoxId),
+            _sizeMode.Serialize());
+    }
+
+    internal static string GetTodoBoxSizeSettingKey(Guid boxId) =>
+        $"{TodoBoxSizeSettingPrefix}{boxId:N}";
+
+    internal static string GetMappingListHeightSettingKey(Guid boxId) =>
+        $"{MappingListHeightSettingPrefix}{boxId:N}";
 
     internal static string GetDrawerCoverSizeSettingKey(Guid boxId) =>
         $"{DrawerCoverSizeSettingPrefix}{boxId:N}";
