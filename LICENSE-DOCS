@@ -1,0 +1,77 @@
+Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International
+(CC BY-NC-SA 4.0)
+Copyright (c) 2026 Thewitchcat
+
+WitchDrawer - https://github.com/3yearsZhuang/WitchDrawer
+
+--------------------------------------------------------------------------------
+
+SCOPE
+-----
+
+This license applies to the documentation and media assets of the WitchDrawer
+project, specifically:
+
+  - Documentation: all Markdown/plain-text documentation under `docs/`
+    (e.g. `docs/PROJECT_PLAN.md`, `docs/ARCHITECTURE.md`,
+    `docs/SELECTION_FRAME_DRIFT_REPORT.md`).
+  - Images and other media under `docs/images/`
+    (e.g. `docs/images/witchdrawer-desktop-showcase.png`).
+  - Application artwork, icons, and bundled media under
+    `src/WitchDrawer.App/Assets/` (e.g. `app.png`, `app.ico`).
+  - Any other non-code asset distributed with this repository that is not part
+    of the software source code.
+
+The software source code is NOT covered by this license. Source code, build
+scripts, and configuration (including but not limited to `src/**/*.cs`,
+`src/**/*.xaml`, `tests/`, `tools/`, `installer/`, `*.sln`, `*.props`, and
+`*.ps1`) is licensed under the PolyForm Noncommercial License 1.0.0 - see the
+`LICENSE` file.
+
+Both licenses are noncommercial: no commercial use of this project - whether of
+its code or of its documentation and assets - is permitted.
+
+--------------------------------------------------------------------------------
+
+LICENSE TERMS
+-------------
+
+You are free to:
+
+  - Share - copy and redistribute the material in any medium or format.
+  - Adapt - remix, transform, and build upon the material.
+
+Under the following terms:
+
+  - Attribution (BY) - You must give appropriate credit to the original author
+    Thewitchcat, provide a link to the license, and indicate if changes were
+    made. You may do so in any reasonable manner, but not in any way that
+    suggests the licensor endorses you or your use.
+
+  - NonCommercial (NC) - You may not use the material for commercial purposes.
+
+  - ShareAlike (SA) - If you remix, transform, or build upon the material, you
+    must distribute your contributions under the same license as the original.
+
+  - No additional restrictions - You may not apply legal terms or technological
+    measures that legally restrict others from doing anything the license
+    permits.
+
+--------------------------------------------------------------------------------
+
+NOTICES
+-------
+
+You do not have to comply with the license for elements of the material in the
+public domain or where your use is permitted by an applicable exception or
+limitation.
+
+No warranties are given. The license may not give you all of the permissions
+necessary for your intended use. Other rights such as publicity, privacy, or
+moral rights may limit how you use the material.
+
+Full legal code:
+  https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode
+
+Human-readable summary:
+  https://creativecommons.org/licenses/by-nc-sa/4.0/
