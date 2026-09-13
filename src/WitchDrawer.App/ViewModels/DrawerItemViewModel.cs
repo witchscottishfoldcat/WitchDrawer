@@ -81,8 +81,16 @@ public sealed class DrawerItemViewModel : ObservableObject, IVirtualizingCanvasI
     {
         get
         {
-            var name = System.IO.Path.GetFileName(PathLabel);
-            if (name.EndsWith(".lnk", System.StringComparison.OrdinalIgnoreCase))
+            // 目录路径常以分隔符结尾，GetFileName 会返回空串；先裁掉再取。
+            var trimmed = PathLabel.TrimEnd('\\', '/');
+            var name = System.IO.Path.GetFileName(trimmed);
+            if (string.IsNullOrEmpty(name))
+            {
+                // 根路径等极端情况取不出名字时回退为完整路径，避免空提示。
+                return PathLabel;
+            }
+
+            if (name.Length > 4 && name.EndsWith(".lnk", System.StringComparison.OrdinalIgnoreCase))
             {
                 return name[..^4];
             }

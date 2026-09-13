@@ -1523,6 +1523,13 @@ public partial class DesktopBoxWindow : Window
         // 紧跟 DragLeave 的 DragOver 说明只是 resize churn：取消待执行的复位。
         CancelPendingDragLeaveReset();
 
+        // OLE 拖拽期间 MouseEnter/MouseLeave 不会触发：拖拽悬停也要取消隐藏，
+        // 否则拖文件到高度透明的盒上时落点不可见。重复 DragOver 由管理器侧去重。
+        if (_autoHideEnabled)
+        {
+            AutoHideHoverEntered?.Invoke(this, EventArgs.Empty);
+        }
+
         if (ViewModel.IsTodoBox)
         {
             ViewModel.IsDragOver = false;
@@ -2236,6 +2243,21 @@ public partial class DesktopBoxWindow : Window
         ViewModel.HideDragPreview();
         HideMappingListDropIndicator();
         ViewModel.IsDragOver = false;
+
+        // 同步自动隐藏的悬停态：指针仍在盒上（如点击触发的全局清理）保持 reveal；
+        // 真正拖离或落放后指针不在盒上则恢复隐藏。拖拽中 WPF 不发鼠标事件，
+        // 残留的 reveal 会在下一次鼠标移动触发 MouseEnter/Leave 时自行校正。
+        if (_autoHideEnabled)
+        {
+            if (IsMouseOver)
+            {
+                AutoHideHoverEntered?.Invoke(this, EventArgs.Empty);
+            }
+            else
+            {
+                AutoHideHoverLeft?.Invoke(this, EventArgs.Empty);
+            }
+        }
     }
 
     private static void ResetAllDragVisualStates()

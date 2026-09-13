@@ -397,6 +397,8 @@ public sealed class MainViewModel : ObservableObject
                 return;
             }
 
+            // 立即应用（拖动滑块时实时预览），仅持久化走防抖。
+            PublishAutoHideSettings();
             QueueAutoHideSave();
         }
     }
@@ -430,6 +432,7 @@ public sealed class MainViewModel : ObservableObject
         {
             if (SetProperty(ref _autoHideFadeWholeBox, value))
             {
+                PublishAutoHideSettings();
                 QueueAutoHideSave();
             }
         }
@@ -445,6 +448,7 @@ public sealed class MainViewModel : ObservableObject
         {
             if (SetProperty(ref _autoHideFadeTitle, value))
             {
+                PublishAutoHideSettings();
                 QueueAutoHideSave();
             }
         }
@@ -460,6 +464,7 @@ public sealed class MainViewModel : ObservableObject
         {
             if (SetProperty(ref _autoHideFadeBorder, value))
             {
+                PublishAutoHideSettings();
                 QueueAutoHideSave();
             }
         }
@@ -1515,8 +1520,10 @@ public sealed class MainViewModel : ObservableObject
     {
         var next = new CancellationTokenSource();
         var previous = Interlocked.Exchange(ref _autoHideSaveCts, next);
+        // 只取消不立即 Dispose：旧任务可能仍挂在该 token 的 Task.Delay 上，
+        // 此时 Dispose 会让其回调注册抛出 ObjectDisposedException（被误记为保存失败）。
+        // 已取消且无注册的 CancellationTokenSource 由 GC 回收即可。
         previous?.Cancel();
-        previous?.Dispose();
 
         _ = PersistAutoHideAfterDelayAsync(next.Token);
     }
@@ -1531,13 +1538,8 @@ public sealed class MainViewModel : ObservableObject
                 return;
             }
 
+            // 应用已在属性 setter 中即时完成，这里只负责持久化。
             await SaveAutoHideSettingsAsync();
-            if (cancellationToken.IsCancellationRequested)
-            {
-                return;
-            }
-
-            PublishAutoHideSettings();
         }
         catch (OperationCanceledException)
         {

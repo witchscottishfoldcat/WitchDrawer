@@ -66,11 +66,6 @@
                 <Setter Property="BorderBrush" Value="Transparent" />
                 <Setter Property="BorderThickness" Value="1" />
                 <Setter Property="CornerRadius" Value="20" />
-                <Setter Property="Effect">
-                    <Setter.Value>
-                        <DropShadowEffect BlurRadius="12" Color="#000000" Opacity="0.16" ShadowDepth="2" Direction="270" />
-                    </Setter.Value>
-                </Setter>
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding IsDragOver}" Value="True">
                         <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
@@ -96,7 +91,9 @@
             </Grid.RowDefinitions>
 
             <!-- 独立透明层：收纳盒外壳背景。自动隐藏时仅此层随 AutoHideBoxOpacity 透明，
-                 与内容（图标/文字）及标题的透明相互独立、不叠加。 -->
+                 与内容（图标/文字）及标题的透明相互独立、不叠加。
+                 阴影挂在此层：元素 Opacity 同时作用于其 Effect，盒子隐藏时阴影一并淡出，
+                 避免"盒身已透明、阴影仍完整悬浮"。 -->
             <Border x:Name="BoxSurface"
                     Grid.RowSpan="2"
                     Background="{DynamicResource GlassSurfaceBrush}"
@@ -105,6 +102,11 @@
                 <Border.Style>
                     <Style TargetType="Border">
                         <Setter Property="CornerRadius" Value="18" />
+                        <Setter Property="Effect">
+                            <Setter.Value>
+                                <DropShadowEffect BlurRadius="12" Color="#000000" Opacity="0.16" ShadowDepth="2" Direction="270" />
+                            </Setter.Value>
+                        </Setter>
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsPixelStyle}" Value="True">
                                 <Setter Property="CornerRadius" Value="12" />
@@ -132,6 +134,9 @@
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsPixelStyle}" Value="True">
                                 <Setter Property="CornerRadius" Value="12" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsDrawerCollapsed}" Value="True">
+                                <Setter Property="CornerRadius" Value="22" />
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>

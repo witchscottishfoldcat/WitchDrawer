@@ -83,4 +83,47 @@ public sealed class IconToolTipModeTests
             DesktopHoverDisplayMode.IsCompact = false;
         }
     }
+
+    [Fact]
+    public void HoverDisplayText_CompactMode_TrailingSeparatorDirectory_ReturnsFolderName()
+    {
+        DesktopHoverDisplayMode.IsCompact = true;
+        try
+        {
+            Assert.Equal("docs", Item(@"C:\Users\Test\docs\").HoverDisplayText);
+        }
+        finally
+        {
+            DesktopHoverDisplayMode.IsCompact = false;
+        }
+    }
+
+    [Fact]
+    public void HoverDisplayText_CompactMode_RootPath_FallsBackToFullPath()
+    {
+        DesktopHoverDisplayMode.IsCompact = true;
+        try
+        {
+            Assert.Equal(@"C:\", Item(@"C:\").HoverDisplayText);
+        }
+        finally
+        {
+            DesktopHoverDisplayMode.IsCompact = false;
+        }
+    }
+
+    [Fact]
+    public void HoverDisplayText_CompactMode_FileNamedExactlyLnk_IsNotBlanked()
+    {
+        DesktopHoverDisplayMode.IsCompact = true;
+        try
+        {
+            // 文件名恰为 ".lnk"（4 个字符）时不应被截成空串。
+            Assert.Equal(".lnk", Item(@"C:\data\.lnk").HoverDisplayText);
+        }
+        finally
+        {
+            DesktopHoverDisplayMode.IsCompact = false;
+        }
+    }
 }
