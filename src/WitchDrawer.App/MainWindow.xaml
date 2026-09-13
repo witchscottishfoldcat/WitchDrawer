@@ -2452,6 +2452,93 @@
                                             </Setter.Value>
                                         </Setter>
                                     </Style>
+                                    <Style x:Key="ThemeOpacityTrackButtonStyle"
+                                           TargetType="{x:Type RepeatButton}">
+                                        <Setter Property="Focusable" Value="False" />
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="{x:Type RepeatButton}">
+                                                    <Border Height="4"
+                                                            VerticalAlignment="Center"
+                                                            Background="{TemplateBinding Background}"
+                                                            CornerRadius="2"
+                                                            SnapsToDevicePixels="True" />
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                    <Style x:Key="ThemeOpacityThumbStyle"
+                                           TargetType="{x:Type Thumb}">
+                                        <Setter Property="Width" Value="16" />
+                                        <Setter Property="Height" Value="16" />
+                                        <Setter Property="Focusable" Value="False" />
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="{x:Type Thumb}">
+                                                    <Border x:Name="ThumbRoot"
+                                                            Background="{DynamicResource AccentBrush}"
+                                                            BorderBrush="{DynamicResource GlassSurfaceBrush}"
+                                                            BorderThickness="2"
+                                                            CornerRadius="8"
+                                                            SnapsToDevicePixels="True">
+                                                        <Border.Effect>
+                                                            <DropShadowEffect BlurRadius="5"
+                                                                              ShadowDepth="1"
+                                                                              Direction="270"
+                                                                              Color="#66000000"
+                                                                              Opacity="0.45" />
+                                                        </Border.Effect>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="ThumbRoot"
+                                                                    Property="BorderBrush"
+                                                                    Value="White" />
+                                                        </Trigger>
+                                                        <Trigger Property="IsDragging" Value="True">
+                                                            <Setter TargetName="ThumbRoot"
+                                                                    Property="Background"
+                                                                    Value="{DynamicResource AccentHoverBrush}" />
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                    <Style x:Key="ThemeOpacitySliderStyle"
+                                           TargetType="{x:Type Slider}">
+                                        <Setter Property="Height" Value="24" />
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="{x:Type Slider}">
+                                                    <Grid Background="Transparent">
+                                                        <Track x:Name="PART_Track"
+                                                               Margin="1,0"
+                                                               VerticalAlignment="Center">
+                                                            <Track.DecreaseRepeatButton>
+                                                                <RepeatButton Command="{x:Static Slider.DecreaseLarge}"
+                                                                              Background="{DynamicResource AccentBrush}"
+                                                                              Style="{StaticResource ThemeOpacityTrackButtonStyle}" />
+                                                            </Track.DecreaseRepeatButton>
+                                                            <Track.Thumb>
+                                                                <Thumb Style="{StaticResource ThemeOpacityThumbStyle}" />
+                                                            </Track.Thumb>
+                                                            <Track.IncreaseRepeatButton>
+                                                                <RepeatButton Command="{x:Static Slider.IncreaseLarge}"
+                                                                              Background="{DynamicResource BorderBrushSoft}"
+                                                                              Style="{StaticResource ThemeOpacityTrackButtonStyle}" />
+                                                            </Track.IncreaseRepeatButton>
+                                                        </Track>
+                                                    </Grid>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsEnabled" Value="False">
+                                                            <Setter Property="Opacity" Value="0.45" />
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
                                 </ScrollViewer.Resources>
                             <StackPanel Margin="0,0,4,0"
                                         HorizontalAlignment="Stretch"
@@ -2464,95 +2551,6 @@
                                     Padding="10"
                                     Margin="0,0,0,6">
                                 <Grid>
-                                    <Grid.Resources>
-                                        <Style x:Key="ThemeOpacityTrackButtonStyle"
-                                               TargetType="{x:Type RepeatButton}">
-                                            <Setter Property="Focusable" Value="False" />
-                                            <Setter Property="Template">
-                                                <Setter.Value>
-                                                    <ControlTemplate TargetType="{x:Type RepeatButton}">
-                                                        <Border Height="4"
-                                                                VerticalAlignment="Center"
-                                                                Background="{TemplateBinding Background}"
-                                                                CornerRadius="2"
-                                                                SnapsToDevicePixels="True" />
-                                                    </ControlTemplate>
-                                                </Setter.Value>
-                                            </Setter>
-                                        </Style>
-                                        <Style x:Key="ThemeOpacityThumbStyle"
-                                               TargetType="{x:Type Thumb}">
-                                            <Setter Property="Width" Value="16" />
-                                            <Setter Property="Height" Value="16" />
-                                            <Setter Property="Focusable" Value="False" />
-                                            <Setter Property="Template">
-                                                <Setter.Value>
-                                                    <ControlTemplate TargetType="{x:Type Thumb}">
-                                                        <Border x:Name="ThumbRoot"
-                                                                Background="{DynamicResource AccentBrush}"
-                                                                BorderBrush="{DynamicResource GlassSurfaceBrush}"
-                                                                BorderThickness="2"
-                                                                CornerRadius="8"
-                                                                SnapsToDevicePixels="True">
-                                                            <Border.Effect>
-                                                                <DropShadowEffect BlurRadius="5"
-                                                                                  ShadowDepth="1"
-                                                                                  Direction="270"
-                                                                                  Color="#66000000"
-                                                                                  Opacity="0.45" />
-                                                            </Border.Effect>
-                                                        </Border>
-                                                        <ControlTemplate.Triggers>
-                                                            <Trigger Property="IsMouseOver" Value="True">
-                                                                <Setter TargetName="ThumbRoot"
-                                                                        Property="BorderBrush"
-                                                                        Value="White" />
-                                                            </Trigger>
-                                                            <Trigger Property="IsDragging" Value="True">
-                                                                <Setter TargetName="ThumbRoot"
-                                                                        Property="Background"
-                                                                        Value="{DynamicResource AccentHoverBrush}" />
-                                                            </Trigger>
-                                                        </ControlTemplate.Triggers>
-                                                    </ControlTemplate>
-                                                </Setter.Value>
-                                            </Setter>
-                                        </Style>
-                                        <Style x:Key="ThemeOpacitySliderStyle"
-                                               TargetType="{x:Type Slider}">
-                                            <Setter Property="Height" Value="24" />
-                                            <Setter Property="Template">
-                                                <Setter.Value>
-                                                    <ControlTemplate TargetType="{x:Type Slider}">
-                                                        <Grid Background="Transparent">
-                                                            <Track x:Name="PART_Track"
-                                                                   Margin="1,0"
-                                                                   VerticalAlignment="Center">
-                                                                <Track.DecreaseRepeatButton>
-                                                                    <RepeatButton Command="{x:Static Slider.DecreaseLarge}"
-                                                                                  Background="{DynamicResource AccentBrush}"
-                                                                                  Style="{StaticResource ThemeOpacityTrackButtonStyle}" />
-                                                                </Track.DecreaseRepeatButton>
-                                                                <Track.Thumb>
-                                                                    <Thumb Style="{StaticResource ThemeOpacityThumbStyle}" />
-                                                                </Track.Thumb>
-                                                                <Track.IncreaseRepeatButton>
-                                                                    <RepeatButton Command="{x:Static Slider.IncreaseLarge}"
-                                                                                  Background="{DynamicResource BorderBrushSoft}"
-                                                                                  Style="{StaticResource ThemeOpacityTrackButtonStyle}" />
-                                                                </Track.IncreaseRepeatButton>
-                                                            </Track>
-                                                        </Grid>
-                                                        <ControlTemplate.Triggers>
-                                                            <Trigger Property="IsEnabled" Value="False">
-                                                                <Setter Property="Opacity" Value="0.45" />
-                                                            </Trigger>
-                                                        </ControlTemplate.Triggers>
-                                                    </ControlTemplate>
-                                                </Setter.Value>
-                                            </Setter>
-                                        </Style>
-                                    </Grid.Resources>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
