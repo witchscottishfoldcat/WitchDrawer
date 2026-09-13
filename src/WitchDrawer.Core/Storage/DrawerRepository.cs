@@ -760,6 +760,30 @@ public sealed class DrawerRepository
         }
     }
 
+    public async Task UpdateTodoTitleAsync(
+        Guid todoId,
+        string title,
+        string expectedTitle,
+        DateTimeOffset updatedAt,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            UPDATE Todos SET Title = $title, UpdatedAt = $updatedAt
+            WHERE Id = $id AND Title = $expectedTitle;
+            """;
+        command.Parameters.AddWithValue("$id", todoId.ToString());
+        command.Parameters.AddWithValue("$title", title);
+        command.Parameters.AddWithValue("$expectedTitle", expectedTitle);
+        command.Parameters.AddWithValue("$updatedAt", ToDb(updatedAt));
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+        {
+            throw new InvalidOperationException("事项已被修改或删除，请取消编辑后重试。");
+        }
+    }
+
     public async Task RemoveTodoAsync(Guid todoId, CancellationToken cancellationToken = default)
     {
         await using var connection = CreateConnection();

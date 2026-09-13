@@ -2234,7 +2234,12 @@
                                             Foreground="{DynamicResource TextMutedBrush}"
                                             FontSize="12" />
                             </StackPanel>
-                            <Border Grid.Column="1"
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button Content="撤销删除" Command="{Binding UndoArchivedDeleteCommand}"
+                                    Visibility="{Binding ArchiveUndo.IsAvailable, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                    Style="{StaticResource GhostButtonStyle}" Margin="0,0,8,0"
+                                    ToolTip="删除后 10 秒内可撤销" />
+                            <Border
                                     VerticalAlignment="Center"
                                     Background="{DynamicResource AccentSoftBrush}"
                                     CornerRadius="11"
@@ -2244,6 +2249,7 @@
                                            FontSize="12"
                                            FontWeight="SemiBold" />
                             </Border>
+                            </StackPanel>
                         </Grid>
 
                         <Border Grid.Row="1"

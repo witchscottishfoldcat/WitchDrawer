@@ -85,6 +85,55 @@ public sealed class TodoServiceTests
     }
 
     [Fact]
+    public async Task UpdateTitleAsync_PersistsTrimmedTitleAndRejectsStaleEdits()
+    {
+        using var workspace = await TodoWorkspace.CreateAsync();
+        var todo = await workspace.Service.AddTodoAsync(workspace.BoxId, "original");
+
+        var updated = await workspace.Service.UpdateTitleAsync(
+            todo.Id,
+            "  updated title  ",
+            todo.Title);
+
+        Assert.Equal("updated title", updated.Title);
+        var reloaded = Assert.Single(
+            await new TodoService(new DrawerRepository(workspace.DatabasePath))
+                .GetTodosAsync(workspace.BoxId));
+        Assert.Equal("updated title", reloaded.Title);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            workspace.Service.UpdateTitleAsync(todo.Id, "stale overwrite", todo.Title));
+        Assert.Equal(
+            "updated title",
+            Assert.Single(await workspace.Service.GetTodosAsync(workspace.BoxId)).Title);
+    }
+
+    [Fact]
+    public async Task DeleteWithUndoAsync_RestoresBeforeDeadlineAndExpiresAfterTenSeconds()
+    {
+        using var workspace = await TodoWorkspace.CreateAsync();
+        var clock = new ManualTimeProvider(new DateTimeOffset(2026, 9, 14, 0, 0, 0, TimeSpan.Zero));
+        var service = new TodoService(new DrawerRepository(workspace.DatabasePath), clock);
+        var first = await service.AddTodoAsync(workspace.BoxId, "restore me");
+
+        var undo = await service.DeleteWithUndoAsync(first.Id);
+
+        Assert.Empty(await service.GetTodosAsync(workspace.BoxId));
+        Assert.Equal(first, await service.UndoDeleteAsync(undo.Token));
+        Assert.Equal(first.Id, Assert.Single(await service.GetTodosAsync(workspace.BoxId)).Id);
+
+        var expiring = await service.AddTodoAsync(workspace.BoxId, "expire me");
+        var expiredUndo = await service.DeleteWithUndoAsync(expiring.Id);
+        clock.Advance(TodoService.DeleteUndoWindow + TimeSpan.FromMilliseconds(1));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.UndoDeleteAsync(expiredUndo.Token));
+        Assert.DoesNotContain(
+            await service.GetTodosAsync(workspace.BoxId),
+            item => item.Id == expiring.Id);
+    }
+
+    [Fact]
     public async Task ArchiveCompletedAsync_HidesCompletedItemsAndRestoreReturnsThemToBox()
     {
         using var workspace = await TodoWorkspace.CreateAsync();
@@ -210,5 +259,14 @@ public sealed class TodoServiceTests
                 // Temp cleanup should not hide the test result.
             }
         }
+    }
+
+    private sealed class ManualTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        private DateTimeOffset _utcNow = utcNow;
+
+        public override DateTimeOffset GetUtcNow() => _utcNow;
+
+        public void Advance(TimeSpan duration) => _utcNow += duration;
     }
 }

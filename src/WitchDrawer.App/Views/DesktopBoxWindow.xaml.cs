@@ -46,6 +46,9 @@ public partial class DesktopBoxWindow : Window
     private NativePoint _drawerResizeStartCursor;
     private double _mappingListResizeStartWidth;
     private NativePoint _mappingListResizeStartCursor;
+    private double _todoResizeStartWidth;
+    private double _todoResizeStartHeight;
+    private NativePoint _todoResizeStartCursor;
     private bool _suppressDrawerItemClick;
     private bool _isBoxOpacityRefreshQueued;
     private bool _isVisibleBoundsClampingEnabled;
@@ -778,6 +781,112 @@ public partial class DesktopBoxWindow : Window
         e.Handled = true;
     }
 
+    private void OnTodoResizeStarted(object sender, DragStartedEventArgs e)
+    {
+        _todoResizeStartWidth = ViewModel.TodoPanelWidth;
+        _todoResizeStartHeight = ViewModel.TodoPanelHeight;
+        GetCursorPos(out _todoResizeStartCursor);
+        e.Handled = true;
+    }
+
+    private void OnTodoResizeDelta(object sender, DragDeltaEventArgs e)
+    {
+        if (sender is not Thumb { Tag: string edge } || !GetCursorPos(out var currentCursor))
+        {
+            return;
+        }
+
+        var dpi = VisualTreeHelper.GetDpi(this);
+        var horizontalDelta = (currentCursor.X - _todoResizeStartCursor.X)
+            / Math.Max(0.1, dpi.DpiScaleX);
+        var verticalDelta = (currentCursor.Y - _todoResizeStartCursor.Y)
+            / Math.Max(0.1, dpi.DpiScaleY);
+        var width = edge is "Right" or "Corner"
+            ? _todoResizeStartWidth + horizontalDelta
+            : _todoResizeStartWidth;
+        var height = edge is "Bottom" or "Corner"
+            ? _todoResizeStartHeight + verticalDelta
+            : _todoResizeStartHeight;
+        ViewModel.ResizeTodoPanel(width, height);
+        e.Handled = true;
+    }
+
+    private async void OnTodoResizeCompleted(object sender, DragCompletedEventArgs e)
+    {
+        if (e.Canceled)
+        {
+            ViewModel.ResizeTodoPanel(_todoResizeStartWidth, _todoResizeStartHeight);
+            e.Handled = true;
+            return;
+        }
+
+        if (!await ViewModel.SaveTodoPanelSizeAsync())
+        {
+            ViewModel.ResizeTodoPanel(_todoResizeStartWidth, _todoResizeStartHeight);
+        }
+
+        e.Handled = true;
+    }
+
+    private void OnTodoOverlayScroll(object sender, ScrollEventArgs e)
+    {
+        if (sender is not ScrollBar scrollBar)
+        {
+            return;
+        }
+
+        var listBox = FindVisualAncestor<ListBox>(scrollBar);
+        var scrollViewer = listBox is null
+            ? null
+            : FindVisualChild<ScrollViewer>(listBox);
+        if (scrollViewer is null)
+        {
+            return;
+        }
+
+        scrollViewer.ScrollToVerticalOffset(e.NewValue);
+        e.Handled = true;
+    }
+
+    private void OnTodoScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (sender is not ScrollViewer scrollViewer)
+        {
+            return;
+        }
+
+        var listBox = FindVisualAncestor<ListBox>(scrollViewer);
+        if (listBox?.Template.FindName("TodoOverlayScrollBar", listBox) is not ScrollBar scrollBar)
+        {
+            return;
+        }
+
+        var maximum = Math.Max(0, e.ExtentHeight - e.ViewportHeight);
+        scrollBar.SetCurrentValue(RangeBase.MaximumProperty, maximum);
+        scrollBar.SetCurrentValue(ScrollBar.ViewportSizeProperty, Math.Max(0, e.ViewportHeight));
+        scrollBar.SetCurrentValue(
+            RangeBase.ValueProperty,
+            Math.Clamp(e.VerticalOffset, 0, maximum));
+
+        if (Math.Abs(e.VerticalChange) > double.Epsilon)
+        {
+            RevealTodoScrollBarForScroll(scrollBar);
+        }
+    }
+
+    private static void RevealTodoScrollBarForScroll(ScrollBar scrollBar)
+    {
+        var animation = new DoubleAnimationUsingKeyFrames
+        {
+            Duration = TimeSpan.FromMilliseconds(900),
+            FillBehavior = FillBehavior.Stop,
+        };
+        animation.KeyFrames.Add(new DiscreteDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+        animation.KeyFrames.Add(new DiscreteDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(650))));
+        animation.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(900))));
+        scrollBar.BeginAnimation(OpacityProperty, animation, HandoffBehavior.SnapshotAndReplace);
+    }
+
     private void OnDrawerSurfacePreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (_isPositionLocked
@@ -958,6 +1067,7 @@ public partial class DesktopBoxWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        ViewModel.Undo.Clear();
         SourceInitialized -= OnSourceInitialized;
         Loaded -= OnLoaded;
         DpiChanged -= OnDpiChanged;
@@ -1767,6 +1877,14 @@ public partial class DesktopBoxWindow : Window
 
     private void OnSurfaceMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        if (e.OriginalSource is DependencyObject source
+            && (FindVisualAncestor<Button>(source) is not null
+                || FindVisualAncestor<TextBox>(source) is not null
+                || FindVisualAncestor<Thumb>(source) is not null))
+        {
+            return;
+        }
+
         if (TryGetDrawerItem(e.OriginalSource, out _))
         {
             return;

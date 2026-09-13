@@ -130,6 +130,8 @@ public sealed class MainViewModel : ObservableObject
         DeleteItemCommand = new AsyncRelayCommand<DrawerItemViewModel?>(DeleteItemAsync);
         RestoreArchivedTodoCommand = new AsyncRelayCommand<ArchivedTodoItemViewModel?>(RestoreArchivedTodoAsync);
         DeleteArchivedTodoCommand = new AsyncRelayCommand<ArchivedTodoItemViewModel?>(DeleteArchivedTodoAsync);
+        UndoArchivedDeleteCommand = new AsyncRelayCommand(UndoArchivedDeleteAsync, () => !IsBusy && ArchiveUndo.IsAvailable);
+        ArchiveUndo.AvailabilityChanged += (_, _) => UndoArchivedDeleteCommand.NotifyCanExecuteChanged();
         SetCurrentTheme(AppThemeManager.CurrentTheme);
 
         ApplyMoeThemeCommand = new AsyncRelayCommand(() => ApplyThemeAsync(AppTheme.Moe));
@@ -228,6 +230,10 @@ public sealed class MainViewModel : ObservableObject
     public IAsyncRelayCommand<ArchivedTodoItemViewModel?> RestoreArchivedTodoCommand { get; }
 
     public IAsyncRelayCommand<ArchivedTodoItemViewModel?> DeleteArchivedTodoCommand { get; }
+
+    public IAsyncRelayCommand UndoArchivedDeleteCommand { get; }
+
+    public TodoUndoViewModel ArchiveUndo { get; } = new();
 
     public IAsyncRelayCommand ApplyMoeThemeCommand { get; }
 
@@ -1237,9 +1243,23 @@ public sealed class MainViewModel : ObservableObject
 
         await RunBusyAsync(async () =>
         {
-            await _todoService.DeleteTodoAsync(todo.Id);
+            var undo = await _todoService.DeleteWithUndoAsync(todo.Id);
+            ArchivedTodos.Remove(todo);
+            ArchiveUndo.Offer(undo);
+            StatusText = $"已删除归档事项“{todo.Title}”，10 秒内可撤销";
+        });
+    }
+
+    private Task UndoArchivedDeleteAsync()
+    {
+        var pending = ArchiveUndo.Pending;
+        if (pending is null) return Task.CompletedTask;
+        return RunBusyAsync(async () =>
+        {
+            await _todoService.UndoDeleteAsync(pending.Token);
+            ArchiveUndo.Clear();
             await LoadArchivedTodosAsync();
-            StatusText = $"已删除归档事项“{todo.Title}”";
+            StatusText = "已撤销删除归档事项";
         });
     }
 

@@ -1,4 +1,5 @@
 using System.IO;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Input;
 using System.Xml.Linq;
@@ -323,6 +324,99 @@ public sealed class DesktopBoxWindowTemplateTests
             element => (string?)element.Attribute(XamlNamespace + "Name") == "ResizeLine");
     }
 
+    [Fact]
+    public void TodoOverlayScrollBar_DoesNotOverlapRightResizeThumb()
+    {
+        var windowDocument = XDocument.Load(GetDesktopBoxWindowXamlPath());
+        var styleDocument = XDocument.Load(GetDesktopBoxControlStylesXamlPath());
+        var editorDocument = XDocument.Load(GetTodoTitleEditorXamlPath());
+        Assert.Equal(
+            "{x:Null}",
+            (string?)editorDocument.Root?.Attribute("FocusVisualStyle"));
+        var todoList = Assert.Single(
+            windowDocument.Descendants(PresentationNamespace + "ListBox"),
+            element => (string?)element.Attribute(XamlNamespace + "Name") == "TodoList");
+        var scrollBar = Assert.Single(
+            todoList.Descendants(PresentationNamespace + "ScrollBar"),
+            element => (string?)element.Attribute(XamlNamespace + "Name") == "TodoOverlayScrollBar");
+        var contentPresenter = Assert.Single(
+            todoList.Descendants(PresentationNamespace + "ScrollContentPresenter"),
+            element => (string?)element.Attribute(XamlNamespace + "Name") == "PART_ScrollContentPresenter");
+        var scrollViewer = Assert.Single(
+            todoList.Descendants(PresentationNamespace + "ScrollViewer"),
+            element => (string?)element.Attribute(XamlNamespace + "Name") == "PART_TodoScrollViewer");
+        var resizeThumb = Assert.Single(
+            windowDocument.Descendants(PresentationNamespace + "Thumb"),
+            element => (string?)element.Attribute("Tag") == "Right");
+        var itemRoot = Assert.Single(
+            todoList.Descendants(PresentationNamespace + "Border"),
+            element => (string?)element.Attribute(XamlNamespace + "Name") == "Root");
+        var scrollBarStyle = Assert.Single(
+            styleDocument.Descendants(PresentationNamespace + "Style"),
+            element => (string?)element.Attribute(XamlNamespace + "Key") == "TodoOverlayScrollBarStyle");
+        var overlayStyle = Assert.Single(
+            scrollBar.Elements(PresentationNamespace + "ScrollBar.Style")
+                .Elements(PresentationNamespace + "Style"));
+        var widthSetter = Assert.Single(
+            scrollBarStyle.Elements(PresentationNamespace + "Setter"),
+            element => (string?)element.Attribute("Property") == "Width");
+        var actionRail = Assert.Single(
+            editorDocument.Descendants(PresentationNamespace + "Border"),
+            element => (string?)element.Attribute(XamlNamespace + "Name") == "TodoActionRail");
+        var scrollMargin = ParseThickness((string?)scrollBar.Attribute("Margin"));
+        var contentMargin = ParseThickness((string?)contentPresenter.Attribute("Margin"));
+        var itemPadding = ParseThickness((string?)itemRoot.Attribute("Padding"));
+        var itemMargin = ParseThickness((string?)itemRoot.Attribute("Margin"));
+        var actionMargin = ParseThickness((string?)actionRail.Attribute("Margin"));
+        var scrollWidth = double.Parse(
+            (string?)widthSetter.Attribute("Value") ?? "0",
+            CultureInfo.InvariantCulture);
+        var resizeWidth = double.Parse(
+            (string?)resizeThumb.Attribute("Width") ?? "0",
+            CultureInfo.InvariantCulture);
+        var actionWidth = double.Parse(
+            (string?)actionRail.Attribute("Width") ?? "0",
+            CultureInfo.InvariantCulture);
+
+        Assert.True(scrollMargin.Right >= resizeWidth);
+        Assert.Equal(0, contentMargin.Right);
+        Assert.Equal(0, itemPadding.Right);
+        Assert.Equal(8, itemMargin.Left);
+        Assert.Equal(2, itemMargin.Right - scrollMargin.Right);
+        Assert.Equal(28, actionWidth);
+        Assert.Equal(16, actionMargin.Right);
+        Assert.True(actionMargin.Right >= scrollMargin.Right + scrollWidth);
+        Assert.All(
+            new[] { "Rail", "ThumbSurface" },
+            name => Assert.Equal(
+                "Right",
+                (string?)Assert.Single(
+                    scrollBarStyle.Descendants(PresentationNamespace + "Border"),
+                    element => (string?)element.Attribute(XamlNamespace + "Name") == name)
+                    .Attribute("HorizontalAlignment")));
+        Assert.Equal("Transparent", (string?)actionRail.Attribute("Background"));
+        Assert.Equal("0", (string?)actionRail.Attribute("BorderThickness"));
+        Assert.Equal("Pixel", (string?)todoList.Attribute("VirtualizingPanel.ScrollUnit"));
+        Assert.Equal("OnTodoScrollChanged", (string?)scrollViewer.Attribute("ScrollChanged"));
+        Assert.Contains(
+            todoList.Descendants(PresentationNamespace + "Setter"),
+            element => (string?)element.Attribute("TargetName") == "Root"
+                && (string?)element.Attribute("Property") == "BorderBrush"
+                && (string?)element.Attribute("Value") == "{DynamicResource BorderBrushSoft}");
+        Assert.Contains(
+            overlayStyle.Elements(PresentationNamespace + "Setter"),
+            element => (string?)element.Attribute("Property") == "Opacity"
+                && (string?)element.Attribute("Value") == "0");
+        Assert.Contains(
+            overlayStyle.Elements(PresentationNamespace + "Setter"),
+            element => (string?)element.Attribute("Property") == "IsHitTestVisible"
+                && (string?)element.Attribute("Value") == "True");
+        Assert.Contains(
+            overlayStyle.Descendants(PresentationNamespace + "Trigger"),
+            element => (string?)element.Attribute("Property") == "IsMouseOver"
+                && (string?)element.Attribute("Value") == "True");
+    }
+
     private static string GetDesktopBoxWindowXamlPath() =>
         Path.GetFullPath(
             Path.Combine(
@@ -351,4 +445,33 @@ public sealed class DesktopBoxWindowTemplateTests
                 "Views",
                 "Styles",
                 "DesktopBoxSelectionStyles.xaml"));
+
+    private static string GetDesktopBoxControlStylesXamlPath() =>
+        Path.GetFullPath(
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "..",
+                "..",
+                "..",
+                "..",
+                "..",
+                "src",
+                "WitchDrawer.App",
+                "Views",
+                "Styles",
+                "DesktopBoxControlStyles.xaml"));
+
+    private static string GetTodoTitleEditorXamlPath() =>
+        Path.GetFullPath(
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "..",
+                "..",
+                "..",
+                "..",
+                "..",
+                "src",
+                "WitchDrawer.App",
+                "Controls",
+                "TodoTitleEditor.xaml"));
 }

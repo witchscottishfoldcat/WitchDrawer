@@ -153,6 +153,68 @@ public sealed class TodoBoxDetailViewModelTests
         Assert.Null(viewModel.TodoBoxDetail.BoxId);
     }
 
+    [Fact]
+    public async Task DesktopTodoCommands_ReenableDeleteAfterAddingAnItem()
+    {
+        using var workspace = await TodoWorkspace.CreateAsync();
+        var viewModel = new DesktopBoxViewModel(
+            workspace.TodoBox,
+            workspace.DrawerService,
+            workspace.TodoService,
+            new NoOpFileLauncher(),
+            new RecordingLogger(),
+            BoxVisualStyle.Modern);
+        await viewModel.LoadAsync();
+
+        viewModel.NewTodoTitle = "可以删除的待办";
+        await viewModel.AddTodoCommand.ExecuteAsync(null);
+
+        var added = Assert.Single(viewModel.TodoItems);
+        added.BeginEdit();
+        Assert.True(viewModel.DeleteTodoCommand.CanExecute(added));
+
+        await viewModel.DeleteTodoCommand.ExecuteAsync(added);
+
+        Assert.Empty(viewModel.TodoItems);
+        Assert.True(viewModel.Undo.IsAvailable);
+    }
+
+    [Fact]
+    public async Task DesktopTodoPanelSize_IsClampedAndPersistedPerBox()
+    {
+        using var workspace = await TodoWorkspace.CreateAsync();
+        var viewModel = new DesktopBoxViewModel(
+            workspace.TodoBox,
+            workspace.DrawerService,
+            workspace.TodoService,
+            new NoOpFileLauncher(),
+            new RecordingLogger(),
+            BoxVisualStyle.Modern);
+
+        viewModel.ResizeTodoPanel(512.5, 436.25);
+        await viewModel.SaveTodoPanelSizeAsync();
+
+        var restored = new DesktopBoxViewModel(
+            workspace.TodoBox,
+            workspace.DrawerService,
+            workspace.TodoService,
+            new NoOpFileLauncher(),
+            new RecordingLogger(),
+            BoxVisualStyle.Modern);
+        await restored.LoadTodoPanelSizeAsync();
+
+        Assert.Equal(512.5, restored.TodoPanelWidth);
+        Assert.Equal(436.25, restored.TodoPanelHeight);
+
+        restored.ResizeTodoPanel(1, double.PositiveInfinity);
+        Assert.Equal(DesktopBoxViewModel.MinimumTodoPanelWidth, restored.TodoPanelWidth);
+        Assert.Equal(300, restored.TodoPanelHeight);
+
+        restored.ResizeTodoPanel(5000, 5000);
+        Assert.Equal(DesktopBoxViewModel.MaximumTodoPanelWidth, restored.TodoPanelWidth);
+        Assert.Equal(DesktopBoxViewModel.MaximumTodoPanelHeight, restored.TodoPanelHeight);
+    }
+
     private sealed class TodoWorkspace : IDisposable
     {
         private TodoWorkspace(

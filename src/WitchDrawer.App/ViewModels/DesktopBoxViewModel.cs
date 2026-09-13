@@ -30,6 +30,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private const double VisibleHeaderRowHeight = 24;
     private const string MappingViewModeSettingPrefix = "MappingViewMode:";
     private const string MappingListWidthSettingPrefix = "MappingListWidth:";
+    private const string TodoPanelSizeSettingPrefix = "TodoPanelSize:";
     private const string MappingListViewMode = "List";
     private const string MappingGridViewMode = "Grid";
     private const string DrawerCoverSizeSettingPrefix = "DrawerCoverSize:";
@@ -45,6 +46,12 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private const double DrawerTitleHeightCompensation = DesktopBoxLayoutSettings.HiddenGridContentInset;
     internal const double MinimumMappingListWidth = 180;
     internal const double MaximumMappingListWidth = 720;
+    internal const double MinimumTodoPanelWidth = 220;
+    internal const double MinimumTodoPanelHeight = 190;
+    internal const double MaximumTodoPanelWidth = 960;
+    internal const double MaximumTodoPanelHeight = 720;
+    private const double DefaultTodoPanelWidth = 310;
+    private const double DefaultTodoPanelHeight = 300;
 
     private readonly DrawerService _drawerService;
     private readonly TodoService _todoService;
@@ -71,7 +78,10 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private bool _isMappingListMode;
     private double _mappingListWidth;
     private bool _hasCustomMappingListWidth;
+    private double _todoPanelWidth = DefaultTodoPanelWidth;
+    private double _todoPanelHeight = DefaultTodoPanelHeight;
     private string _newTodoTitle = string.Empty;
+    private readonly SemaphoreSlim _todoViewGate = new(1, 1);
     private double _iconDpiScaleX = 1;
     private double _iconDpiScaleY = 1;
     private bool _isDrawerExpanded;
@@ -116,15 +126,22 @@ public sealed class DesktopBoxViewModel : ObservableObject
         UseMappingGridModeCommand = new AsyncRelayCommand(() => SetMappingViewModeAsync(useListMode: false));
         UseMappingListModeCommand = new AsyncRelayCommand(() => SetMappingViewModeAsync(useListMode: true));
         AddTodoCommand = new AsyncRelayCommand(AddTodoAsync, CanAddTodo);
-        ToggleTodoCommand = new AsyncRelayCommand<TodoItemViewModel?>(ToggleTodoAsync);
+        ToggleTodoCommand = new AsyncRelayCommand<TodoItemViewModel?>(ToggleTodoAsync, CanMutateTodo);
         ArchiveCompletedTodosCommand = new AsyncRelayCommand(ArchiveCompletedTodosAsync, CanArchiveCompletedTodos);
-        DeleteTodoCommand = new AsyncRelayCommand<TodoItemViewModel?>(DeleteTodoAsync);
+        DeleteTodoCommand = new AsyncRelayCommand<TodoItemViewModel?>(DeleteTodoAsync, CanMutateTodo);
+        SaveTodoCommand = new AsyncRelayCommand<TodoItemViewModel?>(SaveTodoAsync, CanMutateTodo);
+        UndoDeleteCommand = new AsyncRelayCommand(UndoDeleteAsync, () => !IsBusy && Undo.IsAvailable);
+        Undo.AvailabilityChanged += (_, _) => UndoDeleteCommand.NotifyCanExecuteChanged();
         UpdateGridCanvasSize();
     }
 
     public DesktopBoxLayoutSettings LayoutSettings => _layoutSettings;
 
     public double MappingListWidth => _mappingListWidth;
+
+    public double TodoPanelWidth => _todoPanelWidth;
+
+    public double TodoPanelHeight => _todoPanelHeight;
 
     /// <summary>
     /// 自动隐藏开启且未悬停时，收纳盒内容的可见度（0..1），默认完全可见。
@@ -236,6 +253,11 @@ public sealed class DesktopBoxViewModel : ObservableObject
     public IAsyncRelayCommand ArchiveCompletedTodosCommand { get; }
 
     public IAsyncRelayCommand<TodoItemViewModel?> DeleteTodoCommand { get; }
+
+    public IAsyncRelayCommand<TodoItemViewModel?> SaveTodoCommand { get; }
+    public IAsyncRelayCommand UndoDeleteCommand { get; }
+    public TodoUndoViewModel Undo { get; } = new();
+    public bool HasTodos => TodoItems.Count > 0;
 
     public Guid BoxId => _box.Id;
 
@@ -869,31 +891,44 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     private bool CanAddTodo()
     {
-        return IsTodoBox && !IsBusy && !string.IsNullOrWhiteSpace(NewTodoTitle);
+        return IsTodoBox && !IsBusy && NewTodoTitle.Trim().Length is > 0 and <= TodoService.MaximumTitleLength;
     }
 
-    private async Task AddTodoAsync()
+    private Task AddTodoAsync() => RunTodoOperationAsync(async () =>
     {
         var title = NewTodoTitle;
-        await RunTodoOperationAsync(async () =>
-        {
-            await _todoService.AddTodoAsync(BoxId, title);
-            NewTodoTitle = string.Empty;
-            StatusText = "已添加";
-        });
-    }
+        var item = await _todoService.AddTodoAsync(BoxId, title);
+        UpsertTodo(item);
+        if (NewTodoTitle == title) NewTodoTitle = string.Empty;
+        return "已添加";
+    });
 
-    private async Task ToggleTodoAsync(TodoItemViewModel? todo)
+    private Task ToggleTodoAsync(TodoItemViewModel? todo)
     {
         if (todo is null || !IsTodoBox)
         {
-            return;
+            return Task.CompletedTask;
         }
 
-        await RunTodoOperationAsync(async () =>
+        var completed = !todo.IsCompleted;
+        return RunTodoOperationAsync(async () =>
         {
-            await _todoService.SetCompletedAsync(todo.Id, !todo.IsCompleted);
-            StatusText = todo.IsCompleted ? "已恢复" : "已完成";
+            UpsertTodo(await _todoService.SetCompletedAsync(todo.Id, completed));
+            return completed ? "已完成" : "已恢复";
+        });
+    }
+
+    private bool CanMutateTodo(TodoItemViewModel? todo) =>
+        IsTodoBox && !IsBusy && todo is not null && todo.Model.BoxId == BoxId && TodoItems.Contains(todo);
+
+    private Task SaveTodoAsync(TodoItemViewModel? todo)
+    {
+        if (!CanMutateTodo(todo) || !todo!.IsEditing) return Task.CompletedTask;
+        var title = todo.EditTitle; var expected = todo.OriginalEditTitle;
+        return RunTodoOperationAsync(async () =>
+        {
+            var updated = await _todoService.UpdateTitleAsync(todo.Id, title, expected);
+            UpsertTodo(updated); todo.CancelEdit(); return "已保存待办";
         });
     }
 
@@ -902,30 +937,39 @@ public sealed class DesktopBoxViewModel : ObservableObject
         return IsTodoBox && !IsBusy && TodoCompletedCount > 0;
     }
 
-    private async Task ArchiveCompletedTodosAsync()
+    private Task ArchiveCompletedTodosAsync() => RunTodoOperationAsync(async () =>
     {
-        await RunTodoOperationAsync(async () =>
-        {
-            var archivedCount = await _todoService.ArchiveCompletedAsync(BoxId);
-            StatusText = archivedCount == 0 ? "没有可归档事项" : $"已归档 {archivedCount} 项";
-        });
-    }
+        var archivedCount = await _todoService.ArchiveCompletedAsync(BoxId);
+        ApplyTodoItems(await _todoService.GetTodosAsync(BoxId));
+        return archivedCount == 0 ? "没有可归档事项" : $"已归档 {archivedCount} 项";
+    });
 
-    private async Task DeleteTodoAsync(TodoItemViewModel? todo)
+    private Task DeleteTodoAsync(TodoItemViewModel? todo)
     {
         if (todo is null || !IsTodoBox)
         {
-            return;
+            return Task.CompletedTask;
         }
 
-        await RunTodoOperationAsync(async () =>
+        return RunTodoOperationAsync(async () =>
         {
-            await _todoService.DeleteTodoAsync(todo.Id);
-            StatusText = "已删除";
+            var undo = await _todoService.DeleteWithUndoAsync(todo.Id);
+            TodoItems.Remove(todo); NotifyTodoState(); Undo.Offer(undo);
+            return "已删除，10 秒内可撤销";
         });
     }
 
-    private async Task RunTodoOperationAsync(Func<Task> operation)
+    private Task UndoDeleteAsync()
+    {
+        var pending = Undo.Pending;
+        if (pending is null || pending.BoxId != BoxId) return Task.CompletedTask;
+        return RunTodoOperationAsync(async () =>
+        {
+            UpsertTodo(await _todoService.UndoDeleteAsync(pending.Token)); Undo.Clear(); return "已撤销删除";
+        });
+    }
+
+    private async Task RunTodoOperationAsync(Func<Task<string>> operation)
     {
         if (IsBusy)
         {
@@ -935,10 +979,9 @@ public sealed class DesktopBoxViewModel : ObservableObject
         try
         {
             IsBusy = true;
-            AddTodoCommand.NotifyCanExecuteChanged();
-            ArchiveCompletedTodosCommand.NotifyCanExecuteChanged();
-            await operation();
-            await LoadTodoItemsAsync();
+            NotifyTodoCommands();
+            await _todoViewGate.WaitAsync();
+            StatusText = await operation();
             ItemsChanged?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception exception)
@@ -948,27 +991,44 @@ public sealed class DesktopBoxViewModel : ObservableObject
         }
         finally
         {
+            if (_todoViewGate.CurrentCount == 0) _todoViewGate.Release();
             IsBusy = false;
-            AddTodoCommand.NotifyCanExecuteChanged();
-            ArchiveCompletedTodosCommand.NotifyCanExecuteChanged();
+            NotifyTodoCommands();
         }
     }
 
     private async Task LoadTodoItemsAsync()
     {
         var todos = await _todoService.GetTodosAsync(BoxId);
-        TodoItems.Clear();
-        foreach (var todo in todos)
-        {
-            TodoItems.Add(new TodoItemViewModel(todo));
-        }
-
-        StatusText = TodoItems.Count == 0 ? "添加待办" : "已同步";
+        ApplyTodoItems(todos);
+        if (!IsBusy) StatusText = TodoItems.Count == 0 ? "添加待办" : "已同步";
         OnPropertyChanged(nameof(ItemCountLabel));
         OnPropertyChanged(nameof(TodoRemainingCount));
         OnPropertyChanged(nameof(TodoCompletedCount));
         OnPropertyChanged(nameof(ShowFileEmptyState));
         ArchiveCompletedTodosCommand.NotifyCanExecuteChanged();
+    }
+
+    private void UpsertTodo(TodoItem model) => ApplyTodoItems(TodoCollectionSync.Ordered(TodoItems.Select(item => item.Model).Where(item => item.Id != model.Id).Append(model)));
+    private void ApplyTodoItems(IEnumerable<TodoItem> items)
+    {
+        TodoCollectionSync.Apply(TodoItems, items.Where(item => !item.IsArchived));
+        NotifyTodoState();
+    }
+    private void NotifyTodoState()
+    {
+        OnPropertyChanged(nameof(ItemCountLabel)); OnPropertyChanged(nameof(TodoRemainingCount)); OnPropertyChanged(nameof(TodoCompletedCount)); OnPropertyChanged(nameof(HasTodos)); OnPropertyChanged(nameof(ShowFileEmptyState));
+        NotifyTodoCommands();
+    }
+
+    private void NotifyTodoCommands()
+    {
+        AddTodoCommand.NotifyCanExecuteChanged();
+        ToggleTodoCommand.NotifyCanExecuteChanged();
+        DeleteTodoCommand.NotifyCanExecuteChanged();
+        SaveTodoCommand.NotifyCanExecuteChanged();
+        ArchiveCompletedTodosCommand.NotifyCanExecuteChanged();
+        UndoDeleteCommand.NotifyCanExecuteChanged();
     }
 
     public Task ImportPathsAsync(IEnumerable<string> paths)
@@ -1304,6 +1364,92 @@ public sealed class DesktopBoxViewModel : ObservableObject
     {
         var candidate = double.IsFinite(width) ? width : fallback;
         return Math.Clamp(candidate, MinimumMappingListWidth, MaximumMappingListWidth);
+    }
+
+    public void ResizeTodoPanel(double width, double height)
+    {
+        if (!IsTodoBox)
+        {
+            return;
+        }
+
+        var normalized = NormalizeTodoPanelSize(width, height);
+        SetProperty(ref _todoPanelWidth, normalized.Width, nameof(TodoPanelWidth));
+        SetProperty(ref _todoPanelHeight, normalized.Height, nameof(TodoPanelHeight));
+    }
+
+    public async Task LoadTodoPanelSizeAsync()
+    {
+        if (!IsTodoBox)
+        {
+            return;
+        }
+
+        try
+        {
+            var saved = await _drawerService.GetSettingAsync(GetTodoPanelSizeSettingKey(BoxId));
+            if (TryParseTodoPanelSize(saved, out var width, out var height))
+            {
+                ResizeTodoPanel(width, height);
+            }
+            else
+            {
+                ResizeTodoPanel(DefaultTodoPanelWidth, DefaultTodoPanelHeight);
+            }
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to load todo panel size.");
+        }
+    }
+
+    public async Task<bool> SaveTodoPanelSizeAsync()
+    {
+        if (!IsTodoBox)
+        {
+            return true;
+        }
+
+        var value = string.Create(
+            CultureInfo.InvariantCulture,
+            $"{TodoPanelWidth:0.##},{TodoPanelHeight:0.##}");
+        try
+        {
+            await _drawerService.SetSettingAsync(GetTodoPanelSizeSettingKey(BoxId), value);
+            return true;
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to save todo panel size.");
+            StatusText = "尺寸保存失败";
+            return false;
+        }
+    }
+
+    internal static string GetTodoPanelSizeSettingKey(Guid boxId) =>
+        $"{TodoPanelSizeSettingPrefix}{boxId:N}";
+
+    internal static (double Width, double Height) NormalizeTodoPanelSize(double width, double height)
+    {
+        var normalizedWidth = double.IsFinite(width) ? width : DefaultTodoPanelWidth;
+        var normalizedHeight = double.IsFinite(height) ? height : DefaultTodoPanelHeight;
+        return (
+            Math.Clamp(normalizedWidth, MinimumTodoPanelWidth, MaximumTodoPanelWidth),
+            Math.Clamp(normalizedHeight, MinimumTodoPanelHeight, MaximumTodoPanelHeight));
+    }
+
+    internal static bool TryParseTodoPanelSize(string? value, out double width, out double height)
+    {
+        width = 0;
+        height = 0;
+        var parts = value?.Split(',', StringSplitOptions.TrimEntries);
+        return parts is { Length: 2 }
+            && double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out width)
+            && double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out height)
+            && double.IsFinite(width)
+            && double.IsFinite(height)
+            && width > 0
+            && height > 0;
     }
 
     private async Task OpenItemAsync(DrawerItemViewModel? item)

@@ -1,0 +1,174 @@
+<UserControl x:Class="WitchDrawer.App.Controls.TodoTitleEditor"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:infrastructure="clr-namespace:WitchDrawer.App.Infrastructure"
+             x:Name="Root"
+             Focusable="True"
+             FocusVisualStyle="{x:Null}"
+             PreviewKeyDown="OnPreviewKeyDown">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <infrastructure:InverseBooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" />
+    </UserControl.Resources>
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <Grid x:Name="TodoContent"
+              Grid.Column="0"
+              Margin="0,0,8,0">
+            <StackPanel VerticalAlignment="Center"
+                        Visibility="{Binding IsEditing, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                <Border Background="Transparent"
+                        MouseLeftButtonDown="OnTitleMouseLeftButtonDown">
+                    <TextBlock Text="{Binding Title}"
+                               FontSize="12.5"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsCompleted}" Value="True">
+                                        <Setter Property="TextDecorations" Value="Strikethrough" />
+                                        <Setter Property="Opacity" Value="0.5" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Border>
+                <TextBlock Text="{Binding TimeLabel}"
+                           Margin="0,2,0,0"
+                           Foreground="{DynamicResource TextMutedBrush}"
+                           FontSize="9.5" />
+            </StackPanel>
+
+            <Border CornerRadius="7"
+                    Padding="3"
+                    Background="{DynamicResource AccentSoftBrush}"
+                    BorderBrush="{DynamicResource AccentBrush}"
+                    BorderThickness="1"
+                    RenderTransformOrigin="0.5,0.5">
+                <Border.RenderTransform>
+                    <TranslateTransform Y="2" />
+                </Border.RenderTransform>
+                <Border.Style>
+                    <Style TargetType="{x:Type Border}">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Setter Property="Opacity" Value="0" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <DataTrigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                             From="0"
+                                                             To="1"
+                                                             Duration="0:0:0.12" />
+                                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                                             From="2"
+                                                             To="0"
+                                                             Duration="0:0:0.12" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </DataTrigger.EnterActions>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Border Width="3"
+                            Height="18"
+                            Margin="1,0,5,0"
+                            CornerRadius="2"
+                            Background="{DynamicResource AccentBrush}"
+                            VerticalAlignment="Center" />
+                    <TextBox x:Name="Editor"
+                             Grid.Column="1"
+                             Text="{Binding EditTitle, UpdateSourceTrigger=PropertyChanged}"
+                             MaxLength="200"
+                             MinHeight="26"
+                             Padding="3,1"
+                             FontSize="12.5"
+                             VerticalContentAlignment="Center"
+                             TextWrapping="Wrap"
+                             Foreground="{DynamicResource TextPrimaryBrush}"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             ToolTip="Enter 保存，Esc 取消"
+                             AutomationProperties.Name="待办内容" />
+                    <Button Grid.Column="2"
+                            Content="✓"
+                            Click="OnSave"
+                            Width="24"
+                            Height="24"
+                            Padding="0"
+                            Margin="2,0,0,0"
+                            Style="{DynamicResource GhostButtonStyle}"
+                            Foreground="{DynamicResource AccentBrush}"
+                            ToolTip="保存（Enter）"
+                            AutomationProperties.Name="保存待办" />
+                    <Button Grid.Column="3"
+                            Content="×"
+                            Click="OnCancel"
+                            Width="24"
+                            Height="24"
+                            Padding="0"
+                            Style="{DynamicResource GhostButtonStyle}"
+                            Foreground="{DynamicResource TextMutedBrush}"
+                            ToolTip="取消（Esc）"
+                            AutomationProperties.Name="取消编辑" />
+                </Grid>
+            </Border>
+        </Grid>
+
+        <Border x:Name="TodoActionRail"
+                Grid.Column="1"
+                Width="28"
+                Margin="5,0,16,0"
+                Padding="1"
+                MinHeight="48"
+                Background="Transparent"
+                BorderThickness="0"
+                VerticalAlignment="Center">
+            <StackPanel>
+                <Button Click="OnBeginEdit"
+                        Content="&#xE70F;"
+                        FontFamily="Segoe Fluent Icons"
+                        FontSize="11"
+                        Width="24"
+                        Height="22"
+                        Padding="0"
+                        Style="{DynamicResource GhostButtonStyle}"
+                        Foreground="{DynamicResource TextMutedBrush}"
+                        Visibility="{Binding IsEditing, Converter={StaticResource InverseBooleanToVisibilityConverter}}"
+                        ToolTip="编辑待办（F2）"
+                        AutomationProperties.Name="编辑待办" />
+                <Button Command="{Binding DeleteCommand, ElementName=Root}"
+                        CommandParameter="{Binding}"
+                        Width="24"
+                        Height="22"
+                        Padding="0"
+                        Style="{DynamicResource GhostButtonStyle}"
+                        Foreground="{DynamicResource TextMutedBrush}"
+                        ToolTip="删除待办"
+                        AutomationProperties.Name="删除待办">
+                    <TextBlock Text="&#xE74D;"
+                               FontFamily="Segoe Fluent Icons"
+                               FontSize="11.5"
+                               Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                </Button>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

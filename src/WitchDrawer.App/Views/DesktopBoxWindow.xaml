@@ -636,10 +636,14 @@
 
             <!-- 待办收纳盒：与文件盒共用原生桌面浮窗外壳，但拥有独立的持久化内容。 -->
             <Grid Grid.Row="1"
+                  x:Name="TodoPanel"
                   Panel.ZIndex="3"
-                  Width="310"
+                  Width="{Binding TodoPanelWidth}"
+                  Height="{Binding TodoPanelHeight}"
+                  MinWidth="220"
                   MinHeight="190"
-                  MaxHeight="430"
+                  MaxWidth="960"
+                  MaxHeight="720"
                   Margin="8,4,8,10"
                   HorizontalAlignment="Left"
                   VerticalAlignment="Top">
@@ -658,6 +662,7 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <Grid Grid.Row="0" Margin="4,0,4,8">
@@ -666,7 +671,7 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="TODAY"
+                    <TextBlock Text="待办清单"
                                Foreground="{DynamicResource TextMutedBrush}"
                                FontSize="10.5"
                                FontWeight="Bold"
@@ -760,13 +765,67 @@
                                    FontSize="12" />
                     </StackPanel>
 
-                    <ListBox ItemsSource="{Binding TodoItems}"
-                             Visibility="{Binding TodoItems.Count, Converter={StaticResource InverseBooleanToVisibilityConverter}}"
+                    <ListBox x:Name="TodoList"
+                             ItemsSource="{Binding TodoItems}"
+                             Visibility="{Binding HasTodos, Converter={StaticResource BooleanToVisibilityConverter}}"
                              ScrollViewer.CanContentScroll="True"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                              ScrollViewer.VerticalScrollBarVisibility="Auto"
                              VirtualizingPanel.IsVirtualizing="True"
-                             VirtualizingPanel.VirtualizationMode="Recycling">
+                             VirtualizingPanel.VirtualizationMode="Recycling"
+                             VirtualizingPanel.ScrollUnit="Pixel">
+                        <ListBox.Template>
+                            <ControlTemplate TargetType="{x:Type ListBox}">
+                                <Grid ClipToBounds="True">
+                                    <ScrollViewer x:Name="PART_TodoScrollViewer"
+                                                  Focusable="False"
+                                                  CanContentScroll="True"
+                                                  IsDeferredScrollingEnabled="False"
+                                                  PanningMode="VerticalOnly"
+                                                  ScrollChanged="OnTodoScrollChanged">
+                                        <ScrollViewer.Template>
+                                            <ControlTemplate TargetType="{x:Type ScrollViewer}">
+                                                <ScrollContentPresenter x:Name="PART_ScrollContentPresenter"
+                                                                        Margin="0"
+                                                                        CanContentScroll="{TemplateBinding CanContentScroll}"
+                                                                        Content="{TemplateBinding Content}"
+                                                                        ContentTemplate="{TemplateBinding ContentTemplate}" />
+                                            </ControlTemplate>
+                                        </ScrollViewer.Template>
+                                        <ItemsPresenter />
+                                    </ScrollViewer>
+                                    <ScrollBar x:Name="TodoOverlayScrollBar"
+                                               Panel.ZIndex="10"
+                                               Orientation="Vertical"
+                                               HorizontalAlignment="Right"
+                                               Margin="0,0,3,0"
+                                               Minimum="0"
+                                               Maximum="{Binding ScrollableHeight, ElementName=PART_TodoScrollViewer, Mode=OneWay}"
+                                               ViewportSize="{Binding ViewportHeight, ElementName=PART_TodoScrollViewer, Mode=OneWay}"
+                                               Value="{Binding VerticalOffset, ElementName=PART_TodoScrollViewer, Mode=OneWay}"
+                                               SmallChange="24"
+                                               LargeChange="{Binding ViewportHeight, ElementName=PART_TodoScrollViewer, Mode=OneWay}"
+                                               Scroll="OnTodoOverlayScroll">
+                                        <ScrollBar.Style>
+                                            <Style TargetType="{x:Type ScrollBar}"
+                                                   BasedOn="{StaticResource TodoOverlayScrollBarStyle}">
+                                                <Setter Property="Opacity" Value="0" />
+                                                <Setter Property="IsHitTestVisible" Value="True" />
+                                                <Style.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter Property="Opacity" Value="1" />
+                                                    </Trigger>
+                                                    <DataTrigger Binding="{Binding ScrollableHeight, ElementName=PART_TodoScrollViewer}"
+                                                                 Value="0">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ScrollBar.Style>
+                                    </ScrollBar>
+                                </Grid>
+                            </ControlTemplate>
+                        </ListBox.Template>
                         <ListBox.ItemContainerStyle>
                             <Style TargetType="{x:Type ListBoxItem}">
                                 <Setter Property="HorizontalContentAlignment" Value="Stretch" />
@@ -777,17 +836,23 @@
                                     <Setter.Value>
                                         <ControlTemplate TargetType="{x:Type ListBoxItem}">
                                             <Border x:Name="Root"
+                                                    Margin="8,0,5,0"
                                                     Background="Transparent"
                                                     BorderBrush="Transparent"
                                                     BorderThickness="1"
                                                     CornerRadius="9"
-                                                    Padding="7,6">
+                                                    Padding="7,6,0,6">
                                                 <ContentPresenter />
                                             </Border>
                                             <ControlTemplate.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
                                                     <Setter TargetName="Root" Property="Background" Value="{DynamicResource HoverBrush}" />
+                                                    <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource BorderBrushSoft}" />
                                                 </Trigger>
+                                                <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                                    <Setter TargetName="Root" Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+                                                    <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                                </DataTrigger>
                                             </ControlTemplate.Triggers>
                                         </ControlTemplate>
                                     </Setter.Value>
@@ -800,7 +865,6 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <Button Command="{Binding DataContext.ToggleTodoCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                             CommandParameter="{Binding}"
@@ -808,47 +872,103 @@
                                             Margin="0,0,8,0"
                                             VerticalAlignment="Center"
                                             ToolTip="切换完成状态" />
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding Title}"
-                                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                                   FontSize="12.5"
-                                                   FontWeight="SemiBold"
-                                                   TextWrapping="Wrap">
-                                            <TextBlock.Style>
-                                                <Style TargetType="{x:Type TextBlock}">
-                                                    <Setter Property="Opacity" Value="1" />
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsCompleted}" Value="True">
-                                                            <Setter Property="TextDecorations" Value="Strikethrough" />
-                                                            <Setter Property="Opacity" Value="0.48" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </TextBlock.Style>
-                                        </TextBlock>
-                                        <TextBlock Text="{Binding TimeLabel}"
-                                                   Margin="0,2,0,0"
-                                                   Foreground="{DynamicResource TextMutedBrush}"
-                                                   FontSize="9.5" />
-                                    </StackPanel>
-                                    <Button Grid.Column="2"
-                                            Content="×"
-                                            Command="{Binding DataContext.DeleteTodoCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                            CommandParameter="{Binding}"
-                                            Width="24"
-                                            Height="24"
-                                            Padding="0"
-                                            Margin="6,0,0,0"
-                                            Foreground="{DynamicResource TextMutedBrush}"
-                                            Background="Transparent"
-                                            BorderThickness="0"
-                                            FontSize="15"
-                                            ToolTip="删除待办" />
+                                    <controls:TodoTitleEditor Grid.Column="1"
+                                                              SaveCommand="{Binding DataContext.SaveTodoCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                              DeleteCommand="{Binding DataContext.DeleteTodoCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
                                 </Grid>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
                 </Grid>
+                <Grid Grid.Row="3"
+                      Margin="4,6,18,2"
+                      MinHeight="22"
+                      ClipToBounds="True">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{Binding StatusText}"
+                               Margin="0,0,4,0"
+                               FontSize="10.5"
+                               Foreground="{DynamicResource TextMutedBrush}"
+                               TextWrapping="NoWrap"
+                               TextTrimming="CharacterEllipsis"
+                               ClipToBounds="True"
+                               VerticalAlignment="Center"
+                               ToolTip="{Binding StatusText}" />
+                    <Button Grid.Column="1" Content="撤销" Command="{Binding UndoDeleteCommand}"
+                            Visibility="{Binding Undo.IsAvailable, Converter={StaticResource BooleanToVisibilityConverter}}"
+                            Style="{StaticResource TodoArchiveButtonStyle}"
+                            Width="42"
+                            Margin="2,0,0,0"
+                            VerticalAlignment="Center"
+                            ToolTip="删除后 10 秒内可撤销" />
+                </Grid>
+
+                <Thumb Grid.RowSpan="4"
+                       Panel.ZIndex="20"
+                       Tag="Right"
+                       Width="3"
+                       HorizontalAlignment="Right"
+                       VerticalAlignment="Stretch"
+                       Cursor="SizeWE"
+                       DragStarted="OnTodoResizeStarted"
+                       DragDelta="OnTodoResizeDelta"
+                       DragCompleted="OnTodoResizeCompleted">
+                    <Thumb.Template>
+                        <ControlTemplate TargetType="{x:Type Thumb}">
+                            <Grid Background="Transparent" />
+                        </ControlTemplate>
+                    </Thumb.Template>
+                </Thumb>
+                <Thumb Grid.RowSpan="4"
+                       Panel.ZIndex="20"
+                       Tag="Bottom"
+                       Height="6"
+                       HorizontalAlignment="Stretch"
+                       VerticalAlignment="Bottom"
+                       Cursor="SizeNS"
+                       DragStarted="OnTodoResizeStarted"
+                       DragDelta="OnTodoResizeDelta"
+                       DragCompleted="OnTodoResizeCompleted">
+                    <Thumb.Template>
+                        <ControlTemplate TargetType="{x:Type Thumb}">
+                            <Grid Background="Transparent" />
+                        </ControlTemplate>
+                    </Thumb.Template>
+                </Thumb>
+                <Thumb Grid.RowSpan="4"
+                       Panel.ZIndex="21"
+                       Tag="Corner"
+                       Width="14"
+                       Height="14"
+                       HorizontalAlignment="Right"
+                       VerticalAlignment="Bottom"
+                       Cursor="SizeNWSE"
+                       DragStarted="OnTodoResizeStarted"
+                       DragDelta="OnTodoResizeDelta"
+                       DragCompleted="OnTodoResizeCompleted">
+                    <Thumb.Template>
+                        <ControlTemplate TargetType="{x:Type Thumb}">
+                            <Grid Background="Transparent">
+                                <Path Data="M 1,10 L 10,1 M 6,10 L 10,6"
+                                      Width="10"
+                                      Height="10"
+                                      Margin="0,0,1,1"
+                                      HorizontalAlignment="Right"
+                                      VerticalAlignment="Bottom"
+                                      Stroke="{DynamicResource TextMutedBrush}"
+                                      StrokeThickness="1.2"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round"
+                                      Opacity="0.58"
+                                      Stretch="None"
+                                      IsHitTestVisible="False" />
+                            </Grid>
+                        </ControlTemplate>
+                    </Thumb.Template>
+                </Thumb>
             </Grid>
 
             <Popup x:Name="DrawerSecondaryPopup"

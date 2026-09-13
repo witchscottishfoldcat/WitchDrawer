@@ -197,6 +197,7 @@ public sealed class DesktopBoxManager
                     await viewModel.LoadFileNameVisibilityAsync();
                     await viewModel.LoadMappingViewModeAsync();
                     await viewModel.LoadMappingListWidthAsync();
+                    await viewModel.LoadTodoPanelSizeAsync();
                     // The persisted drawer height is snapped against the active row height.
                     // Load the file-name row first so a saved 4x4 cover stays 4x4 after restart.
                     await viewModel.LoadDrawerCoverSizeAsync();

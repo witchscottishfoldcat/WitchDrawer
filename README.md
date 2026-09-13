@@ -5,7 +5,7 @@
 <h1 align="center">WitchDrawer</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.3.11-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.3.12-blue" alt="Version" />
   <img src="https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-orange" alt="License" />
   <img src="https://img.shields.io/badge/docs%20%26%20assets-CC%20BY--NC--SA%204.0-lightgrey" alt="Docs & Assets License" />
   <img src="https://img.shields.io/badge/.NET-10.0-purple" alt=".NET" />
@@ -26,6 +26,7 @@ English: WitchDrawer is a lightweight Windows desktop file drawer built with nat
 
 - **普通收纳盒** — 将拖入的文件或文件夹移入 WitchDrawer 的应用数据存储目录
 - **映射收纳盒** — 仅存储绝对路径引用，源文件保留在原位
+- **待办收纳盒** — 支持添加、完成和归档；双击内容、按 F2 或点击编辑按钮修改事项，Enter 保存、Esc 取消；删除单项后可在 10 秒内撤销
 - **像素收纳盒** — 像素风格的收纳盒，为桌面增添趣味
 - **桌面浮动窗口** — 每个收纳盒显示为精美的浮动桌面窗口，支持自由拖放定位
 - **窗口位置记忆** — 自动记住每个收纳盒在桌面上的位置
@@ -54,6 +55,7 @@ English: WitchDrawer is a lightweight Windows desktop file drawer built with nat
 - **普通收纳盒**会把文件或文件夹实际移动到 WitchDrawer 的数据目录，适合由应用统一管理的临时文件。
 - **映射收纳盒**只保存源文件的绝对路径，不移动、复制或删除源文件，适合项目目录、工作目录以及经常被其他程序使用的文件。
 - 建议文件夹尽量使用映射收纳盒，避免移动大量文件或正在使用的文件；需要保留文件原位置时，请优先选择映射收纳盒。
+- 待办的“清单完成率”统计当前盒内所有未归档事项，不按日期筛选；归档会将已完成事项移出统计。单项删除撤销仅在应用运行期间有效，删除整个待办盒会同时删除归档历史且无法撤销。
 - Windows 10 暂时可能有部分功能不兼容，建议优先使用 Windows 11。
 
 ## 技术栈

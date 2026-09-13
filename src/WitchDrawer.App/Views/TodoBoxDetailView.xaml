@@ -1,6 +1,7 @@
 <UserControl x:Class="WitchDrawer.App.Views.TodoBoxDetailView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:WitchDrawer.App.Controls"
              MinHeight="300"
              UseLayoutRounding="True"
              SnapsToDevicePixels="True">
@@ -47,6 +48,14 @@
                                         Property="BorderBrush"
                                         Value="{DynamicResource AccentBrush}" />
                             </Trigger>
+                            <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                <Setter TargetName="RowSurface"
+                                        Property="Background"
+                                        Value="{DynamicResource AccentSoftBrush}" />
+                                <Setter TargetName="RowSurface"
+                                        Property="BorderBrush"
+                                        Value="{DynamicResource AccentBrush}" />
+                            </DataTrigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
@@ -111,7 +120,6 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
                 <Button Command="{Binding DataContext.ToggleTodoCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
@@ -121,44 +129,9 @@
                         VerticalAlignment="Center"
                         ToolTip="切换完成状态" />
 
-                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding Title}"
-                               Foreground="{DynamicResource TextPrimaryBrush}"
-                               FontSize="12.5"
-                               FontWeight="SemiBold"
-                               TextWrapping="Wrap">
-                        <TextBlock.Style>
-                            <Style TargetType="{x:Type TextBlock}">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsCompleted}" Value="True">
-                                        <Setter Property="TextDecorations" Value="Strikethrough" />
-                                        <Setter Property="Opacity" Value="0.5" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                    <TextBlock Text="{Binding TimeLabel}"
-                               Margin="0,2,0,0"
-                               Foreground="{DynamicResource TextMutedBrush}"
-                               FontSize="9.5" />
-                </StackPanel>
-
-                <Button Grid.Column="2"
-                        Command="{Binding DataContext.DeleteTodoCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
-                        CommandParameter="{Binding}"
-                        Width="28"
-                        Height="28"
-                        Margin="8,0,0,0"
-                        Padding="0"
-                        Style="{StaticResource GhostButtonStyle}"
-                        Foreground="{DynamicResource TextMutedBrush}"
-                        ToolTip="删除这项待办">
-                    <TextBlock Text="&#xE74D;"
-                               FontFamily="Segoe Fluent Icons"
-                               FontSize="12"
-                               Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
-                </Button>
+                <controls:TodoTitleEditor Grid.Column="1"
+                                          SaveCommand="{Binding DataContext.SaveTodoCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                          DeleteCommand="{Binding DataContext.DeleteTodoCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}" />
             </Grid>
         </DataTemplate>
     </UserControl.Resources>
@@ -247,7 +220,7 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="今日进度"
+                        <TextBlock Text="清单完成率"
                                    Foreground="{DynamicResource TextMutedBrush}"
                                    FontSize="10" />
                         <ProgressBar Height="5"
@@ -361,7 +334,7 @@
                                 Margin="0,0,7,0"
                                 CornerRadius="2"
                                 Background="{DynamicResource AccentBrush}" />
-                        <TextBlock Text="今日清单"
+                        <TextBlock Text="待办清单"
                                    Foreground="{DynamicResource TextPrimaryBrush}"
                                    FontSize="13"
                                    FontWeight="SemiBold" />
@@ -440,7 +413,11 @@
                                        FontWeight="SemiBold" />
                         </Border>
                     </StackPanel>
-                    <Button Grid.Column="1"
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button Content="撤销删除" Command="{Binding UndoDeleteCommand}"
+                            Visibility="{Binding Undo.IsAvailable, Converter={StaticResource BooleanToVisibilityConverter}}"
+                            Style="{StaticResource GhostButtonStyle}" Margin="0,0,6,0" Padding="8,0" />
+                    <Button
                             Content="归档已完成"
                             Command="{Binding ArchiveCompletedCommand}"
                             Height="26"
@@ -448,6 +425,7 @@
                             Style="{StaticResource GhostButtonStyle}"
                             Foreground="{DynamicResource TextMutedBrush}"
                             FontSize="10.5" />
+                    </StackPanel>
                 </Grid>
 
                 <ListBox Grid.Row="3"

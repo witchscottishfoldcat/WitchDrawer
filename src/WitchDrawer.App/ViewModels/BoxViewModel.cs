@@ -194,7 +194,7 @@ public sealed partial class BoxViewModel : ObservableObject
 
     public string DeleteWarning => Model.Type switch
     {
-        BoxType.Todo => "该待办盒中的所有事项将一并删除，此操作无法撤销。",
+        BoxType.Todo => "该待办盒中的所有事项（包括归档历史）将一并删除，此操作无法撤销。",
         BoxType.Mapping => "只会移除映射引用，源文件不会被移动或删除。",
         _ => "收纳盒内的文件将恢复到原来的位置；如有重名会自动加后缀。"
     };

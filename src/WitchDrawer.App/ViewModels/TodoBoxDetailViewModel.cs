@@ -1,8 +1,9 @@
 using System.Collections.ObjectModel;
-using System.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using WitchDrawer.App.Infrastructure;
 using WitchDrawer.Core.Logging;
+using WitchDrawer.Core.Models;
 using WitchDrawer.Core.Services;
 
 namespace WitchDrawer.App.ViewModels;
@@ -11,355 +12,135 @@ public sealed class TodoBoxDetailViewModel : ObservableObject
 {
     private readonly TodoService _todoService;
     private readonly IAppLogger _logger;
+    private readonly SemaphoreSlim _gate = new(1, 1);
     private CancellationTokenSource? _loadCts;
     private int _loadVersion;
     private Guid? _boxId;
     private string _newTodoTitle = string.Empty;
     private string _statusText = "从一件小事开始";
     private bool _isBusy;
+    private int _busyOperationCount;
 
-    public TodoBoxDetailViewModel(
-        TodoService todoService,
-        IAppLogger logger)
+    public TodoBoxDetailViewModel(TodoService todoService, IAppLogger logger)
     {
         _todoService = todoService;
         _logger = logger;
-
         AddTodoCommand = new AsyncRelayCommand(AddTodoAsync, CanAddTodo);
-        ToggleTodoCommand = new AsyncRelayCommand<TodoItemViewModel?>(ToggleTodoAsync);
-        DeleteTodoCommand = new AsyncRelayCommand<TodoItemViewModel?>(DeleteTodoAsync);
-        ArchiveCompletedCommand = new AsyncRelayCommand(
-            ArchiveCompletedAsync,
-            CanArchiveCompleted);
+        ToggleTodoCommand = new AsyncRelayCommand<TodoItemViewModel?>(ToggleTodoAsync, CanMutateTodo);
+        DeleteTodoCommand = new AsyncRelayCommand<TodoItemViewModel?>(DeleteTodoAsync, CanMutateTodo);
+        SaveTodoCommand = new AsyncRelayCommand<TodoItemViewModel?>(SaveTodoAsync, CanMutateTodo);
+        ArchiveCompletedCommand = new AsyncRelayCommand(ArchiveCompletedAsync, () => BoxId is not null && !IsBusy && HasCompletedTodos);
+        UndoDeleteCommand = new AsyncRelayCommand(UndoDeleteAsync, () => !IsBusy && Undo.IsAvailable && Undo.Pending?.BoxId == BoxId);
+        Undo.AvailabilityChanged += (_, _) => UndoDeleteCommand.NotifyCanExecuteChanged();
     }
 
-    public event EventHandler? ItemsChanged;
-
+    public event EventHandler<BoxItemsChangedEventArgs>? ItemsChanged;
     public ObservableCollection<TodoItemViewModel> ActiveTodos { get; } = [];
-
     public ObservableCollection<TodoItemViewModel> CompletedTodos { get; } = [];
-
+    public TodoUndoViewModel Undo { get; } = new();
     public IAsyncRelayCommand AddTodoCommand { get; }
-
     public IAsyncRelayCommand<TodoItemViewModel?> ToggleTodoCommand { get; }
-
     public IAsyncRelayCommand<TodoItemViewModel?> DeleteTodoCommand { get; }
-
+    public IAsyncRelayCommand<TodoItemViewModel?> SaveTodoCommand { get; }
     public IAsyncRelayCommand ArchiveCompletedCommand { get; }
-
-    public Guid? BoxId
-    {
-        get => _boxId;
-        private set
-        {
-            if (SetProperty(ref _boxId, value))
-            {
-                NotifyCommandStateChanged();
-            }
-        }
-    }
-
-    public string NewTodoTitle
-    {
-        get => _newTodoTitle;
-        set
-        {
-            if (SetProperty(ref _newTodoTitle, value))
-            {
-                AddTodoCommand.NotifyCanExecuteChanged();
-            }
-        }
-    }
-
-    public string StatusText
-    {
-        get => _statusText;
-        private set => SetProperty(ref _statusText, value);
-    }
-
-    public bool IsBusy
-    {
-        get => _isBusy;
-        private set
-        {
-            if (SetProperty(ref _isBusy, value))
-            {
-                NotifyCommandStateChanged();
-            }
-        }
-    }
-
+    public IAsyncRelayCommand UndoDeleteCommand { get; }
+    public Guid? BoxId { get => _boxId; private set => SetProperty(ref _boxId, value); }
+    public string NewTodoTitle { get => _newTodoTitle; set { if (SetProperty(ref _newTodoTitle, value)) AddTodoCommand.NotifyCanExecuteChanged(); } }
+    public string StatusText { get => _statusText; private set => SetProperty(ref _statusText, value); }
+    public bool IsBusy { get => _isBusy; private set { if (SetProperty(ref _isBusy, value)) NotifyCommands(); } }
     public int RemainingCount => ActiveTodos.Count;
-
     public int CompletedCount => CompletedTodos.Count;
-
     public int TotalCount => RemainingCount + CompletedCount;
-
-    public int CompletionPercentage =>
-        TotalCount == 0
-            ? 0
-            : (int)Math.Round(
-                CompletedCount * 100d / TotalCount,
-                MidpointRounding.AwayFromZero);
-
+    public int CompletionPercentage => TotalCount == 0 ? 0 : (int)Math.Round(CompletedCount * 100d / TotalCount, MidpointRounding.AwayFromZero);
     public bool IsEmpty => TotalCount == 0;
-
     public bool HasActiveTodos => RemainingCount > 0;
-
     public bool HasCompletedTodos => CompletedCount > 0;
 
     public async Task LoadAsync(Guid? boxId)
     {
-        _loadCts?.Cancel();
-        _loadCts?.Dispose();
-        _loadCts = new CancellationTokenSource();
-        var cancellationToken = _loadCts.Token;
-        var version = Interlocked.Increment(ref _loadVersion);
-
-        if (BoxId != boxId)
-        {
-            BoxId = boxId;
-            NewTodoTitle = string.Empty;
-        }
-
-        if (boxId is null)
-        {
-            ReplaceItems([]);
-            StatusText = "选择一个待办收纳盒";
-            IsBusy = false;
-            return;
-        }
-
-        IsBusy = true;
+        _loadCts?.Cancel(); _loadCts?.Dispose(); _loadCts = new CancellationTokenSource();
+        var token = _loadCts.Token; var version = ++_loadVersion;
+        if (BoxId != boxId) { BoxId = boxId; NewTodoTitle = string.Empty; Undo.Clear(); ApplyItems([]); }
+        if (boxId is null) { StatusText = "选择一个待办收纳盒"; return; }
+        BeginBusy();
+        var entered = false;
         try
         {
-            var todos = await _todoService.GetTodosAsync(
-                boxId.Value,
-                cancellationToken);
-            cancellationToken.ThrowIfCancellationRequested();
-            if (!IsCurrentLoad(boxId.Value, version))
-            {
-                return;
-            }
-
-            ReplaceItems(todos.Select(todo => new TodoItemViewModel(todo)));
-            StatusText = IsEmpty
-                ? "从一件小事开始"
-                : $"{RemainingCount} 项待完成";
+            await _gate.WaitAsync(token);
+            entered = true;
+            var todos = await _todoService.GetTodosAsync(boxId.Value, token);
+            if (version != _loadVersion || token.IsCancellationRequested) return;
+            ApplyItems(todos); StatusText = IsEmpty ? "从一件小事开始" : $"{RemainingCount} 项待完成";
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-        }
-        catch (Exception exception)
-        {
-            if (!IsCurrentLoad(boxId.Value, version))
-            {
-                return;
-            }
-
-            _logger.Error(
-                exception,
-                $"Failed to load todo box {boxId.Value:N} in the main workspace.");
-            StatusText = exception.Message;
-        }
-        finally
-        {
-            if (IsCurrentLoad(boxId.Value, version))
-            {
-                IsBusy = false;
-            }
-        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception exception) { _logger.Error(exception, "Failed to load todo box."); if (version == _loadVersion) StatusText = exception.Message; }
+        finally { if (entered) _gate.Release(); EndBusy(); }
     }
 
-    private bool CanAddTodo()
+    private bool CanAddTodo() => BoxId is not null && !IsBusy && NewTodoTitle.Trim().Length is > 0 and <= TodoService.MaximumTitleLength;
+    private bool CanMutateTodo(TodoItemViewModel? item) => !IsBusy && item is not null && item.Model.BoxId == BoxId && (ActiveTodos.Contains(item) || CompletedTodos.Contains(item));
+
+    private Task AddTodoAsync() => RunMutationAsync(async (boxId, current) =>
     {
-        var normalizedTitle = NewTodoTitle.Trim();
-        return BoxId is not null
-            && !IsBusy
-            && normalizedTitle.Length is > 0 and <= TodoService.MaximumTitleLength;
+        var title = NewTodoTitle; var item = await _todoService.AddTodoAsync(boxId, title);
+        if (current()) { Upsert(item); if (NewTodoTitle == title) NewTodoTitle = string.Empty; }
+        return "已添加待办";
+    });
+    private Task ToggleTodoAsync(TodoItemViewModel? item)
+    {
+        if (!CanMutateTodo(item)) return Task.CompletedTask;
+        var completed = !item!.IsCompleted;
+        return RunMutationAsync(async (_, current) => { var updated = await _todoService.SetCompletedAsync(item.Id, completed); if (current()) Upsert(updated); return completed ? "完成一项，做得不错" : "已恢复为待完成"; });
+    }
+    private Task SaveTodoAsync(TodoItemViewModel? item)
+    {
+        if (!CanMutateTodo(item) || !item!.IsEditing) return Task.CompletedTask;
+        var title = item.EditTitle; var expected = item.OriginalEditTitle;
+        return RunMutationAsync(async (_, current) => { var updated = await _todoService.UpdateTitleAsync(item.Id, title, expected); if (current()) { Upsert(updated); item.CancelEdit(); } return "已保存待办"; });
+    }
+    private Task DeleteTodoAsync(TodoItemViewModel? item)
+    {
+        if (!CanMutateTodo(item)) return Task.CompletedTask;
+        return RunMutationAsync(async (_, current) => { var undo = await _todoService.DeleteWithUndoAsync(item!.Id); if (current()) { ApplyItems(AllModels().Where(x => x.Id != item.Id)); Undo.Offer(undo); } return "已删除待办，10 秒内可撤销"; });
+    }
+    private Task UndoDeleteAsync()
+    {
+        var pending = Undo.Pending; if (pending is null || pending.BoxId != BoxId) return Task.CompletedTask;
+        return RunMutationAsync(async (_, current) => { var restored = await _todoService.UndoDeleteAsync(pending.Token); if (current()) { Upsert(restored); Undo.Clear(); } return "已撤销删除"; });
+    }
+    private Task ArchiveCompletedAsync() => RunMutationAsync(async (boxId, current) => { var count = await _todoService.ArchiveCompletedAsync(boxId); var todos = await _todoService.GetTodosAsync(boxId); if (current()) ApplyItems(todos); return count == 0 ? "没有可归档的事项" : $"已归档 {count} 项"; });
+
+    private async Task RunMutationAsync(Func<Guid, Func<bool>, Task<string>> mutate)
+    {
+        if (IsBusy || BoxId is not Guid boxId) return;
+        var version = _loadVersion; bool Current() => version == _loadVersion && BoxId == boxId;
+        BeginBusy();
+        var entered = false;
+        try { await _gate.WaitAsync(); entered = true; var message = await mutate(boxId, Current); if (Current()) StatusText = message; ItemsChanged?.Invoke(this, new BoxItemsChangedEventArgs(boxId)); }
+        catch (Exception exception) { _logger.Error(exception, "Failed to update todo box."); if (Current()) StatusText = exception.Message; }
+        finally { if (entered) _gate.Release(); EndBusy(); }
     }
 
-    private async Task AddTodoAsync()
+    private void BeginBusy()
     {
-        var boxId = BoxId;
-        var title = NewTodoTitle;
-        if (boxId is null)
-        {
-            return;
-        }
-
-        await RunMutationAsync(
-            boxId.Value,
-            "add",
-            async () =>
-            {
-                var added = await _todoService.AddTodoAsync(boxId.Value, title);
-                _logger.Info(
-                    $"Todo detail add completed. BoxId={boxId.Value:N}; TodoId={added.Id:N}.");
-                if (BoxId == boxId)
-                {
-                    NewTodoTitle = string.Empty;
-                }
-
-                return "已添加待办";
-            });
-    }
-
-    private async Task ToggleTodoAsync(TodoItemViewModel? todo)
-    {
-        var boxId = BoxId;
-        if (boxId is null || todo is null || todo.Model.BoxId != boxId.Value)
-        {
-            return;
-        }
-
-        var targetState = !todo.IsCompleted;
-        await RunMutationAsync(
-            boxId.Value,
-            targetState ? "complete" : "reopen",
-            async () =>
-            {
-                await _todoService.SetCompletedAsync(todo.Id, targetState);
-                _logger.Info(
-                    $"Todo detail completion changed. BoxId={boxId.Value:N}; TodoId={todo.Id:N}; IsCompleted={targetState}.");
-                return targetState ? "完成一项，做得不错" : "已恢复为待完成";
-            });
-    }
-
-    private async Task DeleteTodoAsync(TodoItemViewModel? todo)
-    {
-        var boxId = BoxId;
-        if (boxId is null || todo is null || todo.Model.BoxId != boxId.Value)
-        {
-            return;
-        }
-
-        await RunMutationAsync(
-            boxId.Value,
-            "delete",
-            async () =>
-            {
-                await _todoService.DeleteTodoAsync(todo.Id);
-                _logger.Info(
-                    $"Todo detail delete completed. BoxId={boxId.Value:N}; TodoId={todo.Id:N}.");
-                return "已删除待办";
-            });
-    }
-
-    private bool CanArchiveCompleted()
-    {
-        return BoxId is not null && !IsBusy && HasCompletedTodos;
-    }
-
-    private async Task ArchiveCompletedAsync()
-    {
-        var boxId = BoxId;
-        if (boxId is null)
-        {
-            return;
-        }
-
-        await RunMutationAsync(
-            boxId.Value,
-            "archive",
-            async () =>
-            {
-                var archivedCount = await _todoService.ArchiveCompletedAsync(
-                    boxId.Value);
-                _logger.Info(
-                    $"Todo detail archive completed. BoxId={boxId.Value:N}; Count={archivedCount}.");
-                return archivedCount == 0
-                    ? "没有可归档的事项"
-                    : $"已归档 {archivedCount} 项";
-            });
-    }
-
-    private async Task RunMutationAsync(
-        Guid boxId,
-        string operation,
-        Func<Task<string>> mutate)
-    {
-        if (IsBusy)
-        {
-            return;
-        }
-
+        _busyOperationCount++;
         IsBusy = true;
-        _logger.Info(
-            $"Todo detail mutation started. Operation={operation}; BoxId={boxId:N}.");
-        try
-        {
-            var statusText = await mutate();
-            await ReloadAfterMutationAsync(boxId);
-            if (BoxId == boxId)
-            {
-                StatusText = statusText;
-            }
-
-            ItemsChanged?.Invoke(this, EventArgs.Empty);
-        }
-        catch (Exception exception)
-        {
-            _logger.Error(
-                exception,
-                $"Todo detail mutation failed. Operation={operation}; BoxId={boxId:N}.");
-            if (BoxId == boxId)
-            {
-                StatusText = exception.Message;
-            }
-        }
-        finally
-        {
-            IsBusy = false;
-        }
     }
 
-    private async Task ReloadAfterMutationAsync(Guid boxId)
+    private void EndBusy()
     {
-        var todos = await _todoService.GetTodosAsync(boxId);
-        if (BoxId != boxId)
-        {
-            return;
-        }
-
-        ReplaceItems(todos.Select(todo => new TodoItemViewModel(todo)));
+        if (_busyOperationCount > 0) _busyOperationCount--;
+        IsBusy = _busyOperationCount > 0;
     }
-
-    private bool IsCurrentLoad(Guid boxId, int version)
+    private IEnumerable<TodoItem> AllModels() => ActiveTodos.Concat(CompletedTodos).Select(item => item.Model);
+    private void Upsert(TodoItem model) => ApplyItems(TodoCollectionSync.Ordered(AllModels().Where(item => item.Id != model.Id).Append(model)));
+    private void ApplyItems(IEnumerable<TodoItem> items)
     {
-        return version == Volatile.Read(ref _loadVersion)
-            && BoxId == boxId;
+        var models = items.ToArray(); var existing = ActiveTodos.Concat(CompletedTodos).ToDictionary(item => item.Id);
+        TodoCollectionSync.Apply(ActiveTodos, models.Where(item => !item.IsCompleted && !item.IsArchived), existing);
+        TodoCollectionSync.Apply(CompletedTodos, models.Where(item => item.IsCompleted && !item.IsArchived), existing);
+        foreach (var name in new[] { nameof(RemainingCount), nameof(CompletedCount), nameof(TotalCount), nameof(CompletionPercentage), nameof(IsEmpty), nameof(HasActiveTodos), nameof(HasCompletedTodos) }) OnPropertyChanged(name);
+        NotifyCommands();
     }
-
-    private void ReplaceItems(IEnumerable<TodoItemViewModel> todos)
-    {
-        ActiveTodos.Clear();
-        CompletedTodos.Clear();
-        foreach (var todo in todos)
-        {
-            if (todo.IsCompleted)
-            {
-                CompletedTodos.Add(todo);
-            }
-            else
-            {
-                ActiveTodos.Add(todo);
-            }
-        }
-
-        OnPropertyChanged(nameof(RemainingCount));
-        OnPropertyChanged(nameof(CompletedCount));
-        OnPropertyChanged(nameof(TotalCount));
-        OnPropertyChanged(nameof(CompletionPercentage));
-        OnPropertyChanged(nameof(IsEmpty));
-        OnPropertyChanged(nameof(HasActiveTodos));
-        OnPropertyChanged(nameof(HasCompletedTodos));
-        NotifyCommandStateChanged();
-    }
-
-    private void NotifyCommandStateChanged()
-    {
-        AddTodoCommand.NotifyCanExecuteChanged();
-        ArchiveCompletedCommand.NotifyCanExecuteChanged();
-    }
+    private void NotifyCommands() { OnPropertyChanged(nameof(IsBusy)); AddTodoCommand.NotifyCanExecuteChanged(); ToggleTodoCommand.NotifyCanExecuteChanged(); DeleteTodoCommand.NotifyCanExecuteChanged(); SaveTodoCommand.NotifyCanExecuteChanged(); ArchiveCompletedCommand.NotifyCanExecuteChanged(); UndoDeleteCommand.NotifyCanExecuteChanged(); }
 }
