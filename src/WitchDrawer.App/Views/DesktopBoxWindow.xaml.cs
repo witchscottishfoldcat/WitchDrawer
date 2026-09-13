@@ -943,6 +943,12 @@ public partial class DesktopBoxWindow : Window
             ResetDragVisualState();
             ClearPendingIconDrag();
             Hide();
+            // 点击关闭必在悬停态，隐藏前 ResetDragVisualState 会把本盒留在悬停集合里；
+            // 隐藏窗口不再悬停，否则从菜单恢复显示时会无悬停也一直保持 reveal。
+            if (_autoHideEnabled)
+            {
+                AutoHideHoverLeft?.Invoke(this, EventArgs.Empty);
+            }
             ViewModel.ReleaseHiddenWindowItems();
             return;
         }
