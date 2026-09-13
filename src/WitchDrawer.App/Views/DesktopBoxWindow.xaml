@@ -120,11 +120,12 @@
             </Border>
 
             <!-- 独立透明层：收纳盒描边（1px 玻璃描边）。自动隐藏时仅此层随 AutoHideBorderOpacity 透明，
-                 与外壳背景、内容、标题的透明相互独立、不叠加。 -->
+                 与外壳背景、内容、标题的透明相互独立、不叠加。
+                 画刷用 DesktopBoxBorderBrush：与"盒子边线透明度"主题设置联动。 -->
             <Border x:Name="BoxBorder"
                     Grid.RowSpan="2"
                     Background="Transparent"
-                    BorderBrush="{DynamicResource GlassStrokeBrush}"
+                    BorderBrush="{DynamicResource DesktopBoxBorderBrush}"
                     BorderThickness="1"
                     IsHitTestVisible="False"
                     Opacity="{Binding AutoHideBorderOpacity}">
@@ -440,8 +441,8 @@
                                     Width="{Binding DataContext.LayoutSettings.IconFrameSize, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
                                     Height="{Binding DataContext.LayoutSettings.IconFrameSize, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
                                     CornerRadius="{Binding DataContext.LayoutSettings.IconCornerRadius, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
-                                    Background="{DynamicResource GlassInnerBrush}"
-                                    BorderBrush="{DynamicResource GlassStrokeBrush}"
+                                    Background="{DynamicResource DesktopIconFrameBrush}"
+                                    BorderBrush="{DynamicResource DesktopIconFrameBorderBrush}"
                                     BorderThickness="1"
                                     HorizontalAlignment="Center">
                                 <Grid>
@@ -861,7 +862,7 @@
                         PreviewMouseMove="OnDrawerIconMouseMove"
                         Opacity="0"
                         Background="Transparent"
-                        BorderBrush="{DynamicResource GlassStrokeBrush}"
+                        BorderBrush="{DynamicResource DesktopBoxBorderBrush}"
                         BorderThickness="1"
                         CornerRadius="24"
                         RenderTransformOrigin="0.5,0.5">
@@ -945,8 +946,8 @@
                                                 <Border Width="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
                                                         Height="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
                                                         CornerRadius="{Binding DataContext.LayoutSettings.IconCornerRadius, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
-                                                        Background="{DynamicResource GlassInnerBrush}"
-                                                        BorderBrush="{DynamicResource GlassStrokeBrush}"
+                                                        Background="{DynamicResource DesktopIconFrameBrush}"
+                                                        BorderBrush="{DynamicResource DesktopIconFrameBorderBrush}"
                                                         BorderThickness="1">
                                                     <Grid>
                                                         <Image Width="{Binding DataContext.LayoutSettings.DrawerPrimaryIconSize, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
@@ -1001,7 +1002,7 @@
                                     Value="{Binding LayoutSettings.DrawerSurfacePadding}" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsTitleVisible}" Value="True">
-                                    <Setter Property="Margin" Value="10,3,10,10" />
+                                    <Setter Property="Margin" Value="{Binding LayoutSettings.DrawerSurfacePaddingWithTitle}" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
@@ -1027,8 +1028,8 @@
                                             <Border Width="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType=Window}}"
                                                     Height="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType=Window}}"
                                                     CornerRadius="{Binding DataContext.LayoutSettings.IconCornerRadius, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                    Background="{DynamicResource GlassInnerBrush}"
-                                                    BorderBrush="{DynamicResource GlassStrokeBrush}"
+                                                    Background="{DynamicResource DesktopIconFrameBrush}"
+                                                    BorderBrush="{DynamicResource DesktopIconFrameBorderBrush}"
                                                     BorderThickness="1">
                                                 <Grid DataContext="{Binding Item}">
                                                     <Image Width="{Binding DataContext.LayoutSettings.DrawerPrimaryIconSize, RelativeSource={RelativeSource AncestorType=Window}}"
@@ -1071,8 +1072,8 @@
                                                     Width="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType=Window}}"
                                                     Height="{Binding DataContext.LayoutSettings.DrawerPrimaryIconFrameSize, RelativeSource={RelativeSource AncestorType=Window}}"
                                                     CornerRadius="{Binding DataContext.LayoutSettings.IconCornerRadius, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                    Background="{DynamicResource GlassInnerBrush}"
-                                                    BorderBrush="{DynamicResource GlassStrokeBrush}"
+                                                    Background="{DynamicResource DesktopIconFrameBrush}"
+                                                    BorderBrush="{DynamicResource DesktopIconFrameBorderBrush}"
                                                     BorderThickness="1">
                                                 <Grid>
                                                     <ItemsControl ItemsSource="{Binding DataContext.DrawerPreviewItems, RelativeSource={RelativeSource AncestorType=Window}}"

@@ -5,6 +5,25 @@ namespace WitchDrawer.App.Tests;
 
 public sealed class ThemeOpacityControlTemplateTests
 {
+    [Theory]
+    [InlineData("BoxBorderTransparency", "盒子边线透明度")]
+    [InlineData("IconFrameTransparency", "图标背景框透明度")]
+    public void AppearanceControls_HaveIndependentBindingsAndAllowFullTransparency(string prefix, string label)
+    {
+        var document = XDocument.Load(GetMainWindowXamlPath());
+        var slider = Assert.Single(document.Descendants(PresentationNamespace + "Slider"),
+            element => ((string?)element.Attribute("Value"))?.Contains(prefix + "Percent") == true);
+        Assert.Equal("0", (string?)slider.Attribute("Minimum"));
+        Assert.Equal("100", (string?)slider.Attribute("Maximum"));
+        Assert.Equal("True", (string?)slider.Attribute("IsMoveToPointEnabled"));
+        Assert.Equal(label, (string?)slider.Attribute("AutomationProperties.Name"));
+        var input = Assert.Single(document.Descendants(PresentationNamespace + "TextBox"),
+            element => (string?)element.Attribute(XamlNamespace + "Name") == prefix + "Input");
+        Assert.Contains(prefix + "Percent", (string?)input.Attribute("Text"));
+        Assert.Equal("OnThemeTransparencyInputKeyDown", (string?)input.Attribute("KeyDown"));
+        Assert.Equal("OnThemeTransparencyInputLostFocus", (string?)input.Attribute("LostFocus"));
+    }
+
     private static readonly XNamespace PresentationNamespace =
         "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
     private static readonly XNamespace XamlNamespace =

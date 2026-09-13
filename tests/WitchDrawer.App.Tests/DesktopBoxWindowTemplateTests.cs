@@ -10,6 +10,30 @@ namespace WitchDrawer.App.Tests;
 
 public sealed class DesktopBoxWindowTemplateTests
 {
+    [Fact]
+    public void AppearanceBrushes_TargetOnlyBoxEdgesAndIconFrames()
+    {
+        var document = XDocument.Load(GetDesktopBoxWindowXamlPath());
+        var frames = document.Descendants(PresentationNamespace + "Border")
+            .Where(element => (string?)element.Attribute("Background") == "{DynamicResource DesktopIconFrameBrush}")
+            .ToArray();
+        Assert.Equal(4, frames.Length);
+        Assert.All(frames, frame =>
+        {
+            Assert.Equal("{DynamicResource DesktopIconFrameBorderBrush}", (string?)frame.Attribute("BorderBrush"));
+            Assert.Null(frame.Attribute("Opacity"));
+        });
+        var border = Assert.Single(document.Descendants(PresentationNamespace + "Border"),
+            element => (string?)element.Attribute(XamlNamespace + "Name") == "BoxBorder");
+        Assert.Equal("{DynamicResource DesktopBoxBorderBrush}", (string?)border.Attribute("BorderBrush"));
+        var popup = Assert.Single(document.Descendants(PresentationNamespace + "Border"),
+            element => (string?)element.Attribute(XamlNamespace + "Name") == "DrawerSecondaryPopupRoot");
+        Assert.Equal("{DynamicResource DesktopBoxBorderBrush}", (string?)popup.Attribute("BorderBrush"));
+        // The todo composer is not an icon background and keeps its theme brushes.
+        Assert.Single(document.Descendants(PresentationNamespace + "Border"),
+            element => (string?)element.Attribute("Background") == "{DynamicResource GlassInnerBrush}");
+    }
+
     [Theory]
     [InlineData(MouseButton.Left, true)]
     [InlineData(MouseButton.Right, false)]

@@ -7,6 +7,139 @@ namespace WitchDrawer.App.Tests;
 [Collection("AppThemeManager")]
 public sealed class AppThemeManagerTests
 {
+    [Theory]
+    [InlineData(AppTheme.Moe, "#FFFFFFFF", "#FFE5E5EA", "#FFF5F5F7")]
+    [InlineData(AppTheme.Glass, "#D12C2C2E", "#33FFFFFF", "#1FFFFFFF")]
+    [InlineData(AppTheme.Crystal, "#66FFFFFF", "#66FFFFFF", "#3DFFFFFF")]
+    public void AppearanceDefaults_ReproduceMainPaletteExactly(
+        AppTheme theme, string surface, string border, string frame)
+    {
+        AppThemeManager.ResetBoxOpacitiesForTests();
+        Assert.Equal(Parse(surface), AppThemeManager.GetDesktopBoxColor(theme, "GlassSurfaceBrush",
+            AppThemeManager.GetBoxOpacity(theme)));
+        Assert.Equal(Parse(border), AppThemeManager.GetDesktopBoxBorderColor(theme));
+        Assert.Equal(Parse(frame), AppThemeManager.GetDesktopIconFrameColor(theme));
+        Assert.Equal(Parse(border), AppThemeManager.GetDesktopIconFrameBorderColor(theme));
+    }
+
+    [Theory]
+    [InlineData(AppTheme.Moe)]
+    [InlineData(AppTheme.Glass)]
+    [InlineData(AppTheme.Crystal)]
+    public void MissingOverrides_PreserveExistingCustomizedAppearance(AppTheme theme)
+    {
+        AppThemeManager.ResetBoxOpacitiesForTests();
+        try
+        {
+            foreach (var opacity in new[] { 0.1, 0.4, 0.68765, 1.0 })
+            {
+                AppThemeManager.SetBoxOpacity(theme, opacity);
+                var border = AppThemeManager.GetDesktopBoxColor(theme, "GlassStrokeBrush", opacity);
+                var frame = AppThemeManager.GetDesktopBoxColor(theme, "GlassInnerBrush", opacity);
+                Assert.Equal(border, AppThemeManager.GetDesktopBoxBorderColor(theme));
+                Assert.Equal(frame, AppThemeManager.GetDesktopIconFrameColor(theme));
+                Assert.Equal(border, AppThemeManager.GetDesktopIconFrameBorderColor(theme));
+            }
+        }
+        finally
+        {
+            AppThemeManager.ResetBoxOpacitiesForTests();
+        }
+    }
+
+    [Theory]
+    [InlineData(AppTheme.Moe)]
+    [InlineData(AppTheme.Glass)]
+    [InlineData(AppTheme.Crystal)]
+    public void AppearanceControls_AreIndependentAndSupportBothEndpoints(AppTheme theme)
+    {
+        AppThemeManager.ResetBoxOpacitiesForTests();
+        try
+        {
+            var opacity = AppThemeManager.GetBoxOpacity(theme);
+            var frame = AppThemeManager.GetDesktopIconFrameColor(theme);
+            var surface = AppThemeManager.GetDesktopBoxColor(theme, "GlassSurfaceBrush", opacity);
+            var text = AppThemeManager.GetDesktopBoxColor(theme, "TextPrimaryBrush", opacity);
+            foreach (var value in new[] { 0d, 0.5, 1d })
+            {
+                AppThemeManager.SetBoxBorderOpacity(theme, value);
+                Assert.Equal((byte)Math.Round(255 * value), AppThemeManager.GetDesktopBoxBorderColor(theme).A);
+                Assert.Equal(frame, AppThemeManager.GetDesktopIconFrameColor(theme));
+            }
+
+            var border = AppThemeManager.GetDesktopBoxBorderColor(theme);
+            foreach (var value in new[] { 0d, 1d })
+            {
+                AppThemeManager.SetIconFrameOpacity(theme, value);
+                Assert.Equal((byte)(255 * value), AppThemeManager.GetDesktopIconFrameColor(theme).A);
+                Assert.Equal((byte)(255 * value), AppThemeManager.GetDesktopIconFrameBorderColor(theme).A);
+                Assert.Equal(border, AppThemeManager.GetDesktopBoxBorderColor(theme));
+            }
+
+            Assert.Equal(opacity, AppThemeManager.GetBoxOpacity(theme));
+            Assert.Equal(surface, AppThemeManager.GetDesktopBoxColor(theme, "GlassSurfaceBrush", opacity));
+            Assert.Equal(text, AppThemeManager.GetDesktopBoxColor(theme, "TextPrimaryBrush", opacity));
+        }
+        finally
+        {
+            AppThemeManager.ResetBoxOpacitiesForTests();
+        }
+    }
+
+    [Theory]
+    [InlineData(AppTheme.Moe)]
+    [InlineData(AppTheme.Glass)]
+    [InlineData(AppTheme.Crystal)]
+    public void ReturningToDisplayedDefault_PreservesExactFillAndStrokeAlpha(AppTheme theme)
+    {
+        AppThemeManager.ResetBoxOpacitiesForTests();
+        try
+        {
+            var frame = AppThemeManager.GetDesktopIconFrameColor(theme);
+            var border = AppThemeManager.GetDesktopBoxBorderColor(theme);
+            AppThemeManager.SetBoxBorderOpacity(theme, 0);
+            AppThemeManager.SetIconFrameOpacity(theme, 0);
+            AppThemeManager.SetBoxBorderOpacity(theme, 1 - Math.Round((1 - border.A / 255d) * 100) / 100);
+            AppThemeManager.SetIconFrameOpacity(theme, 1 - Math.Round((1 - frame.A / 255d) * 100) / 100);
+            Assert.Equal(border, AppThemeManager.GetDesktopBoxBorderColor(theme));
+            Assert.Equal(frame, AppThemeManager.GetDesktopIconFrameColor(theme));
+            Assert.Equal(border, AppThemeManager.GetDesktopIconFrameBorderColor(theme));
+        }
+        finally
+        {
+            AppThemeManager.ResetBoxOpacitiesForTests();
+        }
+    }
+
+    [Fact]
+    public void DesktopOverrides_DoNotChangeEditorOrSharedBrushes()
+    {
+        AppThemeManager.ResetBoxOpacitiesForTests();
+        var before = new ResourceDictionary();
+        AppThemeManager.ApplyEditorOpacityResources(before);
+        try
+        {
+            AppThemeManager.SetBoxBorderOpacity(AppThemeManager.CurrentTheme, 0);
+            AppThemeManager.SetIconFrameOpacity(AppThemeManager.CurrentTheme, 0);
+            var desktop = new ResourceDictionary();
+            AppThemeManager.ApplyDesktopBoxResources(desktop);
+            Assert.Equal((byte)0, ((SolidColorBrush)desktop["DesktopBoxBorderBrush"]).Color.A);
+            Assert.True(((SolidColorBrush)desktop["DesktopIconFrameBrush"]).IsFrozen);
+            AppThemeManager.ApplyEditorOpacityResources(desktop);
+            Assert.Equal(before.Count, desktop.Count);
+            foreach (var key in before.Keys)
+            {
+                Assert.Equal(((SolidColorBrush)before[key]).Color, ((SolidColorBrush)desktop[key]).Color);
+            }
+        }
+        finally
+        {
+            AppThemeManager.ResetBoxOpacitiesForTests();
+        }
+    }
+
+    private static Color Parse(string color) => (Color)ColorConverter.ConvertFromString(color);
+
     [Fact]
     public void SetBoxOpacity_RemembersEachThemeAndRaisesOnlyForChanges()
     {

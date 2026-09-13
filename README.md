@@ -5,8 +5,9 @@
 <h1 align="center">WitchDrawer</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.3.10-blue" alt="Version" />
-  <img src="https://img.shields.io/badge/license-CC%20BY--NC--SA%204.0-green" alt="License" />
+  <img src="https://img.shields.io/badge/version-1.3.11-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-orange" alt="License" />
+  <img src="https://img.shields.io/badge/docs%20%26%20assets-CC%20BY--NC--SA%204.0-lightgrey" alt="Docs & Assets License" />
   <img src="https://img.shields.io/badge/.NET-10.0-purple" alt=".NET" />
   <img src="https://img.shields.io/badge/platform-Windows-blue" alt="Platform" />
 </p>
@@ -36,6 +37,7 @@ English: WitchDrawer is a lightweight Windows desktop file drawer built with nat
 - **快捷面板** — 按 `Ctrl+Alt+W` 跨所有收纳盒搜索并打开项目
 - **三套主题** — 清透雅致 / 玻璃光泽 / 水晶棱镜
 - **图标大小** — 超大 / 大 / 中 / 小 四档可调
+- **可调透明度** — 可分别调节桌面盒子、盒子边线和图标背景框透明度
 - **开机自启动** — 可在设置中开启/关闭
 - **检查更新** — 自动检测 GitHub Releases 新版本
 - **原位还原删除** — 删除收纳项或收纳盒时，普通/像素盒文件恢复到原来的位置；原位置不可用则回退到桌面，重名自动加后缀；映射盒只删除引用
@@ -151,7 +153,31 @@ dotnet test WitchDrawer.sln
 
 ## 开源协议
 
-本项目采用 **CC BY-NC-SA 4.0** 协议开源。
+本项目采用**双许可**，两者均为**非商业许可**：**禁止任何商业用途**。源代码与文档/素材分别授权。
+
+### 源代码 —— PolyForm Noncommercial License 1.0.0
+
+`src/`、`tests/`、`tools/`、`installer/` 下的源代码、构建脚本与配置文件采用 **PolyForm Noncommercial License 1.0.0** 授权，完整条款见 [LICENSE](LICENSE)。
+
+**允许**（非商业目的）：
+
+- 个人使用：研究、实验、测试、个人学习、私人娱乐、爱好项目、宗教活动
+- 非商业组织使用：慈善组织、教育机构、公共研究机构、公共安全或卫生机构、环保组织、政府机构（不论资金来源）
+- 修改、创作新作品，以及分发副本（须随附许可条款与 `Required Notice:` 声明）
+
+**禁止**：
+
+- 任何商业用途
+
+**其他要点**：
+
+- 附带专利授权；若你书面主张本项目侵犯专利，则专利授权立即终止
+- 违规后收到书面通知起 32 天内完全纠正并采取补救措施，授权可继续；否则立即终止
+- 软件按「现状」提供，不附带任何担保
+
+### 文档与素材 —— CC BY-NC-SA 4.0
+
+`docs/` 下的文档与图片，以及 `src/WitchDrawer.App/Assets/` 下的图标、美术等媒体素材，采用 **CC BY-NC-SA 4.0** 授权，完整说明见 [LICENSE-DOCS](LICENSE-DOCS)。
 
 - **BY（署名）**：二次修改必须注明原作者 Thewitchcat
 - **NC（非商用）**：禁止商业使用

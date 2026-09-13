@@ -185,10 +185,10 @@ public sealed class DesktopBoxLayoutSettingsTests
     }
 
     [Theory]
-    [InlineData(80, 80, 64, 148, 84, 2, 1)]
-    [InlineData(80, 120, 64, 148, 84, 2, 1)]
-    [InlineData(300, 300, 64, 276, 276, 4, 4)]
-    [InlineData(420.26, 180.74, 54, 398, 182, 7, 3)]
+    [InlineData(80, 80, 64, 146, 82, 2, 1)]
+    [InlineData(80, 120, 64, 146, 82, 2, 1)]
+    [InlineData(300, 300, 64, 274, 274, 4, 4)]
+    [InlineData(420.26, 180.74, 54, 396, 180, 7, 3)]
     public void DrawerResize_SnapsWidthAndHeightToIndependentGridSteps(
         double requestedWidth,
         double requestedHeight,
@@ -218,8 +218,8 @@ public sealed class DesktopBoxLayoutSettingsTests
             cellWidth: 55,
             cellHeight: 71);
 
-        Assert.Equal(130, actual.Width);
-        Assert.Equal(162, actual.Height);
+        Assert.Equal(128, actual.Width);
+        Assert.Equal(160, actual.Height);
         Assert.Equal(2, actual.Columns);
         Assert.Equal(2, actual.Rows);
     }
@@ -256,9 +256,9 @@ public sealed class DesktopBoxLayoutSettingsTests
     }
 
     [Theory]
-    [InlineData(130, true, 121)]
+    [InlineData(130, true, 124)]
     [InlineData(130, false, 130)]
-    [InlineData(20, true, 11)]
+    [InlineData(20, true, 14)]
     public void DrawerTitle_CompensatesItsHeightWithoutShorteningTheBox(
         double coverHeight,
         bool isTitleVisible,

@@ -29,7 +29,7 @@ public sealed class DesktopToolWindowTests
     }
 
     [Fact]
-    public void Configure_AssignsProgmanAsOwner()
+    public void Configure_AssignsDesktopHostAsOwner()
     {
         Exception? failure = null;
         var thread = new Thread(() =>
@@ -51,7 +51,7 @@ public sealed class DesktopToolWindowTests
                 nativeWindow.Configure();
 
                 Assert.NotEqual(nint.Zero, shellWindow);
-                Assert.Equal(shellWindow, GetWindow(handle, GetWindowOwner));
+                Assert.Equal(DesktopShellHost.ResolveOwner(shellWindow), GetWindow(handle, GetWindowOwner));
                 Assert.True(nativeWindow.IsDesktopHosted);
             }
             catch (Exception exception)
@@ -151,6 +151,121 @@ public sealed class DesktopToolWindowTests
             expected,
             DesktopToolWindow.IsMouseInteractionCompletionMessage(message));
     }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void HostMigrationAndMouseInput_PreserveOriginalOwnerAndWindowProperties(
+        bool hasOriginalOwner,
+        bool visible)
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            var windows = new List<Window>();
+            try
+            {
+                nint CreateWindow()
+                {
+                    var window = new Window
+                    {
+                        ShowActivated = false,
+                        ShowInTaskbar = false,
+                        WindowStyle = WindowStyle.None,
+                        ResizeMode = ResizeMode.NoResize,
+                        Width = 10,
+                        Height = 10,
+                        Left = 100,
+                        Top = 100
+                    };
+                    windows.Add(window);
+                    return new WindowInteropHelper(window).EnsureHandle();
+                }
+
+                var originalOwner = hasOriginalOwner ? CreateWindow() : nint.Zero;
+                var firstHost = CreateWindow();
+                var secondHost = CreateWindow();
+                var handle = CreateWindow();
+                var box = windows[^1];
+                if (visible)
+                {
+                    box.Show();
+                }
+
+                SetWindowLongPtrW(handle, -8, originalOwner);
+                var native = new DesktopToolWindow(handle);
+                native.Configure();
+                Assert.True(GetWindowRect(handle, out var before));
+
+                Assert.True(native.TryAttachToDesktop(firstHost));
+                Assert.True(native.TryAttachToDesktop(secondHost));
+                Assert.Equal(secondHost, GetWindow(handle, GetWindowOwner));
+                Assert.True(native.SuspendDesktopOwnershipForMouseInput());
+                Assert.Equal(originalOwner, GetWindow(handle, GetWindowOwner));
+                // A settled desktop event must not end an in-progress mouse
+                // interaction and restore the last-active-popup regression.
+                native.RefreshDesktopHostForShowDesktop();
+                Assert.Equal(originalOwner, GetWindow(handle, GetWindowOwner));
+                Assert.True(native.RestoreDesktopOwnershipAfterMouseInput(isDesktopForeground: true));
+                Assert.True(native.IsDesktopHosted);
+
+                // A disappearing desktop must also restore a null original
+                // owner, rather than retaining a previous Explorer host.
+                Assert.False(native.TryAttachToDesktop(nint.Zero));
+                Assert.Equal(originalOwner, GetWindow(handle, GetWindowOwner));
+                Assert.False(native.IsDesktopHosted);
+                Assert.Equal(visible, IsWindowVisible(handle));
+                Assert.False(box.IsActive);
+                Assert.True(GetWindowRect(handle, out var after));
+                Assert.Equal(before, after);
+                var extendedStyle = GetWindowLongPtrW(handle, -20).ToInt64();
+                Assert.Equal(0L, extendedStyle & 0x00000008); // WS_EX_TOPMOST
+                Assert.NotEqual(0L, extendedStyle & 0x08000000); // WS_EX_NOACTIVATE
+                Assert.NotEqual(0L, extendedStyle & 0x00000080); // WS_EX_TOOLWINDOW
+                Assert.Equal(0L, GetWindowLongPtrW(handle, -16).ToInt64() & 0x40000000); // WS_CHILD
+            }
+            catch (Exception exception)
+            {
+                failure = exception;
+            }
+            finally
+            {
+                for (var index = windows.Count - 1; index >= 0; index--)
+                {
+                    windows[index].Close();
+                }
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        Assert.True(thread.Join(TimeSpan.FromSeconds(10)), "STA ownership test timed out.");
+        Assert.Null(failure);
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeRect
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetWindowRect(nint window, out NativeRect rectangle);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool IsWindowVisible(nint window);
+
+    [DllImport("user32.dll")]
+    private static extern nint SetWindowLongPtrW(nint window, int index, nint value);
+
+    [DllImport("user32.dll")]
+    private static extern nint GetWindowLongPtrW(nint window, int index);
 
     private const uint GetWindowOwner = 4;
 
