@@ -1833,6 +1833,15 @@ public partial class DesktopBoxWindow : Window
             return;
         }
 
+        // 按住修饰键（Ctrl/Shift）的按下-移动视为选择手势而非拖拽：
+        // 否则 Ctrl+点击时的轻微抖动会误启动 OLE 拖拽，
+        // 弹出虚线落点预览框，松手甚至可能误移动图标。
+        if (Keyboard.Modifiers != ModifierKeys.None)
+        {
+            ClearPendingIconDrag();
+            return;
+        }
+
         var drawerItem = _dragStartItem;
         // DoDragDrop runs a nested OLE message loop. Clear the pending gesture and close
         // the gate before entering it so re-entrant MouseMove events cannot start a
