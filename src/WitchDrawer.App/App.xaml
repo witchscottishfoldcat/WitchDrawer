@@ -144,6 +144,12 @@
             </Style.Triggers>
         </Style>
 
+        <!-- ScrollViewer 默认可聚焦：点击内部空白会让整个滚动区获得键盘焦点，
+             显示一圈系统焦点虚线框（Ctrl+点击设置页时尤为明显）。全局禁用其焦点虚线。 -->
+        <Style TargetType="{x:Type ScrollViewer}">
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        </Style>
+
         <!-- 全局悬浮提示：与面板同款卡片风格（圆角、细描边、柔和阴影），
              画刷走 DynamicResource，随主题切换。 -->
         <Style TargetType="{x:Type ToolTip}">
