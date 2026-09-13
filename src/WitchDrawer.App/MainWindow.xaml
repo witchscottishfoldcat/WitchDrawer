@@ -3786,16 +3786,27 @@
                                                    Foreground="{DynamicResource TextMutedBrush}"
                                                    FontSize="12.5"
                                                    VerticalAlignment="Center" />
-                                        <Border Grid.Column="1"
-                                                Background="{DynamicResource AccentSoftBrush}"
-                                                CornerRadius="6"
-                                                Padding="8,2"
-                                                HorizontalAlignment="Left">
-                                            <TextBlock Text="CC BY-NC-SA 4.0"
-                                                       Foreground="{DynamicResource AccentBrush}"
-                                                       FontSize="12"
-                                                       FontWeight="Bold" />
-                                        </Border>
+                                        <StackPanel Grid.Column="1"
+                                                    Orientation="Horizontal"
+                                                    VerticalAlignment="Center">
+                                            <Border Background="{DynamicResource AccentSoftBrush}"
+                                                    CornerRadius="6"
+                                                    Padding="8,2">
+                                                <TextBlock Text="PolyForm Noncommercial 1.0.0"
+                                                           Foreground="{DynamicResource AccentBrush}"
+                                                           FontSize="12"
+                                                           FontWeight="Bold" />
+                                            </Border>
+                                            <Border Margin="6,0,0,0"
+                                                    Background="{DynamicResource PanelAltBrush}"
+                                                    CornerRadius="6"
+                                                    Padding="8,2"
+                                                    ToolTip="docs/ 文档与 Assets/ 图标、美术素材采用 CC BY-NC-SA 4.0 授权">
+                                                <TextBlock Text="文档与素材 CC BY-NC-SA 4.0"
+                                                           Foreground="{DynamicResource TextMutedBrush}"
+                                                           FontSize="11.5" />
+                                            </Border>
+                                        </StackPanel>
                                     </Grid>
                                 </StackPanel>
                                 </Border>
