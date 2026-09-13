@@ -2930,15 +2930,18 @@
                                                                         CornerRadius="5"
                                                                         Background="{TemplateBinding Background}"
                                                                         BorderBrush="{TemplateBinding BorderBrush}"
-                                                                        BorderThickness="1.4"
-                                                                        VerticalAlignment="Center">
+                                                                        BorderThickness="1"
+                                                                        VerticalAlignment="Center"
+                                                                        SnapsToDevicePixels="True"
+                                                                        UseLayoutRounding="True">
                                                                     <Path x:Name="Check"
-                                                                          Data="M 3 9 L 7 13 L 15 4"
+                                                                          Data="M 4.2 9.4 L 7.7 12.9 L 13.8 5.4"
                                                                           Stroke="White"
-                                                                          StrokeThickness="2"
+                                                                          StrokeThickness="1.8"
                                                                           StrokeStartLineCap="Round"
                                                                           StrokeEndLineCap="Round"
                                                                           StrokeLineJoin="Round"
+                                                                          Stretch="None"
                                                                           Visibility="Collapsed" />
                                                                 </Border>
                                                                 <ContentPresenter Margin="8,0,0,0"
@@ -2953,6 +2956,17 @@
                                                                 </Trigger>
                                                                 <Trigger Property="IsMouseOver" Value="True">
                                                                     <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource AccentHoverBrush}" />
+                                                                </Trigger>
+                                                                <MultiTrigger>
+                                                                    <MultiTrigger.Conditions>
+                                                                        <Condition Property="IsChecked" Value="True" />
+                                                                        <Condition Property="IsMouseOver" Value="True" />
+                                                                    </MultiTrigger.Conditions>
+                                                                    <Setter TargetName="Box" Property="Background" Value="{DynamicResource AccentHoverBrush}" />
+                                                                    <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource AccentHoverBrush}" />
+                                                                </MultiTrigger>
+                                                                <Trigger Property="IsPressed" Value="True">
+                                                                    <Setter TargetName="Box" Property="Opacity" Value="0.8" />
                                                                 </Trigger>
                                                                 <Trigger Property="IsEnabled" Value="False">
                                                                     <Setter Property="Opacity" Value="0.5" />
