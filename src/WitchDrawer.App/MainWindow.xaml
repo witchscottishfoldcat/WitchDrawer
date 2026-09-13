@@ -2560,7 +2560,6 @@
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -2870,14 +2869,16 @@
                                                 Height="26" Padding="10,0"
                                                 AutomationProperties.Name="恢复当前主题透明度默认值" />
                                     </Grid>
-                                    <Border Grid.Row="6"
-                                            Grid.ColumnSpan="2"
-                                            Background="{DynamicResource PanelAltBrush}"
-                                            BorderBrush="{DynamicResource BorderBrushSoft}"
-                                            BorderThickness="1"
-                                            CornerRadius="10"
-                                            Padding="10"
-                                            Margin="0,10,0,0">
+                                </Grid>
+                                </Border>
+
+                                <!-- Auto-Hide Settings Card -->
+                                <Border Background="{DynamicResource PanelBrush}"
+                                        BorderBrush="{DynamicResource BorderBrushSoft}"
+                                        BorderThickness="1"
+                                        CornerRadius="12"
+                                        Padding="10"
+                                        Margin="0,0,0,6">
                                         <Border.Resources>
                                             <Style x:Key="AutoHideScopeButtonBaseStyle"
                                                    TargetType="{x:Type Button}"
@@ -2972,12 +2973,12 @@
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel VerticalAlignment="Center">
                                                     <TextBlock Text="自动隐藏"
-                                                               FontSize="11.5"
+                                                               FontSize="13"
                                                                FontWeight="SemiBold"
                                                                Foreground="{DynamicResource TextPrimaryBrush}" />
                                                     <TextBlock Text="开启后，鼠标不悬停时收纳盒内的图标与文字按下方透明度隐藏"
                                                                Margin="0,2,12,0"
-                                                               FontSize="10.5"
+                                                               FontSize="11.5"
                                                                Foreground="{DynamicResource TextMutedBrush}" />
                                                 </StackPanel>
                                                 <ToggleButton Grid.Column="1"
@@ -3061,7 +3062,7 @@
                                                            Foreground="{DynamicResource TextPrimaryBrush}" />
                                                 <Border Margin="0,4,0,0"
                                                         Padding="2"
-                                                        Background="{DynamicResource PanelBrush}"
+                                                        Background="{DynamicResource PanelAltBrush}"
                                                         BorderBrush="{DynamicResource BorderBrushSoft}"
                                                         BorderThickness="1"
                                                         CornerRadius="10">
@@ -3076,32 +3077,39 @@
                                                     </UniformGrid>
                                                 </Border>
                                             </StackPanel>
-                                            <Grid Margin="0,10,0,0">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <StackPanel VerticalAlignment="Center">
-                                                    <TextBlock Text="图标名称"
-                                                               FontSize="11.5"
-                                                               FontWeight="SemiBold"
-                                                               Foreground="{DynamicResource TextPrimaryBrush}" />
-                                                    <TextBlock Text="鼠标悬停图标时显示的名称：完整显示文件路径，精简显示仅文件名（快捷方式自动去掉 .lnk）"
-                                                               Margin="0,2,12,0"
-                                                               FontSize="10.5"
-                                                               TextWrapping="Wrap"
-                                                               Foreground="{DynamicResource TextMutedBrush}" />
-                                                </StackPanel>
-                                                <ToggleButton Grid.Column="1"
-                                                              Margin="12,0,0,0"
-                                                              VerticalAlignment="Center"
-                                                              Style="{StaticResource SettingsToggleButtonStyle}"
-                                                              IsChecked="{Binding IconToolTipCompact, Mode=OneWay}"
-                                                              Command="{Binding ToggleIconToolTipCompactCommand}"
-                                                              AutomationProperties.Name="图标名称精简显示" />
-                                            </Grid>
                                         </StackPanel>
-                                    </Border>
+                                </Border>
+
+                                <!-- Icon Name Settings Card -->
+                                <Border Background="{DynamicResource PanelBrush}"
+                                        BorderBrush="{DynamicResource BorderBrushSoft}"
+                                        BorderThickness="1"
+                                        CornerRadius="12"
+                                        Padding="10"
+                                        Margin="0,0,0,6">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="图标名称"
+                                                   FontSize="13"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <TextBlock Text="鼠标悬停图标时显示的名称：完整显示文件路径，精简显示仅文件名（快捷方式自动去掉 .lnk）"
+                                                   Margin="0,2,12,0"
+                                                   FontSize="11.5"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource TextMutedBrush}" />
+                                    </StackPanel>
+                                    <ToggleButton Grid.Column="1"
+                                                  Margin="12,0,0,0"
+                                                  VerticalAlignment="Center"
+                                                  Style="{StaticResource SettingsToggleButtonStyle}"
+                                                  IsChecked="{Binding IconToolTipCompact, Mode=OneWay}"
+                                                  Command="{Binding ToggleIconToolTipCompactCommand}"
+                                                  AutomationProperties.Name="图标名称精简显示" />
                                 </Grid>
                                 </Border>
 
