@@ -1190,10 +1190,10 @@
                                         CornerRadius="14"
                                         Padding="14,3"
                                         Margin="0">
-                                    <!-- 预留两行的完整高度（38 + 2 + 28 + 内边距4 + 描边2）。
+                                    <!-- 预留两行的完整高度（38 + 4 + 38）。
                                          字体或缩放需要更多空间时允许撑高，避免尺寸控件被动画宿主裁切。 -->
                                     <Grid x:Name="BoxControlsPageHost"
-                                          MinHeight="74"
+                                          MinHeight="80"
                                           ClipToBounds="True">
                                         <VisualStateManager.VisualStateGroups>
                                             <VisualStateGroup x:Name="BoxControlsPageStates">
@@ -1278,7 +1278,6 @@
                                             </Grid.Resources>
                                             <Grid.RowDefinitions>
                                                 <RowDefinition Height="38" />
-                                                <RowDefinition Height="Auto" />
                                                 <RowDefinition Height="Auto" />
                                             </Grid.RowDefinitions>
                                             <Grid.ColumnDefinitions>
@@ -1567,11 +1566,45 @@
                                                 </Border>
                                             </Grid>
 
-                                            <Grid Grid.Row="2"
-                                                  Grid.ColumnSpan="3"
-                                                  Margin="0,2,0,0">
+                                            <Grid Grid.Row="1"
+                                                  Grid.Column="0"
+                                                  Grid.ColumnSpan="2"
+                                                  Height="38"
+                                                  Margin="0,4,12,0"
+                                                  Visibility="{Binding SelectedBox.SupportsHoverRollUp, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="悬停展开"
+                                                           Margin="0,0,10,0"
+                                                           Style="{StaticResource BoxControlLabelStyle}" />
+                                                <Button Grid.Column="1"
+                                                        MinWidth="72"
+                                                        Content="{Binding SelectedBox.HoverRollUpButtonLabel}"
+                                                        Command="{Binding SelectedBox.ToggleHoverRollUpCommand}"
+                                                        ToolTip="{Binding SelectedBox.HoverRollUpButtonToolTip}"
+                                                        AutomationProperties.Name="{Binding SelectedBox.HoverRollUpButtonToolTip}">
+                                                    <Button.Style>
+                                                        <Style TargetType="{x:Type Button}"
+                                                               BasedOn="{StaticResource VisualStylePickerButtonStyle}">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding SelectedBox.IsHoverRollUpEnabled}" Value="True">
+                                                                    <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                                                                    <Setter Property="Foreground" Value="White" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
+                                            </Grid>
+
+                                            <Grid Height="38">
                                                 <Grid.Style>
                                                     <Style TargetType="{x:Type Grid}">
+                                                        <Setter Property="Grid.Row" Value="1" />
+                                                        <Setter Property="Grid.Column" Value="2" />
+                                                        <Setter Property="Margin" Value="8,4,0,0" />
                                                         <Setter Property="Visibility" Value="Collapsed" />
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding SelectedBox.SupportsFixedSize}" Value="True">
@@ -1585,7 +1618,7 @@
                                                     <ColumnDefinition Width="*" />
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Text="盒子尺寸"
-                                                           Margin="0,0,10,0"
+                                                           Margin="0,0,8,0"
                                                            Style="{StaticResource BoxControlLabelStyle}" />
                                                 <StackPanel Grid.Column="1"
                                                             Orientation="Horizontal"
@@ -1595,13 +1628,13 @@
                                                         <Style x:Key="SizeModeChoiceButtonStyle"
                                                                TargetType="{x:Type Button}"
                                                                BasedOn="{StaticResource GhostButtonStyle}">
-                                                            <Setter Property="MinHeight" Value="28" />
-                                                            <Setter Property="Padding" Value="12,4" />
+                                                            <Setter Property="MinHeight" Value="26" />
+                                                            <Setter Property="Padding" Value="8,2" />
                                                             <Setter Property="Background" Value="Transparent" />
                                                             <Setter Property="BorderBrush" Value="Transparent" />
                                                             <Setter Property="BorderThickness" Value="0" />
                                                             <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
-                                                            <Setter Property="FontSize" Value="10.5" />
+                                                            <Setter Property="FontSize" Value="10" />
                                                             <Setter Property="FontWeight" Value="Medium" />
                                                         </Style>
                                                         <Style x:Key="AdaptiveSizeModeButtonStyle"
@@ -1629,20 +1662,20 @@
                                                         <Style x:Key="SizeStepperButtonStyle"
                                                                TargetType="{x:Type Button}"
                                                                BasedOn="{StaticResource GhostButtonStyle}">
-                                                            <Setter Property="Width" Value="24" />
-                                                            <Setter Property="Height" Value="24" />
+                                                            <Setter Property="Width" Value="20" />
+                                                            <Setter Property="Height" Value="20" />
                                                             <Setter Property="MinWidth" Value="0" />
                                                             <Setter Property="MinHeight" Value="0" />
                                                             <Setter Property="Padding" Value="0" />
-                                                            <Setter Property="FontSize" Value="12" />
+                                                            <Setter Property="FontSize" Value="11" />
                                                             <Setter Property="FontWeight" Value="SemiBold" />
                                                         </Style>
                                                     </StackPanel.Resources>
-                                                    <Border Padding="2"
+                                                    <Border Padding="1"
                                                             Background="{DynamicResource PanelAltBrush}"
                                                             BorderBrush="{DynamicResource BorderBrushSoft}"
                                                             BorderThickness="1"
-                                                            CornerRadius="10"
+                                                            CornerRadius="9"
                                                             ToolTip="{Binding BoxSizeSettings.ModeSummary}">
                                                         <UniformGrid Columns="2" Rows="1">
                                                             <Button Content="自适应"
@@ -1654,8 +1687,9 @@
                                                         </UniformGrid>
                                                     </Border>
                                                     <StackPanel Orientation="Horizontal"
-                                                                Margin="12,0,0,0"
-                                                                VerticalAlignment="Center">
+                                                                Margin="8,0,0,0"
+                                                                VerticalAlignment="Center"
+                                                                ToolTip="{Binding BoxSizeSettings.ExtentHint}">
                                                         <StackPanel.Style>
                                                             <Style TargetType="{x:Type StackPanel}">
                                                                 <Setter Property="Visibility" Value="Collapsed" />
@@ -1673,10 +1707,10 @@
                                                         <Border Background="{DynamicResource PanelAltBrush}"
                                                                 BorderBrush="{DynamicResource BorderBrushSoft}"
                                                                 BorderThickness="1"
-                                                                CornerRadius="7"
-                                                                MinWidth="26"
-                                                                Padding="5,1.5"
-                                                                Margin="4,0"
+                                                                CornerRadius="6"
+                                                                MinWidth="22"
+                                                                Padding="3,1"
+                                                                Margin="2,0"
                                                                 VerticalAlignment="Center">
                                                             <TextBlock Text="{Binding BoxSizeSettings.FixedColumns}"
                                                                        HorizontalAlignment="Center"
@@ -1689,7 +1723,7 @@
                                                                 Command="{Binding BoxSizeSettings.IncreaseColumnsCommand}"
                                                                 ToolTip="增加列数" />
                                                         <TextBlock Text="×"
-                                                                   Margin="9,0"
+                                                                   Margin="4,0"
                                                                    VerticalAlignment="Center"
                                                                    FontSize="11"
                                                                    Foreground="{DynamicResource TextMutedBrush}" />
@@ -1700,10 +1734,10 @@
                                                         <Border Background="{DynamicResource PanelAltBrush}"
                                                                 BorderBrush="{DynamicResource BorderBrushSoft}"
                                                                 BorderThickness="1"
-                                                                CornerRadius="7"
-                                                                MinWidth="26"
-                                                                Padding="5,1.5"
-                                                                Margin="4,0"
+                                                                CornerRadius="6"
+                                                                MinWidth="22"
+                                                                Padding="3,1"
+                                                                Margin="2,0"
                                                                 VerticalAlignment="Center">
                                                             <TextBlock Text="{Binding BoxSizeSettings.FixedRows}"
                                                                        HorizontalAlignment="Center"
@@ -1716,23 +1750,6 @@
                                                                 Command="{Binding BoxSizeSettings.IncreaseRowsCommand}"
                                                                 ToolTip="增加行数" />
                                                     </StackPanel>
-                                                    <!-- 下限提示：解释固定模式下 − 按钮为何被禁用 -->
-                                                    <TextBlock Text="{Binding BoxSizeSettings.ExtentHint}"
-                                                               Margin="12,0,0,0"
-                                                               VerticalAlignment="Center"
-                                                               FontSize="9.5"
-                                                               Foreground="{DynamicResource TextMutedBrush}">
-                                                        <TextBlock.Style>
-                                                            <Style TargetType="{x:Type TextBlock}">
-                                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding BoxSizeSettings.IsFixedMode}" Value="True">
-                                                                        <Setter Property="Visibility" Value="Visible" />
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </TextBlock.Style>
-                                                    </TextBlock>
                                                 </StackPanel>
                                             </Grid>
 

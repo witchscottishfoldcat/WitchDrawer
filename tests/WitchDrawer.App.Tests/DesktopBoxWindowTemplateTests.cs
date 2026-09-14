@@ -291,10 +291,14 @@ public sealed class DesktopBoxWindowTemplateTests
         var button = Assert.Single(
             rootGrid.Descendants(PresentationNamespace + "Button"),
             element => (string?)element.Attribute("Click") == "OnToggleRollUpClick");
+        var header = Assert.Single(
+            rootGrid.Descendants(PresentationNamespace + "Grid"),
+            element => (string?)element.Attribute(XamlNamespace + "Name") == "RollUpHeader");
 
         Assert.Equal("{Binding HeaderRowHeight}", (string?)definitions[0].Attribute("Height"));
         Assert.Equal("{Binding ContentRowHeight}", (string?)definitions[1].Attribute("Height"));
         Assert.Equal("2", (string?)button.Attribute("Grid.Column"));
+        Assert.Equal("OnRollUpHeaderMouseEnter", (string?)header.Attribute("MouseEnter"));
     }
 
     [Fact]

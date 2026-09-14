@@ -104,6 +104,9 @@ public sealed class DesktopBoxManager
         WeakReferenceMessenger.Default.Register<DesktopBoxManager, BoxFileNameVisibilityChangedMessage>(
             this,
             static (recipient, message) => recipient.ApplyFileNameVisibility(message));
+        WeakReferenceMessenger.Default.Register<DesktopBoxManager, BoxHoverRollUpEnabledChangedMessage>(
+            this,
+            static (recipient, message) => recipient.ApplyHoverRollUpEnabled(message));
         WeakReferenceMessenger.Default.Register<DesktopBoxManager, DrawerSortModeChangedMessage>(
             this,
             static (recipient, message) => recipient.ApplyDrawerSortMode(message));
@@ -202,6 +205,7 @@ public sealed class DesktopBoxManager
                     // Load the file-name row first so a saved 4x4 cover stays 4x4 after restart.
                     await viewModel.LoadDrawerCoverSizeAsync();
                     await viewModel.LoadRollUpStateAsync();
+                    await viewModel.LoadHoverRollUpEnabledAsync();
                     await viewModel.LoadSortModeAsync();
                     await viewModel.LoadSizeModeAsync();
                     viewModel.ItemsChanged += (_, _) => ItemsChanged?.Invoke(
@@ -973,6 +977,15 @@ public sealed class DesktopBoxManager
                     _logger,
                     $"Failed to save resized drawer cover for box {message.BoxId:N}.");
             }
+        }
+    }
+
+    private void ApplyHoverRollUpEnabled(
+        BoxHoverRollUpEnabledChangedMessage message)
+    {
+        if (_windows.TryGetValue(message.BoxId, out var window))
+        {
+            window.ApplyHoverRollUpEnabled(message.IsEnabled);
         }
     }
 

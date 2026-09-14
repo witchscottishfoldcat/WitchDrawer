@@ -16,6 +16,7 @@ public sealed partial class BoxViewModel : ObservableObject
     private bool _isPositionLocked;
     private bool _isTitleVisible = true;
     private bool _isFileNameVisible;
+    private bool _isHoverRollUpEnabled;
     private DrawerItemSortMode _drawerItemSortMode = DrawerItemSortMode.Free;
 
     public BoxViewModel(
@@ -51,6 +52,7 @@ public sealed partial class BoxViewModel : ObservableObject
         FireAndForget.Run(LoadPresetAsync(), _logger, $"Failed to load layout preset for box {Id:N}.");
         FireAndForget.Run(LoadTitleVisibilityAsync(), _logger, $"Failed to load title visibility for box {Id:N}.");
         FireAndForget.Run(LoadFileNameVisibilityAsync(), _logger, $"Failed to load file name visibility for box {Id:N}.");
+        FireAndForget.Run(LoadHoverRollUpEnabledAsync(), _logger, $"Failed to load hover roll-up setting for box {Id:N}.");
         FireAndForget.Run(LoadDrawerSortModeAsync(), _logger, $"Failed to load drawer sort mode for box {Id:N}.");
     }
 
@@ -72,6 +74,9 @@ public sealed partial class BoxViewModel : ObservableObject
 
     internal static string GetFileNameVisibilitySettingKey(Guid boxId) =>
         $"BoxFileNameVisible:{boxId:N}";
+
+    internal static string GetHoverRollUpEnabledSettingKey(Guid boxId) =>
+        $"BoxHoverRollUpEnabled:{boxId:N}";
 
     internal static string GetDrawerSortModeSettingKey(Guid boxId) =>
         $"DrawerSortMode:{boxId:N}";
@@ -120,6 +125,17 @@ public sealed partial class BoxViewModel : ObservableObject
 
     public string FileNameVisibilityAutomationName =>
         IsFileNameVisible ? "隐藏文件名" : "显示文件名";
+
+    public bool SupportsHoverRollUp =>
+        Type is BoxType.Normal or BoxType.Pixel or BoxType.Mapping;
+
+    public bool IsHoverRollUpEnabled => SupportsHoverRollUp && _isHoverRollUpEnabled;
+
+    public string HoverRollUpButtonLabel => IsHoverRollUpEnabled ? "已开启" : "已关闭";
+
+    public string HoverRollUpButtonToolTip => IsHoverRollUpEnabled
+        ? "关闭鼠标悬停标题自动展开"
+        : "开启鼠标悬停标题自动展开";
 
     public DrawerItemSortMode DrawerItemSortMode => _drawerItemSortMode;
 
@@ -274,6 +290,30 @@ public sealed partial class BoxViewModel : ObservableObject
     }
 
     [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private async Task ToggleHoverRollUpAsync()
+    {
+        if (!SupportsHoverRollUp)
+        {
+            return;
+        }
+
+        var isEnabled = !IsHoverRollUpEnabled;
+        await _drawerService.SetSettingAsync(
+            GetHoverRollUpEnabledSettingKey(Id),
+            isEnabled.ToString());
+        ApplyHoverRollUpEnabled(isEnabled);
+        WeakReferenceMessenger.Default.Send(
+            new BoxHoverRollUpEnabledChangedMessage(Id, isEnabled));
+    }
+
+    internal async Task LoadHoverRollUpEnabledAsync()
+    {
+        var saved = await _drawerService.GetSettingAsync(
+            GetHoverRollUpEnabledSettingKey(Id));
+        ApplyHoverRollUpEnabled(bool.TryParse(saved, out var isEnabled) && isEnabled);
+    }
+
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
     private async Task ApplyDrawerSortModeAsync(DrawerItemSortMode sortMode)
     {
         if (!SupportsSorting || _drawerItemSortMode == sortMode)
@@ -349,6 +389,20 @@ public sealed partial class BoxViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(FileNameVisibilityAutomationName));
+    }
+
+    private void ApplyHoverRollUpEnabled(bool isEnabled)
+    {
+        if (!SetProperty(
+                ref _isHoverRollUpEnabled,
+                SupportsHoverRollUp && isEnabled,
+                nameof(IsHoverRollUpEnabled)))
+        {
+            return;
+        }
+
+        OnPropertyChanged(nameof(HoverRollUpButtonLabel));
+        OnPropertyChanged(nameof(HoverRollUpButtonToolTip));
     }
 }
 

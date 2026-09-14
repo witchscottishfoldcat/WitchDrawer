@@ -27,7 +27,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
     internal const double DrawerSecondaryPanelChrome = 24;
     private const double MaximumDrawerSecondaryPanelDimension = 320;
     private const double EdgeExpandThreshold = 14;
-    private const double VisibleHeaderRowHeight = 24;
+    internal const double VisibleHeaderRowHeight = 24;
     private const string MappingViewModeSettingPrefix = "MappingViewMode:";
     private const string MappingListWidthSettingPrefix = "MappingListWidth:";
     private const string TodoPanelSizeSettingPrefix = "TodoPanelSize:";
@@ -38,6 +38,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private const string LegacyDrawerTitleVisibilitySettingPrefix = "DrawerTitleVisible:";
     private const string FileNameVisibilitySettingPrefix = "BoxFileNameVisible:";
     private const string RollUpSettingPrefix = "BoxRolledUp:";
+    private const string HoverRollUpEnabledSettingPrefix = "BoxHoverRollUpEnabled:";
     private const string DrawerSortModeSettingPrefix = "DrawerSortMode:";
     private const double DefaultDrawerCoverWidth = 180;
     private const double DefaultDrawerCoverHeight = 112;
@@ -88,6 +89,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
     private bool _isTitleVisible = true;
     private bool _isFileNameVisible;
     private bool _isRolledUp;
+    private bool _isHoverRollUpEnabled;
     private double _drawerCoverWidth = DefaultDrawerCoverWidth;
     private double _drawerCoverHeight = DefaultDrawerCoverHeight;
     private int _drawerCoverColumns = 3;
@@ -324,6 +326,8 @@ public sealed class DesktopBoxViewModel : ObservableObject
     public bool SupportsRollUp => Type is BoxType.Normal or BoxType.Pixel or BoxType.Mapping;
 
     public bool IsRolledUp => SupportsRollUp && _isRolledUp;
+
+    public bool IsHoverRollUpEnabled => SupportsRollUp && _isHoverRollUpEnabled;
 
     public bool IsHeaderTitleVisible => IsTitleVisible || IsRolledUp;
 
@@ -1859,6 +1863,21 @@ public sealed class DesktopBoxViewModel : ObservableObject
         ApplyRollUpState(bool.TryParse(saved, out var isRolledUp) && isRolledUp);
     }
 
+    public async Task LoadHoverRollUpEnabledAsync()
+    {
+        var saved = await _drawerService.GetSettingAsync(
+            GetHoverRollUpEnabledSettingKey(BoxId));
+        ApplyHoverRollUpEnabled(bool.TryParse(saved, out var isEnabled) && isEnabled);
+    }
+
+    internal void ApplyHoverRollUpEnabled(bool isEnabled)
+    {
+        SetProperty(
+            ref _isHoverRollUpEnabled,
+            SupportsRollUp && isEnabled,
+            nameof(IsHoverRollUpEnabled));
+    }
+
     internal void ApplyRollUpState(bool isRolledUp)
     {
         if (!SetProperty(ref _isRolledUp, SupportsRollUp && isRolledUp, nameof(IsRolledUp)))
@@ -1969,6 +1988,9 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     internal static string GetRollUpSettingKey(Guid boxId) =>
         $"{RollUpSettingPrefix}{boxId:N}";
+
+    internal static string GetHoverRollUpEnabledSettingKey(Guid boxId) =>
+        $"{HoverRollUpEnabledSettingPrefix}{boxId:N}";
 
     internal static string GetDrawerSortModeSettingKey(Guid boxId) =>
         $"{DrawerSortModeSettingPrefix}{boxId:N}";

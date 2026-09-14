@@ -146,8 +146,10 @@
 
             <!-- 顶部标题栏与 macOS 关闭小红点 -->
             <!-- 左侧名称 / 视图切换 / 卷起 / 关闭。 -->
-            <Grid Grid.Row="0"
+            <Grid x:Name="RollUpHeader"
+                  Grid.Row="0"
                   Background="Transparent"
+                  MouseEnter="OnRollUpHeaderMouseEnter"
                   Visibility="{Binding IsHeaderVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />

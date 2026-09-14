@@ -24,8 +24,24 @@ public sealed class BoxControlsLayoutTests
                 var card = LoadControlsCard();
                 card.DataContext = new
                 {
-                    SelectedBox = new { SupportsFixedSize = true, CanSelectVisualStyle = true, TypeLabel = "普通" },
-                    BoxSizeSettings = new { IsAdaptiveMode = !fixedSize, IsFixedMode = fixedSize, FixedColumns = 5, FixedRows = 5 }
+                    SelectedBox = new
+                    {
+                        SupportsFixedSize = true,
+                        SupportsHoverRollUp = true,
+                        IsHoverRollUpEnabled = true,
+                        HoverRollUpButtonLabel = "已开启",
+                        HoverRollUpButtonToolTip = "关闭鼠标悬停标题自动展开",
+                        CanSelectVisualStyle = true,
+                        TypeLabel = "普通"
+                    },
+                    BoxSizeSettings = new
+                    {
+                        IsAdaptiveMode = !fixedSize,
+                        IsFixedMode = fixedSize,
+                        FixedColumns = 5,
+                        FixedRows = 5,
+                        ExtentHint = "当前内容占用 1 × 1，固定尺寸不能小于该范围"
+                    }
                 };
                 card.LayoutTransform = new ScaleTransform(scale, scale);
                 card.Measure(new Size(700 * scale, double.PositiveInfinity));
@@ -37,12 +53,39 @@ public sealed class BoxControlsLayoutTests
                 var panelBounds = primary.TransformToAncestor(host).TransformBounds(new Rect(primary.RenderSize));
                 Assert.True(panelBounds.Top >= -0.01 && panelBounds.Bottom <= host.ActualHeight + 0.01,
                     $"Primary controls {panelBounds} exceed host height {host.ActualHeight} at {scale}x.");
+                Rect adaptiveBounds = default;
                 foreach (var label in new[] { "自适应", "固定格数" })
                 {
                     var button = Find<Button>(card, element => Equals(element.Content, label));
                     var bounds = button.TransformToAncestor(host).TransformBounds(new Rect(button.RenderSize));
+                    if (label == "自适应")
+                    {
+                        adaptiveBounds = bounds;
+                    }
                     Assert.True(bounds.Bottom <= host.ActualHeight + 0.01,
                         $"{label} ends at {bounds.Bottom}, below host height {host.ActualHeight}.");
+                }
+
+                var hoverToggle = Find<Button>(card, element => Equals(element.Content, "已开启"));
+                var hoverToggleBounds = hoverToggle.TransformToAncestor(host)
+                    .TransformBounds(new Rect(hoverToggle.RenderSize));
+                Assert.True(hoverToggleBounds.Bottom <= host.ActualHeight + 0.01,
+                    $"Hover toggle ends at {hoverToggleBounds.Bottom}, below host height {host.ActualHeight}.");
+                Assert.InRange(
+                    Math.Abs(hoverToggleBounds.Top - adaptiveBounds.Top),
+                    0,
+                    2.01);
+                if (fixedSize)
+                {
+                    var steppers = Find<StackPanel>(
+                        card,
+                        element => Equals(
+                            element.ToolTip,
+                            "当前内容占用 1 × 1，固定尺寸不能小于该范围"));
+                    var stepperBounds = steppers.TransformToAncestor(host)
+                        .TransformBounds(new Rect(steppers.RenderSize));
+                    Assert.True(stepperBounds.Right <= host.ActualWidth + 0.01,
+                        $"Fixed-size steppers end at {stepperBounds.Right}, beyond host width {host.ActualWidth}.");
                 }
             }
             catch (Exception exception)

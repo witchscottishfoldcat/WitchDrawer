@@ -22,6 +22,8 @@ public partial class DesktopBoxWindow : Window
     private const string InternalDrawerItemDragFormat = "WitchDrawer.DesktopBoxItem";
     private const double DrawerPopupGap = 8;
     private const double DrawerPopupCollisionPadding = 4;
+    private const int HoverExpandDelayMs = 120;
+    private const int HoverRollUpDelayMs = 300;
 
     private static readonly HashSet<Guid> CompletedInternalDragIds = [];
     private static readonly HashSet<Guid> CompletedInternalItemIds = [];
@@ -35,6 +37,11 @@ public partial class DesktopBoxWindow : Window
     private bool _isMappingViewTransitioning;
     private Point? _mappingViewTransitionVisibleOriginPixels;
     private bool _isRollTransitioning;
+    private bool _isHoverExpandedFromRollUp;
+    private bool _restoreRolledUpAfterTransition;
+    private bool _isSurfaceDragging;
+    private CancellationTokenSource? _hoverExpandCts;
+    private CancellationTokenSource? _hoverRollUpCts;
     private bool _restoreAfterMinimizeQueued;
     private bool _desktopOwnershipRestoreQueued;
     private bool _desktopIsForeground;
@@ -134,6 +141,46 @@ public partial class DesktopBoxWindow : Window
         SetAutoHideReveal(_autoHideRevealed);
     }
 
+    internal void ApplyHoverRollUpEnabled(bool isEnabled)
+    {
+        ViewModel.ApplyHoverRollUpEnabled(isEnabled);
+        if (isEnabled)
+        {
+            return;
+        }
+
+        CancelHoverRollUpTimers();
+        if (!_isHoverExpandedFromRollUp)
+        {
+            return;
+        }
+
+        _isHoverExpandedFromRollUp = false;
+        if (_isRollTransitioning)
+        {
+            _restoreRolledUpAfterTransition = true;
+            return;
+        }
+
+        FireAndForget.Run(
+            RestoreHoverExpandedBoxAsync(),
+            ViewModel.Logger,
+            $"Failed to restore rolled-up box {ViewModel.BoxId:N} after disabling hover expansion.");
+    }
+
+    private async Task RestoreHoverExpandedBoxAsync()
+    {
+        while (_isMappingViewTransitioning && !Dispatcher.HasShutdownStarted)
+        {
+            await Task.Delay(50);
+        }
+
+        if (!Dispatcher.HasShutdownStarted)
+        {
+            await TransitionRollUpStateAsync(rollUp: true, persist: false);
+        }
+    }
+
     /// <summary>
     /// 设置该收纳盒是否取消隐藏（悬停命中）。与桌面盒子透明度无关。
     /// 盒子外壳、标题、边框是否一并透明由 ApplyAutoHideState 传入的勾选项决定，
@@ -160,6 +207,7 @@ public partial class DesktopBoxWindow : Window
 
     private void OnWindowMouseEnter(object sender, MouseEventArgs e)
     {
+        CancelPendingHoverRollUp();
         if (_autoHideEnabled)
         {
             AutoHideHoverEntered?.Invoke(this, EventArgs.Empty);
@@ -168,6 +216,7 @@ public partial class DesktopBoxWindow : Window
 
     private void OnWindowMouseLeave(object sender, MouseEventArgs e)
     {
+        ScheduleHoverRollUp();
         if (_autoHideEnabled)
         {
             AutoHideHoverLeft?.Invoke(this, EventArgs.Empty);
@@ -546,6 +595,7 @@ public partial class DesktopBoxWindow : Window
         if (!ShouldClampVisibleBounds(
                 _isVisibleBoundsClampingEnabled,
                 _isMappingViewTransitioning,
+                _isRollTransitioning,
                 IsVisible,
                 e.PreviousSize != e.NewSize))
         {
@@ -591,10 +641,12 @@ public partial class DesktopBoxWindow : Window
     internal static bool ShouldClampVisibleBounds(
         bool isClampingEnabled,
         bool isMappingViewTransitioning,
+        bool isRollTransitioning,
         bool isVisible,
         bool sizeChanged) =>
         isClampingEnabled
         && !isMappingViewTransitioning
+        && !isRollTransitioning
         && isVisible
         && sizeChanged;
 
@@ -874,6 +926,151 @@ public partial class DesktopBoxWindow : Window
         }
     }
 
+    private void OnRollUpHeaderMouseEnter(object sender, MouseEventArgs e)
+    {
+        RequestHoverExpand();
+    }
+
+    private void RequestHoverExpand()
+    {
+        CancelPendingHoverRollUp();
+        if (_hoverExpandCts is not null
+            || _isHoverExpandedFromRollUp
+            || _isRollTransitioning
+            || _isMappingViewTransitioning
+            || !ViewModel.IsHoverRollUpEnabled
+            || !ViewModel.IsRolledUp
+            || !ViewModel.SupportsRollUp)
+        {
+            return;
+        }
+
+        var cts = new CancellationTokenSource();
+        ReplaceCancellationTokenSource(ref _hoverExpandCts, cts);
+        FireAndForget.Run(
+            ExpandRolledUpBoxAfterHoverAsync(cts),
+            ViewModel.Logger,
+            $"Failed to expand rolled-up box {ViewModel.BoxId:N} on hover.");
+    }
+
+    private async Task ExpandRolledUpBoxAfterHoverAsync(CancellationTokenSource cts)
+    {
+        try
+        {
+            await Task.Delay(HoverExpandDelayMs, cts.Token);
+            if (cts.IsCancellationRequested
+                || (!RollUpHeader.IsMouseOver && !ViewModel.IsDragOver)
+                || !ViewModel.IsRolledUp)
+            {
+                return;
+            }
+
+            _isHoverExpandedFromRollUp = true;
+            if (!await TransitionRollUpStateAsync(rollUp: false, persist: false))
+            {
+                _isHoverExpandedFromRollUp = false;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            ClearCancellationTokenSource(ref _hoverExpandCts, cts);
+        }
+    }
+
+    private void ScheduleHoverRollUp()
+    {
+        CancelPendingHoverExpand();
+        if (!_isHoverExpandedFromRollUp)
+        {
+            return;
+        }
+
+        var cts = new CancellationTokenSource();
+        ReplaceCancellationTokenSource(ref _hoverRollUpCts, cts);
+        FireAndForget.Run(
+            RollUpHoverExpandedBoxAfterLeaveAsync(cts),
+            ViewModel.Logger,
+            $"Failed to roll up hover-expanded box {ViewModel.BoxId:N}.");
+    }
+
+    private async Task RollUpHoverExpandedBoxAfterLeaveAsync(CancellationTokenSource cts)
+    {
+        try
+        {
+            await Task.Delay(HoverRollUpDelayMs, cts.Token);
+            while (!cts.IsCancellationRequested
+                   && (_itemContextMenu.IsMenuActive
+                       || _itemDragGate.IsEntered
+                       || _isSurfaceDragging
+                       || Mouse.Captured is Thumb))
+            {
+                await Task.Delay(100, cts.Token);
+            }
+
+            if (cts.IsCancellationRequested
+                || IsMouseOver
+                || IsCursorOverOpenDrawerPopup()
+                || !_isHoverExpandedFromRollUp)
+            {
+                return;
+            }
+
+            _isHoverExpandedFromRollUp = false;
+            if (!await TransitionRollUpStateAsync(rollUp: true, persist: false))
+            {
+                _isHoverExpandedFromRollUp = true;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            ClearCancellationTokenSource(ref _hoverRollUpCts, cts);
+        }
+    }
+
+    private void CancelPendingHoverExpand() =>
+        CancelCancellationTokenSource(ref _hoverExpandCts);
+
+    private void CancelPendingHoverRollUp() =>
+        CancelCancellationTokenSource(ref _hoverRollUpCts);
+
+    private void CancelHoverRollUpTimers()
+    {
+        CancelPendingHoverExpand();
+        CancelPendingHoverRollUp();
+    }
+
+    private static void ReplaceCancellationTokenSource(
+        ref CancellationTokenSource? field,
+        CancellationTokenSource replacement)
+    {
+        var previous = Interlocked.Exchange(ref field, replacement);
+        previous?.Cancel();
+        previous?.Dispose();
+    }
+
+    private static void CancelCancellationTokenSource(ref CancellationTokenSource? field)
+    {
+        var cts = Interlocked.Exchange(ref field, null);
+        cts?.Cancel();
+        cts?.Dispose();
+    }
+
+    private static void ClearCancellationTokenSource(
+        ref CancellationTokenSource? field,
+        CancellationTokenSource completed)
+    {
+        if (ReferenceEquals(Interlocked.CompareExchange(ref field, null, completed), completed))
+        {
+            completed.Dispose();
+        }
+    }
+
     private static void RevealTodoScrollBarForScroll(ScrollBar scrollBar)
     {
         var animation = new DoubleAnimationUsingKeyFrames
@@ -1046,6 +1243,8 @@ public partial class DesktopBoxWindow : Window
 
     protected override void OnClosing(CancelEventArgs e)
     {
+        CancelHoverRollUpTimers();
+        RestorePersistedRollUpStateWithoutAnimation();
         if (!_forceClose)
         {
             e.Cancel = true;
@@ -1067,6 +1266,7 @@ public partial class DesktopBoxWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        CancelHoverRollUpTimers();
         ViewModel.Undo.Clear();
         SourceInitialized -= OnSourceInitialized;
         Loaded -= OnLoaded;
@@ -1325,8 +1525,21 @@ public partial class DesktopBoxWindow : Window
             return;
         }
 
+        CancelHoverRollUpTimers();
+        _isHoverExpandedFromRollUp = false;
+        await TransitionRollUpStateAsync(!ViewModel.IsRolledUp, persist: true);
+    }
+
+    private async Task<bool> TransitionRollUpStateAsync(bool rollUp, bool persist)
+    {
+        if (_isRollTransitioning || _isMappingViewTransitioning || !ViewModel.SupportsRollUp)
+        {
+            return false;
+        }
+
         _isRollTransitioning = true;
-        var rollUp = !ViewModel.IsRolledUp;
+        var fileListScrollBarVisibility =
+            ScrollViewer.GetVerticalScrollBarVisibility(FileList);
         try
         {
             var startWidth = ActualWidth;
@@ -1336,36 +1549,112 @@ public partial class DesktopBoxWindow : Window
             Width = startWidth;
             Height = startHeight;
 
-            ViewModel.ApplyRollUpState(rollUp);
-            await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
-            WindowBorder.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            var targetHeight = WindowBorder.DesiredSize.Height;
-
+            double targetHeight;
             if (rollUp)
             {
+                // Measuring by briefly applying IsRolledUp=true exposed the zero-height
+                // content row to WPF's render queue for one frame, producing a flash before
+                // the real size animation began. The rolled-up height is deterministic, so
+                // calculate it without mutating the visible layout.
+                targetHeight = CalculateRolledUpWindowHeight(
+                    WindowBorder.Margin,
+                    WindowBorder.BorderThickness,
+                    DesktopBoxViewModel.VisibleHeaderRowHeight);
+            }
+            else
+            {
+                // Expansion is safe to measure in-place: the HWND is still pinned to the
+                // collapsed height, so the newly measured content remains clipped until the
+                // height animation reveals it.
                 ViewModel.ApplyRollUpState(false);
                 await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
+                WindowBorder.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                targetHeight = WindowBorder.DesiredSize.Height;
             }
 
+            // Mapping list mode normally owns an Auto scrollbar. Constraining the HWND during
+            // the transition can make it appear for a single frame, so suppress it until the
+            // final layout has stabilized.
+            ScrollViewer.SetVerticalScrollBarVisibility(FileList, ScrollBarVisibility.Disabled);
             await AnimateWindowSizeAsync(startWidth, startHeight, startWidth, targetHeight);
             ViewModel.ApplyRollUpState(rollUp);
-            await ViewModel.SaveRollUpStateAsync();
+            await StabilizeRollUpLayoutAsync();
+            if (persist)
+            {
+                await ViewModel.SaveRollUpStateAsync();
+            }
+
+            return true;
         }
         finally
         {
+            var restoreRolledUp = _restoreRolledUpAfterTransition;
+            _restoreRolledUpAfterTransition = false;
+            if (restoreRolledUp)
+            {
+                ViewModel.ApplyRollUpState(true);
+                await StabilizeRollUpLayoutAsync();
+            }
+
+            ScrollViewer.SetVerticalScrollBarVisibility(
+                FileList,
+                fileListScrollBarVisibility);
             BeginAnimation(WidthProperty, null);
             BeginAnimation(HeightProperty, null);
             SizeToContent = SizeToContent.WidthAndHeight;
             ClearValue(MinHeightProperty);
             ClearValue(WidthProperty);
             ClearValue(HeightProperty);
-            if (!rollUp)
+            InvalidateMeasure();
+            WindowBorder.InvalidateMeasure();
+            await Dispatcher.InvokeAsync(UpdateLayout, DispatcherPriority.Loaded);
+            if (!rollUp && !restoreRolledUp)
             {
                 await RefreshGridLayoutAfterRollTransitionAsync();
             }
 
             _isRollTransitioning = false;
             QueueSendToBottom();
+        }
+    }
+
+    private async Task StabilizeRollUpLayoutAsync()
+    {
+        // Keep the HWND pinned to the animation's final size while the visibility binding
+        // and row measurement catch up. Releasing SizeToContent before this pass can expose
+        // one intermediate frame at the old content height.
+        await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
+        WindowBorder.InvalidateMeasure();
+        UpdateLayout();
+    }
+
+    internal static double CalculateRolledUpWindowHeight(
+        Thickness windowBorderMargin,
+        Thickness windowBorderThickness,
+        double visibleHeaderHeight) =>
+        Math.Max(
+            0,
+            windowBorderMargin.Top
+            + windowBorderThickness.Top
+            + visibleHeaderHeight
+            + windowBorderThickness.Bottom
+            + windowBorderMargin.Bottom);
+
+    private void RestorePersistedRollUpStateWithoutAnimation()
+    {
+        if (!_isHoverExpandedFromRollUp)
+        {
+            return;
+        }
+
+        _isHoverExpandedFromRollUp = false;
+        if (_isRollTransitioning)
+        {
+            _restoreRolledUpAfterTransition = true;
+        }
+        else
+        {
+            ViewModel.ApplyRollUpState(true);
         }
     }
 
@@ -1450,6 +1739,7 @@ public partial class DesktopBoxWindow : Window
     private async Task SwitchMappingViewModeAsync(bool useListMode)
     {
         if (_isMappingViewTransitioning
+            || _isRollTransitioning
             || !ViewModel.IsMappingBox
             || ViewModel.IsMappingListMode == useListMode)
         {
@@ -1627,9 +1917,6 @@ public partial class DesktopBoxWindow : Window
         var duration = TimeSpan.FromMilliseconds(durationMs);
         var easing = new CubicEase { EasingMode = easingMode };
 
-        Width = targetWidth;
-        Height = targetHeight;
-
         var widthAnimation = new DoubleAnimation(startWidth, targetWidth, duration)
         {
             EasingFunction = easing
@@ -1638,7 +1925,16 @@ public partial class DesktopBoxWindow : Window
         {
             EasingFunction = easing
         };
-        heightAnimation.Completed += (_, _) => completion.TrySetResult();
+        heightAnimation.Completed += (_, _) =>
+        {
+            // Changing the base value before BeginAnimation resizes the native HWND to the
+            // target immediately, then WPF paints it back at the start value for the first
+            // animation frame. Set the base value only while HoldEnd already presents the
+            // target, so removing the animation later cannot produce another size jump.
+            SetCurrentValue(WidthProperty, targetWidth);
+            SetCurrentValue(HeightProperty, targetHeight);
+            completion.TrySetResult();
+        };
 
         BeginAnimation(WidthProperty, widthAnimation, HandoffBehavior.SnapshotAndReplace);
         BeginAnimation(HeightProperty, heightAnimation, HandoffBehavior.SnapshotAndReplace);
@@ -1650,6 +1946,11 @@ public partial class DesktopBoxWindow : Window
     {
         // 紧跟 DragLeave 的 DragOver 说明只是 resize churn：取消待执行的复位。
         CancelPendingDragLeaveReset();
+        CancelPendingHoverRollUp();
+        if (ViewModel.IsRolledUp)
+        {
+            RequestHoverExpand();
+        }
 
         // OLE 拖拽期间 MouseEnter/MouseLeave 不会触发：拖拽悬停也要取消隐藏，
         // 否则拖文件到高度透明的盒上时落点不可见。重复 DragOver 由管理器侧去重。
@@ -1718,6 +2019,7 @@ public partial class DesktopBoxWindow : Window
 
     private void OnPreviewDragLeave(object sender, DragEventArgs e)
     {
+        ScheduleHoverRollUp();
         // SizeToContent 窗口随拖拽预览在指针下方生长时，OLE 会补发 DragLeave/DragEnter 对
         // （churn）。若在此同步复位，就会出现"复位→下一帧 DragOver 再显示→再复位"的疯狂频闪。
         // 改为延迟复位：churn 场景紧跟的 DragOver 会取消它；真正离开/取消时没有后续
@@ -1899,6 +2201,7 @@ public partial class DesktopBoxWindow : Window
 
         if (e.ButtonState == MouseButtonState.Pressed)
         {
+            _isSurfaceDragging = true;
             try
             {
                 DragMove();
@@ -1913,6 +2216,14 @@ public partial class DesktopBoxWindow : Window
             }
             catch (InvalidOperationException)
             {
+            }
+            finally
+            {
+                _isSurfaceDragging = false;
+                if (!IsMouseOver)
+                {
+                    ScheduleHoverRollUp();
+                }
             }
         }
     }

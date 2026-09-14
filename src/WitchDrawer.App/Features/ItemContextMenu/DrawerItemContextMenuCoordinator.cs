@@ -16,6 +16,8 @@ internal sealed class DrawerItemContextMenuCoordinator(DesktopBoxViewModel host)
     private bool _disposed;
     private int _requestVersion;
 
+    public bool IsMenuActive => _activeMenu?.IsVisible == true;
+
     public async Task ShowAsync(DrawerItemViewModel item)
     {
         var requestVersion = Interlocked.Increment(ref _requestVersion);
