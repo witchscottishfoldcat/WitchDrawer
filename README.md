@@ -5,7 +5,7 @@
 <h1 align="center">WitchDrawer</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.3.12-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.3.13-blue" alt="Version" />
   <img src="https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-orange" alt="License" />
   <img src="https://img.shields.io/badge/docs%20%26%20assets-CC%20BY--NC--SA%204.0-lightgrey" alt="Docs & Assets License" />
   <img src="https://img.shields.io/badge/.NET-10.0-purple" alt=".NET" />
