@@ -35,9 +35,11 @@ public sealed class DesktopToolWindow
     private const uint SetWindowPositionNoMove = 0x0002;
     private const uint SetWindowPositionNoActivate = 0x0010;
     private const uint SetWindowPositionFrameChanged = 0x0020;
+    private const uint SetWindowPositionNoOwnerZOrder = 0x0200;
     private const int ShowWithoutActivation = 4;
 
     private static readonly nint WindowPositionBottom = 1;
+    private static readonly nint WindowPositionTop = 0;
 
     private readonly nint _handle;
     private nint _originalOwner;
@@ -247,7 +249,40 @@ public sealed class DesktopToolWindow
         if (DesktopShellHost.UsesLegacyDesktopHost && !_desktopOwnershipSuspendedForInput)
         {
             TryAttachToDesktop();
+            RaiseAboveDesktopSurface();
         }
+    }
+
+    /// <summary>
+    /// Windows 10's Show Desktop raises a transient WorkerW (the desktop view
+    /// migrated out of Progman) above the normal band, which covers boxes
+    /// resting at HWND_BOTTOM even though they are owned by the shell. Ordinary
+    /// windows are already minimized while Show Desktop is active, so lifting
+    /// the box to the top of the normal band keeps it on the visible desktop;
+    /// the existing SendToBottom on desktop-foreground exit returns it behind
+    /// ordinary windows. SWP_NOOWNERZORDER is required: repositioning an owned
+    /// box without it drags the shell owner along and would pull ordinary app
+    /// windows back above the desktop. Windows 11 never raises a covering
+    /// surface and keeps the Progman path, so it does not enter this branch.
+    /// </summary>
+    internal void RaiseAboveDesktopSurface()
+    {
+        if (!IsAlive)
+        {
+            return;
+        }
+
+        SetWindowPos(
+            _handle,
+            WindowPositionTop,
+            0,
+            0,
+            0,
+            0,
+            SetWindowPositionNoMove
+            | SetWindowPositionNoSize
+            | SetWindowPositionNoActivate
+            | SetWindowPositionNoOwnerZOrder);
     }
 
     /// <summary>

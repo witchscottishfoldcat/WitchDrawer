@@ -244,6 +244,104 @@ public sealed class DesktopToolWindowTests
         Assert.Null(failure);
     }
 
+    [Fact]
+    public void RaiseAboveDesktopSurface_PlacesBoxAboveCoveringSurfaceWithoutActivation()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            Window? box = null;
+            Window? surface = null;
+            try
+            {
+                // Overlapping windows: the "desktop surface" covers the box.
+                box = new Window
+                {
+                    ShowActivated = false,
+                    ShowInTaskbar = false,
+                    WindowStyle = WindowStyle.None,
+                    ResizeMode = ResizeMode.NoResize,
+                    Width = 60,
+                    Height = 60,
+                    Left = 20,
+                    Top = 20
+                };
+                surface = new Window
+                {
+                    ShowActivated = false,
+                    ShowInTaskbar = false,
+                    WindowStyle = WindowStyle.None,
+                    ResizeMode = ResizeMode.NoResize,
+                    Width = 100,
+                    Height = 100,
+                    Left = 0,
+                    Top = 0
+                };
+                var boxHandle = new WindowInteropHelper(box).EnsureHandle();
+                var surfaceHandle = new WindowInteropHelper(surface).EnsureHandle();
+                var native = new DesktopToolWindow(boxHandle);
+                native.Configure();
+                box.Show();
+                surface.Show();
+
+                // Simulate Show Desktop ordering: Configure() sank the box to the
+                // bottom of the normal band; raise the desktop surface above it.
+                SetWindowPos(
+                    surfaceHandle,
+                    nint.Zero /* HWND_TOP (of the non-topmost band) */,
+                    0, 0, 0, 0,
+                    0x0001 | 0x0002 | 0x0010);
+                Assert.True(GetWindowRect(boxHandle, out var before));
+                var ownerBefore = GetWindow(boxHandle, GetWindowOwner);
+                Assert.False(IsAbove(boxHandle, surfaceHandle), "precondition: surface covers box");
+
+                native.RaiseAboveDesktopSurface();
+
+                Assert.True(IsAbove(boxHandle, surfaceHandle), "box must sit above the covering surface");
+                Assert.False(box.IsActive);
+                Assert.True(GetWindowRect(boxHandle, out var after));
+                Assert.Equal(before, after);
+                Assert.Equal(ownerBefore, GetWindow(boxHandle, GetWindowOwner));
+            }
+            catch (Exception exception)
+            {
+                failure = exception;
+            }
+            finally
+            {
+                box?.Close();
+                surface?.Close();
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        Assert.True(thread.Join(TimeSpan.FromSeconds(10)), "STA raise test timed out.");
+        Assert.Null(failure);
+    }
+
+    private static bool IsAbove(nint window, nint reference)
+    {
+        // Walk the Z order top-down via EnumWindows; the window found first is higher.
+        nint? firstHit = null;
+        EnumWindows((current, _) =>
+        {
+            if (current == window || current == reference)
+            {
+                firstHit = current;
+                return false;
+            }
+
+            return true;
+        }, nint.Zero);
+        return firstHit == window;
+    }
+
+    private delegate bool EnumWindowsCallback(nint window, nint parameter);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool EnumWindows(EnumWindowsCallback callback, nint parameter);
+
     [StructLayout(LayoutKind.Sequential)]
     private struct NativeRect
     {
@@ -271,6 +369,17 @@ public sealed class DesktopToolWindowTests
 
     [DllImport("user32.dll")]
     private static extern nint GetWindow(nint windowHandle, uint command);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetWindowPos(
+        nint windowHandle,
+        nint windowInsertAfter,
+        int x,
+        int y,
+        int width,
+        int height,
+        uint flags);
 
     [DllImport("user32.dll")]
     private static extern nint GetShellWindow();
