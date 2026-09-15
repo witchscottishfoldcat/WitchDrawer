@@ -40,6 +40,7 @@ public sealed class MainViewModel : ObservableObject
     private readonly BoxPositionLockStateStore _boxPositionLockStateStore;
     private readonly AppPaths _appPaths;
     private readonly DataStorageMigrationService _dataStorageMigrationService;
+    private readonly DiagnosticLogExportService _diagnosticLogExportService;
     private BoxViewModel? _selectedBox;
     private CancellationTokenSource? _itemsLoadCts;
     private int _itemsLoadVersion;
@@ -101,6 +102,7 @@ public sealed class MainViewModel : ObservableObject
         _boxPositionLockStateStore = boxPositionLockStateStore;
         _appPaths = appPaths;
         _dataStorageMigrationService = dataStorageMigrationService;
+        _diagnosticLogExportService = new DiagnosticLogExportService(appPaths);
         _autoHideSettingsStore = autoHideSettingsStore;
         TodoBoxDetail = new TodoBoxDetailViewModel(todoService, logger);
         TodoBoxDetail.ItemsChanged += OnTodoBoxDetailItemsChanged;
@@ -598,6 +600,63 @@ public sealed class MainViewModel : ObservableObject
         finally
         {
             IsBusy = false;
+        }
+    }
+
+    public async Task<DiagnosticLogExportResult> ExportDiagnosticLogsAsync(string destinationPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(destinationPath);
+        if (IsBusy)
+        {
+            LogInfoWithoutThrowing("Diagnostic log export skipped because another main operation is running.");
+            throw new InvalidOperationException("正在处理其他操作，请稍后再导出诊断日志。");
+        }
+
+        IsBusy = true;
+        StatusText = "正在导出诊断日志…";
+        LogInfoWithoutThrowing("Diagnostic log export started.");
+        try
+        {
+            var result = await _diagnosticLogExportService.ExportAsync(
+                destinationPath,
+                CurrentVersionText);
+            StatusText = $"已导出 {result.LogFileCount} 个日志文件";
+            LogInfoWithoutThrowing($"Diagnostic log export completed with {result.LogFileCount} log file(s).");
+            return result;
+        }
+        catch (Exception exception)
+        {
+            LogErrorWithoutThrowing(exception, "Diagnostic log export failed.");
+            StatusText = "诊断日志导出失败";
+            throw;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private void LogInfoWithoutThrowing(string message)
+    {
+        try
+        {
+            _logger.Info(message);
+        }
+        catch
+        {
+            // Diagnostic export must remain usable when the normal log destination is unavailable.
+        }
+    }
+
+    private void LogErrorWithoutThrowing(Exception exception, string message)
+    {
+        try
+        {
+            _logger.Error(exception, message);
+        }
+        catch
+        {
+            // The original export failure is more useful than a secondary logging failure.
         }
     }
 

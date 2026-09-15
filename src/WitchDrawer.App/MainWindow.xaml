@@ -3676,6 +3676,46 @@
                                 </StackPanel>
                                 </Border>
 
+                                <!-- Diagnostic Export Card -->
+                                <Border Background="{DynamicResource PanelBrush}"
+                                        BorderBrush="{DynamicResource BorderBrushSoft}"
+                                        BorderThickness="1"
+                                        CornerRadius="14"
+                                        Padding="12"
+                                        Margin="0,0,0,8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="诊断与反馈"
+                                                       FontWeight="Bold"
+                                                       FontSize="14"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                                            <TextBlock Text="遇到异常时，可导出最近日志发送给开发者。"
+                                                       Margin="0,3,0,0"
+                                                       FontSize="12"
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource TextMutedBrush}" />
+                                            <TextBlock Text="不包含数据库和用户文件；日志可能含文件名与完整路径。"
+                                                       Margin="0,4,0,0"
+                                                       FontSize="11.5"
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource TextMutedBrush}" />
+                                        </StackPanel>
+                                        <Button x:Name="ExportDiagnosticLogsButton"
+                                                Grid.Column="1"
+                                                Content="导出诊断日志"
+                                                Style="{StaticResource PrimaryButtonStyle}"
+                                                Click="OnExportDiagnosticLogsClick"
+                                                AutomationProperties.Name="导出 WitchDrawer 诊断日志"
+                                                Height="30"
+                                                Padding="12,0"
+                                                VerticalAlignment="Center" />
+                                    </Grid>
+                                </Border>
+
                                 <!-- Author Support Card -->
                                 <Border x:Name="AuthorSupportCard"
                                         Background="{DynamicResource PanelBrush}"

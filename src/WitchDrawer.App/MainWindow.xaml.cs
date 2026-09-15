@@ -1274,6 +1274,58 @@ public partial class MainWindow : Window
         OpenExternalUri(SupportPageUri);
     }
 
+    private async void OnExportDiagnosticLogsClick(object sender, RoutedEventArgs e)
+    {
+        var privacyConfirmation = MessageBox.Show(
+            this,
+            "诊断包只包含最近的运行日志和基础环境信息，不包含数据库或用户文件内容。\n\n日志中可能包含文件名和完整路径，发送前请按需检查。是否继续？",
+            "导出诊断日志",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Information);
+        if (privacyConfirmation != MessageBoxResult.OK)
+        {
+            return;
+        }
+
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "保存 WitchDrawer 诊断日志",
+            Filter = "ZIP 压缩包 (*.zip)|*.zip",
+            DefaultExt = ".zip",
+            AddExtension = true,
+            FileName = $"WitchDrawer-Diagnostics-{DateTime.Now:yyyyMMdd-HHmmss}.zip"
+        };
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        ExportDiagnosticLogsButton.IsEnabled = false;
+        try
+        {
+            var result = await ViewModel.ExportDiagnosticLogsAsync(dialog.FileName);
+            MessageBox.Show(
+                this,
+                $"诊断日志已导出。\n\n包含日志：{result.LogFileCount} 个\n保存位置：{result.ArchivePath}",
+                "导出完成",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(
+                this,
+                "诊断日志导出失败：\n" + exception.Message,
+                "导出失败",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+        finally
+        {
+            ExportDiagnosticLogsButton.IsEnabled = true;
+        }
+    }
+
     private void OpenExternalUri(string uri)
     {
         try

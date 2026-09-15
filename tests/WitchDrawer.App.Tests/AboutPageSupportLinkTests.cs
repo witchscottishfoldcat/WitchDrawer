@@ -42,6 +42,23 @@ public sealed class AboutPageSupportLinkTests
             style => ((string?)style.Attribute("BasedOn"))?.Contains("DrawerScrollBarStyle") == true);
     }
 
+    [Fact]
+    public void AboutPage_ContainsDiagnosticLogExportWithPrivacyNotice()
+    {
+        var document = XDocument.Load(GetMainWindowXamlPath());
+        var exportButton = Assert.Single(
+            document.Descendants(PresentationNamespace + "Button"),
+            element => (string?)element.Attribute(XamlNamespace + "Name") == "ExportDiagnosticLogsButton");
+        var privacyNotice = Assert.Single(
+            document.Descendants(PresentationNamespace + "TextBlock"),
+            element => ((string?)element.Attribute("Text"))?.Contains("不包含数据库和用户文件") == true);
+
+        Assert.Equal("导出诊断日志", (string?)exportButton.Attribute("Content"));
+        Assert.Equal("OnExportDiagnosticLogsClick", (string?)exportButton.Attribute("Click"));
+        Assert.NotEmpty(exportButton.Ancestors(PresentationNamespace + "ScrollViewer"));
+        Assert.NotEmpty(privacyNotice.Ancestors(PresentationNamespace + "ScrollViewer"));
+    }
+
     private static string GetMainWindowXamlPath() =>
         Path.GetFullPath(
             Path.Combine(
