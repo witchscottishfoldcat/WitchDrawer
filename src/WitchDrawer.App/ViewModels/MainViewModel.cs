@@ -11,6 +11,7 @@ using WitchDrawer.Core.Abstractions;
 using WitchDrawer.Core.Logging;
 using WitchDrawer.Core.Models;
 using WitchDrawer.Core.Services;
+using WitchDrawer.Native.Files;
 using WitchDrawer.Native.Windows;
 
 namespace WitchDrawer.App.ViewModels;
@@ -889,8 +890,9 @@ public sealed class MainViewModel : ObservableObject
             {
                 foreach (var path in pathsToImport)
                 {
-                    await _drawerService.ImportPathAsync(selectedBox.Id, path);
+                    var importedItem = await _drawerService.ImportPathAsync(selectedBox.Id, path);
                     imported++;
+                    await ShellChangeNotifier.NotifyItemImportedAsync(importedItem, _logger);
                 }
             }
             catch (Exception exception)

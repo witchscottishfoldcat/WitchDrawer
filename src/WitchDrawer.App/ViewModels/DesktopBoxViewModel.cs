@@ -230,6 +230,8 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     public ResettableObservableCollection<DrawerItemViewModel> Items { get; } = [];
 
+    public int GridLayoutVersion { get; private set; }
+
     public ObservableCollection<DrawerItemViewModel> DrawerPreviewItems { get; } = [];
 
     public ObservableCollection<DrawerCoverTileViewModel> DrawerCoverTiles { get; } = [];
@@ -637,6 +639,12 @@ public sealed class DesktopBoxViewModel : ObservableObject
         IsDragPreviewVisible = true;
         var column = Math.Max(0, (int)Math.Floor(x / Math.Max(1, LayoutSettings.ItemSlotWidth)));
         var row = Math.Max(0, (int)Math.Floor(y / Math.Max(1, LayoutSettings.ItemSlotHeight)));
+        if (IsDragPreviewVisible && _previewColumn == column && _previewRow == row
+            && _dragPreviewWidthOverride is null && _dragPreviewHeightOverride is null)
+        {
+            return;
+        }
+
         _previewColumn = column;
         _previewRow = row;
     }
@@ -658,7 +666,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
         _dragPreviewWidthOverride = null;
         _dragPreviewHeightOverride = null;
         IsDragPreviewVisible = true;
-        UpdateGridCanvasSize();
+        UpdateGridCanvasSize(positionsChanged: false);
 
         DragPreviewLeft = (column * LayoutSettings.ItemSlotWidth) + LayoutSettings.ItemSpacing;
         DragPreviewTop = (row * LayoutSettings.ItemSlotHeight) + LayoutSettings.ItemSpacing;
@@ -671,7 +679,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
         _previewRow = 0;
         _dragPreviewWidthOverride = null;
         _dragPreviewHeightOverride = null;
-        UpdateGridCanvasSize();
+        UpdateGridCanvasSize(positionsChanged: false);
     }
 
     // Free-form preview used by the collapsed drawer cover: the frame is placed
@@ -834,7 +842,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
                     itemViewModel.SetGridPosition(itemPosition.Column, itemPosition.Row, LayoutSettings);
                 }
 
-                Items.ReplaceAll(nextItems);
+                Items.Synchronize(nextItems);
             }
             else
             {
@@ -847,7 +855,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
                     itemViewModel.SetGridPosition(itemPosition.Column, itemPosition.Row, LayoutSettings);
                 }
 
-                Items.ReplaceAll(ordered.ToList());
+                Items.Synchronize(ordered);
             }
 
             StatusText = Items.Count == 0 ? "拖入文件" : "已同步";
@@ -1068,6 +1076,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
                     var sortedImport = await _drawerService.ImportPathAsync(BoxId, path);
                     importedIds.Add(sortedImport.Id);
+                    await ShellChangeNotifier.NotifyItemImportedAsync(sortedImport, _logger);
                     continue;
                 }
 
@@ -1088,6 +1097,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
                 reservedSlots.Add(slot);
                 var importedItem = await _drawerService.ImportPathAsync(BoxId, path, slot.Column, slot.Row);
                 importedIds.Add(importedItem.Id);
+                await ShellChangeNotifier.NotifyItemImportedAsync(importedItem, _logger);
                 nextColumn = slot.Column + 1;
                 nextRow = slot.Row;
             }
@@ -1230,9 +1240,9 @@ public sealed class DesktopBoxViewModel : ObservableObject
             }
 
             var exportedPath = await _drawerService.ExportItemToDirectoryAsync(item.Id, desktopDirectory);
-            ShellChangeNotifier.NotifyFolderItemCreated(
+            await Task.Run(() => ShellChangeNotifier.NotifyFolderItemCreated(
                 exportedPath,
-                item.Model.ItemKind == ItemKind.Directory);
+                item.Model.ItemKind == ItemKind.Directory));
             await LoadAsync();
             StatusText = $"已移到桌面：{Path.GetFileName(exportedPath)}";
             ItemsChanged?.Invoke(this, EventArgs.Empty);
@@ -1580,7 +1590,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
             candidate.SetGridPosition(position.GridColumn, position.GridRow, LayoutSettings);
         }
 
-        Items.ReplaceAll(reordered);
+        Items.Synchronize(reordered);
         UpdateGridCanvasSize();
     }
 
@@ -1694,8 +1704,14 @@ public sealed class DesktopBoxViewModel : ObservableObject
         return (Math.Max(0, column), Math.Max(0, row));
     }
 
-    private void UpdateGridCanvasSize()
+    private void UpdateGridCanvasSize(bool positionsChanged = true)
     {
+        if (positionsChanged)
+        {
+            GridLayoutVersion = unchecked(GridLayoutVersion + 1);
+            OnPropertyChanged(nameof(GridLayoutVersion));
+        }
+
         var maxCol = Items.Count == 0 ? 0 : Items.Max(item => item.GridColumn);
         var maxRow = Items.Count == 0 ? 0 : Items.Max(item => item.GridRow);
 
@@ -2102,7 +2118,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
         // DrawerDirectItemCount 在有溢出时为 封面容量-1（留一格给展开按钮），所以这里的
         // Skip 结果必非空；无溢出时根本没有展开按钮，不会走到这里。
         var overflowItems = Items.Skip(DrawerDirectItemCount).ToArray();
-        DrawerSecondaryItems.ReplaceAll(overflowItems);
+        DrawerSecondaryItems.Synchronize(overflowItems);
 
         OnPropertyChanged(nameof(DrawerSecondaryColumns));
         OnPropertyChanged(nameof(DrawerSecondaryRows));

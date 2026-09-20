@@ -32,9 +32,9 @@ public sealed class BoxVisualStyleStore(
         string? savedValue;
         try
         {
-            savedValue = await drawerService.GetSettingAsync(
+            savedValue = await Task.Run(() => drawerService.GetSettingAsync(
                 GetSettingKey(box.Id),
-                cancellationToken);
+                cancellationToken), cancellationToken);
         }
         catch (Exception exception)
         {

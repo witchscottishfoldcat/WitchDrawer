@@ -559,6 +559,64 @@ public sealed class BoxSizeSettingsTests
         }
     }
 
+    [Theory]
+    [InlineData(DrawerItemSortMode.Free)]
+    [InlineData(DrawerItemSortMode.Name)]
+    public async Task DesktopBox_DragRefreshPreservesUnchangedIcons(DrawerItemSortMode sortMode)
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var (service, repository) = await CreateDrawerServiceAsync(root);
+            var box = await service.CreateBoxAsync("drag", BoxType.Normal);
+            var sourceDirectory = Path.Combine(root, "source");
+            Directory.CreateDirectory(sourceDirectory);
+            var firstSource = Path.Combine(sourceDirectory, "a.txt");
+            var nextSource = Path.Combine(sourceDirectory, "b.txt");
+            await File.WriteAllTextAsync(firstSource, "first");
+            await File.WriteAllTextAsync(nextSource, "next");
+            await service.ImportPathAsync(box.Id, firstSource);
+            var viewModel = new DesktopBoxViewModel(box, service, new TodoService(repository),
+                new NoOpFileLauncher(), new RecordingLogger(), BoxVisualStyle.Modern);
+            viewModel.ApplyDrawerSortMode(sortMode);
+            await viewModel.LoadAsync();
+            var retained = Assert.Single(viewModel.Items);
+            var notifications = new List<System.Collections.Specialized.NotifyCollectionChangedAction>();
+            viewModel.Items.CollectionChanged += (_, args) => notifications.Add(args.Action);
+
+            await viewModel.LoadAsync();
+            Assert.Empty(notifications);
+            var layoutVersion = viewModel.GridLayoutVersion;
+            viewModel.ShowDragPreview(2, 0);
+            viewModel.ShowDragPreview(2, 0);
+            viewModel.HideDragPreview();
+            Assert.Equal(layoutVersion, viewModel.GridLayoutVersion);
+            Assert.True(await viewModel.DropDrawerItemAsync(retained.Id, 2, 0));
+            if (sortMode == DrawerItemSortMode.Free)
+            {
+                Assert.Equal(2, retained.GridColumn);
+                Assert.NotEqual(layoutVersion, viewModel.GridLayoutVersion);
+            }
+            Assert.Empty(notifications);
+            var imported = Assert.Single(await viewModel.ImportPathsAsync([nextSource], 1, 0));
+            Assert.Same(retained, viewModel.Items.Single(item => item.Id == retained.Id));
+            Assert.Equal([System.Collections.Specialized.NotifyCollectionChangedAction.Add], notifications);
+
+            var exportedPath = await service.ExportItemToDirectoryAsync(imported, sourceDirectory);
+            await viewModel.LoadAsync();
+            Assert.Same(retained, Assert.Single(viewModel.Items));
+            Assert.Equal("next", await File.ReadAllTextAsync(exportedPath));
+            Assert.Equal([
+                System.Collections.Specialized.NotifyCollectionChangedAction.Add,
+                System.Collections.Specialized.NotifyCollectionChangedAction.Remove
+            ], notifications);
+        }
+        finally
+        {
+            CleanupTempRoot(root);
+        }
+    }
+
     private static string CreateTempRoot() =>
         Path.Combine(Path.GetTempPath(), "WitchDrawerTests", Guid.NewGuid().ToString("N"));
 

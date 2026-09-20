@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -15,6 +16,18 @@ internal interface IVirtualizingCanvasItem
 
 public sealed class VirtualizingCanvas : VirtualizingPanel, IScrollInfo
 {
+    public static readonly DependencyProperty LayoutVersionProperty = DependencyProperty.Register(
+        nameof(LayoutVersion), typeof(int), typeof(VirtualizingCanvas),
+        new FrameworkPropertyMetadata(0, FrameworkPropertyMetadataOptions.AffectsMeasure));
+
+    // Position-only changes need a new layout even when the collection and extent
+    // remain unchanged. This preserves containers instead of forcing a Reset.
+    public int LayoutVersion
+    {
+        get => (int)GetValue(LayoutVersionProperty);
+        set => SetValue(LayoutVersionProperty, value);
+    }
+
     public static readonly DependencyProperty ItemWidthProperty = DependencyProperty.Register(
         nameof(ItemWidth),
         typeof(double),
@@ -206,6 +219,17 @@ public sealed class VirtualizingCanvas : VirtualizingPanel, IScrollInfo
     protected override void OnItemsChanged(object sender, ItemsChangedEventArgs args)
     {
         base.OnItemsChanged(sender, args);
+        // The generator has already removed these containers from its map.
+        // Detach their visuals too, so subsequent incremental changes stay aligned.
+        if (args.ItemUICount > 0
+            && args.Action is NotifyCollectionChangedAction.Remove or NotifyCollectionChangedAction.Replace)
+        {
+            RemoveInternalChildRange(args.Position.Index, args.ItemUICount);
+        }
+        else if (args.ItemUICount > 0 && args.Action == NotifyCollectionChangedAction.Move)
+        {
+            RemoveInternalChildRange(args.OldPosition.Index, args.ItemUICount);
+        }
         InvalidateMeasure();
     }
 

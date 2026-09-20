@@ -1390,6 +1390,86 @@ public sealed class DrawerServiceTests
         Assert.Empty(await workspace.Repository.GetPendingFileOperationsAsync());
     }
 
+    [Theory]
+    [InlineData("import")]
+    [InlineData("mapping")]
+    [InlineData("move")]
+    [InlineData("export")]
+    [InlineData("grid")]
+    [InlineData("grids")]
+    [InlineData("items")]
+    [InlineData("all")]
+    [InlineData("boxes")]
+    [InlineData("search")]
+    public async Task DragOperations_ReturnControlToCallerWhileDatabaseIsLocked(string operation)
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var normal = await workspace.GetBoxAsync(BoxType.Normal);
+        var mapping = await workspace.GetBoxAsync(BoxType.Mapping);
+        var target = await workspace.Service.CreateBoxAsync("target", BoxType.Normal);
+        var stored = await workspace.Service.ImportPathAsync(normal.Id,
+            workspace.CreateSourceFile("existing", "existing.txt", "original"));
+        var source = workspace.CreateSourceFile("new", "new.txt", "new");
+
+        using var blocker = new Microsoft.Data.Sqlite.SqliteConnection(
+            new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder
+            {
+                DataSource = workspace.Paths.DatabasePath,
+                Pooling = false
+            }.ToString());
+        blocker.Open();
+        using (var command = blocker.CreateCommand())
+        {
+            command.CommandText = "PRAGMA locking_mode=EXCLUSIVE; BEGIN EXCLUSIVE; SELECT COUNT(*) FROM Items;";
+            command.ExecuteScalar();
+        }
+
+        var returned = new TaskCompletionSource<Task>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var caller = new Thread(() =>
+        {
+            try
+            {
+                Task pending = operation switch
+                {
+                    "import" => workspace.Service.ImportPathAsync(normal.Id, source),
+                    "mapping" => workspace.Service.ImportPathAsync(mapping.Id, source),
+                    "move" => workspace.Service.MoveItemToBoxAsync(stored.Id, target.Id),
+                    "export" => workspace.Service.ExportItemToDirectoryAsync(stored.Id, Path.Combine(workspace.Root, "export")),
+                    "grid" => workspace.Service.UpdateItemGridPositionAsync(stored.Id, 1, 1),
+                    "grids" => workspace.Service.UpdateItemGridPositionsAsync(new Dictionary<Guid, (int, int)> { [stored.Id] = (1, 1) }),
+                    "items" => workspace.Service.GetItemsAsync(normal.Id),
+                    "all" => workspace.Service.GetAllItemsAsync(),
+                    "boxes" => workspace.Service.GetBoxesAsync(),
+                    "search" => workspace.Service.SearchItemsAsync("existing"),
+                    _ => throw new ArgumentOutOfRangeException(nameof(operation))
+                };
+                returned.SetResult(pending);
+            }
+            catch (Exception exception)
+            {
+                returned.SetException(exception);
+            }
+        }) { IsBackground = true };
+
+        caller.Start();
+        var returnedBeforeUnlock = false;
+        try
+        {
+            // This is a responsiveness check under an intentionally stalled disk query,
+            // not a throughput benchmark dependent on the test machine's file speed.
+            returnedBeforeUnlock = await Task.WhenAny(returned.Task, Task.Delay(2000)) == returned.Task;
+        }
+        finally
+        {
+            blocker.Close();
+        }
+
+        var work = await returned.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await work.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.True(returnedBeforeUnlock, "The caller was blocked by SQLite before receiving a Task.");
+        Assert.Empty(await workspace.Repository.GetPendingFileOperationsAsync());
+    }
+
     private sealed class TestWorkspace : IDisposable
     {
         private TestWorkspace(string root, AppPaths paths, DrawerRepository repository, DrawerService service)

@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -175,6 +176,15 @@ public sealed class CenteredUniformPanel : VirtualizingPanel, IScrollInfo
     protected override void OnItemsChanged(object sender, ItemsChangedEventArgs args)
     {
         base.OnItemsChanged(sender, args);
+        if (args.ItemUICount > 0
+            && args.Action is NotifyCollectionChangedAction.Remove or NotifyCollectionChangedAction.Replace)
+        {
+            RemoveInternalChildRange(args.Position.Index, args.ItemUICount);
+        }
+        else if (args.ItemUICount > 0 && args.Action == NotifyCollectionChangedAction.Move)
+        {
+            RemoveInternalChildRange(args.OldPosition.Index, args.ItemUICount);
+        }
         InvalidateMeasure();
     }
 

@@ -76,6 +76,8 @@ public partial class DesktopBoxWindow : Window
 
         public Guid SourceBoxId { get; } = sourceBoxId;
 
+        public Guid? TargetBoxId { get; set; }
+
         public bool WasDroppedInsideWitchDrawer { get; set; }
 
         public Task<bool> DropCompletion => _dropCompletion.Task;
@@ -2096,6 +2098,7 @@ public partial class DesktopBoxWindow : Window
                     // box sees it immediately after DoDragDrop returns and treats this as
                     // an internal move/rearrange rather than a move-out to the desktop.
                     payload.WasDroppedInsideWitchDrawer = true;
+                    payload.TargetBoxId = ViewModel.BoxId;
                     FireAndForget.Run(
                         CompleteInternalDropAsync(payload, slot.Value),
                         ViewModel.Logger,
@@ -2116,6 +2119,8 @@ public partial class DesktopBoxWindow : Window
                 }
 
                 e.Effects = paths.Length > 0 ? ChooseFileDropEffect(e.AllowedEffects) : DragDropEffects.None;
+                ResetDragVisualState();
+                ResetDragCursor();
                 // ImportPathsAsync already reloads the box internally; no extra LoadAsync here.
                 var importedIds = await ViewModel.ImportPathsAsync(paths, slot.Value.Column, slot.Value.Row);
                 e.Effects = importedIds.Count > 0 ? ChooseFileDropEffect(e.AllowedEffects) : DragDropEffects.None;
@@ -2579,7 +2584,8 @@ public partial class DesktopBoxWindow : Window
         var payload = DesktopBoxDragPayload.Create(drawerItem.Id, ViewModel.BoxId);
         var data = new DataObject();
         data.SetData(InternalDrawerItemDragFormat, payload, autoConvert: false);
-        var canExportPath = PathExists(drawerItem.PathLabel);
+        // Existence and safety checks belong to the background Core operation.
+        var canExportPath = !string.IsNullOrWhiteSpace(drawerItem.Model.StoredPath);
 
         var dragWasCanceled = false;
         QueryContinueDragEventHandler queryContinueDrag = (_, args) =>
@@ -2633,13 +2639,22 @@ public partial class DesktopBoxWindow : Window
             var cursorOverPopup = IsCursorOverOpenDrawerPopup();
             var cursorOverApp = cursorOverWindow || cursorOverPopup;
 
+            // OLE has finished. Release drag feedback before awaiting disk I/O.
+            dragSource.GiveFeedback -= giveFeedback;
+            drawerItem.IsDragSource = false;
+            ResetAllDragVisualStates();
+            ResetDragCursor();
+
             if (internalDropSucceeded)
             {
                 // Dropped onto a WitchDrawer box (same box = rearrange, other box = move).
                 // The destination performs the move asynchronously; wait for it to commit
                 // before refreshing the source box.
-                await WaitForInternalDropAsync(payload);
-                await ViewModel.LoadAsync();
+                var moved = await payload.DropCompletion;
+                if (moved && payload.TargetBoxId != ViewModel.BoxId)
+                {
+                    await ViewModel.LoadAsync();
+                }
                 if (!ViewModel.Items.Any(item => item.Id == drawerItem.Id))
                 {
                     _keyboardDeleteTarget = null;
@@ -2736,12 +2751,6 @@ public partial class DesktopBoxWindow : Window
         Mouse.SetCursor(null);
     }
 
-    private static async Task<bool> WaitForInternalDropAsync(DesktopBoxDragPayload payload)
-    {
-        var completedTask = await Task.WhenAny(payload.DropCompletion, Task.Delay(750));
-        return completedTask == payload.DropCompletion && await payload.DropCompletion;
-    }
-
     private static bool TryGetInternalDragPayload(IDataObject data, out DesktopBoxDragPayload payload)
     {
         payload = null!;
@@ -2802,12 +2811,6 @@ public partial class DesktopBoxWindow : Window
 
         payload.WasDroppedInsideWitchDrawer = true;
         return true;
-    }
-
-    private static bool PathExists(string? path)
-    {
-        return !string.IsNullOrWhiteSpace(path)
-            && (File.Exists(path) || Directory.Exists(path));
     }
 
     [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]

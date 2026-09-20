@@ -485,6 +485,126 @@ public sealed class PerformanceVirtualizationTests
         Assert.Equal([1, 2, 3], collection);
     }
 
+    [Fact]
+    public void Synchronize_SmallChangesPreserveUnchangedItemsWithoutReset()
+    {
+        var collection = new ResettableObservableCollection<int> { 1, 2, 3, 4 };
+        var notifications = new List<NotifyCollectionChangedAction>();
+        collection.CollectionChanged += (_, args) => notifications.Add(args.Action);
+
+        collection.Synchronize([1, 3, 4]);
+        collection.Synchronize([1, 5, 3, 4]);
+        collection.Synchronize(collection);
+        collection.ReplaceAll(collection);
+
+        Assert.Equal([1, 5, 3, 4], collection);
+        Assert.Equal([NotifyCollectionChangedAction.Remove, NotifyCollectionChangedAction.Add], notifications);
+    }
+
+    [Fact]
+    public void Synchronize_LargeReplacementUsesOneReset()
+    {
+        var collection = new ResettableObservableCollection<int>();
+        var notifications = new List<NotifyCollectionChangedAction>();
+        collection.CollectionChanged += (_, args) => notifications.Add(args.Action);
+
+        collection.Synchronize(Enumerable.Range(0, 1000));
+
+        Assert.Equal(1000, collection.Count);
+        Assert.Equal([NotifyCollectionChangedAction.Reset], notifications);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void VirtualizingPanels_PreserveUnaffectedContainersDuringIncrementalDrops(bool centered)
+    {
+        Exception? threadException = null;
+        var thread = new Thread(() =>
+        {
+            Window? window = null;
+            try
+            {
+                var items = new ResettableObservableCollection<TestCanvasItem>();
+                var first = new TestCanvasItem(0, 0);
+                var second = new TestCanvasItem(20, 0);
+                var third = new TestCanvasItem(40, 0);
+                items.Synchronize([first, second, third]);
+                var factory = new FrameworkElementFactory(centered ? typeof(CenteredUniformPanel) : typeof(VirtualizingCanvas));
+                if (centered)
+                {
+                    factory.SetValue(CenteredUniformPanel.ColumnsProperty, 5);
+                    factory.SetValue(CenteredUniformPanel.CellSizeProperty, 20d);
+                }
+                else
+                {
+                    factory.SetValue(VirtualizingCanvas.ItemWidthProperty, 20d);
+                    factory.SetValue(VirtualizingCanvas.ItemHeightProperty, 20d);
+                    factory.SetValue(VirtualizingCanvas.ContentWidthProperty, 100d);
+                    factory.SetValue(VirtualizingCanvas.ContentHeightProperty, 100d);
+                }
+
+                var list = new ListBox { ItemsSource = items, ItemsPanel = new ItemsPanelTemplate(factory) };
+                list.SetValue(ScrollViewer.CanContentScrollProperty, true);
+                list.SetValue(VirtualizingPanel.IsVirtualizingProperty, true);
+                list.SetValue(VirtualizingPanel.VirtualizationModeProperty, VirtualizationMode.Recycling);
+                window = new Window
+                {
+                    Width = 200, Height = 200, Left = -10000, Top = -10000,
+                    ShowInTaskbar = false, WindowStyle = WindowStyle.None, Content = list
+                };
+                window.Show();
+                list.UpdateLayout();
+                var firstContainer = list.ItemContainerGenerator.ContainerFromItem(first);
+                var thirdContainer = list.ItemContainerGenerator.ContainerFromItem(third);
+                Assert.NotNull(firstContainer);
+                Assert.NotNull(thirdContainer);
+                list.SelectedItem = third;
+
+                items.Synchronize([first, third]);
+                list.UpdateLayout();
+                Assert.Null(list.ItemContainerGenerator.ContainerFromItem(second));
+                Assert.Same(firstContainer, list.ItemContainerGenerator.ContainerFromItem(first));
+                Assert.Same(thirdContainer, list.ItemContainerGenerator.ContainerFromItem(third));
+                Assert.Same(third, list.SelectedItem);
+
+                var inserted = new TestCanvasItem(20, 0);
+                items.Synchronize([first, inserted, third]);
+                list.UpdateLayout();
+                Assert.NotNull(list.ItemContainerGenerator.ContainerFromItem(inserted));
+                Assert.Same(thirdContainer, list.ItemContainerGenerator.ContainerFromItem(third));
+                var panel = centered
+                    ? (VirtualizingPanel?)FindVisualChild<CenteredUniformPanel>(list)
+                    : FindVisualChild<VirtualizingCanvas>(list);
+                Assert.NotNull(panel);
+                Assert.Equal(3, VisualTreeHelper.GetChildrenCount(panel));
+                if (panel is VirtualizingCanvas canvas)
+                {
+                    // Rearrange within the same extent without replacing any items.
+                    var container = Assert.IsType<ListBoxItem>(firstContainer);
+                    var oldX = container.TranslatePoint(new Point(), canvas).X;
+                    first.VirtualizationLeft = 60;
+                    canvas.LayoutVersion++;
+                    list.UpdateLayout();
+                    Assert.Equal(60, container.TranslatePoint(new Point(), canvas).X - oldX);
+                    Assert.Same(firstContainer, list.ItemContainerGenerator.ContainerFromItem(first));
+                }
+            }
+            catch (Exception exception)
+            {
+                threadException = exception;
+            }
+            finally
+            {
+                window?.Close();
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        Assert.Null(threadException);
+    }
+
     private static DrawerItemViewModel CreateDrawerItem(
         string name,
         int column,
@@ -531,7 +651,7 @@ public sealed class PerformanceVirtualizationTests
 
     private sealed class TestCanvasItem(double left, double top) : IVirtualizingCanvasItem
     {
-        public double VirtualizationLeft { get; } = left;
+        public double VirtualizationLeft { get; set; } = left;
 
         public double VirtualizationTop { get; } = top;
     }

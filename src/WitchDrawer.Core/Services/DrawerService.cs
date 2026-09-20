@@ -35,7 +35,7 @@ public sealed class DrawerService
 
     public Task<IReadOnlyList<Box>> GetBoxesAsync(CancellationToken cancellationToken = default)
     {
-        return _repository.GetBoxesAsync(cancellationToken);
+        return Task.Run(() => _repository.GetBoxesAsync(cancellationToken), cancellationToken);
     }
 
     public async Task ReorderBoxesAsync(
@@ -62,21 +62,32 @@ public sealed class DrawerService
         await _repository.UpdateBoxSortOrdersAsync(requestedIds, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<DrawerItem>> GetItemsAsync(Guid boxId, CancellationToken cancellationToken = default)
+    // SQLite's async APIs can execute synchronously. Offload the entire operation,
+    // including its first query and path checks, before returning to WPF callers.
+    public Task<IReadOnlyList<DrawerItem>> GetItemsAsync(Guid boxId, CancellationToken cancellationToken = default)
+        => Task.Run(() => GetItemsCoreAsync(boxId, cancellationToken), cancellationToken);
+
+    private async Task<IReadOnlyList<DrawerItem>> GetItemsCoreAsync(Guid boxId, CancellationToken cancellationToken)
     {
         await RetryPendingRecoveryOnReadAsync(cancellationToken);
         await PruneMissingStoredItemsAsync(boxId, cancellationToken);
         return await _repository.GetItemsAsync(boxId, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<DrawerItem>> GetAllItemsAsync(CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<DrawerItem>> GetAllItemsAsync(CancellationToken cancellationToken = default)
+        => Task.Run(() => GetAllItemsCoreAsync(cancellationToken), cancellationToken);
+
+    private async Task<IReadOnlyList<DrawerItem>> GetAllItemsCoreAsync(CancellationToken cancellationToken)
     {
         await RetryPendingRecoveryOnReadAsync(cancellationToken);
         await PruneMissingStoredItemsAsync(null, cancellationToken);
         return await _repository.GetItemsAsync(null, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<DrawerItem>> SearchItemsAsync(string query, int limit = 200, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<DrawerItem>> SearchItemsAsync(string query, int limit = 200, CancellationToken cancellationToken = default)
+        => Task.Run(() => SearchItemsCoreAsync(query, limit, cancellationToken), cancellationToken);
+
+    private async Task<IReadOnlyList<DrawerItem>> SearchItemsCoreAsync(string query, int limit, CancellationToken cancellationToken)
     {
         await RetryPendingRecoveryOnReadAsync(cancellationToken);
         await PruneMissingStoredItemsAsync(null, cancellationToken);
@@ -113,12 +124,16 @@ public sealed class DrawerService
         return box;
     }
 
-    public async Task<DrawerItem> ImportPathAsync(
+    public Task<DrawerItem> ImportPathAsync(
         Guid boxId,
         string sourcePath,
         int? gridColumn = null,
         int? gridRow = null,
         CancellationToken cancellationToken = default)
+        => Task.Run(() => ImportPathCoreAsync(boxId, sourcePath, gridColumn, gridRow, cancellationToken), cancellationToken);
+
+    private async Task<DrawerItem> ImportPathCoreAsync(
+        Guid boxId, string sourcePath, int? gridColumn, int? gridRow, CancellationToken cancellationToken)
     {
         var box = await _repository.GetBoxAsync(boxId, cancellationToken)
             ?? throw new InvalidOperationException("Box does not exist.");
@@ -130,7 +145,7 @@ public sealed class DrawerService
 
         if (box.Type != BoxType.Mapping)
         {
-            await Task.Run(() => ValidateImportSource(Path.GetFullPath(sourcePath)), cancellationToken);
+            ValidateImportSource(Path.GetFullPath(sourcePath));
         }
         var fullSourcePath = PathSafety.GetFullExistingPath(sourcePath);
         var isDirectory = Directory.Exists(fullSourcePath);
@@ -193,22 +208,27 @@ public sealed class DrawerService
         int? gridRow,
         CancellationToken cancellationToken = default)
     {
-        return _repository.UpdateItemGridPositionAsync(itemId, gridColumn, gridRow, cancellationToken);
+        return Task.Run(() => _repository.UpdateItemGridPositionAsync(itemId, gridColumn, gridRow, cancellationToken), cancellationToken);
     }
 
     public Task UpdateItemGridPositionsAsync(
         IReadOnlyDictionary<Guid, (int GridColumn, int GridRow)> positions,
         CancellationToken cancellationToken = default)
     {
-        return _repository.UpdateItemGridPositionsAsync(positions, cancellationToken);
+        var snapshot = positions.ToDictionary(entry => entry.Key, entry => entry.Value);
+        return Task.Run(() => _repository.UpdateItemGridPositionsAsync(snapshot, cancellationToken), cancellationToken);
     }
 
-    public async Task MoveItemToBoxAsync(
+    public Task MoveItemToBoxAsync(
         Guid itemId,
         Guid targetBoxId,
         int? gridColumn = null,
         int? gridRow = null,
         CancellationToken cancellationToken = default)
+        => Task.Run(() => MoveItemToBoxCoreAsync(itemId, targetBoxId, gridColumn, gridRow, cancellationToken), cancellationToken);
+
+    private async Task MoveItemToBoxCoreAsync(
+        Guid itemId, Guid targetBoxId, int? gridColumn, int? gridRow, CancellationToken cancellationToken)
     {
         var item = await _repository.GetItemAsync(itemId, cancellationToken)
             ?? throw new InvalidOperationException("Item does not exist.");
@@ -299,10 +319,14 @@ public sealed class DrawerService
             cancellationToken);
     }
 
-    public async Task<string> ExportItemToDirectoryAsync(
+    public Task<string> ExportItemToDirectoryAsync(
         Guid itemId,
         string targetDirectory,
         CancellationToken cancellationToken = default)
+        => Task.Run(() => ExportItemToDirectoryCoreAsync(itemId, targetDirectory, cancellationToken), cancellationToken);
+
+    private async Task<string> ExportItemToDirectoryCoreAsync(
+        Guid itemId, string targetDirectory, CancellationToken cancellationToken)
     {
         var item = await _repository.GetItemAsync(itemId, cancellationToken)
             ?? throw new InvalidOperationException("Item does not exist.");
