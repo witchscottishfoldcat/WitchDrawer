@@ -13,6 +13,7 @@ public sealed class StorageLocationStore
     /// 引导配置文件名（固定位于默认数据根目录下）。
     /// </summary>
     public const string ConfigFileName = "storage-location.json";
+    internal const string MigrationMarkerFileName = ".witchdrawer-migration";
 
     private static readonly JsonSerializerOptions SerializerOptions = new() { WriteIndented = true };
 
@@ -49,6 +50,41 @@ public sealed class StorageLocationStore
     {
         try
         {
+            var intentPath = _filePath + ".migration";
+            if (File.Exists(intentPath))
+            {
+                var intent = JsonSerializer.Deserialize<MigrationIntent>(File.ReadAllText(intentPath));
+                if (intent is not null)
+                {
+                    var target = Path.GetFullPath(intent.TargetDirectory);
+                    var marker = Path.Combine(target, MigrationMarkerFileName);
+                    if (File.Exists(Path.Combine(target, AppPaths.DatabaseFileName))
+                        && File.Exists(marker)
+                        && string.Equals(File.ReadAllText(marker), intent.Id.ToString("N"), StringComparison.Ordinal))
+                    {
+                        try
+                        {
+                            SaveConfiguredDirectory(target);
+                            ClearMigrationIntent(intent.Id);
+                            TryDeleteMigrationMarker(target);
+                        }
+                        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                        {
+                            // A confirmed promotion is authoritative even if repairing the
+                            // bootstrap file is still blocked. Never reopen the old snapshot.
+                        }
+                        return target;
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // An incomplete or unreadable intent cannot override the last valid config.
+        }
+
+        try
+        {
             if (!File.Exists(_filePath))
             {
                 return null;
@@ -65,6 +101,50 @@ public sealed class StorageLocationStore
         {
             // 配置损坏时回退默认目录，避免应用无法启动。
             return null;
+        }
+    }
+
+    internal void SaveMigrationIntent(string targetDirectory, Guid id)
+    {
+        var intentPath = _filePath + ".migration";
+        var parent = Path.GetDirectoryName(intentPath)
+            ?? throw new InvalidOperationException("迁移引导目录不可用。");
+        Directory.CreateDirectory(parent);
+        var temporaryPath = intentPath + ".tmp";
+        File.WriteAllText(
+            temporaryPath,
+            JsonSerializer.Serialize(new MigrationIntent(Path.GetFullPath(targetDirectory), id)));
+        File.Move(temporaryPath, intentPath, overwrite: true);
+    }
+
+    internal void ClearMigrationIntent(Guid id)
+    {
+        var intentPath = _filePath + ".migration";
+        try
+        {
+            if (File.Exists(intentPath))
+            {
+                var intent = JsonSerializer.Deserialize<MigrationIntent>(File.ReadAllText(intentPath));
+                if (intent?.Id == id)
+                {
+                    File.Delete(intentPath);
+                }
+            }
+        }
+        catch
+        {
+            // A stale intent is safe once the main config points to the promoted target.
+        }
+    }
+
+    internal static void TryDeleteMigrationMarker(string targetDirectory)
+    {
+        try
+        {
+            File.Delete(Path.Combine(targetDirectory, MigrationMarkerFileName));
+        }
+        catch
+        {
         }
     }
 
@@ -96,6 +176,12 @@ public sealed class StorageLocationStore
     {
         try
         {
+            var intentPath = _filePath + ".migration";
+            if (File.Exists(intentPath))
+            {
+                File.Delete(intentPath);
+            }
+
             if (File.Exists(_filePath))
             {
                 File.Delete(_filePath);
@@ -108,4 +194,5 @@ public sealed class StorageLocationStore
     }
 
     private sealed record StorageLocationConfig(string? DataDirectory);
+    private sealed record MigrationIntent(string TargetDirectory, Guid Id);
 }

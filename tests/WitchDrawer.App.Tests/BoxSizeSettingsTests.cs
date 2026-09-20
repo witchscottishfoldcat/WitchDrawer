@@ -523,6 +523,42 @@ public sealed class BoxSizeSettingsTests
         }
     }
 
+    [Fact]
+    public async Task ImportPathsAsync_PartialFailureRefreshesAndReturnsSuccessfulItems()
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var (service, repository) = await CreateDrawerServiceAsync(root);
+            var box = await service.CreateBoxAsync("batch", BoxType.Normal);
+            var viewModel = new DesktopBoxViewModel(box, service, new TodoService(repository),
+                new NoOpFileLauncher(), new RecordingLogger(), BoxVisualStyle.Modern);
+            await viewModel.LoadAsync();
+            var source = Path.Combine(root, "source.txt");
+            var blocked = Path.Combine(root, "blocked.txt");
+            File.WriteAllText(source, "success");
+            File.WriteAllText(blocked, "keep");
+            var events = 0;
+            viewModel.ItemsChanged += (_, _) => events++;
+            using var fileLock = new FileStream(blocked, FileMode.Open, FileAccess.Read, FileShare.None);
+
+            var importedIds = await viewModel.ImportPathsAsync([source, blocked], null, null);
+
+            Assert.Single(importedIds);
+            Assert.Single(viewModel.Items);
+            Assert.Single(await service.GetItemsAsync(box.Id));
+            Assert.False(File.Exists(source));
+            Assert.True(File.Exists(blocked));
+            Assert.Equal(1, events);
+            Assert.Contains("已收纳 1 项", viewModel.StatusText);
+            Assert.Contains("其余未导入", viewModel.StatusText);
+        }
+        finally
+        {
+            CleanupTempRoot(root);
+        }
+    }
+
     private static string CreateTempRoot() =>
         Path.Combine(Path.GetTempPath(), "WitchDrawerTests", Guid.NewGuid().ToString("N"));
 

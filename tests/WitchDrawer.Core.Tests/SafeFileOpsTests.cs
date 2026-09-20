@@ -152,9 +152,8 @@ public sealed class SafeFileOpsTests
     }
 
     [Fact]
-    public void CopyThenDelete_File_LandsAtFinalNameWithoutStagingArtifacts()
+    public void CopyThenDelete_File_LeavesNoStagingArtifactsAfterPromotion()
     {
-        // 文件直接复制到最终名，桌面图标能立刻出现：不应残留 .tmp 暂存文件。
         using var workspace = new TempWorkspace();
         var source = workspace.WriteFile("source.lnk", "shortcut-payload");
         var target = Path.Combine(workspace.Root, "exported.lnk");
@@ -167,6 +166,146 @@ public sealed class SafeFileOpsTests
 
         var stagingArtifacts = Directory.GetFiles(workspace.Root, "*.witchdrawer-*.tmp");
         Assert.Empty(stagingArtifacts);
+    }
+
+    [Fact]
+    public async Task CopyThenDelete_FileCancellationBeforePromotion_HidesPartialTargetAndPreservesSource()
+    {
+        using var workspace = new TempWorkspace();
+        var source = workspace.WriteFile("source.txt", "must-survive");
+        var target = Path.Combine(workspace.Root, "target.txt");
+        using var cancellation = new CancellationTokenSource();
+        using var lockStream = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read);
+
+        var moveTask = Task.Run(() => SafeFileOps.CopyThenDelete(
+            source, target, isDirectory: false, cancellation.Token));
+        var stagingAppeared = await WaitForConditionAsync(
+            () => Directory.GetFiles(workspace.Root, ".target.txt.witchdrawer-*.tmp").Length > 0,
+            TimeSpan.FromSeconds(10));
+        Assert.True(stagingAppeared, "The staged file was not observed before promotion.");
+        Assert.False(File.Exists(target));
+
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => moveTask);
+
+        Assert.Equal("must-survive", File.ReadAllText(source));
+        Assert.False(File.Exists(target));
+        Assert.Empty(Directory.GetFiles(workspace.Root, ".target.txt.witchdrawer-*.tmp"));
+        Assert.Empty(Directory.GetFiles(workspace.Root, ".source.txt.witchdrawer-*.moving"));
+    }
+
+    [Fact]
+    public async Task CopyThenDelete_FileDestinationCreatedDuringCopy_PreservesBothExistingFiles()
+    {
+        using var workspace = new TempWorkspace();
+        var source = workspace.WriteFile("source.txt", "original");
+        var target = Path.Combine(workspace.Root, "target.txt");
+        using var lockStream = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read);
+
+        var moveTask = Task.Run(() => SafeFileOps.CopyThenDelete(
+            source, target, isDirectory: false, CancellationToken.None));
+        var stagingAppeared = await WaitForConditionAsync(
+            () => Directory.GetFiles(workspace.Root, ".target.txt.witchdrawer-*.tmp").Length > 0,
+            TimeSpan.FromSeconds(10));
+        Assert.True(stagingAppeared, "The staged file was not observed before promotion.");
+        File.WriteAllText(target, "concurrent");
+        lockStream.Dispose();
+
+        await Assert.ThrowsAsync<IOException>(() => moveTask);
+        Assert.Equal("original", File.ReadAllText(source));
+        Assert.Equal("concurrent", File.ReadAllText(target));
+        Assert.Empty(Directory.GetFiles(workspace.Root, ".target.txt.witchdrawer-*.tmp"));
+        Assert.Empty(Directory.GetFiles(workspace.Root, ".source.txt.witchdrawer-*.moving"));
+    }
+
+    [Fact]
+    public void CopyThenDelete_DirectoryCopyInterruptedByLockedFile_PreservesSourceAndCleansStaging()
+    {
+        using var workspace = new TempWorkspace();
+        var source = workspace.CreateDirectory("source-dir");
+        var lockedFile = Path.Combine(source, "locked.txt");
+        File.WriteAllText(lockedFile, "payload");
+        var target = Path.Combine(workspace.Root, "target-dir");
+
+        using (new FileStream(lockedFile, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+        {
+            Assert.Throws<IOException>(() => SafeFileOps.CopyThenDelete(
+                source, target, isDirectory: true, CancellationToken.None));
+        }
+
+        Assert.Equal("payload", File.ReadAllText(lockedFile));
+        Assert.False(Directory.Exists(target));
+        Assert.Empty(Directory.GetDirectories(workspace.Root, ".target-dir.witchdrawer-*.tmp"));
+        Assert.Empty(Directory.GetDirectories(workspace.Root, ".source-dir.witchdrawer-*.moving"));
+    }
+
+    [Fact]
+    public async Task CopyThenDelete_DirectoryMutatedDuringMove_NeverLosesData()
+    {
+        using var workspace = new TempWorkspace();
+        var source = workspace.CreateDirectory("source-dir");
+        for (var index = 0; index < 400; index++)
+        {
+            File.WriteAllText(Path.Combine(source, $"file-{index:D3}.txt"), "payload");
+        }
+
+        var target = Path.Combine(workspace.Root, "target-dir");
+        var moveTask = Task.Run(() => SafeFileOps.CopyThenDelete(
+            source, target, isDirectory: true, CancellationToken.None));
+
+        // Mutate the tree the moment it is moved to the holding path. Depending on timing this
+        // either aborts the move before promotion or fails the post-promotion cleanup; both
+        // outcomes are safe. If the move finishes before we can interfere, that is safe too.
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+        while (!moveTask.IsCompleted && DateTime.UtcNow < deadline)
+        {
+            var heldDuringMove = Directory.GetDirectories(
+                workspace.Root, ".source-dir.witchdrawer-*.moving");
+            if (heldDuringMove.Length > 0)
+            {
+                try
+                {
+                    File.WriteAllText(
+                        Path.Combine(heldDuringMove[0], "file-000.txt"), "mutated-payload");
+                }
+                catch (DirectoryNotFoundException)
+                {
+                }
+                catch (IOException)
+                {
+                }
+            }
+
+            await Task.Delay(1);
+        }
+
+        var failure = await Record.ExceptionAsync(() => moveTask);
+        var sourceExists = Directory.Exists(source);
+        var targetExists = Directory.Exists(target);
+        var held = Directory.GetDirectories(workspace.Root, ".source-dir.witchdrawer-*.moving");
+
+        if (failure is null)
+        {
+            // The mutation never landed: a clean move is also a valid outcome.
+            Assert.True(targetExists);
+            Assert.False(sourceExists);
+            Assert.Empty(held);
+            return;
+        }
+
+        Assert.IsType<IOException>(failure);
+        Assert.NotEqual(sourceExists, targetExists);
+        if (sourceExists)
+        {
+            // Aborted before promotion: the complete tree is back at the original path.
+            Assert.Equal(400, Directory.GetFiles(source).Length);
+        }
+        else
+        {
+            // Promoted but cleanup failed: destination is complete, the held copy is quarantined.
+            Assert.Equal(400, Directory.GetFiles(target).Length);
+            Assert.Single(held);
+        }
     }
 
     [Fact]

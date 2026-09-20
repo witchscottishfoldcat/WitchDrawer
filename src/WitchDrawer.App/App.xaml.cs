@@ -274,6 +274,20 @@ public partial class App : Application
             await mainViewModel.LoadAsync();
             await quickPanelViewModel.LoadAsync();
             await _desktopBoxManager.RefreshAsync();
+            if (drawerService.RecoveryWarnings.Count > 0)
+            {
+                var details = string.Join(
+                    Environment.NewLine,
+                    drawerService.RecoveryWarnings.Take(3));
+                logger.Error(new IOException(details), "File move recovery needs attention.");
+                mainViewModel.ReportStatus("部分文件搬移需要人工核对；其他盒子仍可使用。");
+                MessageBox.Show(
+                    "部分文件搬移未能自动恢复，相关文件均已保留。请核对以下路径："
+                    + Environment.NewLine + details,
+                    "WitchDrawer 文件恢复提示",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
             await updateService.ConfirmUpdateStartupAsync();
         }
         catch (Exception exception)

@@ -747,6 +747,649 @@ public sealed class DrawerServiceTests
         Assert.True(File.Exists(Path.Combine(item.StoredPath!, "nested.txt")));
     }
 
+    [Fact]
+    public async Task InitializeAsync_CompletesImportedFileAfterMoveBeforeDatabaseInsert()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var box = await workspace.GetBoxAsync(BoxType.Normal);
+        var source = workspace.CreateSourceFile("interrupted-import", "payload.txt", "payload");
+        var target = Path.Combine(box.StoragePath!, "payload.txt");
+        var now = DateTimeOffset.UtcNow;
+        var item = new DrawerItem(
+            Guid.NewGuid(), box.Id, "payload.txt", ItemKind.File,
+            source, target, 0, now, now);
+        var operation = new PendingFileOperation(
+            Guid.NewGuid(), PendingFileOperationKind.Import, item.Id,
+            source, target, false, item);
+        await workspace.Repository.AddPendingFileOperationAsync(operation);
+        File.Move(source, target);
+
+        await new DrawerService(workspace.Paths, workspace.Repository).InitializeAsync();
+
+        Assert.Equal(target, (await workspace.Repository.GetItemAsync(item.Id))?.StoredPath);
+        Assert.True(File.Exists(target));
+        Assert.Empty(await workspace.Repository.GetPendingFileOperationsAsync());
+    }
+
+    [Fact]
+    public async Task InitializeAsync_CompletesBoxMoveWithoutPruningOldRecord()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var source = workspace.CreateSourceFile("interrupted-move", "payload.txt", "payload");
+        var oldBox = await workspace.GetBoxAsync(BoxType.Normal);
+        var newBox = await workspace.Service.CreateBoxAsync("new", BoxType.Normal);
+        var item = await workspace.Service.ImportPathAsync(oldBox.Id, source);
+        var target = Path.Combine(newBox.StoragePath!, "payload.txt");
+        var movedItem = item with { BoxId = newBox.Id, StoredPath = target };
+        var operation = new PendingFileOperation(
+            Guid.NewGuid(), PendingFileOperationKind.Move, item.Id,
+            item.StoredPath!, target, false, movedItem);
+        await workspace.Repository.AddPendingFileOperationAsync(operation);
+        File.Move(item.StoredPath!, target);
+
+        Assert.Single(await workspace.Service.GetItemsAsync(oldBox.Id));
+        await new DrawerService(workspace.Paths, workspace.Repository).InitializeAsync();
+
+        Assert.Equal(newBox.Id, (await workspace.Repository.GetItemAsync(item.Id))?.BoxId);
+        Assert.Equal(target, (await workspace.Repository.GetItemAsync(item.Id))?.StoredPath);
+        Assert.Empty(await workspace.Repository.GetPendingFileOperationsAsync());
+    }
+
+    [Fact]
+    public async Task InitializeAsync_CompletesExportAfterFileMove()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var box = await workspace.GetBoxAsync(BoxType.Normal);
+        var source = workspace.CreateSourceFile("interrupted-export", "payload.txt", "payload");
+        var item = await workspace.Service.ImportPathAsync(box.Id, source);
+        var exportDirectory = Path.Combine(workspace.Root, "exported");
+        Directory.CreateDirectory(exportDirectory);
+        var target = Path.Combine(exportDirectory, "payload.txt");
+        var operation = new PendingFileOperation(
+            Guid.NewGuid(), PendingFileOperationKind.Remove, item.Id,
+            item.StoredPath!, target, false, null);
+        await workspace.Repository.AddPendingFileOperationAsync(operation);
+        File.Move(item.StoredPath!, target);
+
+        await new DrawerService(workspace.Paths, workspace.Repository).InitializeAsync();
+
+        Assert.Null(await workspace.Repository.GetItemAsync(item.Id));
+        Assert.Equal("payload", File.ReadAllText(target));
+        Assert.Empty(await workspace.Repository.GetPendingFileOperationsAsync());
+    }
+
+    [Fact]
+    public async Task InitializeAsync_RestoresHeldSourceBeforePromotion()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var box = await workspace.GetBoxAsync(BoxType.Normal);
+        var source = workspace.CreateSourceFile("interrupted-staging", "payload.txt", "payload");
+        var target = Path.Combine(box.StoragePath!, "payload.txt");
+        var now = DateTimeOffset.UtcNow;
+        var item = new DrawerItem(
+            Guid.NewGuid(), box.Id, "payload.txt", ItemKind.File,
+            source, target, 0, now, now);
+        var operation = new PendingFileOperation(
+            Guid.NewGuid(), PendingFileOperationKind.Import, item.Id,
+            source, target, false, item);
+        await workspace.Repository.AddPendingFileOperationAsync(operation);
+        var stage = SafeFileOps.CreateStagingPath(target, operation.Id);
+        var held = SafeFileOps.CreateHeldSourcePath(source, operation.Id);
+        File.Copy(source, stage);
+        File.Move(source, held);
+
+        await new DrawerService(workspace.Paths, workspace.Repository).InitializeAsync();
+
+        Assert.Equal("payload", File.ReadAllText(source));
+        Assert.False(File.Exists(stage));
+        Assert.False(File.Exists(held));
+        Assert.Null(await workspace.Repository.GetItemAsync(item.Id));
+        Assert.Empty(await workspace.Repository.GetPendingFileOperationsAsync());
+    }
+
+    [Fact]
+    public async Task InitializeAsync_AmbiguousTargetPreservesBothFilesAndJournal()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var box = await workspace.GetBoxAsync(BoxType.Normal);
+        var source = workspace.CreateSourceFile("ambiguous-import", "payload.txt", "source");
+        var target = Path.Combine(box.StoragePath!, "payload.txt");
+        var now = DateTimeOffset.UtcNow;
+        var item = new DrawerItem(
+            Guid.NewGuid(), box.Id, "payload.txt", ItemKind.File,
+            source, target, 0, now, now);
+        var operation = new PendingFileOperation(
+            Guid.NewGuid(), PendingFileOperationKind.Import, item.Id,
+            source, target, false, item);
+        await workspace.Repository.AddPendingFileOperationAsync(operation);
+        File.WriteAllText(target, "other");
+
+        var restarted = new DrawerService(workspace.Paths, workspace.Repository);
+        await restarted.InitializeAsync();
+
+        Assert.Equal("source", File.ReadAllText(source));
+        Assert.Equal("other", File.ReadAllText(target));
+        Assert.Single(restarted.RecoveryWarnings);
+        Assert.Single(await workspace.Repository.GetPendingFileOperationsAsync());
+    }
+
+    [Fact]
+    public async Task InitializeAsync_UnavailableSourceKeepsJournalAndOtherBoxesUsable()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var box = await workspace.GetBoxAsync(BoxType.Normal);
+        var source = Path.Combine(workspace.Root, "offline-drive", "missing.txt");
+        var target = Path.Combine(box.StoragePath!, "missing.txt");
+        var now = DateTimeOffset.UtcNow;
+        var item = new DrawerItem(
+            Guid.NewGuid(), box.Id, "missing.txt", ItemKind.File,
+            source, target, 0, now, now);
+        await workspace.Repository.AddPendingFileOperationAsync(new PendingFileOperation(
+            Guid.NewGuid(), PendingFileOperationKind.Import, item.Id,
+            source, target, false, item));
+
+        var restarted = new DrawerService(workspace.Paths, workspace.Repository);
+        await restarted.InitializeAsync();
+
+        Assert.Single(restarted.RecoveryWarnings);
+        Assert.Single(await workspace.Repository.GetPendingFileOperationsAsync());
+        Assert.NotEmpty(await restarted.GetBoxesAsync());
+    }
+
+    [Fact]
+    public async Task CompletePendingFileOperation_InvalidItemRollsBackRecordAndJournal()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var box = await workspace.GetBoxAsync(BoxType.Normal);
+        var source = workspace.CreateSourceFile("rollback-record", "payload.txt", "payload");
+        var item = await workspace.Service.ImportPathAsync(box.Id, source);
+        var target = Path.Combine(box.StoragePath!, "moved.txt");
+        var operation = new PendingFileOperation(
+            Guid.NewGuid(), PendingFileOperationKind.Move, item.Id,
+            item.StoredPath!, target, false,
+            item with { BoxId = Guid.NewGuid(), StoredPath = target });
+        await workspace.Repository.AddPendingFileOperationAsync(operation with { ResultItem = operation.ResultItem! with { BoxId = box.Id } });
+        File.Move(item.StoredPath!, target);
+
+        await Assert.ThrowsAsync<Microsoft.Data.Sqlite.SqliteException>(
+            () => workspace.Repository.CompletePendingFileOperationAsync(operation));
+
+        Assert.Equal(box.Id, (await workspace.Repository.GetItemAsync(item.Id))?.BoxId);
+        Assert.Equal(item.StoredPath, (await workspace.Repository.GetItemAsync(item.Id))?.StoredPath);
+        Assert.Single(await workspace.Repository.GetPendingFileOperationsAsync());
+        Assert.True(File.Exists(target));
+    }
+
+    [Fact]
+    public async Task InitializeAsync_RestoresHeldDirectoryBeforePromotion()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var box = await workspace.GetBoxAsync(BoxType.Normal);
+        var source = workspace.CreateSourceDirectory("interrupted-dir", "payload.txt", "payload");
+        var target = Path.Combine(box.StoragePath!, "interrupted-dir");
+        var now = DateTimeOffset.UtcNow;
+        var item = new DrawerItem(
+            Guid.NewGuid(), box.Id, "interrupted-dir", ItemKind.Directory,
+            source, target, 0, now, now);
+        var operation = new PendingFileOperation(
+            Guid.NewGuid(), PendingFileOperationKind.Import, item.Id,
+            source, target, true, item);
+        await workspace.Repository.AddPendingFileOperationAsync(operation);
+        var stage = SafeFileOps.CreateStagingPath(target, operation.Id);
+        var held = SafeFileOps.CreateHeldSourcePath(source, operation.Id);
+        Directory.CreateDirectory(stage);
+        File.Copy(Path.Combine(source, "payload.txt"), Path.Combine(stage, "payload.txt"));
+        Directory.Move(source, held);
+
+        await new DrawerService(workspace.Paths, workspace.Repository).InitializeAsync();
+
+        Assert.Equal("payload", File.ReadAllText(Path.Combine(source, "payload.txt")));
+        Assert.False(Directory.Exists(stage));
+        Assert.False(Directory.Exists(held));
+        Assert.Null(await workspace.Repository.GetItemAsync(item.Id));
+    }
+
+    [Fact]
+    public async Task InitializeAsync_AfterPromotionQuarantinesHeldAndTargetForInspection()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var box = await workspace.GetBoxAsync(BoxType.Normal);
+        var source = workspace.CreateSourceFile("promoted-import", "payload.txt", "payload");
+        var target = Path.Combine(box.StoragePath!, "payload.txt");
+        var now = DateTimeOffset.UtcNow;
+        var item = new DrawerItem(
+            Guid.NewGuid(), box.Id, "payload.txt", ItemKind.File,
+            source, target, 0, now, now);
+        var operation = new PendingFileOperation(
+            Guid.NewGuid(), PendingFileOperationKind.Import, item.Id,
+            source, target, false, item);
+        await workspace.Repository.AddPendingFileOperationAsync(operation);
+        var held = SafeFileOps.CreateHeldSourcePath(source, operation.Id);
+        File.Copy(source, target);
+        File.Move(source, held);
+
+        var restarted = new DrawerService(workspace.Paths, workspace.Repository);
+        await restarted.InitializeAsync();
+
+        Assert.Null(await workspace.Repository.GetItemAsync(item.Id));
+        Assert.Equal("payload", File.ReadAllText(target));
+        Assert.Equal("payload", File.ReadAllText(held));
+        Assert.Single(restarted.RecoveryWarnings);
+        Assert.Single(await workspace.Repository.GetPendingFileOperationsAsync());
+    }
+
+    [Fact]
+    public async Task RecoveryWaitsUntilLiveJournaledOperationReleasesGate()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var box = await workspace.GetBoxAsync(BoxType.Normal);
+        var source = workspace.CreateSourceFile("inflight-import", "payload.txt", "payload");
+        var target = Path.Combine(box.StoragePath!, "payload.txt");
+        var now = DateTimeOffset.UtcNow;
+        var item = new DrawerItem(
+            Guid.NewGuid(), box.Id, "payload.txt", ItemKind.File,
+            source, target, 0, now, now);
+        var operation = new PendingFileOperation(
+            Guid.NewGuid(), PendingFileOperationKind.Import, item.Id,
+            source, target, false, item);
+        await workspace.Repository.AddPendingFileOperationAsync(operation);
+        var stage = SafeFileOps.CreateStagingPath(target, operation.Id);
+        await File.WriteAllTextAsync(stage, "partial-copy-in-progress");
+
+        // Simulate a live import holding the gate: recovery triggered by InitializeAsync
+        // must not treat this journal entry and its staging file as crash debris.
+        var service = workspace.Service;
+        await service.FileOperationGate.WaitAsync();
+        var initialization = Task.Run(() => service.InitializeAsync());
+        try
+        {
+            var finishedFirst = await Task.WhenAny(
+                initialization, Task.Delay(TimeSpan.FromMilliseconds(300))) == initialization;
+            Assert.False(finishedFirst, "Recovery ran while a live operation held the gate.");
+            Assert.True(File.Exists(stage));
+        }
+        finally
+        {
+            service.FileOperationGate.Release();
+        }
+
+        await initialization.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.False(File.Exists(stage));
+        Assert.Empty(await workspace.Repository.GetPendingFileOperationsAsync());
+    }
+
+    [Fact]
+    public async Task CompleteFailure_RestoresMovedFileAndClearsJournal()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var box = await workspace.GetBoxAsync(BoxType.Normal);
+        var source = workspace.CreateSourceFile("commit-fails", "payload.txt", "payload");
+        var target = Path.Combine(box.StoragePath!, "payload.txt");
+        var now = DateTimeOffset.UtcNow;
+        // A nonexistent box makes the database commit fail with a foreign-key violation.
+        var item = new DrawerItem(
+            Guid.NewGuid(), Guid.NewGuid(), "payload.txt", ItemKind.File,
+            source, target, 0, now, now);
+        var operation = new PendingFileOperation(
+            Guid.NewGuid(), PendingFileOperationKind.Import, item.Id,
+            source, target, false, item);
+        await workspace.Repository.AddPendingFileOperationAsync(operation with { ResultItem = operation.ResultItem! with { BoxId = box.Id } });
+        File.Move(source, target);
+
+        var exception = await Assert.ThrowsAsync<IOException>(
+            () => workspace.Service.CompleteJournaledOperationAsync(operation));
+
+        Assert.Contains("已放回原位", exception.Message);
+        Assert.Equal("payload", File.ReadAllText(source));
+        Assert.False(File.Exists(target));
+        Assert.Null(await workspace.Repository.GetItemAsync(item.Id));
+        Assert.Empty(await workspace.Repository.GetPendingFileOperationsAsync());
+    }
+
+    [Fact]
+    public async Task CompleteFailureWhenRestoreBlocked_KeepsBothFilesAndJournal()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var box = await workspace.GetBoxAsync(BoxType.Normal);
+        var source = workspace.CreateSourceFile("restore-blocked", "payload.txt", "payload");
+        var target = Path.Combine(box.StoragePath!, "payload.txt");
+        var now = DateTimeOffset.UtcNow;
+        var item = new DrawerItem(
+            Guid.NewGuid(), Guid.NewGuid(), "payload.txt", ItemKind.File,
+            source, target, 0, now, now);
+        var operation = new PendingFileOperation(
+            Guid.NewGuid(), PendingFileOperationKind.Import, item.Id,
+            source, target, false, item);
+        await workspace.Repository.AddPendingFileOperationAsync(operation with { ResultItem = operation.ResultItem! with { BoxId = box.Id } });
+        File.Move(source, target);
+        // A new file occupying the original path makes the best-effort restore fail.
+        await File.WriteAllTextAsync(source, "occupied");
+
+        var exception = await Assert.ThrowsAsync<IOException>(
+            () => workspace.Service.CompleteJournaledOperationAsync(operation));
+
+        Assert.Contains("下次读取或启动时会重试", exception.Message);
+        Assert.Equal("payload", File.ReadAllText(target));
+        Assert.Equal("occupied", File.ReadAllText(source));
+        Assert.Single(await workspace.Repository.GetPendingFileOperationsAsync());
+
+        // Both paths exist now, so recovery must not guess; it flags manual inspection.
+        var restarted = new DrawerService(workspace.Paths, workspace.Repository);
+        await restarted.InitializeAsync();
+        Assert.Single(restarted.RecoveryWarnings);
+        Assert.Single(await workspace.Repository.GetPendingFileOperationsAsync());
+    }
+
+    [Fact]
+    public async Task InitializeAsync_DropsJournalWhenMoveNeverStarted()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var box = await workspace.GetBoxAsync(BoxType.Normal);
+        var source = workspace.CreateSourceFile("never-started", "payload.txt", "payload");
+        var target = Path.Combine(box.StoragePath!, "payload.txt");
+        var now = DateTimeOffset.UtcNow;
+        var item = new DrawerItem(
+            Guid.NewGuid(), box.Id, "payload.txt", ItemKind.File,
+            source, target, 0, now, now);
+        // Crash after the journal write but before the first filesystem mutation:
+        // recovery must simply drop the journal without touching the source.
+        await workspace.Repository.AddPendingFileOperationAsync(new PendingFileOperation(
+            Guid.NewGuid(), PendingFileOperationKind.Import, item.Id,
+            source, target, false, item));
+
+        var restarted = new DrawerService(workspace.Paths, workspace.Repository);
+        await restarted.InitializeAsync();
+
+        Assert.Equal("payload", File.ReadAllText(source));
+        Assert.False(File.Exists(target));
+        Assert.Null(await workspace.Repository.GetItemAsync(item.Id));
+        Assert.Empty(await workspace.Repository.GetPendingFileOperationsAsync());
+        Assert.Empty(restarted.RecoveryWarnings);
+    }
+
+    [Fact]
+    public async Task CompleteFailure_BoxMove_RestoresFileToOriginalBox()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var oldBox = await workspace.GetBoxAsync(BoxType.Normal);
+        var newBox = await workspace.Service.CreateBoxAsync("new", BoxType.Normal);
+        var source = workspace.CreateSourceFile("move-commit-fails", "payload.txt", "payload");
+        var item = await workspace.Service.ImportPathAsync(oldBox.Id, source);
+        var target = Path.Combine(newBox.StoragePath!, "payload.txt");
+        // A nonexistent box in the staged result makes the commit fail.
+        var operation = new PendingFileOperation(
+            Guid.NewGuid(), PendingFileOperationKind.Move, item.Id,
+            item.StoredPath!, target, false,
+            item with { BoxId = Guid.NewGuid(), StoredPath = target });
+        await workspace.Repository.AddPendingFileOperationAsync(operation with { ResultItem = operation.ResultItem! with { BoxId = newBox.Id } });
+        File.Move(item.StoredPath!, target);
+
+        var exception = await Assert.ThrowsAsync<IOException>(
+            () => workspace.Service.CompleteJournaledOperationAsync(operation));
+
+        Assert.Contains("已放回原位", exception.Message);
+        Assert.Equal("payload", File.ReadAllText(item.StoredPath!));
+        Assert.False(File.Exists(target));
+        Assert.Equal(oldBox.Id, (await workspace.Repository.GetItemAsync(item.Id))?.BoxId);
+        Assert.Empty(await workspace.Repository.GetPendingFileOperationsAsync());
+    }
+
+    [Fact]
+    public async Task CompleteFailure_Export_RestoresFileIntoBox()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var box = await workspace.GetBoxAsync(BoxType.Normal);
+        var source = workspace.CreateSourceFile("export-commit-fails", "payload.txt", "payload");
+        var item = await workspace.Service.ImportPathAsync(box.Id, source);
+        var exportDirectory = Path.Combine(workspace.Root, "exported");
+        Directory.CreateDirectory(exportDirectory);
+        var target = Path.Combine(exportDirectory, "payload.txt");
+        var operation = new PendingFileOperation(
+            Guid.NewGuid(), PendingFileOperationKind.Remove, item.Id,
+            item.StoredPath!, target, false, null);
+        await workspace.Repository.AddPendingFileOperationAsync(operation);
+        File.Move(item.StoredPath!, target);
+        // Force the commit to fail by removing the row it would delete.
+        await workspace.Repository.RemoveItemAsync(item.Id);
+
+        var exception = await Assert.ThrowsAsync<IOException>(
+            () => workspace.Service.CompleteJournaledOperationAsync(operation));
+
+        Assert.Contains("已放回原位", exception.Message);
+        Assert.Equal("payload", File.ReadAllText(item.StoredPath!));
+        Assert.False(File.Exists(target));
+        Assert.Empty(await workspace.Repository.GetPendingFileOperationsAsync());
+    }
+
+    [Fact]
+    public async Task AddPendingFileOperation_DuplicateItemIsRejected()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var box = await workspace.GetBoxAsync(BoxType.Normal);
+        var source = workspace.CreateSourceFile("duplicate-pending", "payload.txt", "payload");
+        var item = await workspace.Service.ImportPathAsync(box.Id, source);
+        var target = Path.Combine(box.StoragePath!, "elsewhere.txt");
+        var operation = new PendingFileOperation(
+            Guid.NewGuid(), PendingFileOperationKind.Move, item.Id,
+            item.StoredPath!, target, false,
+            item with { StoredPath = target });
+        await workspace.Repository.AddPendingFileOperationAsync(operation);
+
+        // A second pending operation for the same item would corrupt recovery state.
+        await Assert.ThrowsAsync<Microsoft.Data.Sqlite.SqliteException>(
+            () => workspace.Repository.AddPendingFileOperationAsync(
+                operation with { Id = Guid.NewGuid() }));
+        Assert.Single(await workspace.Repository.GetPendingFileOperationsAsync());
+    }
+
+    [Theory]
+    [InlineData("witchdrawer.db")]
+    [InlineData("witchdrawer.db-wal")]
+    [InlineData("storage-location.json")]
+    [InlineData("storage-location.json.migration")]
+    [InlineData("Boxes")]
+    [InlineData("logs")]
+    public async Task ImportPathAsync_RejectsApplicationDataWithoutTouchingDatabase(string relativePath)
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var box = await workspace.GetBoxAsync(BoxType.Normal);
+        await workspace.Service.SetSettingAsync("sentinel", "keep");
+        var source = Path.Combine(workspace.Root, relativePath);
+        if (!File.Exists(source) && !Directory.Exists(source))
+        {
+            File.WriteAllText(source, "keep");
+        }
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => workspace.Service.ImportPathAsync(box.Id, source));
+
+        Assert.Equal("keep", await workspace.Service.GetSettingAsync("sentinel"));
+        Assert.Empty(await workspace.Repository.GetItemsAsync(box.Id));
+        Assert.Empty(await workspace.Repository.GetPendingFileOperationsAsync());
+    }
+
+    [Fact]
+    public async Task ImportPathAsync_RejectsManagedFileAndPreservesRestoreLocation()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var box = await workspace.GetBoxAsync(BoxType.Normal);
+        var other = await workspace.Service.CreateBoxAsync("other", BoxType.Normal);
+        var source = workspace.CreateSourceFile("external", "file.txt", "payload");
+        var item = await workspace.Service.ImportPathAsync(box.Id, source);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => workspace.Service.ImportPathAsync(other.Id, item.StoredPath!));
+
+        Assert.Single(await workspace.Service.GetItemsAsync(box.Id));
+        await workspace.Service.DeleteItemAsync(item.Id);
+        Assert.Equal("payload", File.ReadAllText(source));
+    }
+
+    [Fact]
+    public async Task ImportPathAsync_ConcurrentSameNamesAllocateDistinctSuffixes()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var box = await workspace.GetBoxAsync(BoxType.Normal);
+        var a = workspace.CreateSourceFile("a", "file.txt", "a");
+        var b = workspace.CreateSourceFile("b", "file.txt", "b");
+        await workspace.Service.FileOperationGate.WaitAsync();
+        Task<DrawerItem> first;
+        Task<DrawerItem> second;
+        try
+        {
+            first = workspace.Service.ImportPathAsync(box.Id, a);
+            second = workspace.Service.ImportPathAsync(box.Id, b);
+        }
+        finally
+        {
+            workspace.Service.FileOperationGate.Release();
+        }
+        var items = await Task.WhenAll(first, second);
+        Assert.Equal(new[] { "file (1).txt", "file.txt" }, items.Select(x => x.DisplayName).OrderBy(x => x));
+        Assert.Equal(new[] { "a", "b" }, items.Select(x => File.ReadAllText(x.StoredPath!)).OrderBy(x => x));
+        Assert.Empty(await workspace.Repository.GetPendingFileOperationsAsync());
+    }
+
+    [Fact]
+    public async Task DeleteBoxAsync_RejectsPendingImportEvenWithoutAnItemRow()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var box = await workspace.GetBoxAsync(BoxType.Normal);
+        var source = workspace.CreateSourceFile("pending", "file.txt", "payload");
+        var target = Path.Combine(box.StoragePath!, "file.txt");
+        var now = DateTimeOffset.UtcNow;
+        var item = new DrawerItem(Guid.NewGuid(), box.Id, "file.txt", ItemKind.File, source, target, 0, now, now);
+        await workspace.Repository.AddPendingFileOperationAsync(new PendingFileOperation(
+            Guid.NewGuid(), PendingFileOperationKind.Import, item.Id, source, target, false, item));
+        File.Move(source, target);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => workspace.Service.DeleteBoxAsync(box.Id));
+        await Assert.ThrowsAsync<Microsoft.Data.Sqlite.SqliteException>(() => workspace.Repository.RemoveBoxAsync(box.Id));
+        Assert.NotNull(await workspace.Repository.GetBoxAsync(box.Id));
+        await new DrawerService(workspace.Paths, workspace.Repository).InitializeAsync();
+        Assert.NotNull(await workspace.Repository.GetItemAsync(item.Id));
+        Assert.Equal("payload", File.ReadAllText(target));
+    }
+
+    [Fact]
+    public async Task AddPendingFileOperation_RejectsTargetBoxDeletedBeforeJournalWrite()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var box = await workspace.GetBoxAsync(BoxType.Normal);
+        var source = workspace.CreateSourceFile("late-journal", "file.txt", "payload");
+        var target = Path.Combine(box.StoragePath!, "file.txt");
+        var now = DateTimeOffset.UtcNow;
+        var item = new DrawerItem(Guid.NewGuid(), box.Id, "file.txt", ItemKind.File, source, target, 0, now, now);
+        await workspace.Service.DeleteBoxAsync(box.Id);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => workspace.Repository.AddPendingFileOperationAsync(
+            new PendingFileOperation(Guid.NewGuid(), PendingFileOperationKind.Import, item.Id,
+                source, target, false, item)));
+
+        Assert.Equal("payload", File.ReadAllText(source));
+        Assert.Empty(await workspace.Repository.GetPendingFileOperationsAsync());
+    }
+
+    [Fact]
+    public async Task DeleteBoxAsync_SerializesWithQueuedImportsAndPreservesTheirSources()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var box = await workspace.GetBoxAsync(BoxType.Normal);
+        var source = workspace.CreateSourceFile("queued-import", "file.txt", "keep");
+        await workspace.Service.FileOperationGate.WaitAsync();
+        Task<BoxDeleteResult> deletion;
+        Task<DrawerItem> import;
+        try
+        {
+            deletion = workspace.Service.DeleteBoxAsync(box.Id);
+            Assert.False(deletion.IsCompleted);
+            import = workspace.Service.ImportPathAsync(box.Id, source);
+        }
+        finally
+        {
+            workspace.Service.FileOperationGate.Release();
+        }
+
+        Assert.True((await deletion).BoxRemoved);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => import);
+        Assert.Equal("keep", File.ReadAllText(source));
+        Assert.Empty(await workspace.Repository.GetPendingFileOperationsAsync());
+    }
+
+    [Fact]
+    public async Task InitializeAsync_CompensationCleanupRemnantsArePreservedForInspection()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var box = await workspace.GetBoxAsync(BoxType.Normal);
+        var source = workspace.CreateSourceDirectory("compensated", "file.txt", "payload");
+        var target = Path.Combine(box.StoragePath!, "compensated");
+        var now = DateTimeOffset.UtcNow;
+        var item = new DrawerItem(Guid.NewGuid(), box.Id, "compensated", ItemKind.Directory, source, target, 0, now, now);
+        var operation = new PendingFileOperation(Guid.NewGuid(), PendingFileOperationKind.Import, item.Id,
+            source, target, true, item, IsCompensating: true);
+        await workspace.Repository.AddPendingFileOperationAsync(operation);
+        var held = SafeFileOps.CreateHeldSourcePath(target, operation.Id);
+        Directory.CreateDirectory(held);
+        File.WriteAllText(Path.Combine(held, "changed.txt"), "new content");
+
+        var restarted = new DrawerService(workspace.Paths, workspace.Repository);
+        await restarted.InitializeAsync();
+
+        Assert.Equal("payload", File.ReadAllText(Path.Combine(source, "file.txt")));
+        Assert.Equal("new content", File.ReadAllText(Path.Combine(held, "changed.txt")));
+        Assert.Contains(held, Assert.Single(restarted.RecoveryWarnings));
+        Assert.True(Assert.Single(await workspace.Repository.GetPendingFileOperationsAsync()).IsCompensating);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task InitializeAsync_RecoversInterruptedCompensation(bool isDirectory, bool promoted)
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var box = await workspace.GetBoxAsync(BoxType.Normal);
+        var source = isDirectory
+            ? workspace.CreateSourceDirectory("reverse", "file.txt", "payload")
+            : workspace.CreateSourceFile("reverse", "file.txt", "payload");
+        var target = Path.Combine(box.StoragePath!, Path.GetFileName(source));
+        var now = DateTimeOffset.UtcNow;
+        var item = new DrawerItem(Guid.NewGuid(), box.Id, Path.GetFileName(source),
+            isDirectory ? ItemKind.Directory : ItemKind.File, source, target, 0, now, now);
+        var operation = new PendingFileOperation(Guid.NewGuid(), PendingFileOperationKind.Import,
+            item.Id, source, target, isDirectory, item);
+        await workspace.Repository.AddPendingFileOperationAsync(operation);
+        await workspace.Repository.BeginFileOperationCompensationAsync(operation.Id);
+        var held = SafeFileOps.CreateHeldSourcePath(target, operation.Id);
+        var stage = SafeFileOps.CreateStagingPath(source, operation.Id);
+        if (!promoted)
+        {
+            if (isDirectory)
+            {
+                Directory.Move(source, held);
+                Directory.CreateDirectory(stage);
+                File.WriteAllText(Path.Combine(stage, "partial.txt"), "partial");
+            }
+            else
+            {
+                File.Move(source, held);
+                File.WriteAllText(stage, "partial");
+            }
+        }
+
+        var restarted = new DrawerService(workspace.Paths, workspace.Repository);
+        await restarted.InitializeAsync();
+
+        Assert.Equal("payload", File.ReadAllText(isDirectory ? Path.Combine(source, "file.txt") : source));
+        Assert.False(File.Exists(target) || Directory.Exists(target));
+        Assert.False(File.Exists(stage) || Directory.Exists(stage));
+        Assert.False(File.Exists(held) || Directory.Exists(held));
+        Assert.Empty(restarted.RecoveryWarnings);
+        Assert.Empty(await workspace.Repository.GetPendingFileOperationsAsync());
+    }
+
     private sealed class TestWorkspace : IDisposable
     {
         private TestWorkspace(string root, AppPaths paths, DrawerRepository repository, DrawerService service)

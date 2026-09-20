@@ -1,6 +1,7 @@
 using WitchDrawer.Core.Abstractions;
 using WitchDrawer.Core.Models;
 using WitchDrawer.Core.Storage;
+using Microsoft.Data.Sqlite;
 
 namespace WitchDrawer.Core.Services;
 
@@ -8,6 +9,14 @@ public sealed class DrawerService
 {
     private readonly AppPaths _paths;
     private readonly DrawerRepository _repository;
+    private readonly List<string> _recoveryWarnings = [];
+    private volatile bool _retryPendingRecoveryOnRead;
+    private readonly SemaphoreSlim _fileOperationGate = new(1, 1);
+
+    // Exposed so tests can simulate a live journaled operation holding the gate.
+    internal SemaphoreSlim FileOperationGate => _fileOperationGate;
+
+    public IReadOnlyList<string> RecoveryWarnings => _recoveryWarnings;
 
     public DrawerService(AppPaths paths, DrawerRepository repository)
     {
@@ -19,6 +28,7 @@ public sealed class DrawerService
     {
         _paths.EnsureCreated();
         await _repository.InitializeAsync(cancellationToken);
+        await Task.Run(() => RecoverPendingFileOperationsAsync(cancellationToken), cancellationToken);
         await RepairStoredPathsAsync(cancellationToken);
         await EnsureDefaultBoxesAsync(cancellationToken);
     }
@@ -54,18 +64,21 @@ public sealed class DrawerService
 
     public async Task<IReadOnlyList<DrawerItem>> GetItemsAsync(Guid boxId, CancellationToken cancellationToken = default)
     {
+        await RetryPendingRecoveryOnReadAsync(cancellationToken);
         await PruneMissingStoredItemsAsync(boxId, cancellationToken);
         return await _repository.GetItemsAsync(boxId, cancellationToken);
     }
 
     public async Task<IReadOnlyList<DrawerItem>> GetAllItemsAsync(CancellationToken cancellationToken = default)
     {
+        await RetryPendingRecoveryOnReadAsync(cancellationToken);
         await PruneMissingStoredItemsAsync(null, cancellationToken);
         return await _repository.GetItemsAsync(null, cancellationToken);
     }
 
     public async Task<IReadOnlyList<DrawerItem>> SearchItemsAsync(string query, int limit = 200, CancellationToken cancellationToken = default)
     {
+        await RetryPendingRecoveryOnReadAsync(cancellationToken);
         await PruneMissingStoredItemsAsync(null, cancellationToken);
         return await _repository.SearchItemsAsync(query.Trim(), limit, cancellationToken);
     }
@@ -115,6 +128,10 @@ public sealed class DrawerService
             throw new InvalidOperationException("Todo boxes do not accept files.");
         }
 
+        if (box.Type != BoxType.Mapping)
+        {
+            await Task.Run(() => ValidateImportSource(Path.GetFullPath(sourcePath)), cancellationToken);
+        }
         var fullSourcePath = PathSafety.GetFullExistingPath(sourcePath);
         var isDirectory = Directory.Exists(fullSourcePath);
         var itemKind = isDirectory ? ItemKind.Directory : ItemKind.File;
@@ -142,11 +159,8 @@ public sealed class DrawerService
         {
             var storageRoot = box.StoragePath ?? Path.Combine(_paths.BoxesDirectory, box.Id.ToString("N"));
             Directory.CreateDirectory(storageRoot);
-            var targetPath = FileNameService.GetUniqueDestinationPath(storageRoot, displayName, isDirectory);
+            var targetPath = Path.Combine(storageRoot, displayName);
             PathSafety.EnsureChildPath(storageRoot, targetPath);
-
-            cancellationToken.ThrowIfCancellationRequested();
-            await SafeFileOps.MoveAsync(fullSourcePath, targetPath, isDirectory, cancellationToken);
 
             item = new DrawerItem(
                 Guid.NewGuid(),
@@ -161,17 +175,12 @@ public sealed class DrawerService
                 gridColumn,
                 gridRow);
 
-            try
-            {
-                await _repository.AddItemAsync(item, CancellationToken.None);
-            }
-            catch
-            {
-                await TryCompensateMoveAsync(targetPath, fullSourcePath, isDirectory);
-                throw;
-            }
+            var operation = new PendingFileOperation(
+                Guid.NewGuid(), PendingFileOperationKind.Import, item.Id,
+                fullSourcePath, targetPath, isDirectory, item);
+            var completed = await ExecuteJournaledOperationAsync(operation, cancellationToken);
 
-            return item;
+            return completed.ResultItem!;
         }
 
         await _repository.AddItemAsync(item, cancellationToken);
@@ -255,32 +264,25 @@ public sealed class DrawerService
 
             var storageRoot = targetBox.StoragePath ?? Path.Combine(_paths.BoxesDirectory, targetBox.Id.ToString("N"));
             Directory.CreateDirectory(storageRoot);
-            var targetPath = FileNameService.GetUniqueDestinationPath(storageRoot, displayName, isDirectory);
+            var targetPath = Path.Combine(storageRoot, displayName);
             PathSafety.EnsureChildPath(storageRoot, targetPath);
-
-            await SafeFileOps.MoveAsync(fullSourcePath, targetPath, isDirectory, cancellationToken);
 
             displayName = Path.GetFileName(targetPath);
             storedPath = targetPath;
 
-            try
+            var resultItem = item with
             {
-                await _repository.MoveItemToBoxAsync(
-                    item,
-                    targetBox.Id,
-                    displayName,
-                    sourcePath,
-                    storedPath,
-                    targetSortOrder,
-                    gridColumn,
-                    gridRow,
-                    CancellationToken.None);
-            }
-            catch
-            {
-                await TryCompensateMoveAsync(targetPath, fullSourcePath, isDirectory);
-                throw;
-            }
+                BoxId = targetBox.Id,
+                DisplayName = displayName,
+                StoredPath = storedPath,
+                SortOrder = targetSortOrder,
+                GridColumn = gridColumn,
+                GridRow = gridRow
+            };
+            var operation = new PendingFileOperation(
+                Guid.NewGuid(), PendingFileOperationKind.Move, item.Id,
+                fullSourcePath, targetPath, isDirectory, resultItem);
+            await ExecuteJournaledOperationAsync(operation, cancellationToken);
 
             return;
         }
@@ -320,23 +322,15 @@ public sealed class DrawerService
             ? Path.GetFileName(sourcePath)
             : item.DisplayName;
         var isDirectory = item.ItemKind == ItemKind.Directory;
-        var targetPath = FileNameService.GetUniqueDestinationPath(fullTargetDirectory, displayName, isDirectory);
+        var targetPath = Path.Combine(fullTargetDirectory, displayName);
         PathSafety.EnsureChildPath(fullTargetDirectory, targetPath);
 
-        cancellationToken.ThrowIfCancellationRequested();
-        await SafeFileOps.MoveAsync(sourcePath, targetPath, isDirectory, cancellationToken);
+        var operation = new PendingFileOperation(
+            Guid.NewGuid(), PendingFileOperationKind.Remove, itemId,
+            sourcePath, targetPath, isDirectory, null);
+        var completed = await ExecuteJournaledOperationAsync(operation, cancellationToken);
 
-        try
-        {
-            await _repository.RemoveItemAsync(itemId, CancellationToken.None);
-        }
-        catch
-        {
-            await TryCompensateMoveAsync(targetPath, sourcePath, isDirectory);
-            throw;
-        }
-
-        return targetPath;
+        return completed.TargetPath;
     }
 
     public async Task<ItemDeleteResult> DeleteItemAsync(Guid itemId, CancellationToken cancellationToken = default)
@@ -350,27 +344,23 @@ public sealed class DrawerService
             return ItemDeleteResult.ReferenceRemoved(item.Id, item.DisplayName);
         }
 
-        var restore = await RestoreStoredItemAsync(item, reservedTargets: null, cancellationToken);
-        try
-        {
-            await _repository.RemoveItemAsync(itemId, CancellationToken.None);
-        }
-        catch
-        {
-            // Best effort: try to put the file back into box storage if the DB write failed.
-            if (!string.IsNullOrWhiteSpace(item.StoredPath) && !string.IsNullOrWhiteSpace(restore.RestoredPath))
-            {
-                var isDirectory = item.ItemKind == ItemKind.Directory;
-                await TryCompensateMoveAsync(restore.RestoredPath, item.StoredPath, isDirectory);
-            }
-
-            throw;
-        }
-
-        return restore;
+        return await RestoreAndRemoveStoredItemAsync(item, reservedTargets: null, cancellationToken);
     }
 
     public async Task<BoxDeleteResult> DeleteBoxAsync(Guid boxId, CancellationToken cancellationToken = default)
+    {
+        await _fileOperationGate.WaitAsync(cancellationToken);
+        try
+        {
+            return await DeleteBoxCoreAsync(boxId, cancellationToken);
+        }
+        finally
+        {
+            _fileOperationGate.Release();
+        }
+    }
+
+    private async Task<BoxDeleteResult> DeleteBoxCoreAsync(Guid boxId, CancellationToken cancellationToken)
     {
         var box = await _repository.GetBoxAsync(boxId, cancellationToken)
             ?? throw new InvalidOperationException("Box does not exist.");
@@ -389,6 +379,12 @@ public sealed class DrawerService
         }
 
         var items = await _repository.GetItemsAsync(boxId, cancellationToken);
+        var itemIds = items.Select(item => item.Id).ToHashSet();
+        var pending = await _repository.GetPendingFileOperationsAsync(cancellationToken);
+        if (pending.Any(operation => operation.ResultItem?.BoxId == boxId || itemIds.Contains(operation.ItemId)))
+        {
+            throw new InvalidOperationException("盒子包含待恢复的文件操作，请完成恢复后再删除。");
+        }
         var reservedTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var restoredCount = 0;
         var failures = new List<string>();
@@ -404,8 +400,7 @@ public sealed class DrawerService
             try
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                await RestoreStoredItemAsync(item, reservedTargets, cancellationToken);
-                await _repository.RemoveItemAsync(item.Id, CancellationToken.None);
+                await RestoreAndRemoveStoredItemAsync(item, reservedTargets, cancellationToken, fileOperationGateHeld: true);
                 restoredCount++;
             }
             catch (OperationCanceledException)
@@ -443,19 +438,22 @@ public sealed class DrawerService
             Failures: Array.Empty<string>());
     }
 
-    private async Task<ItemDeleteResult> RestoreStoredItemAsync(
+    private async Task<ItemDeleteResult> RestoreAndRemoveStoredItemAsync(
         DrawerItem item,
         HashSet<string>? reservedTargets,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool fileOperationGateHeld = false)
     {
         var plan = CreateRestorePlan(item, reservedTargets);
-        await SafeFileOps.MoveAsync(plan.SourcePath, plan.TargetPath, plan.IsDirectory, cancellationToken);
-
+        var operation = new PendingFileOperation(
+            Guid.NewGuid(), PendingFileOperationKind.Remove, item.Id,
+            plan.SourcePath, plan.TargetPath, plan.IsDirectory, null);
+        var completed = await ExecuteJournaledOperationAsync(operation, cancellationToken, fileOperationGateHeld);
         return new ItemDeleteResult(
             item.Id,
             item.DisplayName,
             WasStoredItem: true,
-            RestoredPath: plan.TargetPath,
+            RestoredPath: completed.TargetPath,
             RestoredToOriginal: plan.RestoredToOriginal,
             RestoredToDesktop: plan.RestoredToDesktop);
     }
@@ -676,18 +674,18 @@ public sealed class DrawerService
         }
 
         var items = await _repository.GetItemsAsync(boxId, cancellationToken);
-        var missingItemIds = await Task.Run(() =>
+        var missingItems = await Task.Run(() =>
         {
             cancellationToken.ThrowIfCancellationRequested();
             return items
                 .Where(IsMissingStoredItem)
-                .Select(item => item.Id)
                 .ToArray();
         }, cancellationToken);
 
-        foreach (var itemId in missingItemIds)
+        foreach (var item in missingItems)
         {
-            await _repository.RemoveItemAsync(itemId, cancellationToken);
+            await _repository.RemoveMissingItemUnlessPendingAsync(
+                item.Id, item.StoredPath!, cancellationToken);
         }
     }
 
@@ -781,23 +779,393 @@ public sealed class DrawerService
         await CreateBoxAsync("映射收纳盒", BoxType.Mapping, cancellationToken);
     }
 
-    private static async Task TryCompensateMoveAsync(
-        string movedPath,
-        string originalPath,
-        bool isDirectory)
+    private void ValidateImportSource(string sourcePath)
     {
+        // Reject aliases too: a normal-looking file under a junction could be our database.
+        for (var current = sourcePath; !string.IsNullOrEmpty(current); current = Path.GetDirectoryName(current))
+        {
+            if (File.Exists(current) || Directory.Exists(current))
+            {
+                PathSafety.EnsureNoReparsePoints(current);
+            }
+        }
+
+        var bootstrap = StorageLocationStore.ForCurrentUser().FilePath;
+        var protectedPaths = new[]
+        {
+            _paths.BoxesDirectory, _paths.LogsDirectory, _paths.DatabasePath,
+            _paths.DatabasePath + "-wal", _paths.DatabasePath + "-shm", _paths.DatabasePath + "-journal",
+            Path.Combine(_paths.RootDirectory, StorageLocationStore.ConfigFileName), bootstrap,
+            Path.Combine(_paths.RootDirectory, StorageLocationStore.MigrationMarkerFileName)
+        };
+        if (protectedPaths.Any(path => IsSameOrDescendant(sourcePath, path)
+                || (Directory.Exists(sourcePath) && IsSameOrDescendant(path, sourcePath)))
+            || sourcePath.StartsWith(bootstrap + ".", StringComparison.OrdinalIgnoreCase)
+            || sourcePath.StartsWith(Path.Combine(_paths.RootDirectory, StorageLocationStore.ConfigFileName) + ".",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("不能通过拖入搬移 WitchDrawer 数据文件或已收纳的文件；请使用盒间移动。");
+        }
+    }
+
+    private static bool IsSameOrDescendant(string path, string root)
+    {
+        path = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        root = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        return string.Equals(path, root, StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task<PendingFileOperation> ExecuteJournaledOperationAsync(
+        PendingFileOperation operation,
+        CancellationToken cancellationToken,
+        bool fileOperationGateHeld = false)
+    {
+        // Hold the gate for the whole journal → move → commit sequence. A recovery pass
+        // triggered by a concurrent read must never see this live operation's journal
+        // entry or staging files and mistake them for crash debris.
+        if (!fileOperationGateHeld)
+        {
+            await _fileOperationGate.WaitAsync(cancellationToken);
+        }
         try
         {
-            if ((isDirectory && Directory.Exists(movedPath)) || (!isDirectory && File.Exists(movedPath)))
+            if (operation.Kind != PendingFileOperationKind.Import)
             {
-                await SafeFileOps.MoveAsync(movedPath, originalPath, isDirectory, CancellationToken.None);
+                var currentItem = await _repository.GetItemAsync(operation.ItemId, cancellationToken);
+                if (currentItem is null || !string.Equals(currentItem.StoredPath, operation.SourcePath,
+                    StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException("文件已被其他操作移动或移除，请刷新后重试。");
+                }
             }
+            var pending = await _repository.GetPendingFileOperationsAsync(cancellationToken);
+            var reserved = pending.Select(value => Path.GetFullPath(value.TargetPath))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var target = await Task.Run(() => GetReservedUniqueDestinationPath(
+                Path.GetDirectoryName(operation.TargetPath)!, Path.GetFileName(operation.TargetPath),
+                operation.IsDirectory, reserved), cancellationToken);
+            operation = operation with
+            {
+                TargetPath = target,
+                ResultItem = operation.ResultItem is null ? null : operation.ResultItem with
+                {
+                    StoredPath = target,
+                    DisplayName = Path.GetFileName(target)
+                }
+            };
+            await MoveWithJournalAsync(operation, cancellationToken);
+            await CompleteJournaledOperationAsync(operation);
+            return operation;
+        }
+        finally
+        {
+            if (!fileOperationGateHeld)
+            {
+                _fileOperationGate.Release();
+            }
+        }
+    }
+
+    private async Task MoveWithJournalAsync(
+        PendingFileOperation operation,
+        CancellationToken cancellationToken)
+    {
+        // The durable intent must exist before the first filesystem mutation.
+        await Task.Run(
+            () => _repository.AddPendingFileOperationAsync(operation, cancellationToken),
+            cancellationToken);
+        try
+        {
+            await SafeFileOps.MoveAsync(
+                operation.SourcePath,
+                operation.TargetPath,
+                operation.IsDirectory,
+                cancellationToken,
+                operation.Id);
         }
         catch
         {
-            // Best-effort compensation only; the original failure is rethrown by the caller.
+            _retryPendingRecoveryOnRead = true;
+            await TryClearAbortedOperationAsync(operation);
+            throw;
         }
     }
+
+    private async Task TryClearAbortedOperationAsync(PendingFileOperation operation)
+    {
+        var stage = SafeFileOps.CreateStagingPath(operation.TargetPath, operation.Id);
+        var held = SafeFileOps.CreateHeldSourcePath(operation.SourcePath, operation.Id);
+        if (PathExists(operation.SourcePath)
+            && !PathExists(stage)
+            && !PathExists(held))
+        {
+            await ClearPendingOperationAsync(operation.Id);
+        }
+    }
+
+    internal async Task CompleteJournaledOperationAsync(PendingFileOperation operation)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                await Task.Run(() => _repository.CompletePendingFileOperationAsync(operation, CancellationToken.None));
+                return;
+            }
+            catch (SqliteException exception) when (attempt < 2 && exception.SqliteErrorCode is 5 or 6)
+            {
+                await Task.Delay(100 * (attempt + 1));
+            }
+            catch (Exception exception)
+            {
+                throw await CreateCompletionFailureAsync(operation, exception);
+            }
+        }
+    }
+
+    private async Task<Exception> CreateCompletionFailureAsync(
+        PendingFileOperation operation,
+        Exception cause)
+    {
+        // The file move already finished but the database commit failed. Best effort: put
+        // the entry back at its original path so the user sees a clean failure. The journal
+        // is only cleared after the restore succeeds, so a crash or a failed restore is
+        // still recoverable on the next startup or read (the file then stays at the target
+        // and recovery completes the commit instead).
+        if (!PathExists(operation.SourcePath)
+            && PathExists(operation.TargetPath)
+            && await TryMoveBackAsync(operation))
+        {
+            try
+            {
+                await ClearPendingOperationAsync(operation.Id);
+            }
+            catch
+            {
+                // The journal survives; recovery recognizes the restored state and drops it.
+                _retryPendingRecoveryOnRead = true;
+            }
+
+            return new IOException("记录保存失败，文件已放回原位，请重试。", cause);
+        }
+
+        _retryPendingRecoveryOnRead = true;
+        return new IOException(
+            $"文件搬移记录尚未保存；下次读取或启动时会重试。请保留 {operation.TargetPath}"
+            + $" 及补偿暂存文件 {SafeFileOps.CreateHeldSourcePath(operation.TargetPath, operation.Id)}、"
+            + SafeFileOps.CreateStagingPath(operation.SourcePath, operation.Id),
+            cause);
+    }
+
+    private async Task<bool> TryMoveBackAsync(PendingFileOperation operation)
+    {
+        try
+        {
+            // Persist the reverse direction before creating any reverse staging artifacts.
+            await Task.Run(() => _repository.BeginFileOperationCompensationAsync(operation.Id));
+            await SafeFileOps.MoveAsync(
+                operation.TargetPath,
+                operation.SourcePath,
+                operation.IsDirectory,
+                CancellationToken.None,
+                operation.Id);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private async Task RetryPendingRecoveryOnReadAsync(CancellationToken cancellationToken)
+    {
+        if (!_retryPendingRecoveryOnRead)
+        {
+            return;
+        }
+
+        await Task.Run(() => RecoverPendingFileOperationsAsync(cancellationToken), cancellationToken);
+        _retryPendingRecoveryOnRead = _recoveryWarnings.Count > 0;
+    }
+
+    private async Task RecoverPendingFileOperationsAsync(CancellationToken cancellationToken)
+    {
+        // Serialize with ExecuteJournaledOperationAsync: recovery inspects journal entries and
+        // staging/held artifacts, so it must never run while a live move is in flight.
+        await _fileOperationGate.WaitAsync(cancellationToken);
+        try
+        {
+            _recoveryWarnings.Clear();
+            var operations = await _repository.GetPendingFileOperationsAsync(cancellationToken);
+            foreach (var operation in operations)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    await RecoverPendingFileOperationAsync(operation, cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception exception)
+                {
+                    _recoveryWarnings.Add($"{operation.SourcePath} → {operation.TargetPath}: {exception.Message}");
+                }
+            }
+            _retryPendingRecoveryOnRead = _recoveryWarnings.Count > 0;
+        }
+        finally
+        {
+            _fileOperationGate.Release();
+        }
+    }
+
+    private async Task RecoverPendingFileOperationAsync(
+        PendingFileOperation operation,
+        CancellationToken cancellationToken)
+    {
+        var storedPath = operation.Kind == PendingFileOperationKind.Remove
+            ? operation.SourcePath
+            : operation.TargetPath;
+        PathSafety.EnsureChildPath(_paths.BoxesDirectory, storedPath);
+
+        if (operation.IsCompensating)
+        {
+            await RecoverCompensationAsync(operation, cancellationToken);
+            return;
+        }
+
+        var stage = SafeFileOps.CreateStagingPath(operation.TargetPath, operation.Id);
+        var held = SafeFileOps.CreateHeldSourcePath(operation.SourcePath, operation.Id);
+        if (PathExists(held))
+        {
+            // A crash or cleanup failure may have left a changed or partially deleted
+            // source. Do not make the destination authoritative without inspection.
+            if (PathExists(operation.TargetPath))
+            {
+                throw new IOException($"暂存源文件仍在 {held}；目标文件也存在，需要人工核对。");
+            }
+        }
+
+        var currentItem = await _repository.GetItemAsync(operation.ItemId, cancellationToken);
+        var databaseCommitted = operation.Kind switch
+        {
+            PendingFileOperationKind.Import => currentItem is not null,
+            PendingFileOperationKind.Move => currentItem is not null
+                && string.Equals(currentItem.StoredPath, operation.TargetPath, StringComparison.OrdinalIgnoreCase),
+            PendingFileOperationKind.Remove => currentItem is null,
+            _ => throw new InvalidOperationException($"Unknown file operation: {operation.Kind}")
+        };
+        if (databaseCommitted)
+        {
+            await _repository.RemovePendingFileOperationAsync(operation.Id, cancellationToken);
+            return;
+        }
+
+        var sourceExists = PathExists(operation.SourcePath);
+        var targetExists = PathExists(operation.TargetPath);
+        var heldExists = PathExists(held);
+
+        if (targetExists)
+        {
+            if (sourceExists)
+            {
+                throw new IOException(
+                    $"File move recovery needs inspection: both source and target exist: {operation.SourcePath}, {operation.TargetPath}");
+            }
+
+            switch (operation.Kind)
+            {
+                case PendingFileOperationKind.Import:
+                case PendingFileOperationKind.Move:
+                case PendingFileOperationKind.Remove:
+                    await _repository.CompletePendingFileOperationAsync(operation, CancellationToken.None);
+                    break;
+            }
+            return;
+        }
+
+        if (heldExists && !sourceExists)
+        {
+            await Task.Run(() =>
+            {
+                var sourceParent = Path.GetDirectoryName(operation.SourcePath)
+                    ?? throw new IOException("Original source directory is unavailable.");
+                PathSafety.EnsureChildPath(sourceParent, operation.SourcePath);
+                if (operation.IsDirectory)
+                {
+                    Directory.Move(held, operation.SourcePath);
+                }
+                else
+                {
+                    File.Move(held, operation.SourcePath);
+                }
+            }, cancellationToken);
+            sourceExists = true;
+            heldExists = false;
+        }
+
+        if (!sourceExists || heldExists)
+        {
+            throw new IOException(
+                $"File move recovery needs inspection: source is unavailable: {operation.SourcePath}");
+        }
+
+        await Task.Run(
+            () => SafeFileOps.DeleteRecoveryArtifact(stage, operation.IsDirectory),
+            cancellationToken);
+        await _repository.RemovePendingFileOperationAsync(operation.Id, cancellationToken);
+    }
+
+    private static bool PathExists(string path) => File.Exists(path) || Directory.Exists(path);
+
+    private async Task RecoverCompensationAsync(PendingFileOperation operation, CancellationToken cancellationToken)
+    {
+        var stage = SafeFileOps.CreateStagingPath(operation.SourcePath, operation.Id);
+        var held = SafeFileOps.CreateHeldSourcePath(operation.TargetPath, operation.Id);
+        if (PathExists(operation.SourcePath))
+        {
+            if (PathExists(operation.TargetPath) || PathExists(held))
+            {
+                throw new IOException($"补偿副本需要人工核对：{operation.SourcePath}；{operation.TargetPath}；{held}");
+            }
+        }
+        else
+        {
+            if (PathExists(held))
+            {
+                if (PathExists(operation.TargetPath))
+                {
+                    throw new IOException($"补偿副本需要人工核对：{operation.TargetPath}；{held}");
+                }
+                // Before reverse promotion, the held copy is still complete. Restore it
+                // to the forward target, discard the partial reverse copy and retry.
+                PathSafety.EnsureChildPath(Path.GetDirectoryName(operation.TargetPath)!, operation.TargetPath);
+                if (operation.IsDirectory)
+                {
+                    Directory.Move(held, operation.TargetPath);
+                }
+                else
+                {
+                    File.Move(held, operation.TargetPath);
+                }
+            }
+            if (!PathExists(operation.TargetPath))
+            {
+                throw new IOException($"补偿源不可用，请核对：{operation.TargetPath}；{held}；{stage}");
+            }
+            SafeFileOps.DeleteRecoveryArtifact(stage, operation.IsDirectory);
+            await SafeFileOps.MoveAsync(operation.TargetPath, operation.SourcePath,
+                operation.IsDirectory, cancellationToken, operation.Id);
+        }
+        SafeFileOps.DeleteRecoveryArtifact(stage, operation.IsDirectory);
+        await _repository.RemovePendingFileOperationAsync(operation.Id, cancellationToken);
+    }
+
+    private Task ClearPendingOperationAsync(Guid operationId) => Task.Run(
+        () => _repository.RemovePendingFileOperationAsync(operationId, CancellationToken.None));
 
     private sealed record RestorePlan(
         string SourcePath,

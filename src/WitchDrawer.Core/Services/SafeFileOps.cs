@@ -14,10 +14,11 @@ internal static class SafeFileOps
         string sourcePath,
         string destinationPath,
         bool isDirectory,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Guid? operationId = null)
     {
         return Task.Run(
-            () => Move(sourcePath, destinationPath, isDirectory, cancellationToken),
+            () => Move(sourcePath, destinationPath, isDirectory, cancellationToken, operationId),
             cancellationToken);
     }
 
@@ -25,7 +26,8 @@ internal static class SafeFileOps
         string sourcePath,
         string destinationPath,
         bool isDirectory,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Guid? operationId = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -92,7 +94,7 @@ internal static class SafeFileOps
             }
         }
 
-        CopyThenDelete(sourcePath, destinationPath, isDirectory, cancellationToken);
+        CopyThenDelete(sourcePath, destinationPath, isDirectory, cancellationToken, operationId);
     }
 
     internal static bool AreSameVolume(string pathA, string pathB)
@@ -111,7 +113,8 @@ internal static class SafeFileOps
         string sourcePath,
         string destinationPath,
         bool isDirectory,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid? operationId = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
         sourcePath = Path.GetFullPath(sourcePath);
@@ -129,21 +132,19 @@ internal static class SafeFileOps
             throw new IOException($"Destination already exists: {destinationPath}");
         }
 
-        // Files copy directly to their final name: small desktop exports (.lnk, documents)
-        // then appear in Explorer the moment the bytes land, instead of being hidden behind a
-        // ".name.witchdrawer-{guid}.tmp" staging file that only renames to the real name at the
-        // very end. Directories still stage atomically because recursive tree promotion is more
-        // involved and is not on the interactive export hot path.
+        // Copy to a sibling staging path first. A direct copy exposes an incomplete file under
+        // the final name and can leave that file behind when copying is interrupted.
         if (!isDirectory)
         {
-            CopyFileThenDelete(sourcePath, destinationPath, cancellationToken);
+            CopyFileThenDelete(sourcePath, destinationPath, cancellationToken, operationId);
             return;
         }
 
         var sourceSnapshot = CaptureDirectorySnapshot(sourcePath, cancellationToken);
-        var stagingPath = CreateStagingPath(destinationPath);
+        var stagingPath = CreateStagingPath(destinationPath, operationId);
         string? heldSourcePath = null;
         var sourceMovedToHolding = false;
+        var destinationPromoted = false;
         try
         {
             CopyDirectory(sourcePath, stagingPath, cancellationToken);
@@ -155,7 +156,7 @@ internal static class SafeFileOps
 
             // Rename on the source volume first. New files created at the original path after
             // this point belong to a new directory and must never be consumed by this move.
-            heldSourcePath = CreateHeldSourcePath(sourcePath);
+            heldSourcePath = CreateHeldSourcePath(sourcePath, operationId);
             MoveDirectoryWithTransientLockRetry(
                 sourcePath,
                 heldSourcePath,
@@ -168,26 +169,32 @@ internal static class SafeFileOps
             // Promotion is an atomic same-volume rename on the destination. The complete copy
             // becomes durable before any source entry is removed.
             Directory.Move(stagingPath, destinationPath);
+            destinationPromoted = true;
 
             try
             {
                 DeleteVerifiedSourceTree(heldSourcePath, heldSourceSnapshot);
             }
-            catch
+            catch (Exception exception)
             {
-                // The destination already contains the verified complete tree. Put any changed
-                // or undeletable remnants back at the original path when possible; preserving a
-                // duplicate is safer than deleting data that arrived during the move.
-                TryMoveBack(heldSourcePath, sourcePath, isDirectory: true);
+                // Deletion may have removed only part of the held tree. Keep any remaining
+                // files in the holding path; returning a partial tree to the original name
+                // would make it look like the move had failed before completing.
+                throw new IOException(
+                    $"Source cleanup failed after promotion. Recovery copy: {heldSourcePath}",
+                    exception);
             }
         }
         catch
         {
-            RestoreHeldSourceOrPreserveStaging(
-                sourcePath,
-                heldSourcePath,
-                stagingPath,
-                sourceMovedToHolding);
+            if (!destinationPromoted)
+            {
+                RestoreHeldSourceOrPreserveStaging(
+                    sourcePath,
+                    heldSourcePath,
+                    stagingPath,
+                    sourceMovedToHolding);
+            }
 
             throw;
         }
@@ -196,49 +203,127 @@ internal static class SafeFileOps
     private static void CopyFileThenDelete(
         string sourcePath,
         string destinationPath,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid? operationId)
     {
         cancellationToken.ThrowIfCancellationRequested();
-
-        // Copy straight to the final destination. If a concurrent writer creates the target
-        // between our existence check and the copy, File.Copy(overwrite:false) surfaces that
-        // as IOException, which the caller is expected to handle.
-        File.Copy(sourcePath, destinationPath, overwrite: false);
-
-        cancellationToken.ThrowIfCancellationRequested();
-        var sourceAttributes = CaptureAttributes(sourcePath, isDirectory: false);
+        var sourceSnapshot = CaptureFileSnapshot(sourcePath);
+        var stagingPath = CreateStagingPath(destinationPath, operationId);
+        string? heldSourcePath = null;
+        var sourceMovedToHolding = false;
+        var destinationPromoted = false;
         try
         {
-            ClearReadOnlyAttributes(sourcePath, isDirectory: false);
-            File.Delete(sourcePath);
+            File.Copy(sourcePath, stagingPath, overwrite: false);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var sourceAfterCopy = CaptureFileSnapshot(sourcePath);
+            EnsureFileUnchanged(sourceSnapshot, sourceAfterCopy);
+            if (CaptureFileSnapshot(stagingPath).Length != sourceAfterCopy.Length)
+            {
+                throw new IOException("File copy verification failed. The source was preserved.");
+            }
+
+            heldSourcePath = CreateHeldSourcePath(sourcePath, operationId);
+            MoveFileWithTransientLockRetry(sourcePath, heldSourcePath, cancellationToken);
+            sourceMovedToHolding = true;
+            EnsureFileUnchanged(sourceAfterCopy, CaptureFileSnapshot(heldSourcePath));
+
+            // Same-volume promotion makes the complete copy visible under the final name.
+            File.Move(stagingPath, destinationPath);
+            destinationPromoted = true;
+
+            var sourceAttributes = CaptureAttributes(heldSourcePath, isDirectory: false);
+            try
+            {
+                ClearReadOnlyAttributes(heldSourcePath, isDirectory: false);
+                File.Delete(heldSourcePath);
+            }
+            catch
+            {
+                RestoreAttributes(sourceAttributes);
+                throw;
+            }
         }
         catch
         {
-            RestoreAttributes(sourceAttributes);
+            var sourceRestored = !sourceMovedToHolding
+                || (heldSourcePath is not null
+                    && TryMoveBack(heldSourcePath, sourcePath, isDirectory: false));
+            if (sourceRestored)
+            {
+                TryDelete(stagingPath, isDirectory: false);
+                if (destinationPromoted)
+                {
+                    TryDelete(destinationPath, isDirectory: false);
+                }
+            }
 
-            // The destination already holds a valid copy; roll it back so the user is not left
-            // with a duplicate when the source could not be removed.
-            TryDelete(destinationPath, isDirectory: false);
+            // If the original path was occupied meanwhile, preserve both recovery copies.
             throw;
         }
     }
 
-    private static string CreateStagingPath(string destinationPath)
+    private static FileSnapshot CaptureFileSnapshot(string path)
+    {
+        var info = new FileInfo(path);
+        if (!info.Exists)
+        {
+            throw new FileNotFoundException("Source file does not exist.", path);
+        }
+
+        return new FileSnapshot(info.Length, info.LastWriteTimeUtc);
+    }
+
+    private static void EnsureFileUnchanged(FileSnapshot before, FileSnapshot after)
+    {
+        if (before != after)
+        {
+            throw new IOException("Source file changed while it was being moved. The source was preserved.");
+        }
+    }
+
+    private static void MoveFileWithTransientLockRetry(
+        string sourcePath,
+        string destinationPath,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                File.Move(sourcePath, destinationPath);
+                return;
+            }
+            catch (IOException exception) when (
+                attempt < DirectoryMoveRetryCount
+                && IsTransientLockViolation(exception))
+            {
+                if (cancellationToken.WaitHandle.WaitOne(DirectoryMoveRetryDelay))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
+            }
+        }
+    }
+
+    internal static string CreateStagingPath(string destinationPath, Guid? operationId = null)
     {
         var directory = Path.GetDirectoryName(destinationPath)
             ?? throw new InvalidOperationException("Destination directory is unavailable.");
         return Path.Combine(
             directory,
-            $".{Path.GetFileName(destinationPath)}.witchdrawer-{Guid.NewGuid():N}.tmp");
+            $".{Path.GetFileName(destinationPath)}.witchdrawer-{(operationId ?? Guid.NewGuid()):N}.tmp");
     }
 
-    private static string CreateHeldSourcePath(string sourcePath)
+    internal static string CreateHeldSourcePath(string sourcePath, Guid? operationId = null)
     {
         var directory = Path.GetDirectoryName(sourcePath)
             ?? throw new InvalidOperationException("Source directory is unavailable.");
         return Path.Combine(
             directory,
-            $".{Path.GetFileName(sourcePath)}.witchdrawer-{Guid.NewGuid():N}.moving");
+            $".{Path.GetFileName(sourcePath)}.witchdrawer-{(operationId ?? Guid.NewGuid()):N}.moving");
     }
 
     private static void MoveDirectoryWithTransientLockRetry(
@@ -573,6 +658,25 @@ internal static class SafeFileOps
         }
         catch
         {
+        }
+    }
+
+    internal static void DeleteRecoveryArtifact(string path, bool isDirectory)
+    {
+        if (isDirectory)
+        {
+            if (Directory.Exists(path))
+            {
+                ValidateEntryIsNotReparsePoint(path);
+                ClearReadOnlyAttributes(path, isDirectory: true);
+                Directory.Delete(path, recursive: true);
+            }
+        }
+        else if (File.Exists(path))
+        {
+            ValidateEntryIsNotReparsePoint(path);
+            ClearReadOnlyAttribute(path);
+            File.Delete(path);
         }
     }
 }

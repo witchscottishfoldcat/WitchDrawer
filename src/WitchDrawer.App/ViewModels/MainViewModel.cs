@@ -583,6 +583,11 @@ public sealed class MainViewModel : ObservableObject
     public async Task MigrateDataDirectoryAsync(string targetDirectory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(targetDirectory);
+        if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(AppPaths.DataDirectoryEnvironmentVariableName)))
+        {
+            throw new InvalidOperationException(
+                $"当前数据目录由 {AppPaths.DataDirectoryEnvironmentVariableName} 指定。请先移除该环境变量并重启，再迁移数据目录。");
+        }
         IsBusy = true;
         StatusText = "正在迁移数据目录…";
         try
@@ -879,15 +884,26 @@ public sealed class MainViewModel : ObservableObject
             }
 
             var imported = 0;
-            foreach (var path in pathsToImport)
+            Exception? importFailure = null;
+            try
             {
-                await _drawerService.ImportPathAsync(selectedBox.Id, path);
-                imported++;
+                foreach (var path in pathsToImport)
+                {
+                    await _drawerService.ImportPathAsync(selectedBox.Id, path);
+                    imported++;
+                }
+            }
+            catch (Exception exception)
+            {
+                importFailure = exception;
+                _logger.Error(exception, "File import partially failed.");
             }
 
             await LoadItemsForSelectedBoxAsync(selectedBox);
             await _quickPanelViewModel.RefreshBoxAsync(selectedBox.Id);
-            StatusText = skippedForCapacity > 0
+            StatusText = importFailure is not null
+                ? $"已导入 {imported} 项，其余未导入：{importFailure.Message}"
+                : skippedForCapacity > 0
                 ? imported > 0
                     ? $"已导入 {imported} 项到 {selectedBox.Name}，盒子已满（{skippedForCapacity} 项未导入）"
                     : $"{selectedBox.Name} 已满，无法导入"

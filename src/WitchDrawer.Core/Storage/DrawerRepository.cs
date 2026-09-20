@@ -1,11 +1,16 @@
 using Microsoft.Data.Sqlite;
 using WitchDrawer.Core.Models;
+using System.Text.Json;
 
 namespace WitchDrawer.Core.Storage;
 
 public sealed class DrawerRepository
 {
     private readonly string _databasePath;
+    private volatile bool _migrationWriteLockHeld;
+    private volatile bool _migrationPromoted;
+
+    internal void MarkMigrationPromoted() => _migrationPromoted = true;
 
     public DrawerRepository(string databasePath)
     {
@@ -63,6 +68,21 @@ public sealed class DrawerRepository
                     Value TEXT NOT NULL
                 );
 
+                CREATE TABLE IF NOT EXISTS PendingFileOperations (
+                    Id TEXT PRIMARY KEY,
+                    Kind INTEGER NOT NULL,
+                    ItemId TEXT NOT NULL,
+                    SourcePath TEXT NOT NULL,
+                    TargetPath TEXT NOT NULL,
+                    IsDirectory INTEGER NOT NULL,
+                    ResultItemJson TEXT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS StorageMigrationState (
+                    Id INTEGER PRIMARY KEY CHECK (Id = 1),
+                    TargetDirectory TEXT NOT NULL
+                );
+
                 CREATE TABLE IF NOT EXISTS Todos (
                     Id TEXT PRIMARY KEY,
                     BoxId TEXT NOT NULL,
@@ -79,10 +99,38 @@ public sealed class DrawerRepository
 
                 CREATE INDEX IF NOT EXISTS IX_Items_BoxId ON Items(BoxId);
                 CREATE INDEX IF NOT EXISTS IX_Items_DisplayName ON Items(DisplayName);
+                CREATE UNIQUE INDEX IF NOT EXISTS IX_PendingFileOperations_ItemId ON PendingFileOperations(ItemId);
+                CREATE UNIQUE INDEX IF NOT EXISTS IX_PendingFileOperations_SourcePath ON PendingFileOperations(SourcePath COLLATE NOCASE);
+                CREATE UNIQUE INDEX IF NOT EXISTS IX_PendingFileOperations_TargetPath ON PendingFileOperations(TargetPath COLLATE NOCASE);
                 """,
                 cancellationToken);
 
             await EnsureColumnAsync(connection, "Items", "GridColumn", "INTEGER NULL", cancellationToken);
+            await EnsureColumnAsync(connection, "PendingFileOperations", "IsCompensating", "INTEGER NOT NULL DEFAULT 0", cancellationToken);
+            // Persist the write barrier in the old database. It also rejects writes from
+            // connections opened before migration and from a later accidental old-root startup.
+            foreach (var table in new[] { "Boxes", "Items", "AppSettings", "Todos", "PendingFileOperations" })
+            {
+                foreach (var action in new[] { "INSERT", "UPDATE", "DELETE" })
+                {
+                    await ExecuteNonQueryAsync(connection, $"""
+                        CREATE TRIGGER IF NOT EXISTS FreezeAfterMigration_{table}_{action}
+                        BEFORE {action} ON {table}
+                        WHEN EXISTS (SELECT 1 FROM StorageMigrationState)
+                        BEGIN SELECT RAISE(ABORT, '数据已迁移，旧目录已停止写入，请重启 WitchDrawer。'); END;
+                        """, cancellationToken);
+                }
+            }
+            await ExecuteNonQueryAsync(connection, """
+                CREATE TRIGGER IF NOT EXISTS ProtectPendingBoxDeletion
+                BEFORE DELETE ON Boxes
+                WHEN EXISTS (
+                    SELECT 1 FROM PendingFileOperations p
+                    LEFT JOIN Items i ON i.Id = p.ItemId
+                    WHERE i.BoxId = OLD.Id OR json_extract(p.ResultItemJson, '$.BoxId') = OLD.Id
+                )
+                BEGIN SELECT RAISE(ABORT, '盒子包含待恢复的文件操作，请完成恢复后再删除。'); END;
+                """, cancellationToken);
             await EnsureColumnAsync(connection, "Items", "GridRow", "INTEGER NULL", cancellationToken);
             await EnsureColumnAsync(connection, "Todos", "BoxId", "TEXT NULL", cancellationToken);
             await EnsureColumnAsync(connection, "Todos", "IsArchived", "INTEGER NOT NULL DEFAULT 0", cancellationToken);
@@ -111,6 +159,96 @@ public sealed class DrawerRepository
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);
         await ExecuteNonQueryAsync(connection, "PRAGMA wal_checkpoint(TRUNCATE);", cancellationToken);
+    }
+
+    internal async Task CopyConsistentDatabaseAsync(
+        string targetDatabasePath,
+        Func<Task> copyFilesAsync,
+        Func<Task> validateFilesAsync,
+        Func<Task> finalizeAsync,
+        CancellationToken cancellationToken = default,
+        string? migrationTargetDirectory = null)
+    {
+        await using var lockConnection = CreateConnection();
+        await lockConnection.OpenAsync(cancellationToken);
+        var state = lockConnection.CreateCommand();
+        state.CommandText = "SELECT COUNT(*) FROM StorageMigrationState;";
+        if (Convert.ToInt32(await state.ExecuteScalarAsync(cancellationToken)) != 0)
+        {
+            throw new InvalidOperationException("数据已迁移，请重启后再操作。");
+        }
+        var versionBeforeCopy = await ReadDataVersionAsync(lockConnection, cancellationToken);
+
+        // Keep the expensive tree copy and validation outside SQLite's writer lock. A changed
+        // data_version catches any Core write that completed while the files were copied.
+        await copyFilesAsync();
+        await validateFilesAsync();
+        _migrationWriteLockHeld = true;
+        var transactionStarted = false;
+        try
+        {
+            await ExecuteNonQueryAsync(lockConnection, "BEGIN IMMEDIATE;", cancellationToken);
+            transactionStarted = true;
+            if (await ReadDataVersionAsync(lockConnection, cancellationToken) != versionBeforeCopy)
+            {
+                throw new InvalidOperationException("迁移期间数据发生变化，请重试。");
+            }
+
+            var pendingCommand = lockConnection.CreateCommand();
+            pendingCommand.CommandText = "SELECT COUNT(*) FROM PendingFileOperations;";
+            if (Convert.ToInt32(await pendingCommand.ExecuteScalarAsync(cancellationToken)) != 0)
+            {
+                throw new InvalidOperationException("文件搬移尚未完成，请稍后重试数据目录迁移。");
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            await Task.Run(() =>
+            {
+                using var source = CreateConnection(allowMigrationLock: true);
+                source.Open();
+                var targetBuilder = new SqliteConnectionStringBuilder
+                {
+                    DataSource = targetDatabasePath,
+                    Mode = SqliteOpenMode.ReadWriteCreate,
+                    Pooling = false
+                };
+                using var target = new SqliteConnection(targetBuilder.ToString());
+                target.Open();
+                source.BackupDatabase(target);
+            }, cancellationToken);
+            if (migrationTargetDirectory is not null)
+            {
+                var freeze = lockConnection.CreateCommand();
+                freeze.CommandText = "INSERT INTO StorageMigrationState (Id, TargetDirectory) VALUES (1, $target);";
+                freeze.Parameters.AddWithValue("$target", migrationTargetDirectory);
+                await freeze.ExecuteNonQueryAsync(cancellationToken);
+            }
+            await finalizeAsync();
+        }
+        finally
+        {
+            try
+            {
+                if (transactionStarted)
+                {
+                    await ExecuteNonQueryAsync(lockConnection,
+                        _migrationPromoted ? "COMMIT;" : "ROLLBACK;", CancellationToken.None);
+                }
+            }
+            finally
+            {
+                _migrationWriteLockHeld = false;
+            }
+        }
+    }
+
+    private static async Task<long> ReadDataVersionAsync(
+        SqliteConnection connection,
+        CancellationToken cancellationToken)
+    {
+        var command = connection.CreateCommand();
+        command.CommandText = "PRAGMA data_version;";
+        return Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken));
     }
 
     public async Task<IReadOnlyList<Box>> GetBoxesAsync(CancellationToken cancellationToken = default)
@@ -784,6 +922,196 @@ public sealed class DrawerRepository
         }
     }
 
+    internal async Task AddPendingFileOperationAsync(
+        PendingFileOperation operation,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT INTO PendingFileOperations
+                (Id, Kind, ItemId, SourcePath, TargetPath, IsDirectory, ResultItemJson, IsCompensating)
+            SELECT $id, $kind, $itemId, $sourcePath, $targetPath, $isDirectory, $resultItemJson, $isCompensating
+            WHERE ($kind = 1 OR EXISTS (SELECT 1 FROM Items WHERE Id = $itemId))
+              AND ($resultItemJson IS NULL OR EXISTS (
+                  SELECT 1 FROM Boxes WHERE Id = json_extract($resultItemJson, '$.BoxId')
+              ));
+            """;
+        command.Parameters.AddWithValue("$id", operation.Id.ToString());
+        command.Parameters.AddWithValue("$kind", (int)operation.Kind);
+        command.Parameters.AddWithValue("$itemId", operation.ItemId.ToString());
+        command.Parameters.AddWithValue("$sourcePath", operation.SourcePath);
+        command.Parameters.AddWithValue("$targetPath", operation.TargetPath);
+        command.Parameters.AddWithValue("$isDirectory", operation.IsDirectory ? 1 : 0);
+        command.Parameters.AddWithValue("$isCompensating", operation.IsCompensating ? 1 : 0);
+        command.Parameters.AddWithValue(
+            "$resultItemJson",
+            operation.ResultItem is null ? DBNull.Value : JsonSerializer.Serialize(operation.ResultItem));
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+        {
+            throw new InvalidOperationException("Item does not exist.");
+        }
+    }
+
+    internal async Task<IReadOnlyList<PendingFileOperation>> GetPendingFileOperationsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT Id, Kind, ItemId, SourcePath, TargetPath, IsDirectory, ResultItemJson, IsCompensating
+            FROM PendingFileOperations ORDER BY rowid;
+            """;
+        var operations = new List<PendingFileOperation>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            operations.Add(new PendingFileOperation(
+                Guid.Parse(reader.GetString(0)),
+                (PendingFileOperationKind)reader.GetInt32(1),
+                Guid.Parse(reader.GetString(2)),
+                reader.GetString(3),
+                reader.GetString(4),
+                reader.GetInt32(5) != 0,
+                reader.IsDBNull(6) ? null : JsonSerializer.Deserialize<DrawerItem>(reader.GetString(6)),
+                reader.GetInt32(7) != 0));
+        }
+
+        return operations;
+    }
+
+    internal async Task RemovePendingFileOperationAsync(
+        Guid operationId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        var command = connection.CreateCommand();
+        command.CommandText = "DELETE FROM PendingFileOperations WHERE Id = $id;";
+        command.Parameters.AddWithValue("$id", operationId.ToString());
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    internal async Task BeginFileOperationCompensationAsync(Guid operationId)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync();
+        var command = connection.CreateCommand();
+        command.CommandText = "UPDATE PendingFileOperations SET IsCompensating = 1 WHERE Id = $id;";
+        command.Parameters.AddWithValue("$id", operationId.ToString());
+        if (await command.ExecuteNonQueryAsync() != 1)
+        {
+            throw new InvalidOperationException("Pending file operation does not exist.");
+        }
+    }
+
+    internal async Task CompletePendingFileOperationAsync(
+        PendingFileOperation operation,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        var command = connection.CreateCommand();
+        command.Transaction = (SqliteTransaction)transaction;
+        command.Parameters.AddWithValue("$id", operation.ItemId.ToString());
+        switch (operation.Kind)
+        {
+            case PendingFileOperationKind.Import:
+            {
+                var item = operation.ResultItem
+                    ?? throw new InvalidOperationException("Missing import item.");
+                command.CommandText =
+                    """
+                    INSERT INTO Items
+                        (Id, BoxId, DisplayName, ItemKind, SourcePath, StoredPath, SortOrder,
+                         GridColumn, GridRow, CreatedAt, UpdatedAt)
+                    VALUES
+                        ($id, $boxId, $displayName, $itemKind, $sourcePath, $storedPath, $sortOrder,
+                         $gridColumn, $gridRow, $createdAt, $updatedAt);
+                    """;
+                command.Parameters.AddWithValue("$itemKind", (int)item.ItemKind);
+                command.Parameters.AddWithValue("$createdAt", ToDb(item.CreatedAt));
+                AddResultItemParameters(command, item);
+                break;
+            }
+            case PendingFileOperationKind.Move:
+            {
+                var item = operation.ResultItem
+                    ?? throw new InvalidOperationException("Missing moved item.");
+                command.CommandText =
+                    """
+                    UPDATE Items
+                    SET BoxId = $boxId, DisplayName = $displayName, SourcePath = $sourcePath,
+                        StoredPath = $storedPath, SortOrder = $sortOrder,
+                        GridColumn = $gridColumn, GridRow = $gridRow, UpdatedAt = $updatedAt
+                    WHERE Id = $id;
+                    """;
+                AddResultItemParameters(command, item);
+                break;
+            }
+            case PendingFileOperationKind.Remove:
+                command.CommandText = "DELETE FROM Items WHERE Id = $id;";
+                break;
+            default:
+                throw new InvalidOperationException($"Unknown file operation: {operation.Kind}");
+        }
+
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+        {
+            throw new InvalidOperationException("Item does not exist.");
+        }
+
+        var clear = connection.CreateCommand();
+        clear.Transaction = (SqliteTransaction)transaction;
+        clear.CommandText = "DELETE FROM PendingFileOperations WHERE Id = $id;";
+        clear.Parameters.AddWithValue("$id", operation.Id.ToString());
+        if (await clear.ExecuteNonQueryAsync(cancellationToken) != 1)
+        {
+            throw new InvalidOperationException("Pending file operation does not exist.");
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    private static void AddResultItemParameters(SqliteCommand command, DrawerItem item)
+    {
+        command.Parameters.AddWithValue("$boxId", item.BoxId.ToString());
+        command.Parameters.AddWithValue("$displayName", item.DisplayName);
+        command.Parameters.AddWithValue("$sourcePath", (object?)item.SourcePath ?? DBNull.Value);
+        command.Parameters.AddWithValue("$storedPath", (object?)item.StoredPath ?? DBNull.Value);
+        command.Parameters.AddWithValue("$sortOrder", item.SortOrder);
+        command.Parameters.AddWithValue("$gridColumn", (object?)item.GridColumn ?? DBNull.Value);
+        command.Parameters.AddWithValue("$gridRow", (object?)item.GridRow ?? DBNull.Value);
+        command.Parameters.AddWithValue("$updatedAt", ToDb(DateTimeOffset.UtcNow));
+    }
+
+    internal async Task<bool> RemoveMissingItemUnlessPendingAsync(
+        Guid itemId,
+        string storedPath,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            DELETE FROM Items
+            WHERE Id = $id AND StoredPath = $storedPath
+              AND NOT EXISTS (
+                  SELECT 1 FROM PendingFileOperations WHERE ItemId = $id
+              );
+            """;
+        command.Parameters.AddWithValue("$id", itemId.ToString());
+        command.Parameters.AddWithValue("$storedPath", storedPath);
+        return await command.ExecuteNonQueryAsync(cancellationToken) == 1;
+    }
+
     public async Task RemoveTodoAsync(Guid todoId, CancellationToken cancellationToken = default)
     {
         await using var connection = CreateConnection();
@@ -880,8 +1208,13 @@ public sealed class DrawerRepository
     /// </summary>
     private const int SqliteErrorUnableToOpen = 14;
 
-    private SqliteConnection CreateConnection()
+    private SqliteConnection CreateConnection(bool allowMigrationLock = false)
     {
+        if (_migrationWriteLockHeld && !allowMigrationLock)
+        {
+            throw new InvalidOperationException("数据目录迁移正在完成，请稍后重试此操作。");
+        }
+
         var builder = new SqliteConnectionStringBuilder
         {
             DataSource = _databasePath,

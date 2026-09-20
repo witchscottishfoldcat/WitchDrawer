@@ -326,16 +326,12 @@ public partial class MainWindow : Window
             return;
         }
 
-        var restart = MessageBox.Show(
+        MessageBox.Show(
             this,
-            "数据已迁移完成。是否立即重启 WitchDrawer 以使用新目录？\n注意：若不立即重启，此后对盒子内容的修改在重启后不会保留。\n（原目录会保留作为备份，可稍后手动删除）",
+            "数据已迁移完成，点击确定后重启 WitchDrawer 以使用新目录。\n旧目录已停止写入，并保留作为备份。",
             "迁移完成",
-            MessageBoxButton.YesNo,
+            MessageBoxButton.OK,
             MessageBoxImage.Question);
-        if (restart != MessageBoxResult.Yes)
-        {
-            return;
-        }
 
         // 交给 App 统一编排：布置"等本进程退出后再启动"的辅助进程，然后走完整关闭流程。
         if (Application.Current is App app)

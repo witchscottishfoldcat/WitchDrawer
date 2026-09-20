@@ -1048,10 +1048,10 @@ public sealed class DesktopBoxViewModel : ObservableObject
             return Array.Empty<Guid>();
         }
 
+        var importedIds = new List<Guid>(pathList.Length);
         try
         {
             IsBusy = true;
-            var importedIds = new List<Guid>(pathList.Length);
             var reservedSlots = Items.Select(item => (item.GridColumn, item.GridRow)).ToHashSet();
             var nextColumn = startColumn ?? 0;
             var nextRow = startRow ?? 0;
@@ -1104,8 +1104,20 @@ public sealed class DesktopBoxViewModel : ObservableObject
         catch (Exception exception)
         {
             _logger.Error(exception, "Failed to import into desktop box.");
-            StatusText = exception.Message;
-            return Array.Empty<Guid>();
+            if (importedIds.Count > 0)
+            {
+                try
+                {
+                    await LoadAsync();
+                }
+                catch (Exception refreshException)
+                {
+                    _logger.Error(refreshException, "Failed to refresh partially imported files.");
+                }
+                ItemsChanged?.Invoke(this, EventArgs.Empty);
+            }
+            StatusText = $"已收纳 {importedIds.Count} 项，其余未导入：{exception.Message}";
+            return importedIds;
         }
         finally
         {

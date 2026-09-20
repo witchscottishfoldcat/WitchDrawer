@@ -30,9 +30,9 @@ public sealed class DataStorageMigrationService
     /// <summary>
     /// 将当前数据目录整体迁移到 <paramref name="targetRootDirectory"/>。
     /// 目标目录必须为空（或不存在），且不能位于当前数据目录内部。
-    /// 复制先落在临时目录，全部成功后一次性改名到位：失败/取消只残留临时目录，
-    /// 下次重试前会被自动清理，迁移永远可重试。
-    /// 迁移成功后仅更新引导配置；旧目录保留作为备份，由用户自行清理。
+    /// 文件先落在临时目录，数据库通过 SQLite 备份生成一致快照，再一次性改名到位。
+    /// 提升前失败可重试；提升后若引导配置未写完，下次启动根据迁移标记完成切换。
+    /// 旧目录保留作为备份，由用户自行清理。
     /// </summary>
     public async Task<AppPaths> MigrateAsync(
         string targetRootDirectory,
@@ -58,6 +58,8 @@ public sealed class DataStorageMigrationService
         Directory.CreateDirectory(targetParent);
         var lockPath = targetRoot + ".migration.lock";
         var tempRoot = targetRoot + $".tmp-migrating-{Guid.NewGuid():N}";
+        var migrationId = Guid.NewGuid();
+        var targetPromoted = false;
 
         await using var migrationLock = await AcquireMigrationLockAsync(lockPath, cancellationToken);
         try
@@ -76,24 +78,67 @@ public sealed class DataStorageMigrationService
             // 每次迁移使用独占 staging，避免清理或提升另一进程的临时目录。
             var tempPaths = new AppPaths(tempRoot);
             tempPaths.EnsureCreatedAndWritable();
+            DirectorySnapshot? boxesBeforeCopy = null;
 
-            await _repository.CheckpointAsync(cancellationToken);
-            CopyDirectory(sourceRoot, tempRoot, cancellationToken);
+            await Task.Run(() => _repository.CopyConsistentDatabaseAsync(
+                tempPaths.DatabasePath,
+                () =>
+                {
+                    boxesBeforeCopy = CaptureDirectorySnapshot(_paths.BoxesDirectory, cancellationToken);
+                    CopyDirectory(sourceRoot, tempRoot, cancellationToken, isRoot: true);
+                    EnsureMatchingSnapshot(
+                        boxesBeforeCopy,
+                        CaptureDirectorySnapshot(tempPaths.BoxesDirectory, cancellationToken),
+                        compareWriteTimes: false);
+                    return Task.CompletedTask;
+                },
+                () =>
+                {
+                    EnsureMatchingSnapshot(
+                        boxesBeforeCopy ?? throw new InvalidOperationException("迁移文件快照不可用。"),
+                        CaptureDirectorySnapshot(_paths.BoxesDirectory, cancellationToken),
+                        compareWriteTimes: true);
+                    return Task.CompletedTask;
+                },
+                () =>
+                {
+                    if (!File.Exists(tempPaths.DatabasePath))
+                    {
+                        throw new InvalidOperationException("迁移失败：数据库文件未能复制到目标文件夹。");
+                    }
 
-            if (File.Exists(_paths.DatabasePath) && !File.Exists(tempPaths.DatabasePath))
-            {
-                throw new InvalidOperationException("迁移失败：数据库文件未能复制到目标文件夹。");
-            }
-
-            PromoteStagedDirectory(tempRoot, targetRoot);
+                    File.WriteAllText(
+                        Path.Combine(tempRoot, StorageLocationStore.MigrationMarkerFileName),
+                        migrationId.ToString("N"));
+                    _locationStore.SaveMigrationIntent(targetRoot, migrationId);
+                    PromoteStagedDirectory(tempRoot, targetRoot);
+                    targetPromoted = true;
+                    _repository.MarkMigrationPromoted();
+                    try
+                    {
+                        _locationStore.SaveConfiguredDirectory(targetRoot);
+                        _locationStore.ClearMigrationIntent(migrationId);
+                        StorageLocationStore.TryDeleteMigrationMarker(targetRoot);
+                    }
+                    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                    {
+                        // The durable intent selects the promoted snapshot on restart.
+                        // Keep it and commit the old database's write barrier.
+                    }
+                    return Task.CompletedTask;
+                },
+                cancellationToken, targetRoot), cancellationToken);
         }
         catch
         {
             TryDeleteDirectory(tempRoot);
+            if (!targetPromoted)
+            {
+                _locationStore.ClearMigrationIntent(migrationId);
+            }
             throw;
         }
 
-        _locationStore.SaveConfiguredDirectory(targetRoot);
         return new AppPaths(targetRoot);
     }
 
@@ -131,7 +176,8 @@ public sealed class DataStorageMigrationService
     private static void CopyDirectory(
         string sourceDirectory,
         string targetDirectory,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool isRoot = false)
     {
         EnsureNoReparsePoint(sourceDirectory);
         Directory.CreateDirectory(targetDirectory);
@@ -150,7 +196,16 @@ public sealed class DataStorageMigrationService
             EnsureNoReparsePoint(file);
             var name = Path.GetFileName(file);
             // 引导配置只应保留在默认目录，不随数据复制到新目录。
-            if (string.Equals(name, StorageLocationStore.ConfigFileName, StringComparison.OrdinalIgnoreCase))
+            if (isRoot && string.Equals(name, StorageLocationStore.ConfigFileName, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            // SQLite's backup API writes a consistent database snapshot after other files
+            // have been copied. WAL and SHM are live sidecars, never migration payloads.
+            if (isRoot && (string.Equals(name, AppPaths.DatabaseFileName, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(name, AppPaths.DatabaseFileName + "-wal", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(name, AppPaths.DatabaseFileName + "-shm", StringComparison.OrdinalIgnoreCase)))
             {
                 continue;
             }
@@ -166,6 +221,53 @@ public sealed class DataStorageMigrationService
             throw new IOException($"迁移不支持链接或其他 reparse point: {path}");
         }
     }
+
+    private static DirectorySnapshot CaptureDirectorySnapshot(
+        string root,
+        CancellationToken cancellationToken)
+    {
+        EnsureNoReparsePoint(root);
+        var files = new Dictionary<string, FileSnapshot>(StringComparer.OrdinalIgnoreCase);
+        var directories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in Directory.EnumerateFileSystemEntries(root, "*", SearchOption.AllDirectories))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            EnsureNoReparsePoint(entry);
+            var relativePath = Path.GetRelativePath(root, entry);
+            if (Directory.Exists(entry))
+            {
+                directories.Add(relativePath);
+            }
+            else
+            {
+                var info = new FileInfo(entry);
+                files.Add(relativePath, new FileSnapshot(info.Length, info.LastWriteTimeUtc));
+            }
+        }
+
+        return new DirectorySnapshot(files, directories);
+    }
+
+    private static void EnsureMatchingSnapshot(
+        DirectorySnapshot expected,
+        DirectorySnapshot actual,
+        bool compareWriteTimes)
+    {
+        if (!expected.Directories.SetEquals(actual.Directories)
+            || expected.Files.Count != actual.Files.Count
+            || expected.Files.Any(pair =>
+                !actual.Files.TryGetValue(pair.Key, out var current)
+                || pair.Value.Length != current.Length
+                || (compareWriteTimes && pair.Value.LastWriteTimeUtc != current.LastWriteTimeUtc)))
+        {
+            throw new IOException("收纳盒文件在迁移期间发生变化，目标目录未启用。请重试。");
+        }
+    }
+
+    private sealed record FileSnapshot(long Length, DateTime LastWriteTimeUtc);
+    private sealed record DirectorySnapshot(
+        IReadOnlyDictionary<string, FileSnapshot> Files,
+        HashSet<string> Directories);
 
     internal static void PromoteStagedDirectory(string tempRoot, string targetRoot)
     {
