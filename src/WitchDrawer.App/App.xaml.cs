@@ -108,6 +108,7 @@ public partial class App : Application
             var repository = new DrawerRepository(paths.DatabasePath);
             var drawerService = new DrawerService(paths, repository);
             var launcher = new ShellFileLauncher();
+            var shellChangeNotifier = new ShellChangeNotifierService();
             var todoService = new TodoService(repository);
             var updateService = new UpdateService(logger);
             await updateService.CleanupLegacyUpdaterArtifactsAsync();
@@ -143,6 +144,7 @@ public partial class App : Application
                 drawerService,
                 todoService,
                 launcher,
+                shellChangeNotifier,
                 logger,
                 quickPanelViewModel,
                 updateService,
@@ -155,6 +157,7 @@ public partial class App : Application
                 drawerService,
                 todoService,
                 launcher,
+                shellChangeNotifier,
                 logger,
                 boxVisualStyleStore,
                 boxPositionLockStateStore,

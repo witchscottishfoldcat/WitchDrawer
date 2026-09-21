@@ -28,6 +28,7 @@ public sealed partial class DesktopBoxManager
     private readonly DrawerService _drawerService;
     private readonly TodoService _todoService;
     private readonly IFileLauncher _launcher;
+    private readonly IShellChangeNotifier _shellChangeNotifier;
     private readonly IAppLogger _logger;
     private readonly BoxVisualStyleStore _boxVisualStyleStore;
     private readonly BoxPositionLockStateStore _boxPositionLockStateStore;
@@ -59,6 +60,7 @@ public sealed partial class DesktopBoxManager
         DrawerService drawerService,
         TodoService todoService,
         IFileLauncher launcher,
+        IShellChangeNotifier shellChangeNotifier,
         IAppLogger logger,
         BoxVisualStyleStore boxVisualStyleStore,
         BoxPositionLockStateStore boxPositionLockStateStore,
@@ -67,6 +69,7 @@ public sealed partial class DesktopBoxManager
         _drawerService = drawerService;
         _todoService = todoService;
         _launcher = launcher;
+        _shellChangeNotifier = shellChangeNotifier;
         _logger = logger;
         _boxVisualStyleStore = boxVisualStyleStore;
         _boxPositionLockStateStore = boxPositionLockStateStore;
@@ -199,6 +202,7 @@ public sealed partial class DesktopBoxManager
                         _drawerService,
                         _todoService,
                         _launcher,
+                        _shellChangeNotifier,
                         _logger,
                         visualStyle,
                         layoutSettings);

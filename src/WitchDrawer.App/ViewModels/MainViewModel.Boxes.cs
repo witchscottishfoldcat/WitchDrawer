@@ -3,7 +3,6 @@ using CommunityToolkit.Mvvm.Messaging;
 using WitchDrawer.App.Infrastructure;
 using WitchDrawer.App.Messages;
 using WitchDrawer.Core.Models;
-using WitchDrawer.Native.Files;
 using WitchDrawer.Native.Windows;
 
 namespace WitchDrawer.App.ViewModels;
@@ -239,7 +238,7 @@ public sealed partial class MainViewModel
                 {
                     var importedItem = await _drawerService.ImportPathAsync(selectedBox.Id, path);
                     imported++;
-                    await ShellChangeNotifier.NotifyItemImportedAsync(importedItem, _logger);
+                    await _shellChangeNotifier.NotifyItemImportedAsync(importedItem, _logger);
                 }
             }
             catch (Exception exception)

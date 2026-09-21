@@ -128,6 +128,7 @@ public sealed class DrawerSecondaryPopupTests
             drawerService,
             new TodoService(repository),
             new NoOpFileLauncher(),
+            new WitchDrawer.Native.Files.ShellChangeNotifierService(),
             new NoOpLogger(),
             BoxVisualStyle.Modern);
 

@@ -124,7 +124,9 @@ public sealed class TodoEditorInteractionTests
         var repository = new DrawerRepository("unused-desktop-layout-test.db");
         var model = new DesktopBoxViewModel(box,
             new DrawerService(new AppPaths(Path.GetTempPath()), repository),
-            new TodoService(repository), new NoOpLauncher(), NullAppLogger.Instance, BoxVisualStyle.Modern);
+            new TodoService(repository), new NoOpLauncher(),
+            new WitchDrawer.Native.Files.ShellChangeNotifierService(), NullAppLogger.Instance,
+            BoxVisualStyle.Modern);
         if (!empty)
         {
             for (var index = 0; index < 100; index++)

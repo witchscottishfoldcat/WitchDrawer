@@ -30,6 +30,7 @@ public sealed class DrawerBoxCreationTests
                 drawerService,
                 new TodoService(repository),
                 launcher,
+                new WitchDrawer.Native.Files.ShellChangeNotifierService(),
                 logger,
                 quickPanel,
                 new UpdateService(logger),

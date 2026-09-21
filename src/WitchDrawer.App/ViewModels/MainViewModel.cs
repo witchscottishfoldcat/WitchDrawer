@@ -11,7 +11,6 @@ using WitchDrawer.Core.Abstractions;
 using WitchDrawer.Core.Logging;
 using WitchDrawer.Core.Models;
 using WitchDrawer.Core.Services;
-using WitchDrawer.Native.Files;
 using WitchDrawer.Native.Windows;
 
 namespace WitchDrawer.App.ViewModels;
@@ -34,6 +33,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly DrawerService _drawerService;
     private readonly TodoService _todoService;
     private readonly IFileLauncher _launcher;
+    private readonly IShellChangeNotifier _shellChangeNotifier;
     private readonly IAppLogger _logger;
     private readonly QuickPanelViewModel _quickPanelViewModel;
     private readonly UpdateService _updateService;
@@ -84,6 +84,7 @@ public sealed partial class MainViewModel : ObservableObject
         DrawerService drawerService,
         TodoService todoService,
         IFileLauncher launcher,
+        IShellChangeNotifier shellChangeNotifier,
         IAppLogger logger,
         QuickPanelViewModel quickPanelViewModel,
         UpdateService updateService,
@@ -96,6 +97,7 @@ public sealed partial class MainViewModel : ObservableObject
         _drawerService = drawerService;
         _todoService = todoService;
         _launcher = launcher;
+        _shellChangeNotifier = shellChangeNotifier;
         _logger = logger;
         _quickPanelViewModel = quickPanelViewModel;
         _updateService = updateService;

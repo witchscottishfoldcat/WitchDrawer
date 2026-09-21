@@ -113,6 +113,7 @@ public sealed class BoxSizeSettingsTests
                 drawerService,
                 new TodoService(repository),
                 new NoOpFileLauncher(),
+                new WitchDrawer.Native.Files.ShellChangeNotifierService(),
                 new RecordingLogger(),
                 BoxVisualStyle.Modern);
 
@@ -166,6 +167,7 @@ public sealed class BoxSizeSettingsTests
                 drawerService,
                 new TodoService(repository),
                 new NoOpFileLauncher(),
+                new WitchDrawer.Native.Files.ShellChangeNotifierService(),
                 new RecordingLogger(),
                 BoxVisualStyle.Modern);
 
@@ -320,6 +322,7 @@ public sealed class BoxSizeSettingsTests
                 drawerService,
                 new TodoService(repository),
                 new NoOpFileLauncher(),
+                new WitchDrawer.Native.Files.ShellChangeNotifierService(),
                 new RecordingLogger(),
                 BoxVisualStyle.Modern);
             viewModel.ApplySizeMode(new BoxSizeModeState(true, 1, 2));
@@ -374,6 +377,7 @@ public sealed class BoxSizeSettingsTests
                 drawerService,
                 new TodoService(repository),
                 new NoOpFileLauncher(),
+                new WitchDrawer.Native.Files.ShellChangeNotifierService(),
                 new RecordingLogger(),
                 BoxVisualStyle.Modern);
             viewModel.ApplySizeMode(new BoxSizeModeState(true, 2, 1));
@@ -417,6 +421,7 @@ public sealed class BoxSizeSettingsTests
                 drawerService,
                 new TodoService(repository),
                 new NoOpFileLauncher(),
+                new WitchDrawer.Native.Files.ShellChangeNotifierService(),
                 new RecordingLogger(),
                 BoxVisualStyle.Modern);
 
@@ -532,7 +537,8 @@ public sealed class BoxSizeSettingsTests
             var (service, repository) = await CreateDrawerServiceAsync(root);
             var box = await service.CreateBoxAsync("batch", BoxType.Normal);
             var viewModel = new DesktopBoxViewModel(box, service, new TodoService(repository),
-                new NoOpFileLauncher(), new RecordingLogger(), BoxVisualStyle.Modern);
+                new NoOpFileLauncher(), new WitchDrawer.Native.Files.ShellChangeNotifierService(),
+                new RecordingLogger(), BoxVisualStyle.Modern);
             await viewModel.LoadAsync();
             var source = Path.Combine(root, "source.txt");
             var blocked = Path.Combine(root, "blocked.txt");
@@ -577,7 +583,8 @@ public sealed class BoxSizeSettingsTests
             await File.WriteAllTextAsync(nextSource, "next");
             await service.ImportPathAsync(box.Id, firstSource);
             var viewModel = new DesktopBoxViewModel(box, service, new TodoService(repository),
-                new NoOpFileLauncher(), new RecordingLogger(), BoxVisualStyle.Modern);
+                new NoOpFileLauncher(), new WitchDrawer.Native.Files.ShellChangeNotifierService(),
+                new RecordingLogger(), BoxVisualStyle.Modern);
             viewModel.ApplyDrawerSortMode(sortMode);
             await viewModel.LoadAsync();
             var retained = Assert.Single(viewModel.Items);
@@ -706,6 +713,7 @@ public sealed class FixedModeImportEnforcementTests
                 drawerService,
                 new TodoService(repository),
                 launcher,
+                new WitchDrawer.Native.Files.ShellChangeNotifierService(),
                 logger,
                 quickPanel,
                 new UpdateService(logger),
@@ -787,6 +795,7 @@ public sealed class FixedModeImportEnforcementTests
                 drawerService,
                 new TodoService(repository),
                 new NoOpFileLauncher(),
+                new WitchDrawer.Native.Files.ShellChangeNotifierService(),
                 new RecordingLogger(),
                 BoxVisualStyle.Modern);
             viewModel.ApplySizeMode(new BoxSizeModeState(true, 2, 1));

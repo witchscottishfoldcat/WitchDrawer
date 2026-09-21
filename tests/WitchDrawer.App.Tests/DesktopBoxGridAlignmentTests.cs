@@ -154,7 +154,8 @@ public sealed class DesktopBoxGridAlignmentTests
         var layout = new DesktopBoxLayoutSettings(type == BoxType.Drawer);
         layout.ApplyPresetWithoutCallback(preset);
         var model = new DesktopBoxViewModel(box, new DrawerService(paths, repository),
-            new TodoService(repository), new NoOpLauncher(), NullAppLogger.Instance,
+            new TodoService(repository), new NoOpLauncher(),
+            new WitchDrawer.Native.Files.ShellChangeNotifierService(), NullAppLogger.Instance,
             BoxVisualStyle.Modern, layout);
         model.ApplyTitleVisibility(titleVisible);
         model.ApplyFileNameVisibility(namesVisible);

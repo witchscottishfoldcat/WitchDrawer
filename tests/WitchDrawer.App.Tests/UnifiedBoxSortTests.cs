@@ -256,6 +256,7 @@ public sealed class UnifiedBoxSortTests
             drawerService,
             new TodoService(repository),
             new NoOpFileLauncher(),
+            new WitchDrawer.Native.Files.ShellChangeNotifierService(),
             new RecordingLogger(),
             BoxVisualStyle.Modern);
 

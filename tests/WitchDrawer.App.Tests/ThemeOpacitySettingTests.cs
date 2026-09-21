@@ -472,6 +472,7 @@ public sealed class ThemeOpacitySettingTests
                 drawerService,
                 new TodoService(repository),
                 launcher,
+                new WitchDrawer.Native.Files.ShellChangeNotifierService(),
                 logger,
                 new QuickPanelViewModel(drawerService, launcher, logger, visualStyleStore),
                 new UpdateService(logger),

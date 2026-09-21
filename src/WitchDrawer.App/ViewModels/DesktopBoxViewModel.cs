@@ -12,7 +12,6 @@ using WitchDrawer.Core.Abstractions;
 using WitchDrawer.Core.Logging;
 using WitchDrawer.Core.Models;
 using WitchDrawer.Core.Services;
-using WitchDrawer.Native.Files;
 
 namespace WitchDrawer.App.ViewModels;
 
@@ -57,6 +56,7 @@ public sealed partial class DesktopBoxViewModel : ObservableObject
     private readonly DrawerService _drawerService;
     private readonly TodoService _todoService;
     private readonly IFileLauncher _launcher;
+    private readonly IShellChangeNotifier _shellChangeNotifier;
     private readonly IAppLogger _logger;
     private readonly DesktopBoxLayoutSettings _layoutSettings;
     private Box _box;
@@ -108,6 +108,7 @@ public sealed partial class DesktopBoxViewModel : ObservableObject
         DrawerService drawerService,
         TodoService todoService,
         IFileLauncher launcher,
+        IShellChangeNotifier shellChangeNotifier,
         IAppLogger logger,
         BoxVisualStyle visualStyle,
         DesktopBoxLayoutSettings? layoutSettings = null)
@@ -117,6 +118,7 @@ public sealed partial class DesktopBoxViewModel : ObservableObject
         _drawerService = drawerService;
         _todoService = todoService;
         _launcher = launcher;
+        _shellChangeNotifier = shellChangeNotifier;
         _logger = logger;
         _layoutSettings = layoutSettings ?? new DesktopBoxLayoutSettings(box.Type == BoxType.Drawer);
         _mappingListWidth = _layoutSettings.MappingListWidth;

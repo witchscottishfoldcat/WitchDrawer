@@ -2,7 +2,6 @@ using System.IO;
 using CommunityToolkit.Mvvm.Messaging;
 using WitchDrawer.App.Messages;
 using WitchDrawer.Core.Models;
-using WitchDrawer.Native.Files;
 
 namespace WitchDrawer.App.ViewModels;
 
@@ -231,7 +230,7 @@ public sealed partial class DesktopBoxViewModel
 
                     var sortedImport = await _drawerService.ImportPathAsync(BoxId, path);
                     importedIds.Add(sortedImport.Id);
-                    await ShellChangeNotifier.NotifyItemImportedAsync(sortedImport, _logger);
+                    await _shellChangeNotifier.NotifyItemImportedAsync(sortedImport, _logger);
                     continue;
                 }
 
@@ -252,7 +251,7 @@ public sealed partial class DesktopBoxViewModel
                 reservedSlots.Add(slot);
                 var importedItem = await _drawerService.ImportPathAsync(BoxId, path, slot.Column, slot.Row);
                 importedIds.Add(importedItem.Id);
-                await ShellChangeNotifier.NotifyItemImportedAsync(importedItem, _logger);
+                await _shellChangeNotifier.NotifyItemImportedAsync(importedItem, _logger);
                 nextColumn = slot.Column + 1;
                 nextRow = slot.Row;
             }
@@ -395,7 +394,7 @@ public sealed partial class DesktopBoxViewModel
             }
 
             var exportedPath = await _drawerService.ExportItemToDirectoryAsync(item.Id, desktopDirectory);
-            await Task.Run(() => ShellChangeNotifier.NotifyFolderItemCreated(
+            await Task.Run(() => _shellChangeNotifier.NotifyFolderItemCreated(
                 exportedPath,
                 item.Model.ItemKind == ItemKind.Directory));
             await LoadAsync();

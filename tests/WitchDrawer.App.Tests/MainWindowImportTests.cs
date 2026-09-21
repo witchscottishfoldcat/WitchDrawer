@@ -26,7 +26,8 @@ public sealed class MainWindowImportTests
             var launcher = new NoOpLauncher();
             var styles = new BoxVisualStyleStore(service, logger);
             var quickPanel = new QuickPanelViewModel(service, launcher, logger, styles);
-            var viewModel = new MainViewModel(service, new TodoService(repository), launcher, logger,
+            var viewModel = new MainViewModel(service, new TodoService(repository), launcher,
+                new WitchDrawer.Native.Files.ShellChangeNotifierService(), logger,
                 quickPanel, new UpdateService(logger), styles,
                 new BoxPositionLockStateStore(service, logger), paths,
                 new DataStorageMigrationService(paths, repository,

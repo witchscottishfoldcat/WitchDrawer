@@ -117,6 +117,7 @@ public sealed class TodoBoxDetailViewModelTests
             workspace.DrawerService,
             workspace.TodoService,
             launcher,
+            new WitchDrawer.Native.Files.ShellChangeNotifierService(),
             logger,
             quickPanel,
             new UpdateService(logger),
@@ -162,6 +163,7 @@ public sealed class TodoBoxDetailViewModelTests
             workspace.DrawerService,
             workspace.TodoService,
             new NoOpFileLauncher(),
+            new WitchDrawer.Native.Files.ShellChangeNotifierService(),
             new RecordingLogger(),
             BoxVisualStyle.Modern);
         await viewModel.LoadAsync();
@@ -188,6 +190,7 @@ public sealed class TodoBoxDetailViewModelTests
             workspace.DrawerService,
             workspace.TodoService,
             new NoOpFileLauncher(),
+            new WitchDrawer.Native.Files.ShellChangeNotifierService(),
             new RecordingLogger(),
             BoxVisualStyle.Modern);
 
@@ -199,6 +202,7 @@ public sealed class TodoBoxDetailViewModelTests
             workspace.DrawerService,
             workspace.TodoService,
             new NoOpFileLauncher(),
+            new WitchDrawer.Native.Files.ShellChangeNotifierService(),
             new RecordingLogger(),
             BoxVisualStyle.Modern);
         await restored.LoadTodoPanelSizeAsync();
