@@ -31,7 +31,7 @@ public partial class QuickPanelWindow : Window
             return;
         }
 
-        await ViewModel.LoadAsync();
+        await ViewModel.EnsureLoadedAsync();
         Show();
         WindowMotion.PopIn(this, 0.97, 130);
         Activate();

@@ -1,0 +1,5 @@
+[seed] 20 盒 × 30 项 + 设置，耗时 18595 ms
+[init] InitializeAsync（再次启动，20 盒 600 项）: 73 ms
+[settings] 逐项读取 232 次: 504 ms
+[settings] 快照读取: 当前构建未提供 GetAllSettingsAsync（基线）
+[init] InitializeAsync（首次启动，空目录）: 89 ms

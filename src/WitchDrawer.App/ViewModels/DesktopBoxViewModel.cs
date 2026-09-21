@@ -661,6 +661,14 @@ public sealed class DesktopBoxViewModel : ObservableObject
             return;
         }
 
+        // OLE repeats DragOver even while the pointer stays in the same slot.
+        // Do not scan every item or invalidate bindings again for that case.
+        if (IsDragPreviewVisible && _previewColumn == column && _previewRow == row
+            && _dragPreviewWidthOverride is null && _dragPreviewHeightOverride is null)
+        {
+            return;
+        }
+
         _previewColumn = column;
         _previewRow = row;
         _dragPreviewWidthOverride = null;
@@ -674,6 +682,11 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
     public void HideDragPreview()
     {
+        if (!IsDragPreviewVisible && _dragPreviewWidthOverride is null && _dragPreviewHeightOverride is null)
+        {
+            return;
+        }
+
         IsDragPreviewVisible = false;
         _previewColumn = 0;
         _previewRow = 0;
@@ -687,6 +700,14 @@ public sealed class DesktopBoxViewModel : ObservableObject
     // canvas' coordinate space, instead of using item-grid slot math.
     public void ShowDragPreviewAt(double left, double top, double width, double height)
     {
+        width = Math.Max(1, width);
+        height = Math.Max(1, height);
+        if (IsDragPreviewVisible && DragPreviewLeft == left && DragPreviewTop == top
+            && _dragPreviewWidthOverride == width && _dragPreviewHeightOverride == height)
+        {
+            return;
+        }
+
         _previewColumn = 0;
         _previewRow = 0;
         _dragPreviewWidthOverride = Math.Max(1, width);
@@ -1260,7 +1281,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
         }
     }
 
-    public async Task LoadMappingViewModeAsync()
+    public async Task LoadMappingViewModeAsync(StartupSettingsSnapshot? snapshot = null)
     {
         if (!IsMappingBox)
         {
@@ -1269,7 +1290,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
         try
         {
-            var savedMode = await _drawerService.GetSettingAsync(MappingViewModeSettingPrefix + BoxId.ToString("N"));
+            var savedMode = await ReadSettingAsync(MappingViewModeSettingPrefix + BoxId.ToString("N"), snapshot);
             SetMappingListMode(string.Equals(savedMode, MappingListViewMode, StringComparison.OrdinalIgnoreCase));
         }
         catch (Exception exception)
@@ -1330,7 +1351,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
             nameof(MappingListWidth));
     }
 
-    public async Task LoadMappingListWidthAsync()
+    public async Task LoadMappingListWidthAsync(StartupSettingsSnapshot? snapshot = null)
     {
         if (!IsMappingBox)
         {
@@ -1339,7 +1360,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
         try
         {
-            var saved = await _drawerService.GetSettingAsync(GetMappingListWidthSettingKey(BoxId));
+            var saved = await ReadSettingAsync(GetMappingListWidthSettingKey(BoxId), snapshot);
             if (double.TryParse(saved, NumberStyles.Float, CultureInfo.InvariantCulture, out var width)
                 && double.IsFinite(width))
             {
@@ -1404,7 +1425,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
         SetProperty(ref _todoPanelHeight, normalized.Height, nameof(TodoPanelHeight));
     }
 
-    public async Task LoadTodoPanelSizeAsync()
+    public async Task LoadTodoPanelSizeAsync(StartupSettingsSnapshot? snapshot = null)
     {
         if (!IsTodoBox)
         {
@@ -1413,7 +1434,7 @@ public sealed class DesktopBoxViewModel : ObservableObject
 
         try
         {
-            var saved = await _drawerService.GetSettingAsync(GetTodoPanelSizeSettingKey(BoxId));
+            var saved = await ReadSettingAsync(GetTodoPanelSizeSettingKey(BoxId), snapshot);
             if (TryParseTodoPanelSize(saved, out var width, out var height))
             {
                 ResizeTodoPanel(width, height);
@@ -1730,9 +1751,12 @@ public sealed class DesktopBoxViewModel : ObservableObject
             maxRow = Math.Max(maxRow, _previewRow);
         }
 
-        foreach (var item in Items)
+        if (positionsChanged)
         {
-            item.SetTempOffset(0, 0, LayoutSettings);
+            foreach (var item in Items)
+            {
+                item.SetTempOffset(0, 0, LayoutSettings);
+            }
         }
 
         if (IsFixedSize)
@@ -1799,9 +1823,14 @@ public sealed class DesktopBoxViewModel : ObservableObject
         UpdateGridCanvasSize();
     }
 
-    internal async Task LoadSizeModeAsync()
+    private async Task<string?> ReadSettingAsync(string key, StartupSettingsSnapshot? snapshot)
+        => snapshot is not null
+            ? snapshot.Get(key)
+            : await _drawerService.GetSettingAsync(key);
+
+    internal async Task LoadSizeModeAsync(StartupSettingsSnapshot? snapshot = null)
     {
-        var saved = await _drawerService.GetSettingAsync(BoxViewModel.GetSizeModeSettingKey(BoxId));
+        var saved = await ReadSettingAsync(BoxViewModel.GetSizeModeSettingKey(BoxId), snapshot);
         ApplySizeMode(BoxSizeModeState.Parse(saved));
     }
 
@@ -1840,14 +1869,14 @@ public sealed class DesktopBoxViewModel : ObservableObject
         RefreshDrawerPreview();
     }
 
-    public async Task LoadDrawerCoverSizeAsync()
+    public async Task LoadDrawerCoverSizeAsync(StartupSettingsSnapshot? snapshot = null)
     {
         if (!IsDrawerBox)
         {
             return;
         }
 
-        var saved = await _drawerService.GetSettingAsync(GetDrawerCoverSizeSettingKey(BoxId));
+        var saved = await ReadSettingAsync(GetDrawerCoverSizeSettingKey(BoxId), snapshot);
         if (TryParseDrawerCoverSize(saved, out var width, out var height))
         {
             ResizeDrawerCover(width, height);
@@ -1857,13 +1886,13 @@ public sealed class DesktopBoxViewModel : ObservableObject
         ResizeDrawerCover(DefaultDrawerCoverWidth, DefaultDrawerCoverHeight);
     }
 
-    public async Task LoadTitleVisibilityAsync()
+    public async Task LoadTitleVisibilityAsync(StartupSettingsSnapshot? snapshot = null)
     {
-        var saved = await _drawerService.GetSettingAsync(GetTitleVisibilitySettingKey(BoxId));
+        var saved = await ReadSettingAsync(GetTitleVisibilitySettingKey(BoxId), snapshot);
         if (saved is null && IsDrawerBox)
         {
-            saved = await _drawerService.GetSettingAsync(
-                GetLegacyDrawerTitleVisibilitySettingKey(BoxId));
+            saved = await ReadSettingAsync(
+                GetLegacyDrawerTitleVisibilitySettingKey(BoxId), snapshot);
         }
 
         ApplyTitleVisibility(!bool.TryParse(saved, out var isVisible) || isVisible);
@@ -1885,16 +1914,16 @@ public sealed class DesktopBoxViewModel : ObservableObject
         OnPropertyChanged(nameof(DrawerContentHeight));
     }
 
-    public async Task LoadRollUpStateAsync()
+    public async Task LoadRollUpStateAsync(StartupSettingsSnapshot? snapshot = null)
     {
-        var saved = await _drawerService.GetSettingAsync(GetRollUpSettingKey(BoxId));
+        var saved = await ReadSettingAsync(GetRollUpSettingKey(BoxId), snapshot);
         ApplyRollUpState(bool.TryParse(saved, out var isRolledUp) && isRolledUp);
     }
 
-    public async Task LoadHoverRollUpEnabledAsync()
+    public async Task LoadHoverRollUpEnabledAsync(StartupSettingsSnapshot? snapshot = null)
     {
-        var saved = await _drawerService.GetSettingAsync(
-            GetHoverRollUpEnabledSettingKey(BoxId));
+        var saved = await ReadSettingAsync(
+            GetHoverRollUpEnabledSettingKey(BoxId), snapshot);
         ApplyHoverRollUpEnabled(bool.TryParse(saved, out var isEnabled) && isEnabled);
     }
 
@@ -1931,9 +1960,9 @@ public sealed class DesktopBoxViewModel : ObservableObject
         }
     }
 
-    public async Task LoadFileNameVisibilityAsync()
+    public async Task LoadFileNameVisibilityAsync(StartupSettingsSnapshot? snapshot = null)
     {
-        var saved = await _drawerService.GetSettingAsync(GetFileNameVisibilitySettingKey(BoxId));
+        var saved = await ReadSettingAsync(GetFileNameVisibilitySettingKey(BoxId), snapshot);
         ApplyFileNameVisibility(bool.TryParse(saved, out var isVisible) && isVisible);
     }
 
@@ -1946,18 +1975,18 @@ public sealed class DesktopBoxViewModel : ObservableObject
             nameof(IsFileNameVisible));
     }
 
-    public async Task LoadSortModeAsync()
+    public async Task LoadSortModeAsync(StartupSettingsSnapshot? snapshot = null)
     {
         if (!SupportsSorting)
         {
             return;
         }
 
-        var saved = await _drawerService.GetSettingAsync(GetBoxSortModeSettingKey(BoxId));
+        var saved = await ReadSettingAsync(GetBoxSortModeSettingKey(BoxId), snapshot);
         if (saved is null && IsDrawerBox)
         {
             // 迁移抽屉盒旧的 DrawerSortMode: 设置值。
-            saved = await _drawerService.GetSettingAsync(GetDrawerSortModeSettingKey(BoxId));
+            saved = await ReadSettingAsync(GetDrawerSortModeSettingKey(BoxId), snapshot);
         }
 
         ApplyDrawerSortMode(

@@ -80,11 +80,12 @@ public sealed class QuickPanelHotKeyTests
             var drawerService = new DrawerService(paths, repository);
             var store = new QuickPanelHotKeySettingsStore(drawerService);
 
-            var hotKey = await global::WitchDrawer.App.App.InitializeDataAndLoadQuickPanelHotKeyAsync(
+            var (settings, hotKey) = await global::WitchDrawer.App.App.InitializeDataAndLoadStartupStateAsync(
                 drawerService,
                 store);
 
             Assert.Equal(QuickPanelHotKey.Default, hotKey);
+            Assert.NotNull(settings);
             Assert.True(File.Exists(paths.DatabasePath));
             Assert.NotEmpty(await drawerService.GetBoxesAsync());
         }

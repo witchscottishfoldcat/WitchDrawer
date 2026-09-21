@@ -13,7 +13,8 @@ public sealed class BoxPositionLockStateStore(
 
     public async Task<bool> LoadAsync(
         Guid boxId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        StartupSettingsSnapshot? startupSnapshot = null)
     {
         if (_cache.TryGetValue(boxId, out var cachedState))
         {
@@ -23,9 +24,11 @@ public sealed class BoxPositionLockStateStore(
         string? savedValue;
         try
         {
-            savedValue = await drawerService.GetSettingAsync(
-                GetSettingKey(boxId),
-                cancellationToken);
+            savedValue = startupSnapshot is not null
+                ? startupSnapshot.Get(GetSettingKey(boxId))
+                : await drawerService.GetSettingAsync(
+                    GetSettingKey(boxId),
+                    cancellationToken);
         }
         catch (Exception exception)
         {

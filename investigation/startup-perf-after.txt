@@ -1,0 +1,5 @@
+[seed] 20 盒 × 30 项 + 设置，耗时 18075 ms
+[init] InitializeAsync（再次启动，20 盒 600 项）: 52 ms
+[settings] 逐项读取 232 次: 495 ms
+[settings] 快照读取 1 次（232 项）: 3 ms
+[init] InitializeAsync（首次启动，空目录）: 90 ms

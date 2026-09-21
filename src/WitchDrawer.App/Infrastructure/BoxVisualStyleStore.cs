@@ -15,7 +15,8 @@ public sealed class BoxVisualStyleStore(
 
     public async Task<BoxVisualStyle> LoadAsync(
         Box box,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        StartupSettingsSnapshot? startupSnapshot = null)
     {
         if (box.Type is not BoxType.Normal and not BoxType.Pixel)
         {
@@ -32,9 +33,11 @@ public sealed class BoxVisualStyleStore(
         string? savedValue;
         try
         {
-            savedValue = await Task.Run(() => drawerService.GetSettingAsync(
-                GetSettingKey(box.Id),
-                cancellationToken), cancellationToken);
+            savedValue = startupSnapshot is not null
+                ? startupSnapshot.Get(GetSettingKey(box.Id))
+                : await Task.Run(() => drawerService.GetSettingAsync(
+                    GetSettingKey(box.Id),
+                    cancellationToken), cancellationToken);
         }
         catch (Exception exception)
         {

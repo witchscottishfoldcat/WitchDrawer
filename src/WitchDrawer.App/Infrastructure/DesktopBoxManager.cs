@@ -130,7 +130,7 @@ public sealed class DesktopBoxManager
     private int _refreshVersion;
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
 
-    public async Task RefreshAsync()
+    public async Task RefreshAsync(StartupSettingsSnapshot? startupSnapshot = null)
     {
         if (_closing)
         {
@@ -177,15 +177,21 @@ public sealed class DesktopBoxManager
                 }
 
                 var box = boxes[index];
-                var visualStyle = await _boxVisualStyleStore.LoadAsync(box);
+                var visualStyle = await _boxVisualStyleStore.LoadAsync(
+                    box,
+                    startupSnapshot: startupSnapshot);
                 var isPositionLocked =
-                    await _boxPositionLockStateStore.LoadAsync(box.Id);
+                    await _boxPositionLockStateStore.LoadAsync(
+                        box.Id,
+                        startupSnapshot: startupSnapshot);
                 if (!_windows.TryGetValue(box.Id, out var window))
                 {
                     var layoutSettings = new DesktopBoxLayoutSettings(
                         box.Type == WitchDrawer.Core.Models.BoxType.Drawer);
-                    var savedPreset = await _drawerService.GetSettingAsync(
-                        BoxViewModel.GetLayoutPresetSettingKey(box.Id));
+                    var savedPreset = startupSnapshot is not null
+                        ? startupSnapshot.Get(BoxViewModel.GetLayoutPresetSettingKey(box.Id))
+                        : await _drawerService.GetSettingAsync(
+                            BoxViewModel.GetLayoutPresetSettingKey(box.Id));
                     layoutSettings.ApplyPresetWithoutCallback(savedPreset);
 
                     var viewModel = new DesktopBoxViewModel(
@@ -196,18 +202,18 @@ public sealed class DesktopBoxManager
                         _logger,
                         visualStyle,
                         layoutSettings);
-                    await viewModel.LoadTitleVisibilityAsync();
-                    await viewModel.LoadFileNameVisibilityAsync();
-                    await viewModel.LoadMappingViewModeAsync();
-                    await viewModel.LoadMappingListWidthAsync();
-                    await viewModel.LoadTodoPanelSizeAsync();
+                    await viewModel.LoadTitleVisibilityAsync(startupSnapshot);
+                    await viewModel.LoadFileNameVisibilityAsync(startupSnapshot);
+                    await viewModel.LoadMappingViewModeAsync(startupSnapshot);
+                    await viewModel.LoadMappingListWidthAsync(startupSnapshot);
+                    await viewModel.LoadTodoPanelSizeAsync(startupSnapshot);
                     // The persisted drawer height is snapped against the active row height.
                     // Load the file-name row first so a saved 4x4 cover stays 4x4 after restart.
-                    await viewModel.LoadDrawerCoverSizeAsync();
-                    await viewModel.LoadRollUpStateAsync();
-                    await viewModel.LoadHoverRollUpEnabledAsync();
-                    await viewModel.LoadSortModeAsync();
-                    await viewModel.LoadSizeModeAsync();
+                    await viewModel.LoadDrawerCoverSizeAsync(startupSnapshot);
+                    await viewModel.LoadRollUpStateAsync(startupSnapshot);
+                    await viewModel.LoadHoverRollUpEnabledAsync(startupSnapshot);
+                    await viewModel.LoadSortModeAsync(startupSnapshot);
+                    await viewModel.LoadSizeModeAsync(startupSnapshot);
                     viewModel.ItemsChanged += (_, _) => ItemsChanged?.Invoke(
                         this,
                         new BoxItemsChangedEventArgs(viewModel.BoxId));

@@ -12,6 +12,7 @@ public sealed class DrawerService
     private readonly List<string> _recoveryWarnings = [];
     private volatile bool _retryPendingRecoveryOnRead;
     private readonly SemaphoreSlim _fileOperationGate = new(1, 1);
+    private readonly SemaphoreSlim _settingsWriteGate = new(1, 1);
 
     // Exposed so tests can simulate a live journaled operation holding the gate.
     internal SemaphoreSlim FileOperationGate => _fileOperationGate;
@@ -24,11 +25,19 @@ public sealed class DrawerService
         _repository = repository;
     }
 
-    public async Task InitializeAsync(CancellationToken cancellationToken = default)
+    /// <summary>
+    /// 启动初始化整体在后台线程执行：SQLite 的异步 API 可能同步完成，
+    /// 恢复日志扫描与路径修复中的文件存在检查都不应占用界面线程。
+    /// 顺序必须保持：恢复未完成操作 → 修复存储路径 → 默认盒子检查。
+    /// </summary>
+    public Task InitializeAsync(CancellationToken cancellationToken = default)
+        => Task.Run(() => InitializeCoreAsync(cancellationToken), cancellationToken);
+
+    private async Task InitializeCoreAsync(CancellationToken cancellationToken)
     {
         _paths.EnsureCreated();
         await _repository.InitializeAsync(cancellationToken);
-        await Task.Run(() => RecoverPendingFileOperationsAsync(cancellationToken), cancellationToken);
+        await RecoverPendingFileOperationsAsync(cancellationToken);
         await RepairStoredPathsAsync(cancellationToken);
         await EnsureDefaultBoxesAsync(cancellationToken);
     }
@@ -38,28 +47,32 @@ public sealed class DrawerService
         return Task.Run(() => _repository.GetBoxesAsync(cancellationToken), cancellationToken);
     }
 
-    public async Task ReorderBoxesAsync(
+    public Task ReorderBoxesAsync(
         IReadOnlyList<Guid> orderedBoxIds,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(orderedBoxIds);
-
         var requestedIds = orderedBoxIds.ToArray();
-        if (requestedIds.Distinct().Count() != requestedIds.Length)
+        return Task.Run(() => ReorderBoxesCoreAsync(requestedIds, cancellationToken), cancellationToken);
+    }
+
+    private async Task ReorderBoxesCoreAsync(Guid[] orderedBoxIds, CancellationToken cancellationToken)
+    {
+        if (orderedBoxIds.Distinct().Count() != orderedBoxIds.Length)
         {
             throw new ArgumentException("Box order cannot contain duplicate ids.", nameof(orderedBoxIds));
         }
 
         var existingBoxes = await _repository.GetBoxesAsync(cancellationToken);
         var existingIds = existingBoxes.Select(box => box.Id).ToHashSet();
-        if (requestedIds.Length != existingIds.Count || requestedIds.Any(id => !existingIds.Contains(id)))
+        if (orderedBoxIds.Length != existingIds.Count || orderedBoxIds.Any(id => !existingIds.Contains(id)))
         {
             throw new ArgumentException(
                 "Box order must contain every existing box exactly once.",
                 nameof(orderedBoxIds));
         }
 
-        await _repository.UpdateBoxSortOrdersAsync(requestedIds, cancellationToken);
+        await _repository.UpdateBoxSortOrdersAsync(orderedBoxIds, cancellationToken);
     }
 
     // SQLite's async APIs can execute synchronously. Offload the entire operation,
@@ -94,7 +107,10 @@ public sealed class DrawerService
         return await _repository.SearchItemsAsync(query.Trim(), limit, cancellationToken);
     }
 
-    public async Task<Box> CreateBoxAsync(string name, BoxType type, CancellationToken cancellationToken = default)
+    public Task<Box> CreateBoxAsync(string name, BoxType type, CancellationToken cancellationToken = default)
+        => Task.Run(() => CreateBoxCoreAsync(name, type, cancellationToken), cancellationToken);
+
+    private async Task<Box> CreateBoxCoreAsync(string name, BoxType type, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -357,7 +373,10 @@ public sealed class DrawerService
         return completed.TargetPath;
     }
 
-    public async Task<ItemDeleteResult> DeleteItemAsync(Guid itemId, CancellationToken cancellationToken = default)
+    public Task<ItemDeleteResult> DeleteItemAsync(Guid itemId, CancellationToken cancellationToken = default)
+        => Task.Run(() => DeleteItemCoreAsync(itemId, cancellationToken), cancellationToken);
+
+    private async Task<ItemDeleteResult> DeleteItemCoreAsync(Guid itemId, CancellationToken cancellationToken)
     {
         var item = await _repository.GetItemAsync(itemId, cancellationToken)
             ?? throw new InvalidOperationException("Item does not exist.");
@@ -371,7 +390,10 @@ public sealed class DrawerService
         return await RestoreAndRemoveStoredItemAsync(item, reservedTargets: null, cancellationToken);
     }
 
-    public async Task<BoxDeleteResult> DeleteBoxAsync(Guid boxId, CancellationToken cancellationToken = default)
+    public Task<BoxDeleteResult> DeleteBoxAsync(Guid boxId, CancellationToken cancellationToken = default)
+        => Task.Run(() => DeleteBoxWithGateAsync(boxId, cancellationToken), cancellationToken);
+
+    private async Task<BoxDeleteResult> DeleteBoxWithGateAsync(Guid boxId, CancellationToken cancellationToken)
     {
         await _fileOperationGate.WaitAsync(cancellationToken);
         try
@@ -650,17 +672,48 @@ public sealed class DrawerService
         return _repository.GetSettingAsync(key, cancellationToken);
     }
 
-    public Task SetSettingAsync(string key, string value, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// 启动时一次性读取全部设置（单连接单查询），供主窗口与桌面盒子共享启动快照。
+    /// 快照仅用于本轮启动；运行期间的读取仍走 <see cref="GetSettingAsync"/>。
+    /// </summary>
+    public Task<IReadOnlyDictionary<string, string>> GetAllSettingsAsync(
+        CancellationToken cancellationToken = default)
+        => Task.Run(() => _repository.GetAllSettingsAsync(cancellationToken), cancellationToken);
+
+    public async Task SetSettingAsync(string key, string value, CancellationToken cancellationToken = default)
     {
-        return _repository.SetSettingAsync(key, value, cancellationToken);
+        // Queue before dispatching to the pool so rapid UI changes cannot persist
+        // an older value after a newer one. Waiting for SQLite never blocks WPF.
+        await _settingsWriteGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await Task.Run(() => _repository.SetSettingAsync(key, value, cancellationToken), cancellationToken)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            _settingsWriteGate.Release();
+        }
     }
 
-    public Task<bool> DeleteSettingAsync(string key, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteSettingAsync(string key, CancellationToken cancellationToken = default)
     {
-        return _repository.DeleteSettingAsync(key, cancellationToken);
+        await _settingsWriteGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return await Task.Run(() => _repository.DeleteSettingAsync(key, cancellationToken), cancellationToken)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            _settingsWriteGate.Release();
+        }
     }
 
-    public async Task RenameBoxAsync(Guid boxId, string newName, CancellationToken cancellationToken = default)
+    public Task RenameBoxAsync(Guid boxId, string newName, CancellationToken cancellationToken = default)
+        => Task.Run(() => RenameBoxCoreAsync(boxId, newName, cancellationToken), cancellationToken);
+
+    private async Task RenameBoxCoreAsync(Guid boxId, string newName, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(newName))
         {
@@ -675,7 +728,7 @@ public sealed class DrawerService
 
     public async Task OpenItemAsync(Guid itemId, IFileLauncher launcher, CancellationToken cancellationToken = default)
     {
-        var item = await _repository.GetItemAsync(itemId, cancellationToken)
+        var item = await Task.Run(() => _repository.GetItemAsync(itemId, cancellationToken), cancellationToken)
             ?? throw new InvalidOperationException("Item does not exist.");
 
         var path = item.EffectivePath;
@@ -748,20 +801,29 @@ public sealed class DrawerService
         foreach (var box in boxes.Where(box => box.Type is BoxType.Normal or BoxType.Pixel or BoxType.Drawer))
         {
             var expectedStoragePath = Path.Combine(_paths.BoxesDirectory, box.Id.ToString("N"));
-            if (!Directory.Exists(expectedStoragePath))
-            {
-                continue;
-            }
 
-            if (!string.Equals(
-                    Path.GetFullPath(box.StoragePath ?? expectedStoragePath),
-                    Path.GetFullPath(expectedStoragePath),
-                    StringComparison.OrdinalIgnoreCase))
+            // 先比较记录路径：路径一致（再次启动的常态）时无需为改写入库做目录存在检查；
+            // 不一致时才确认期望目录确实存在（可移动盘掉线时不改写记录）。
+            var storagePathMatches = string.Equals(
+                Path.GetFullPath(box.StoragePath ?? expectedStoragePath),
+                Path.GetFullPath(expectedStoragePath),
+                StringComparison.OrdinalIgnoreCase);
+            if (!storagePathMatches)
             {
+                if (!Directory.Exists(expectedStoragePath))
+                {
+                    continue;
+                }
+
                 await _repository.UpdateBoxStoragePathAsync(
                     box.Id,
                     expectedStoragePath,
                     cancellationToken);
+            }
+            else if (!Directory.Exists(expectedStoragePath))
+            {
+                // 盒子目录不可达时无法判断条目存储路径是否需要修复。
+                continue;
             }
 
             var items = await _repository.GetItemsAsync(box.Id, cancellationToken);
@@ -774,11 +836,17 @@ public sealed class DrawerService
                 }
 
                 var expectedStoredPath = Path.Combine(expectedStoragePath, name);
-                if ((!File.Exists(expectedStoredPath) && !Directory.Exists(expectedStoredPath))
+                // 路径一致是绝大多数情况：先做字符串比较，跳过文件存在检查。
+                if (string.Equals(item.StoredPath, expectedStoredPath, StringComparison.OrdinalIgnoreCase)
                     || string.Equals(
                         Path.GetFullPath(item.StoredPath!),
                         Path.GetFullPath(expectedStoredPath),
                         StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (!File.Exists(expectedStoredPath) && !Directory.Exists(expectedStoredPath))
                 {
                     continue;
                 }

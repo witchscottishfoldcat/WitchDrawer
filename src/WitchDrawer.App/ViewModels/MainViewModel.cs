@@ -109,7 +109,7 @@ public sealed class MainViewModel : ObservableObject
         TodoBoxDetail.ItemsChanged += OnTodoBoxDetailItemsChanged;
         BoxSizeSettings = new BoxSizeSettingsViewModel(drawerService, logger);
 
-        LoadCommand = new AsyncRelayCommand(LoadAsync);
+        LoadCommand = new AsyncRelayCommand(() => LoadAsync());
         CreateNormalBoxCommand = new AsyncRelayCommand(
             () => CreateBoxAsync(BoxType.Normal, BoxVisualStyle.Modern));
         CreateMappingBoxCommand = new AsyncRelayCommand(() => CreateBoxAsync(BoxType.Mapping));
@@ -666,47 +666,49 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
-    public async Task LoadAsync()
+    public async Task LoadAsync(StartupSettingsSnapshot? startupSnapshot = null)
     {
         await RunBusyAsync(async () =>
         {
             var existingSelection = SelectedBox?.Id;
             var boxes = await _drawerService.GetBoxesAsync();
-            var presentedBoxes = await LoadBoxPresentationAsync(boxes);
+            var presentedBoxes = await LoadBoxPresentationAsync(boxes, startupSnapshot);
 
             Boxes.Clear();
             foreach (var (box, visualStyle, isPositionLocked) in presentedBoxes)
             {
-                Boxes.Add(new BoxViewModel(
+                var boxViewModel = new BoxViewModel(
                     box,
                     _drawerService,
                     visualStyle,
                     isPositionLocked,
-                    _logger));
+                    _logger);
+                await boxViewModel.InitializeSettingsAsync(startupSnapshot);
+                Boxes.Add(boxViewModel);
             }
 
             await SelectBoxAsync(Boxes.FirstOrDefault(box => box.Id == existingSelection) ?? Boxes.FirstOrDefault());
 
             // 必须在首次启动标记写入前判断是否为旧安装，才能让新用户使用二段透明度，
             // 同时让升级用户保留旧主题原本的视觉效果。
-            await RestoreThemeBoxOpacitiesAsync();
-            await RestoreAppearanceOpacitiesAsync();
+            await RestoreThemeBoxOpacitiesAsync(startupSnapshot);
+            await RestoreAppearanceOpacitiesAsync(startupSnapshot);
             var editorOpacityFollowSetting =
-                await _drawerService.GetSettingAsync(EditorFollowsBoxOpacitySettingKey);
+                await ReadSettingAsync(EditorFollowsBoxOpacitySettingKey, startupSnapshot);
             EditorFollowsBoxOpacity = bool.TryParse(
                 editorOpacityFollowSetting,
                 out var editorFollowsBoxOpacity)
                 && editorFollowsBoxOpacity;
 
             var iconToolTipCompactSetting =
-                await _drawerService.GetSettingAsync(IconToolTipCompactSettingKey);
+                await ReadSettingAsync(IconToolTipCompactSettingKey, startupSnapshot);
             IconToolTipCompact = bool.TryParse(
                 iconToolTipCompactSetting,
                 out var iconToolTipCompact)
                 && iconToolTipCompact;
             PublishIconToolTipMode();
 
-            var autoHideSettings = await _autoHideSettingsStore.LoadAsync();
+            var autoHideSettings = await _autoHideSettingsStore.LoadAsync(startupSnapshot: startupSnapshot);
             AutoHideEnabled = autoHideSettings.IsEnabled;
             AutoHideHiddenTransparencyPercent = autoHideSettings.HiddenTransparencyPercent;
             AutoHideRevealScope = autoHideSettings.RevealScope;
@@ -715,7 +717,7 @@ public sealed class MainViewModel : ObservableObject
             AutoHideFadeBorder = autoHideSettings.FadeBorder;
             PublishAutoHideSettings();
 
-            var aboutPageShown = await _drawerService.GetSettingAsync(AboutPageShownSettingKey);
+            var aboutPageShown = await ReadSettingAsync(AboutPageShownSettingKey, startupSnapshot);
             if (!bool.TryParse(aboutPageShown, out var hasShownAboutPage) || !hasShownAboutPage)
             {
                 ShowAboutCommand.Execute(null);
@@ -734,7 +736,7 @@ public sealed class MainViewModel : ObservableObject
             LaunchOnStartup = ReadStartupRegistry();
             AreDesktopIconsHidden = DesktopIconVisibility.IsHidden();
             var desktopDoubleClickSetting =
-                await _drawerService.GetSettingAsync(DesktopDoubleClickSettingKey);
+                await ReadSettingAsync(DesktopDoubleClickSettingKey, startupSnapshot);
             IsDesktopDoubleClickEnabled =
                 bool.TryParse(desktopDoubleClickSetting, out var desktopDoubleClickEnabled)
                 && desktopDoubleClickEnabled;
@@ -776,7 +778,7 @@ public sealed class MainViewModel : ObservableObject
             }
             else
             {
-                await _quickPanelViewModel.LoadAsync();
+                await _quickPanelViewModel.RefreshAllAsync();
             }
         }
         catch (Exception exception)
@@ -967,6 +969,7 @@ public sealed class MainViewModel : ObservableObject
                 effectiveStyle,
                 isPositionLocked: false,
                 logger: _logger);
+            await viewModel.InitializeSettingsAsync();
             Boxes.Add(viewModel);
             await SelectBoxAsync(viewModel);
             StatusText = $"已创建 {name}，桌面收纳栏已生成";
@@ -1034,15 +1037,21 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
+    private async Task<string?> ReadSettingAsync(string key, StartupSettingsSnapshot? startupSnapshot)
+        => startupSnapshot is not null
+            ? startupSnapshot.Get(key)
+            : await _drawerService.GetSettingAsync(key);
+
     private async Task<(Box Box, BoxVisualStyle VisualStyle, bool IsPositionLocked)[]> LoadBoxPresentationAsync(
-        IReadOnlyList<Box> boxes)
+        IReadOnlyList<Box> boxes,
+        StartupSettingsSnapshot? startupSnapshot = null)
     {
         return await Task.WhenAll(
             boxes.Select(async box =>
             {
-                var visualStyleTask = _boxVisualStyleStore.LoadAsync(box);
+                var visualStyleTask = _boxVisualStyleStore.LoadAsync(box, startupSnapshot: startupSnapshot);
                 var positionLockStateTask =
-                    _boxPositionLockStateStore.LoadAsync(box.Id);
+                    _boxPositionLockStateStore.LoadAsync(box.Id, startupSnapshot: startupSnapshot);
                 await Task.WhenAll(visualStyleTask, positionLockStateTask);
                 return (
                     Box: box,
@@ -1068,12 +1077,14 @@ public sealed class MainViewModel : ObservableObject
             Boxes.Clear();
             foreach (var (box, visualStyle, isPositionLocked) in presentedBoxes)
             {
-                Boxes.Add(new BoxViewModel(
+                var boxViewModel = new BoxViewModel(
                     box,
                     _drawerService,
                     visualStyle,
                     isPositionLocked,
-                    _logger));
+                    _logger);
+                await boxViewModel.InitializeSettingsAsync();
+                Boxes.Add(boxViewModel);
             }
 
             await SelectBoxAsync(
@@ -1105,12 +1116,14 @@ public sealed class MainViewModel : ObservableObject
             Boxes.Clear();
             foreach (var (box, visualStyle, isPositionLocked) in presentedBoxes)
             {
-                Boxes.Add(new BoxViewModel(
+                var boxViewModel = new BoxViewModel(
                     box,
                     _drawerService,
                     visualStyle,
                     isPositionLocked,
-                    _logger));
+                    _logger);
+                await boxViewModel.InitializeSettingsAsync();
+                Boxes.Add(boxViewModel);
             }
 
             await SelectBoxAsync(Boxes.FirstOrDefault(b => b.Id == selectedBox.Id) ?? Boxes.FirstOrDefault());
@@ -1517,10 +1530,10 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
-    private async Task RestoreThemeBoxOpacitiesAsync()
+    private async Task RestoreThemeBoxOpacitiesAsync(StartupSettingsSnapshot? startupSnapshot = null)
     {
         var migrationVersion =
-            await _drawerService.GetSettingAsync(ThemeBoxOpacityMigrationVersionSettingKey);
+            await ReadSettingAsync(ThemeBoxOpacityMigrationVersionSettingKey, startupSnapshot);
         if (string.Equals(
                 migrationVersion,
                 ThemeBoxOpacityMigrationVersion,
@@ -1528,7 +1541,7 @@ public sealed class MainViewModel : ObservableObject
         {
             foreach (var theme in Enum.GetValues<AppTheme>())
             {
-                var savedOpacity = await _drawerService.GetSettingAsync(GetThemeBoxOpacitySettingKey(theme));
+                var savedOpacity = await ReadSettingAsync(GetThemeBoxOpacitySettingKey(theme), startupSnapshot);
                 AppThemeManager.SetBoxOpacity(theme, ParseSavedOpacity(savedOpacity));
             }
 
@@ -1542,7 +1555,7 @@ public sealed class MainViewModel : ObservableObject
             if (string.Equals(migrationVersion, "1", StringComparison.Ordinal))
             {
                 var savedOpacity = ParseSavedOpacity(
-                    await _drawerService.GetSettingAsync(GetThemeBoxOpacitySettingKey(theme)));
+                    await ReadSettingAsync(GetThemeBoxOpacitySettingKey(theme), startupSnapshot));
                 if (!IsVersionOneGeneratedDefault(savedOpacity))
                 {
                     opacity = savedOpacity;
@@ -1703,14 +1716,14 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
-    private async Task RestoreAppearanceOpacitiesAsync()
+    private async Task RestoreAppearanceOpacitiesAsync(StartupSettingsSnapshot? startupSnapshot = null)
     {
         foreach (var theme in Enum.GetValues<AppTheme>())
         {
             AppThemeManager.SetBoxBorderOpacity(theme, ParseAppearanceOpacity(
-                await _drawerService.GetSettingAsync(BoxBorderOpacitySettingKeyPrefix + theme)));
+                await ReadSettingAsync(BoxBorderOpacitySettingKeyPrefix + theme, startupSnapshot)));
             AppThemeManager.SetIconFrameOpacity(theme, ParseAppearanceOpacity(
-                await _drawerService.GetSettingAsync(IconFrameOpacitySettingKeyPrefix + theme)));
+                await ReadSettingAsync(IconFrameOpacitySettingKeyPrefix + theme, startupSnapshot)));
         }
 
         SynchronizeThemeTransparency();

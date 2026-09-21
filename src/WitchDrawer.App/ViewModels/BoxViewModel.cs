@@ -49,16 +49,42 @@ public sealed partial class BoxViewModel : ObservableObject
                 }
             });
 
-        FireAndForget.Run(LoadPresetAsync(), _logger, $"Failed to load layout preset for box {Id:N}.");
-        FireAndForget.Run(LoadTitleVisibilityAsync(), _logger, $"Failed to load title visibility for box {Id:N}.");
-        FireAndForget.Run(LoadFileNameVisibilityAsync(), _logger, $"Failed to load file name visibility for box {Id:N}.");
-        FireAndForget.Run(LoadHoverRollUpEnabledAsync(), _logger, $"Failed to load hover roll-up setting for box {Id:N}.");
-        FireAndForget.Run(LoadDrawerSortModeAsync(), _logger, $"Failed to load drawer sort mode for box {Id:N}.");
     }
 
-    private async Task LoadPresetAsync()
+    /// <summary>
+    /// 明确、可等待的设置初始化。启动路径传入快照避免逐项打开数据库连接；
+    /// 运行期间新建/替换视图模型时传 null，实时读取数据库以保证不拿到过期快照。
+    /// 单项加载失败保留默认值并记录日志（与原 FireAndForget 行为一致）。
+    /// </summary>
+    internal async Task InitializeSettingsAsync(StartupSettingsSnapshot? snapshot = null)
     {
-        var preset = await _drawerService.GetSettingAsync(GetLayoutPresetSettingKey(Id));
+        await TryLoadAsync(() => LoadPresetAsync(snapshot), "layout preset");
+        await TryLoadAsync(() => LoadTitleVisibilityAsync(snapshot), "title visibility");
+        await TryLoadAsync(() => LoadFileNameVisibilityAsync(snapshot), "file name visibility");
+        await TryLoadAsync(() => LoadHoverRollUpEnabledAsync(snapshot), "hover roll-up setting");
+        await TryLoadAsync(() => LoadDrawerSortModeAsync(snapshot), "drawer sort mode");
+    }
+
+    private async Task TryLoadAsync(Func<Task> load, string description)
+    {
+        try
+        {
+            await load();
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, $"Failed to load {description} for box {Id:N}.");
+        }
+    }
+
+    private async Task<string?> ReadSettingAsync(string key, StartupSettingsSnapshot? snapshot)
+        => snapshot is not null
+            ? snapshot.Get(key)
+            : await _drawerService.GetSettingAsync(key);
+
+    private async Task LoadPresetAsync(StartupSettingsSnapshot? snapshot = null)
+    {
+        var preset = await ReadSettingAsync(GetLayoutPresetSettingKey(Id), snapshot);
         LayoutSettings.ApplyPresetWithoutCallback(preset);
     }
 
@@ -254,13 +280,13 @@ public sealed partial class BoxViewModel : ObservableObject
             new BoxTitleVisibilityChangedMessage(Id, isVisible));
     }
 
-    internal async Task LoadTitleVisibilityAsync()
+    internal async Task LoadTitleVisibilityAsync(StartupSettingsSnapshot? snapshot = null)
     {
-        var saved = await _drawerService.GetSettingAsync(GetTitleVisibilitySettingKey(Id));
+        var saved = await ReadSettingAsync(GetTitleVisibilitySettingKey(Id), snapshot);
         if (saved is null && IsDrawerBox)
         {
-            saved = await _drawerService.GetSettingAsync(
-                GetLegacyDrawerTitleVisibilitySettingKey(Id));
+            saved = await ReadSettingAsync(
+                GetLegacyDrawerTitleVisibilitySettingKey(Id), snapshot);
         }
 
         ApplyTitleVisibility(!bool.TryParse(saved, out var isVisible) || isVisible);
@@ -283,9 +309,9 @@ public sealed partial class BoxViewModel : ObservableObject
             new BoxFileNameVisibilityChangedMessage(Id, isVisible));
     }
 
-    internal async Task LoadFileNameVisibilityAsync()
+    internal async Task LoadFileNameVisibilityAsync(StartupSettingsSnapshot? snapshot = null)
     {
-        var saved = await _drawerService.GetSettingAsync(GetFileNameVisibilitySettingKey(Id));
+        var saved = await ReadSettingAsync(GetFileNameVisibilitySettingKey(Id), snapshot);
         ApplyFileNameVisibility(bool.TryParse(saved, out var isVisible) && isVisible);
     }
 
@@ -306,10 +332,10 @@ public sealed partial class BoxViewModel : ObservableObject
             new BoxHoverRollUpEnabledChangedMessage(Id, isEnabled));
     }
 
-    internal async Task LoadHoverRollUpEnabledAsync()
+    internal async Task LoadHoverRollUpEnabledAsync(StartupSettingsSnapshot? snapshot = null)
     {
-        var saved = await _drawerService.GetSettingAsync(
-            GetHoverRollUpEnabledSettingKey(Id));
+        var saved = await ReadSettingAsync(
+            GetHoverRollUpEnabledSettingKey(Id), snapshot);
         ApplyHoverRollUpEnabled(bool.TryParse(saved, out var isEnabled) && isEnabled);
     }
 
@@ -328,18 +354,18 @@ public sealed partial class BoxViewModel : ObservableObject
         WeakReferenceMessenger.Default.Send(new DrawerSortModeChangedMessage(Id, sortMode));
     }
 
-    internal async Task LoadDrawerSortModeAsync()
+    internal async Task LoadDrawerSortModeAsync(StartupSettingsSnapshot? snapshot = null)
     {
         if (!SupportsSorting)
         {
             return;
         }
 
-        var saved = await _drawerService.GetSettingAsync(GetBoxSortModeSettingKey(Id));
+        var saved = await ReadSettingAsync(GetBoxSortModeSettingKey(Id), snapshot);
         if (saved is null && IsDrawerBox)
         {
             // 迁移抽屉盒旧的 DrawerSortMode: 设置值。
-            saved = await _drawerService.GetSettingAsync(GetDrawerSortModeSettingKey(Id));
+            saved = await ReadSettingAsync(GetDrawerSortModeSettingKey(Id), snapshot);
         }
 
         ApplyDrawerSortMode(

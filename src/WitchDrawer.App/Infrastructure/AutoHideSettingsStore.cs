@@ -37,41 +37,43 @@ public sealed class AutoHideSettingsStore(DrawerService drawerService)
     private const string FadeTitleSettingKey = "AutoHide.FadeTitle";
     private const string FadeBorderSettingKey = "AutoHide.FadeBorder";
 
-    public async Task<AutoHideSettings> LoadAsync(CancellationToken cancellationToken = default)
+    public async Task<AutoHideSettings> LoadAsync(
+        CancellationToken cancellationToken = default,
+        StartupSettingsSnapshot? startupSnapshot = null)
     {
         var settings = AutoHideSettings.Defaults;
 
-        var enabledRaw = await drawerService.GetSettingAsync(IsEnabledSettingKey, cancellationToken);
+        var enabledRaw = await ReadSettingAsync(IsEnabledSettingKey, cancellationToken, startupSnapshot);
         if (bool.TryParse(enabledRaw, out var isEnabled) && isEnabled)
         {
             settings = settings with { IsEnabled = true };
         }
 
-        var hiddenRaw = await drawerService.GetSettingAsync(HiddenTransparencySettingKey, cancellationToken);
+        var hiddenRaw = await ReadSettingAsync(HiddenTransparencySettingKey, cancellationToken, startupSnapshot);
         if (int.TryParse(hiddenRaw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var hidden))
         {
             settings = settings with { HiddenTransparencyPercent = ClampHiddenPercent(hidden) };
         }
 
-        var scopeRaw = await drawerService.GetSettingAsync(RevealScopeSettingKey, cancellationToken);
+        var scopeRaw = await ReadSettingAsync(RevealScopeSettingKey, cancellationToken, startupSnapshot);
         if (Enum.TryParse<AutoHideRevealScope>(scopeRaw, ignoreCase: true, out var scope))
         {
             settings = settings with { RevealScope = scope };
         }
 
-        var fadeBoxRaw = await drawerService.GetSettingAsync(FadeWholeBoxSettingKey, cancellationToken);
+        var fadeBoxRaw = await ReadSettingAsync(FadeWholeBoxSettingKey, cancellationToken, startupSnapshot);
         if (bool.TryParse(fadeBoxRaw, out var fadeWholeBox))
         {
             settings = settings with { FadeWholeBox = fadeWholeBox };
         }
 
-        var fadeTitleRaw = await drawerService.GetSettingAsync(FadeTitleSettingKey, cancellationToken);
+        var fadeTitleRaw = await ReadSettingAsync(FadeTitleSettingKey, cancellationToken, startupSnapshot);
         if (bool.TryParse(fadeTitleRaw, out var fadeTitle))
         {
             settings = settings with { FadeTitle = fadeTitle };
         }
 
-        var fadeBorderRaw = await drawerService.GetSettingAsync(FadeBorderSettingKey, cancellationToken);
+        var fadeBorderRaw = await ReadSettingAsync(FadeBorderSettingKey, cancellationToken, startupSnapshot);
         if (bool.TryParse(fadeBorderRaw, out var fadeBorder))
         {
             settings = settings with { FadeBorder = fadeBorder };
@@ -109,6 +111,14 @@ public sealed class AutoHideSettingsStore(DrawerService drawerService)
             settings.FadeBorder.ToString(CultureInfo.InvariantCulture),
             cancellationToken);
     }
+
+    private async Task<string?> ReadSettingAsync(
+        string key,
+        CancellationToken cancellationToken,
+        StartupSettingsSnapshot? startupSnapshot)
+        => startupSnapshot is not null
+            ? startupSnapshot.Get(key)
+            : await drawerService.GetSettingAsync(key, cancellationToken);
 
     private static int ClampHiddenPercent(int hiddenTransparencyPercent)
     {

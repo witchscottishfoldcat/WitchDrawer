@@ -6,9 +6,13 @@ internal sealed class QuickPanelHotKeySettingsStore(DrawerService drawerService)
 {
     internal const string SettingKey = "QuickPanelHotKey";
 
-    public async Task<QuickPanelHotKey> LoadAsync(CancellationToken cancellationToken = default)
+    public async Task<QuickPanelHotKey> LoadAsync(
+        CancellationToken cancellationToken = default,
+        StartupSettingsSnapshot? startupSnapshot = null)
     {
-        var savedValue = await drawerService.GetSettingAsync(SettingKey, cancellationToken);
+        var savedValue = startupSnapshot is not null
+            ? startupSnapshot.Get(SettingKey)
+            : await drawerService.GetSettingAsync(SettingKey, cancellationToken);
         return QuickPanelHotKey.TryParse(savedValue, out var hotKey)
             ? hotKey
             : QuickPanelHotKey.Default;

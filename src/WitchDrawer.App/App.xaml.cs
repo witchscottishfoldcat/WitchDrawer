@@ -30,6 +30,7 @@ public partial class App : Application
     private DesktopBoxManager? _desktopBoxManager;
     private IAppLogger? _logger;
     private int _shutdownStarted;
+    private bool _startupDesktopRefreshPending = true;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -83,6 +84,9 @@ public partial class App : Application
 
             var logger = new FileAppLogger(paths.LogsDirectory);
             _logger = logger;
+            var startupTimer = new StartupTimer(logger);
+            using var uiStallMonitor = new UiThreadStallMonitor(logger);
+            startupTimer.Mark("日志与数据路径就绪");
             var shortcutMigration = await Task.Run(() =>
                 StartupShortcutMigration.EnsureSilentArguments(
                     Environment.ProcessPath,
@@ -98,6 +102,7 @@ public partial class App : Application
                 logger.Error(exception, "Failed to update a legacy startup shortcut.");
             }
 
+            startupTimer.Mark("启动快捷方式迁移完成");
             var repository = new DrawerRepository(paths.DatabasePath);
             var drawerService = new DrawerService(paths, repository);
             var launcher = new ShellFileLauncher();
@@ -116,10 +121,15 @@ public partial class App : Application
             logger.Info("Data directory: " + paths.RootDirectory);
             logger.Info("Database path: " + paths.DatabasePath);
 
-            var quickPanelHotKey = await InitializeDataAndLoadQuickPanelHotKeyAsync(
+            // 数据初始化（恢复未完成操作 → 修复存储路径 → 默认盒子检查）整体在后台线程；
+            // 随后用一次数据库查询生成全部启动设置的快照，主窗口与桌面盒子共享，
+            // 避免逐盒逐项重复打开连接读取。
+            var (startupSettings, quickPanelHotKey) = await InitializeDataAndLoadStartupStateAsync(
                 drawerService,
                 quickPanelHotKeySettings);
-            AppThemeManager.Apply(await LoadSavedThemeAsync(drawerService));
+            startupTimer.Mark("数据初始化完成（恢复 → 路径修复 → 默认盒子）");
+            startupTimer.Mark($"启动设置快照就绪（{startupSettings.Count} 项，单次查询）");
+            AppThemeManager.Apply(LoadSavedTheme(startupSettings));
 
             var quickPanelViewModel = new QuickPanelViewModel(
                 drawerService,
@@ -156,11 +166,20 @@ public partial class App : Application
             _desktopBoxManager.ShowDesktopActivated += (_, _) =>
                 _mainWindow.SendBehindDesktop();
             StartSingleInstanceServer(logger);
+            startupTimer.Mark("主窗口与桌面盒子管理器构建完成");
 
             // 这些事件处理器是 async void：刷新期间的异常（如 SQLite 写入失败）会直接逃出
             // 成为进程级未处理异常，必须就地捕获记录。
             mainViewModel.BoxesChanged += async (_, _) =>
+            {
+                // 启动首刷由下方统一入口负责；运行期间新增、删除盒子仍走这里刷新。
+                if (_startupDesktopRefreshPending)
+                {
+                    return;
+                }
+
                 await GuardRefreshAsync(() => _desktopBoxManager.RefreshAsync(), "RefreshAsync", logger);
+            };
             mainViewModel.ItemsChanged += async (_, eventArgs) =>
                 await GuardRefreshAsync(() => _desktopBoxManager.RefreshItemsAsync(eventArgs.BoxId), "RefreshItemsAsync", logger);
             _desktopBoxManager.ItemsChanged += async (_, eventArgs) =>
@@ -271,9 +290,14 @@ public partial class App : Application
             {
                 _mainWindow.Show();
             }
-            await mainViewModel.LoadAsync();
-            await quickPanelViewModel.LoadAsync();
-            await _desktopBoxManager.RefreshAsync();
+            startupTimer.Mark("主窗口已显示（首个可操作窗口）");
+            await mainViewModel.LoadAsync(startupSettings);
+            startupTimer.Mark("主窗口数据加载完成");
+            // 快捷面板不再随启动预加载：首次打开时由 EnsureLoadedAsync 完整加载。
+            // 桌面盒子首次刷新只有这一个入口，串行保护与运行期刷新事件保持不变。
+            await _desktopBoxManager.RefreshAsync(startupSettings);
+            _startupDesktopRefreshPending = false;
+            startupTimer.Mark("桌面盒子全部就绪");
             if (drawerService.RecoveryWarnings.Count > 0)
             {
                 var details = string.Join(
@@ -288,6 +312,7 @@ public partial class App : Application
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
             }
+            startupTimer.Mark("启动完成");
             await updateService.ConfirmUpdateStartupAsync();
         }
         catch (Exception exception)
@@ -310,18 +335,22 @@ public partial class App : Application
         }
     }
 
-    internal static async Task<QuickPanelHotKey> InitializeDataAndLoadQuickPanelHotKeyAsync(
-        DrawerService drawerService,
-        QuickPanelHotKeySettingsStore quickPanelHotKeySettings,
-        CancellationToken cancellationToken = default)
+    internal static async Task<(StartupSettingsSnapshot Settings, QuickPanelHotKey HotKey)>
+        InitializeDataAndLoadStartupStateAsync(
+            DrawerService drawerService,
+            QuickPanelHotKeySettingsStore quickPanelHotKeySettings,
+            CancellationToken cancellationToken = default)
     {
         await drawerService.InitializeAsync(cancellationToken);
-        return await quickPanelHotKeySettings.LoadAsync(cancellationToken);
+        var settings = new StartupSettingsSnapshot(
+            await drawerService.GetAllSettingsAsync(cancellationToken));
+        var hotKey = await quickPanelHotKeySettings.LoadAsync(cancellationToken, settings);
+        return (settings, hotKey);
     }
 
-    private static async Task<AppTheme> LoadSavedThemeAsync(DrawerService drawerService)
+    private static AppTheme LoadSavedTheme(StartupSettingsSnapshot settings)
     {
-        var savedTheme = await drawerService.GetSettingAsync(ThemeSettingKey);
+        var savedTheme = settings.Get(ThemeSettingKey);
         return Enum.TryParse<AppTheme>(savedTheme, ignoreCase: true, out var theme)
             ? theme
             : AppTheme.Moe;
