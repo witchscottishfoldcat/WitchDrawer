@@ -1,6 +1,6 @@
-using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
+using static WitchDrawer.Native.Windows.DwmInterop;
 
 namespace WitchDrawer.App.Infrastructure;
 
@@ -38,7 +38,4 @@ public static class WindowBackdropManager
     {
         _ = DwmSetWindowAttribute(handle, attribute, ref value, sizeof(int));
     }
-
-    [DllImport("dwmapi.dll")]
-    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int dwAttribute, ref int pvAttribute, int cbAttribute);
 }

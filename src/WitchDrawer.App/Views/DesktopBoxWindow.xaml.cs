@@ -14,6 +14,7 @@ using WitchDrawer.App.Features.ItemContextMenu;
 using WitchDrawer.App.Infrastructure;
 using WitchDrawer.App.ViewModels;
 using WitchDrawer.Native.Windows;
+using static WitchDrawer.Native.Windows.User32Interop;
 
 namespace WitchDrawer.App.Views;
 
@@ -2780,84 +2781,6 @@ public partial class DesktopBoxWindow : Window
         return true;
     }
 
-    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
-    private struct NativePoint
-    {
-        public int X;
-        public int Y;
-    }
-
-    [System.Runtime.InteropServices.DllImport("user32.dll")]
-    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
-    private static extern bool GetCursorPos(out NativePoint lpPoint);
-
-    private static readonly nint WindowPositionTopmost = -1;
-    private const int WindowOwnerIndex = -8;
-    private const uint SetWindowPosNoSize = 0x0001;
-    private const uint SetWindowPosNoMove = 0x0002;
-    private const uint SetWindowPosNoZOrder = 0x0004;
-    private const uint SetWindowPosNoActivate = 0x0010;
-
-    [System.Runtime.InteropServices.DllImport("user32.dll")]
-    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
-    private static extern bool SetWindowPos(
-        nint hWnd,
-        nint hWndInsertAfter,
-        int x,
-        int y,
-        int cx,
-        int cy,
-        uint flags);
-
-    [System.Runtime.InteropServices.DllImport("user32.dll")]
-    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
-    private static extern bool GetWindowRect(nint hWnd, out NativeRect lpRect);
-
-    [System.Runtime.InteropServices.DllImport("user32.dll")]
-    private static extern nint SetWindowLongPtr(nint hWnd, int index, nint newValue);
-
-    [System.Runtime.InteropServices.DllImport("user32.dll")]
-    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
-    private static extern bool SetForegroundWindow(nint hWnd);
-
-    private const uint MonitorDefaultToNearest = 2;
-
-    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
-    private struct NativeRect
-    {
-        public int Left;
-        public int Top;
-        public int Right;
-        public int Bottom;
-    }
-
-    [System.Runtime.InteropServices.StructLayout(
-        System.Runtime.InteropServices.LayoutKind.Sequential,
-        CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
-    private struct NativeMonitorInfo
-    {
-        public int Size;
-        public NativeRect Monitor;
-        public NativeRect WorkArea;
-        public uint Flags;
-        [System.Runtime.InteropServices.MarshalAs(
-            System.Runtime.InteropServices.UnmanagedType.ByValTStr, SizeConst = 32)]
-        public string DeviceName;
-    }
-
-    [System.Runtime.InteropServices.DllImport("user32.dll")]
-    private static extern nint MonitorFromWindow(nint hwnd, uint dwFlags);
-
-    [System.Runtime.InteropServices.DllImport("user32.dll")]
-    private static extern nint MonitorFromPoint(NativePoint point, uint dwFlags);
-
-    // 必须显式指定 CharSet.Unicode：默认 CharSet.None 会绑定 ANSI 版 GetMonitorInfoA，
-    // 而 NativeMonitorInfo 按 Unicode 布局（ByValTStr SizeConst=32，cbSize=104），
-    // GetMonitorInfoA 只接受 40/72 字节的 cbSize，会静默返回 false，导致召回屏幕中心被跳过。
-    [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
-    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
-    private static extern bool GetMonitorInfo(nint hMonitor, ref NativeMonitorInfo lpmi);
-
     /// <summary>
     /// Gets the current monitor work area in virtual-desktop physical pixels.
     /// This coordinate space remains stable across monitor DPI boundaries.
@@ -2916,9 +2839,6 @@ public partial class DesktopBoxWindow : Window
             info.WorkArea.Right - info.WorkArea.Left,
             info.WorkArea.Bottom - info.WorkArea.Top);
     }
-
-    private static int ToNativeCoordinate(double value) =>
-        checked((int)Math.Round(value, MidpointRounding.AwayFromZero));
 
     private bool IsCursorOverOpenDrawerPopup()
     {

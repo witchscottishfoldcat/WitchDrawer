@@ -4,14 +4,13 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using WitchDrawer.Native.Windows;
+using static WitchDrawer.Native.Windows.User32Interop;
 
 namespace WitchDrawer.App.Infrastructure;
 
 public sealed class GuideLineWindow : Window
 {
     private const double OverlayThickness = 4;
-    private static readonly nint WindowPositionTopmost = -1;
-    private const uint SetWindowPosNoActivate = 0x0010;
 
     private readonly bool _isVertical;
     private readonly Line _line;
@@ -138,18 +137,4 @@ public sealed class GuideLineWindow : Window
 
         return nint.Zero;
     }
-
-    [System.Runtime.InteropServices.DllImport("user32.dll")]
-    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
-    private static extern bool SetWindowPos(
-        nint hWnd,
-        nint hWndInsertAfter,
-        int x,
-        int y,
-        int cx,
-        int cy,
-        uint flags);
-
-    private static int ToNativeCoordinate(double value) =>
-        checked((int)Math.Round(value, MidpointRounding.AwayFromZero));
 }

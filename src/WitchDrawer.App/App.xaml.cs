@@ -13,6 +13,8 @@ using WitchDrawer.Core.Storage;
 using WitchDrawer.Native.Files;
 using WitchDrawer.Native.Shell;
 using WitchDrawer.Native.Windows;
+using static WitchDrawer.Native.Shell.NativePopupMenu;
+using static WitchDrawer.Native.Windows.User32Interop;
 
 namespace WitchDrawer.App;
 
@@ -610,26 +612,7 @@ public partial class App : Application
         base.OnExit(e);
     }
 
-    [System.Runtime.InteropServices.DllImport("user32.dll")]
-    private static extern nint CreatePopupMenu();
-
-    [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
-    private static extern bool AppendMenuW(nint hMenu, uint uFlags, uint uIDNewItem, string lpNewItem);
-
-    [System.Runtime.InteropServices.DllImport("user32.dll")]
-    private static extern bool DestroyMenu(nint hMenu);
-
-    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
-    private struct POINT(int x, int y)
-    {
-        public int X = x;
-        public int Y = y;
-    }
-
-    [System.Runtime.InteropServices.DllImport("user32.dll")]
-    private static extern bool GetCursorPos(out POINT lpPoint);
-
-    private static POINT GetCursorPosition()
+    private static NativePoint GetCursorPosition()
     {
         GetCursorPos(out var pt);
         return pt;
