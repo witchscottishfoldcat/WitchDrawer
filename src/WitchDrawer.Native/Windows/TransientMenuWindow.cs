@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Threading;
+using static WitchDrawer.Native.Windows.User32Interop;
 
 namespace WitchDrawer.Native.Windows;
 
@@ -10,7 +11,6 @@ namespace WitchDrawer.Native.Windows;
 /// </summary>
 public static class TransientMenuWindow
 {
-    private const int WindowOwnerIndex = -8;
     private const int WindowExtendedStyleIndex = -20;
     private const int LowLevelMouseHook = 14;
     private const int LowLevelKeyboardHook = 13;
@@ -24,9 +24,6 @@ public static class TransientMenuWindow
     private const int VirtualKeyD = 0x44;
     private const int VirtualKeyLeftWindows = 0x5B;
     private const int VirtualKeyRightWindows = 0x5C;
-    private const uint MonitorDefaultToNearest = 2;
-    private const uint SetWindowPositionNoSize = 0x0001;
-    private const uint SetWindowPositionNoActivate = 0x0010;
     private const uint ExtendedStyleToolWindow = 0x00000080;
     private const uint ExtendedStyleNoActivate = 0x08000000;
     private static readonly nint WindowPositionNotTopMost = -2;
@@ -80,7 +77,7 @@ public static class TransientMenuWindow
             position.Y,
             0,
             0,
-            SetWindowPositionNoSize | SetWindowPositionNoActivate);
+            SetWindowPosNoSize | SetWindowPosNoActivate);
     }
 
     public static IDisposable DismissOnOutsideInput(nint handle, Action dismiss) =>
@@ -249,22 +246,6 @@ public static class TransientMenuWindow
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    private struct NativePoint
-    {
-        public int X;
-        public int Y;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct NativeRect
-    {
-        public int Left;
-        public int Top;
-        public int Right;
-        public int Bottom;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
     private struct NativeMonitorInfo
     {
         public int Size;
@@ -349,25 +330,7 @@ public static class TransientMenuWindow
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GetWindowRect(nint windowHandle, out NativeRect bounds);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool IsWindow(nint windowHandle);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SetWindowPos(
-        nint windowHandle,
-        nint windowInsertAfter,
-        int x,
-        int y,
-        int width,
-        int height,
-        uint flags);
-
-    [DllImport("user32.dll")]
-    private static extern nint MonitorFromPoint(NativePoint point, uint flags);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     [return: MarshalAs(UnmanagedType.Bool)]

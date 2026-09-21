@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using static WitchDrawer.Native.Windows.User32Interop;
 
 namespace WitchDrawer.Native.Windows;
 
@@ -15,10 +16,6 @@ public static class NonActivatingOverlayWindow
     private const long ExtendedStyleToolWindow = 0x00000080;
     private const long ExtendedStyleAppWindow = 0x00040000;
     private const long ExtendedStyleNoActivate = 0x08000000;
-    private const uint SetWindowPositionNoSize = 0x0001;
-    private const uint SetWindowPositionNoMove = 0x0002;
-    private const uint SetWindowPositionNoZOrder = 0x0004;
-    private const uint SetWindowPositionNoActivate = 0x0010;
     private const uint SetWindowPositionFrameChanged = 0x0020;
 
     public static nint TransparentHitTestResult => (nint)(-1);
@@ -57,10 +54,10 @@ public static class NonActivatingOverlayWindow
             0,
             0,
             0,
-            SetWindowPositionNoSize
-            | SetWindowPositionNoMove
-            | SetWindowPositionNoZOrder
-            | SetWindowPositionNoActivate
+            SetWindowPosNoSize
+            | SetWindowPosNoMove
+            | SetWindowPosNoZOrder
+            | SetWindowPosNoActivate
             | SetWindowPositionFrameChanged);
     }
 
@@ -89,15 +86,4 @@ public static class NonActivatingOverlayWindow
 
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtr")]
     private static extern nint SetWindowLongPtr64(nint windowHandle, int index, nint value);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SetWindowPos(
-        nint windowHandle,
-        nint windowInsertAfter,
-        int x,
-        int y,
-        int width,
-        int height,
-        uint flags);
 }

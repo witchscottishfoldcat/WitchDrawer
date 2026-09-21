@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using static WitchDrawer.Native.Windows.User32Interop;
 
 namespace WitchDrawer.Native.Windows;
 
@@ -22,7 +23,6 @@ public sealed class DesktopToolWindow
     private const int XButtonUpMessage = 0x020C;
     private const int ExitSizeMoveMessage = 0x0232;
 
-    private const int WindowOwnerIndex = -8;
     private const int ExtendedStyleIndex = -20;
     private const nint ExtendedStyleAppWindow = 0x00040000;
     private const nint ExtendedStyleToolWindow = 0x00000080;
@@ -31,9 +31,6 @@ public sealed class DesktopToolWindow
     private const nint SystemCommandMask = 0xFFF0;
     private const nint SystemCommandMinimize = 0xF020;
 
-    private const uint SetWindowPositionNoSize = 0x0001;
-    private const uint SetWindowPositionNoMove = 0x0002;
-    private const uint SetWindowPositionNoActivate = 0x0010;
     private const uint SetWindowPositionFrameChanged = 0x0020;
     private const uint SetWindowPositionNoOwnerZOrder = 0x0200;
     private const int ShowWithoutActivation = 4;
@@ -95,9 +92,9 @@ public sealed class DesktopToolWindow
             0,
             0,
             0,
-            SetWindowPositionNoMove
-            | SetWindowPositionNoSize
-            | SetWindowPositionNoActivate);
+            SetWindowPosNoMove
+            | SetWindowPosNoSize
+            | SetWindowPosNoActivate);
     }
 
     private static bool IsKeyDown(int virtualKey) =>
@@ -279,9 +276,9 @@ public sealed class DesktopToolWindow
             0,
             0,
             0,
-            SetWindowPositionNoMove
-            | SetWindowPositionNoSize
-            | SetWindowPositionNoActivate
+            SetWindowPosNoMove
+            | SetWindowPosNoSize
+            | SetWindowPosNoActivate
             | SetWindowPositionNoOwnerZOrder);
     }
 
@@ -345,9 +342,9 @@ public sealed class DesktopToolWindow
             0,
             0,
             0,
-            SetWindowPositionNoMove
-            | SetWindowPositionNoSize
-            | SetWindowPositionNoActivate
+            SetWindowPosNoMove
+            | SetWindowPosNoSize
+            | SetWindowPosNoActivate
             | SetWindowPositionFrameChanged);
     }
 
@@ -444,25 +441,10 @@ public sealed class DesktopToolWindow
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SetForegroundWindow(nint windowHandle);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool IsWindow(nint windowHandle);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern uint RegisterWindowMessageW(string messageName);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SetWindowPos(
-        nint windowHandle,
-        nint windowInsertAfter,
-        int x,
-        int y,
-        int width,
-        int height,
-        uint flags);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
