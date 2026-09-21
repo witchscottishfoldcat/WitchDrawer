@@ -978,7 +978,8 @@
                    Placement="Bottom"
                    AllowsTransparency="True"
                    StaysOpen="False"
-                   Opened="OnDrawerSecondaryPopupOpened">
+                   Opened="OnDrawerSecondaryPopupOpened"
+                   Closed="OnDrawerSecondaryPopupClosed">
                 <Border x:Name="DrawerSecondaryPopupRoot"
                         Width="{Binding DrawerSecondaryPanelWidth}"
                         Height="{Binding DrawerSecondaryPanelHeight}"

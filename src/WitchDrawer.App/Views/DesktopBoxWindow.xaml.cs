@@ -32,6 +32,7 @@ public partial class DesktopBoxWindow : Window
     private DrawerItemViewModel? _dragStartItem;
     private readonly DragOperationGate _itemDragGate = new();
     private readonly DrawerItemContextMenuCoordinator _itemContextMenu;
+    private readonly DrawerPopupAnimation _drawerPopupAnimation;
     private DrawerItemViewModel? _keyboardDeleteTarget;
     private Func<Guid, Task>? _positionChangedCallback;
     private bool _isMappingViewTransitioning;
@@ -98,6 +99,7 @@ public partial class DesktopBoxWindow : Window
         _itemContextMenu = new DrawerItemContextMenuCoordinator(viewModel);
         DataContext = viewModel;
         InitializeComponent();
+        _drawerPopupAnimation = new DrawerPopupAnimation(DrawerSecondaryPopupRoot, DrawerSecondaryPopupScale);
         SourceInitialized += OnSourceInitialized;
         Loaded += OnLoaded;
         DpiChanged += OnDpiChanged;
@@ -364,24 +366,12 @@ public partial class DesktopBoxWindow : Window
 
     private void PrepareDrawerSecondaryPopupForOpen()
     {
-        DrawerSecondaryPopupRoot.BeginAnimation(OpacityProperty, null);
-        DrawerSecondaryPopupRoot.Opacity = 0;
-        PrepareDrawerPopupScaleForPlacement(DrawerSecondaryPopupScale);
+        _drawerPopupAnimation.Prepare();
     }
 
     internal static void PrepareDrawerPopupScaleForPlacement(ScaleTransform scale)
     {
-        ArgumentNullException.ThrowIfNull(scale);
-
-        // Popup creates its HWND using the child's current transformed bounds. A
-        // reduced scale here shifts the first HWND up/left; when the animation
-        // later reaches 1, the full-size content is left at that stale position.
-        // Position with a neutral transform and apply the visual scale only after
-        // the Popup has opened.
-        scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-        scale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-        scale.ScaleX = 1;
-        scale.ScaleY = 1;
+        DrawerPopupAnimation.ResetScale(scale);
     }
 
     private void ConfigureDrawerSecondaryPopupPlacement(UIElement centerTarget)
@@ -703,46 +693,21 @@ public partial class DesktopBoxWindow : Window
         QueueSendToBottomAll();
         // 沉底在 ApplicationIdle 还会补一次，而压主窗口沉底会把它的属子弹窗一起拖下去；
         // 置顶必须排在所有沉底调用之后，所以用 SystemIdle 优先级。
-        Dispatcher.BeginInvoke(DispatcherPriority.SystemIdle, BringDrawerPopupToFront);
-
-        Dispatcher.BeginInvoke(
-            DispatcherPriority.Loaded,
-            () =>
+        Dispatcher.BeginInvoke(DispatcherPriority.SystemIdle, () =>
+        {
+            if (DrawerSecondaryPopup.IsOpen)
             {
-                var initialScaleX = Math.Clamp(
-                    ViewModel.LayoutSettings.DrawerPrimaryIconFrameSize
-                        / Math.Max(1, DrawerSecondaryPopupRoot.ActualWidth),
-                    0.08,
-                    0.24);
-                var initialScaleY = Math.Clamp(
-                    ViewModel.LayoutSettings.DrawerPrimaryIconFrameSize
-                        / Math.Max(1, DrawerSecondaryPopupRoot.ActualHeight),
-                    0.08,
-                    0.32);
-                var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
-                var duration = TimeSpan.FromMilliseconds(190);
-                DrawerSecondaryPopupRoot.CacheMode = new BitmapCache
-                {
-                    EnableClearType = true
-                };
-                DrawerSecondaryPopupScale.BeginAnimation(
-                    ScaleTransform.ScaleXProperty,
-                    new DoubleAnimation(initialScaleX, 1, duration) { EasingFunction = easing });
-                DrawerSecondaryPopupScale.BeginAnimation(
-                    ScaleTransform.ScaleYProperty,
-                    new DoubleAnimation(initialScaleY, 1, duration) { EasingFunction = easing });
-                var opacityAnimation = new DoubleAnimation(
-                    0,
-                    1,
-                    TimeSpan.FromMilliseconds(145))
-                {
-                    EasingFunction = easing
-                };
-                opacityAnimation.Completed += (_, _) =>
-                    DrawerSecondaryPopupRoot.CacheMode = null;
-                DrawerSecondaryPopupRoot.BeginAnimation(OpacityProperty, opacityAnimation);
-            });
+                BringDrawerPopupToFront();
+            }
+        });
+
+        // Popup has measured its child and placed its HWND. Start before the next
+        // render instead of rendering a hidden frame and scheduling at Loaded.
+        _drawerPopupAnimation.Start(ViewModel.LayoutSettings.DrawerPrimaryIconFrameSize);
     }
+
+    private void OnDrawerSecondaryPopupClosed(object? sender, EventArgs e) =>
+        _drawerPopupAnimation.Stop();
 
     private void OnCollapseDrawerClick(object sender, RoutedEventArgs e)
     {
@@ -1245,6 +1210,8 @@ public partial class DesktopBoxWindow : Window
 
     protected override void OnClosing(CancelEventArgs e)
     {
+        DrawerSecondaryPopup.IsOpen = false;
+        _drawerPopupAnimation.Stop();
         CancelHoverRollUpTimers();
         RestorePersistedRollUpStateWithoutAnimation();
         if (!_forceClose)

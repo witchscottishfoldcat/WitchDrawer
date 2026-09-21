@@ -1,0 +1,212 @@
+{
+  "renderTier": 2,
+  "note": "WPF UI rendering callbacks, not GPU presentation FPS; synthetic file labels, no user data or database IO.",
+  "results": [
+    {
+      "iteration": 0,
+      "openMs": 390.8751,
+      "layouts": 1,
+      "sizes": 0,
+      "windowPositions": 0,
+      "firstRenderMs": 294.0065,
+      "renderCallbacks": 4,
+      "maxRenderGapMs": 118.32869999999997,
+      "gapsOver16Ms": 1,
+      "cacheChanges": [
+        {
+          "atMs": 415.0749,
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "iteration": 1,
+      "openMs": 99.4458,
+      "layouts": 1,
+      "sizes": 0,
+      "windowPositions": 0,
+      "firstRenderMs": 76.6395,
+      "renderCallbacks": 27,
+      "maxRenderGapMs": 43.4469,
+      "gapsOver16Ms": 6,
+      "cacheChanges": [
+        {
+          "atMs": 109.3369,
+          "enabled": true
+        },
+        {
+          "atMs": 253.4443,
+          "enabled": false
+        }
+      ]
+    },
+    {
+      "iteration": 2,
+      "openMs": 62.9442,
+      "layouts": 1,
+      "sizes": 0,
+      "windowPositions": 0,
+      "firstRenderMs": 29.2864,
+      "renderCallbacks": 30,
+      "maxRenderGapMs": 33.9419,
+      "gapsOver16Ms": 6,
+      "cacheChanges": [
+        {
+          "atMs": 78.6088,
+          "enabled": true
+        },
+        {
+          "atMs": 224.7475,
+          "enabled": false
+        }
+      ]
+    },
+    {
+      "iteration": 3,
+      "openMs": 32.0593,
+      "layouts": 1,
+      "sizes": 0,
+      "windowPositions": 0,
+      "firstRenderMs": 16.0081,
+      "renderCallbacks": 37,
+      "maxRenderGapMs": 16.772000000000006,
+      "gapsOver16Ms": 1,
+      "cacheChanges": [
+        {
+          "atMs": 37.6884,
+          "enabled": true
+        },
+        {
+          "atMs": 186.7366,
+          "enabled": false
+        }
+      ]
+    },
+    {
+      "iteration": 4,
+      "openMs": 33.9074,
+      "layouts": 1,
+      "sizes": 0,
+      "windowPositions": 0,
+      "firstRenderMs": 18.014,
+      "renderCallbacks": 34,
+      "maxRenderGapMs": 22.1575,
+      "gapsOver16Ms": 4,
+      "cacheChanges": [
+        {
+          "atMs": 39.2861,
+          "enabled": true
+        },
+        {
+          "atMs": 192.2686,
+          "enabled": false
+        }
+      ]
+    },
+    {
+      "iteration": 5,
+      "openMs": 32.7086,
+      "layouts": 1,
+      "sizes": 0,
+      "windowPositions": 0,
+      "firstRenderMs": 17.7533,
+      "renderCallbacks": 36,
+      "maxRenderGapMs": 26.6044,
+      "gapsOver16Ms": 1,
+      "cacheChanges": [
+        {
+          "atMs": 38.4897,
+          "enabled": true
+        },
+        {
+          "atMs": 187.8236,
+          "enabled": false
+        }
+      ]
+    },
+    {
+      "iteration": 6,
+      "openMs": 27.8819,
+      "layouts": 1,
+      "sizes": 0,
+      "windowPositions": 0,
+      "firstRenderMs": 13.5051,
+      "renderCallbacks": 34,
+      "maxRenderGapMs": 30.863300000000038,
+      "gapsOver16Ms": 2,
+      "cacheChanges": [
+        {
+          "atMs": 36.0495,
+          "enabled": true
+        },
+        {
+          "atMs": 183.8231,
+          "enabled": false
+        }
+      ]
+    },
+    {
+      "iteration": 7,
+      "openMs": 32.2171,
+      "layouts": 1,
+      "sizes": 0,
+      "windowPositions": 0,
+      "firstRenderMs": 13.4977,
+      "renderCallbacks": 34,
+      "maxRenderGapMs": 20.095399999999998,
+      "gapsOver16Ms": 2,
+      "cacheChanges": [
+        {
+          "atMs": 41.0361,
+          "enabled": true
+        },
+        {
+          "atMs": 187.8758,
+          "enabled": false
+        }
+      ]
+    },
+    {
+      "iteration": 8,
+      "openMs": 28.473,
+      "layouts": 1,
+      "sizes": 0,
+      "windowPositions": 0,
+      "firstRenderMs": 13.1898,
+      "renderCallbacks": 35,
+      "maxRenderGapMs": 16.8915,
+      "gapsOver16Ms": 1,
+      "cacheChanges": [
+        {
+          "atMs": 34.8684,
+          "enabled": true
+        },
+        {
+          "atMs": 186.0853,
+          "enabled": false
+        }
+      ]
+    },
+    {
+      "iteration": 9,
+      "openMs": 29.0279,
+      "layouts": 1,
+      "sizes": 0,
+      "windowPositions": 0,
+      "firstRenderMs": 16.0454,
+      "renderCallbacks": 34,
+      "maxRenderGapMs": 26.3521,
+      "gapsOver16Ms": 2,
+      "cacheChanges": [
+        {
+          "atMs": 35.3573,
+          "enabled": true
+        },
+        {
+          "atMs": 181.2215,
+          "enabled": false
+        }
+      ]
+    }
+  ]
+}
