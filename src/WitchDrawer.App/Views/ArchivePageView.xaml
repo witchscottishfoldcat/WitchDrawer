@@ -1,0 +1,182 @@
+<UserControl x:Class="WitchDrawer.App.Views.ArchivePageView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0" Margin="0,0,0,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                 <TextBlock Text="待办历史"
+                            Foreground="{DynamicResource TextMutedBrush}"
+                            FontSize="11"
+                            FontWeight="SemiBold" />
+                <TextBlock Text="归档"
+                           Margin="0,3,0,0"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
+                            FontSize="24"
+                            FontWeight="SemiBold" />
+                <TextBlock Text="从桌面待办盒归档的已完成事项会保存在这里"
+                            Margin="0,4,0,0"
+                            Foreground="{DynamicResource TextMutedBrush}"
+                            FontSize="12" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+            <Button Content="撤销删除" Command="{Binding UndoArchivedDeleteCommand}"
+                    Visibility="{Binding ArchiveUndo.IsAvailable, Converter={StaticResource BooleanToVisibilityConverter}}"
+                    Style="{StaticResource GhostButtonStyle}" Margin="0,0,8,0"
+                    ToolTip="删除后 10 秒内可撤销" />
+            <Border
+                    VerticalAlignment="Center"
+                    Background="{DynamicResource AccentSoftBrush}"
+                    CornerRadius="11"
+                    Padding="13,7">
+                <TextBlock Text="{Binding ArchivedTodos.Count, StringFormat={}{0} 项}"
+                           Foreground="{DynamicResource AccentBrush}"
+                           FontSize="12"
+                           FontWeight="SemiBold" />
+            </Border>
+            </StackPanel>
+        </Grid>
+
+        <Border Grid.Row="1"
+                Background="{DynamicResource PanelBrush}"
+                BorderBrush="{DynamicResource BorderBrushSoft}"
+                BorderThickness="1"
+                CornerRadius="16"
+                Padding="14">
+            <Grid>
+                <StackPanel HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Visibility="{Binding ArchivedTodos.Count, Converter={StaticResource ZeroToVisibilityConverter}}">
+                    <Border Width="48"
+                            Height="48"
+                            Background="{DynamicResource AccentSoftBrush}"
+                            CornerRadius="24">
+                        <Grid>
+                            <Path Data="M 14,17 L 34,17 M 17,17 L 18.5,34 L 29.5,34 L 31,17 M 20,13 L 28,13 L 30,17 L 18,17 Z"
+                                  Stroke="{DynamicResource AccentBrush}"
+                                  StrokeThickness="1.7"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  StrokeLineJoin="Round"
+                                  Fill="Transparent"
+                                  Stretch="None" />
+                        </Grid>
+                    </Border>
+                    <TextBlock Text="还没有归档事项"
+                               Margin="0,12,0,0"
+                               HorizontalAlignment="Center"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               FontSize="14"
+                               FontWeight="SemiBold" />
+                    <TextBlock Text="在桌面待办盒中完成事项后，点击“归档”"
+                               Margin="0,5,0,0"
+                               Foreground="{DynamicResource TextMutedBrush}"
+                               FontSize="12" />
+                </StackPanel>
+
+                <ListBox ItemsSource="{Binding ArchivedTodos}"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         ScrollViewer.CanContentScroll="True"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         VirtualizingPanel.IsVirtualizing="True"
+                         VirtualizingPanel.VirtualizationMode="Recycling">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="{x:Type ListBoxItem}">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                            <Setter Property="Padding" Value="0" />
+                            <Setter Property="Margin" Value="0,0,0,7" />
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="{x:Type ListBoxItem}">
+                                        <Border x:Name="ArchiveRow"
+                                                Background="{DynamicResource PanelAltBrush}"
+                                                BorderBrush="{DynamicResource BorderBrushSoft}"
+                                                BorderThickness="1"
+                                                CornerRadius="11"
+                                                Padding="12,10">
+                                            <ContentPresenter />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="ArchiveRow" Property="Background" Value="{DynamicResource HoverBrush}" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="34" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Width="28"
+                                        Height="28"
+                                        Background="{DynamicResource PositiveSoftBrush}"
+                                        CornerRadius="14"
+                                        VerticalAlignment="Center">
+                                    <Path Data="M 7,14 L 11.5,18 L 21,9"
+                                          Stroke="{DynamicResource PositiveBrush}"
+                                          StrokeThickness="2"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"
+                                          Stretch="None" />
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Title}"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               FontSize="13"
+                                               FontWeight="SemiBold"
+                                               TextTrimming="CharacterEllipsis" />
+                                    <StackPanel Margin="0,3,0,0" Orientation="Horizontal">
+                                        <TextBlock Text="{Binding BoxName}"
+                                                   Foreground="{DynamicResource AccentBrush}"
+                                                   FontSize="10.5"
+                                                   FontWeight="SemiBold" />
+                                        <TextBlock Text="  ·  "
+                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                   FontSize="10.5" />
+                                        <TextBlock Text="{Binding ArchivedTimeLabel}"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                   FontSize="10.5" />
+                                    </StackPanel>
+                                </StackPanel>
+                                <Button Grid.Column="2"
+                                        Content="恢复"
+                                        Command="{Binding DataContext.RestoreArchivedTodoCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="{Binding}"
+                                        Style="{StaticResource GhostButtonStyle}"
+                                        Foreground="{DynamicResource AccentBrush}"
+                                        Margin="8,0,2,0"
+                                        Padding="10,4" />
+                                <Button Grid.Column="3"
+                                        Content="删除"
+                                        Command="{Binding DataContext.DeleteArchivedTodoCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="{Binding}"
+                                        Style="{StaticResource GhostButtonStyle}"
+                                        Foreground="{DynamicResource TextMutedBrush}"
+                                        Padding="10,4" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

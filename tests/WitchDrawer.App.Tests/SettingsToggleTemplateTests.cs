@@ -14,8 +14,9 @@ public sealed class SettingsToggleTemplateTests
     public void SettingsBinaryActions_UseBoundToggleButtons()
     {
         var document = XDocument.Load(GetMainWindowXamlPath());
+        var styles = XDocument.Load(GetSettingsCardStylesXamlPath());
         var style = Assert.Single(
-            document.Descendants(PresentationNamespace + "Style"),
+            styles.Descendants(PresentationNamespace + "Style"),
             element => (string?)element.Attribute(XamlNamespace + "Key") == "SettingsToggleButtonStyle");
         var toggles = document.Descendants(PresentationNamespace + "ToggleButton").ToArray();
 
@@ -43,4 +44,20 @@ public sealed class SettingsToggleTemplateTests
                 "src",
                 "WitchDrawer.App",
                 "MainWindow.xaml"));
+
+    private static string GetSettingsCardStylesXamlPath() =>
+        Path.GetFullPath(
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "..",
+                "..",
+                "..",
+                "..",
+                "..",
+                "src",
+                "WitchDrawer.App",
+                "Views",
+                "Styles",
+                "MainWindow",
+                "SettingsCardStyles.xaml"));
 }

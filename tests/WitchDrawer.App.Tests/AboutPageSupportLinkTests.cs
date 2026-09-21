@@ -1,5 +1,6 @@
 using System.IO;
 using System.Xml.Linq;
+using WitchDrawer.App.Views;
 
 namespace WitchDrawer.App.Tests;
 
@@ -13,7 +14,7 @@ public sealed class AboutPageSupportLinkTests
     [Fact]
     public void AboutPage_ContainsOfficialSupportLink()
     {
-        var document = XDocument.Load(GetMainWindowXamlPath());
+        var document = XDocument.Load(GetAboutPageXamlPath());
         var supportButton = Assert.Single(
             document.Descendants(PresentationNamespace + "Button"),
             element => (string?)element.Attribute("Click") == "OnOpenSupportLinkClicked");
@@ -30,7 +31,7 @@ public sealed class AboutPageSupportLinkTests
             supportButton.Ancestors(PresentationNamespace + "ScrollViewer"));
 
         Assert.Equal("前往赞助页面", (string?)supportButton.Attribute("Content"));
-        Assert.Equal("https://www.witchcat.cn/zh/support", MainWindow.SupportPageUri);
+        Assert.Equal("https://www.witchcat.cn/zh/support", AboutPageView.SupportPageUri);
         Assert.Contains(supportButton, supportCard.Descendants(PresentationNamespace + "Button"));
         Assert.DoesNotContain(supportButton, developerCard.Descendants(PresentationNamespace + "Button"));
         Assert.True(supportCard.IsBefore(developerCard), "The support card should appear above the developer card.");
@@ -45,7 +46,7 @@ public sealed class AboutPageSupportLinkTests
     [Fact]
     public void AboutPage_ContainsDiagnosticLogExportWithPrivacyNotice()
     {
-        var document = XDocument.Load(GetMainWindowXamlPath());
+        var document = XDocument.Load(GetAboutPageXamlPath());
         var exportButton = Assert.Single(
             document.Descendants(PresentationNamespace + "Button"),
             element => (string?)element.Attribute(XamlNamespace + "Name") == "ExportDiagnosticLogsButton");
@@ -59,7 +60,7 @@ public sealed class AboutPageSupportLinkTests
         Assert.NotEmpty(privacyNotice.Ancestors(PresentationNamespace + "ScrollViewer"));
     }
 
-    private static string GetMainWindowXamlPath() =>
+    private static string GetAboutPageXamlPath() =>
         Path.GetFullPath(
             Path.Combine(
                 AppContext.BaseDirectory,
@@ -70,5 +71,6 @@ public sealed class AboutPageSupportLinkTests
                 "..",
                 "src",
                 "WitchDrawer.App",
-                "MainWindow.xaml"));
+                "Views",
+                "AboutPageView.xaml"));
 }

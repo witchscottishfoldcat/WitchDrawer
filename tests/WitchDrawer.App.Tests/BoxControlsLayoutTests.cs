@@ -121,7 +121,23 @@ public sealed class BoxControlsLayoutTests
             .Where(attribute => attribute.Name.Namespace == XNamespace.None && attribute.Value.StartsWith("On", StringComparison.Ordinal))
             .Remove();
         var app = XDocument.Load(Path.Combine(sourceDirectory, "App.xaml"));
-        card.AddFirst(new XElement(p + "Border.Resources", app.Root!.Element(p + "Application.Resources")!.Elements()));
+        var resources = app.Root!.Element(p + "Application.Resources")!.Elements().ToList();
+        // The MainWindow keyed styles now live in merged dictionaries under
+        // Views/Styles/MainWindow; load them in merge order so the extracted
+        // card can resolve its StaticResource references.
+        foreach (var dictionaryName in new[]
+                 {
+                     "SidebarStyles",
+                     "BoxControlsStyles",
+                     "SettingsCardStyles",
+                     "ThemeCardStyles"
+                 })
+        {
+            var dictionary = XDocument.Load(Path.Combine(
+                sourceDirectory, "Views", "Styles", "MainWindow", dictionaryName + ".xaml"));
+            resources.AddRange(dictionary.Root!.Elements());
+        }
+        card.AddFirst(new XElement(p + "Border.Resources", resources));
         foreach (var element in card.DescendantsAndSelf())
         {
             if (element.Name.NamespaceName.StartsWith("clr-namespace:", StringComparison.Ordinal)

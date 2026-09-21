@@ -1,0 +1,328 @@
+<UserControl x:Class="WitchDrawer.App.Views.AboutPageView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,7">
+            <TextBlock Text="应用信息"
+                       Foreground="{DynamicResource TextMutedBrush}"
+                       FontSize="11"
+                       FontWeight="SemiBold" />
+            <TextBlock Text="关于"
+                       Margin="0,2,0,0"
+                       Foreground="{DynamicResource TextPrimaryBrush}"
+                       FontSize="24"
+                       FontWeight="SemiBold" />
+        </StackPanel>
+
+            <ScrollViewer Grid.Row="1"
+                          Margin="0"
+                          HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto"
+                          PanningMode="VerticalOnly"
+                          CanContentScroll="False">
+                <ScrollViewer.Resources>
+                    <Style TargetType="{x:Type ScrollBar}"
+                           BasedOn="{StaticResource DrawerScrollBarStyle}" />
+                </ScrollViewer.Resources>
+                <StackPanel HorizontalAlignment="Stretch"
+                            VerticalAlignment="Top">
+                <!-- App Info Card -->
+                <Border Background="{DynamicResource AccentBrush}"
+                    CornerRadius="16"
+                    Margin="0,0,0,8">
+                <Grid>
+                    <Border CornerRadius="16" IsHitTestVisible="False">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#33FFFFFF" Offset="0" />
+                                <GradientStop Color="#00FFFFFF" Offset="0.6" />
+                                <GradientStop Color="#1A000000" Offset="1" />
+                            </LinearGradientBrush>
+                        </Border.Background>
+                    </Border>
+                    <StackPanel Margin="12" Orientation="Horizontal">
+                        <Border Width="44" Height="44" CornerRadius="12" ClipToBounds="True" Background="Transparent">
+                            <Image Source="/Assets/app.png" RenderOptions.BitmapScalingMode="HighQuality" Width="44" Height="44" />
+                        </Border>
+                        <StackPanel VerticalAlignment="Center" Margin="12,0,0,0">
+                            <TextBlock Text="WitchDrawer"
+                                       Foreground="White"
+                                       FontSize="20"
+                                       FontWeight="Bold" />
+                            <TextBlock Text="轻量级 Windows 桌面文件收纳工具"
+                                       Foreground="White"
+                                       FontSize="12"
+                                       Opacity="0.85"
+                                       Margin="0,2,0,0" />
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+                </Border>
+
+                <!-- Usage Guide Card -->
+                <Border Background="{DynamicResource PanelBrush}"
+                    BorderBrush="{DynamicResource BorderBrushSoft}"
+                    BorderThickness="1"
+                    CornerRadius="14"
+                    Padding="12"
+                    Margin="0,0,0,8">
+                <StackPanel>
+                    <TextBlock Text="使用说明"
+                               FontWeight="Bold"
+                               FontSize="14"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               Margin="0,0,0,6" />
+                    <TextBlock Text="将文件或文件夹直接拖入收纳盒即可开始使用。"
+                               TextWrapping="Wrap"
+                               FontSize="12.5"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               Margin="0,0,0,5" />
+                    <TextBlock Text="普通收纳盒：会把文件或文件夹实际移动到 WitchDrawer 的数据目录，适合由应用统一管理的临时文件。"
+                               TextWrapping="Wrap"
+                               FontSize="12.5"
+                               Foreground="{DynamicResource TextMutedBrush}"
+                               Margin="0,0,0,5" />
+                    <TextBlock Text="映射收纳盒：只保存原路径，不移动、复制或删除源文件，适合项目目录、工作目录以及经常被其他程序使用的文件。"
+                               TextWrapping="Wrap"
+                               FontSize="12.5"
+                               Foreground="{DynamicResource TextMutedBrush}"
+                               Margin="0,0,0,7" />
+                    <Border Background="{DynamicResource AccentSoftBrush}"
+                            CornerRadius="8"
+                            Padding="8,6"
+                            Margin="0,0,0,7">
+                        <TextBlock Text="建议：文件夹请尽量使用“映射收纳盒”，避免移动大量文件或正在使用的文件；需要保留原位置时，请优先选择映射收纳盒。"
+                                   TextWrapping="Wrap"
+                                   FontSize="12.5"
+                                   Foreground="{DynamicResource AccentBrush}"
+                                   FontWeight="SemiBold" />
+                    </Border>
+                    <TextBlock Text="兼容性提示：Windows 10 暂时可能有部分功能不兼容，建议优先使用 Windows 11。"
+                               TextWrapping="Wrap"
+                               FontSize="12.5"
+                               Foreground="{DynamicResource TextMutedBrush}" />
+                </StackPanel>
+                </Border>
+
+                <!-- Diagnostic Export Card -->
+                <Border Background="{DynamicResource PanelBrush}"
+                        BorderBrush="{DynamicResource BorderBrushSoft}"
+                        BorderThickness="1"
+                        CornerRadius="14"
+                        Padding="12"
+                        Margin="0,0,0,8">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Margin="0,0,16,0">
+                            <TextBlock Text="诊断与反馈"
+                                       FontWeight="Bold"
+                                       FontSize="14"
+                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                            <TextBlock Text="遇到异常时，可导出最近日志发送给开发者。"
+                                       Margin="0,3,0,0"
+                                       FontSize="12"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextMutedBrush}" />
+                            <TextBlock Text="不包含数据库和用户文件；日志可能含文件名与完整路径。"
+                                       Margin="0,4,0,0"
+                                       FontSize="11.5"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextMutedBrush}" />
+                        </StackPanel>
+                        <Button x:Name="ExportDiagnosticLogsButton"
+                                Grid.Column="1"
+                                Content="导出诊断日志"
+                                Style="{StaticResource PrimaryButtonStyle}"
+                                Click="OnExportDiagnosticLogsClick"
+                                AutomationProperties.Name="导出 WitchDrawer 诊断日志"
+                                Height="30"
+                                Padding="12,0"
+                                VerticalAlignment="Center" />
+                    </Grid>
+                </Border>
+
+                <!-- Author Support Card -->
+                <Border x:Name="AuthorSupportCard"
+                        Background="{DynamicResource PanelBrush}"
+                        BorderBrush="{DynamicResource BorderBrushSoft}"
+                        BorderThickness="1"
+                        CornerRadius="14"
+                        Padding="12"
+                        Margin="0,0,0,8">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Margin="0,0,16,0">
+                            <TextBlock Text="赞助作者"
+                                       FontWeight="Bold"
+                                       FontSize="14"
+                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                            <TextBlock Text="支持 WitchDrawer 的持续开发与维护"
+                                       Margin="0,3,0,0"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource TextMutedBrush}" />
+                            <TextBlock Text="赞助时请备注你的 ID，可加入鸣谢名单。"
+                                       Margin="0,5,0,0"
+                                       FontSize="11.5"
+                                       FontWeight="SemiBold"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource AccentBrush}" />
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Content="前往赞助页面"
+                                Style="{StaticResource PrimaryButtonStyle}"
+                                Click="OnOpenSupportLinkClicked"
+                                AutomationProperties.Name="在浏览器中打开赞助作者页面"
+                                Height="30"
+                                Padding="12,0"
+                                VerticalAlignment="Center" />
+                    </Grid>
+                </Border>
+
+                <!-- Author Card -->
+                <Border x:Name="DeveloperCard"
+                    Background="{DynamicResource PanelBrush}"
+                    BorderBrush="{DynamicResource BorderBrushSoft}"
+                    BorderThickness="1"
+                    CornerRadius="14"
+                    Padding="12"
+                    Margin="0,0,0,8">
+                <StackPanel>
+                    <TextBlock Text="开发者"
+                               FontWeight="Bold"
+                               FontSize="14"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               Margin="0,0,0,6" />
+
+                    <Grid Margin="0,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="80" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="作者"
+                                   Foreground="{DynamicResource TextMutedBrush}"
+                                   FontSize="12.5"
+                                   VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1"
+                                   Text="Thewitchcat"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   FontSize="12.5"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+
+                    <Grid Margin="0,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="80" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="邮箱"
+                                   Foreground="{DynamicResource TextMutedBrush}"
+                                   FontSize="12.5"
+                                   VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1"
+                                   Text="witchscottishfoldcat@gmail.com"
+                                   Foreground="{DynamicResource AccentBrush}"
+                                   FontSize="12.5"
+                                   VerticalAlignment="Center"
+                                   Cursor="Hand"
+                                   ToolTip="Open email"
+                                   MouseLeftButtonUp="OnOpenEmailClicked" />
+                    </Grid>
+
+                    <Grid Margin="0,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="80" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="网站"
+                                   Foreground="{DynamicResource TextMutedBrush}"
+                                   FontSize="12.5"
+                                   VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1"
+                                   Text="www.witchcat.cn"
+                                   Foreground="{DynamicResource AccentBrush}"
+                                   FontSize="12.5"
+                                   VerticalAlignment="Center"
+                                   Cursor="Hand"
+                                   ToolTip="Open website"
+                                   MouseLeftButtonUp="OnOpenWebsiteClicked" />
+                    </Grid>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="80" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="开源协议"
+                                   Foreground="{DynamicResource TextMutedBrush}"
+                                   FontSize="12.5"
+                                   VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1"
+                                    Orientation="Horizontal"
+                                    VerticalAlignment="Center">
+                            <Border Background="{DynamicResource AccentSoftBrush}"
+                                    CornerRadius="6"
+                                    Padding="8,2">
+                                <TextBlock Text="PolyForm Noncommercial 1.0.0"
+                                           Foreground="{DynamicResource AccentBrush}"
+                                           FontSize="12"
+                                           FontWeight="Bold" />
+                            </Border>
+                            <Border Margin="6,0,0,0"
+                                    Background="{DynamicResource PanelAltBrush}"
+                                    CornerRadius="6"
+                                    Padding="8,2"
+                                    ToolTip="docs/ 文档与 Assets/ 图标、美术素材采用 CC BY-NC-SA 4.0 授权">
+                                <TextBlock Text="文档与素材 CC BY-NC-SA 4.0"
+                                           Foreground="{DynamicResource TextMutedBrush}"
+                                           FontSize="11.5" />
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+                </Border>
+
+                <!-- Project Link Card -->
+                <Border Background="{DynamicResource PanelBrush}"
+                    BorderBrush="{DynamicResource BorderBrushSoft}"
+                    BorderThickness="1"
+                    CornerRadius="14"
+                    Padding="12">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="项目仓库"
+                                   FontWeight="Bold"
+                                   FontSize="14"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                        <TextBlock Text="github.com/witchscottishfoldcat/WitchDrawer"
+                                   Margin="0,4,0,0"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TextMutedBrush}" />
+                    </StackPanel>
+                    <Button Grid.Column="1"
+                            Content="在浏览器中打开"
+                            Style="{StaticResource PrimaryButtonStyle}"
+                            Click="OnOpenProjectLinkClicked"
+                            Height="30"
+                            Padding="12,0" />
+                </Grid>
+                </Border>
+                </StackPanel>
+            </ScrollViewer>
+    </Grid>
+</UserControl>
