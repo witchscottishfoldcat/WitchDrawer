@@ -22,7 +22,8 @@ public partial class MainWindow : Window
     private const int WmHotKey = 0x0312;
     private const int QuickPanelHotKeyId = 0x5744;
 
-    private readonly QuickPanelWindow _quickPanel;
+    private readonly Func<QuickPanelWindow> _quickPanelFactory;
+    private QuickPanelWindow? _quickPanel;
     private readonly IAppLogger _logger;
     private readonly QuickPanelHotKeySettingsStore _hotKeySettings;
     private QuickPanelHotKey _quickPanelHotKey;
@@ -58,18 +59,18 @@ public partial class MainWindow : Window
 
     internal MainWindow(
         MainViewModel viewModel,
-        QuickPanelWindow quickPanel,
+        Func<QuickPanelWindow> quickPanelFactory,
         IAppLogger logger,
         QuickPanelHotKeySettingsStore hotKeySettings,
         QuickPanelHotKey quickPanelHotKey)
     {
         DataContext = viewModel;
-        _quickPanel = quickPanel;
+        _quickPanelFactory = quickPanelFactory;
         _logger = logger;
         _hotKeySettings = hotKeySettings;
         _quickPanelHotKey = quickPanelHotKey;
         InitializeComponent();
-        AboutPage.Logger = _logger;
+        AboutPageView.Logger = _logger;
         UpdateHotKeyUi("点击按钮可修改");
         Loaded += OnLoaded;
         DpiChanged += OnDpiChanged;
@@ -127,6 +128,12 @@ public partial class MainWindow : Window
 
     public MainViewModel ViewModel => (MainViewModel)DataContext;
 
+    /// <summary>
+    /// 快捷面板窗口延迟到首次热键触发时才构建：它的 BAML 初始化与样式解析
+    /// 不属于启动关键路径，提前构建只会加长主窗口出现前的无响应时间。
+    /// </summary>
+    private QuickPanelWindow GetQuickPanel() => _quickPanel ??= _quickPanelFactory();
+
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
@@ -157,7 +164,7 @@ public partial class MainWindow : Window
         ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
         _source?.RemoveHook(WndProc);
         _hotKey?.Dispose();
-        _quickPanel.ForceClose();
+        _quickPanel?.ForceClose();
         WindowClosing?.Invoke(this, EventArgs.Empty);
         base.OnClosed(e);
     }
@@ -557,7 +564,7 @@ public partial class MainWindow : Window
         if (message == WmHotKey && wParam.ToInt32() == QuickPanelHotKeyId)
         {
             handled = true;
-            _ = Dispatcher.InvokeAsync(async () => await _quickPanel.ToggleAsync());
+            _ = Dispatcher.InvokeAsync(async () => await GetQuickPanel().ToggleAsync());
         }
 
         return nint.Zero;

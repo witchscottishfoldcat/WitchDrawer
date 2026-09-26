@@ -16,8 +16,11 @@ public sealed class QuickPanelViewModel : ObservableObject
     private readonly IFileLauncher _launcher;
     private readonly IAppLogger _logger;
     private readonly BoxVisualStyleStore _boxVisualStyleStore;
+    private readonly Func<Task<IReadOnlyList<DrawerItem>>>? _loadItemsOverride;
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
     private bool _hasLoaded;
+    private bool _firstLoadInProgress;
+    private bool _refreshPendingDuringFirstLoad;
     private List<DrawerItemViewModel> _allItems = [];
     private string _searchText = string.Empty;
     private double _iconDpiScaleX = 1;
@@ -29,11 +32,22 @@ public sealed class QuickPanelViewModel : ObservableObject
         IFileLauncher launcher,
         IAppLogger logger,
         BoxVisualStyleStore boxVisualStyleStore)
+        : this(drawerService, launcher, logger, boxVisualStyleStore, null)
+    {
+    }
+
+    internal QuickPanelViewModel(
+        DrawerService drawerService,
+        IFileLauncher launcher,
+        IAppLogger logger,
+        BoxVisualStyleStore boxVisualStyleStore,
+        Func<Task<IReadOnlyList<DrawerItem>>>? loadItemsOverride)
     {
         _drawerService = drawerService;
         _launcher = launcher;
         _logger = logger;
         _boxVisualStyleStore = boxVisualStyleStore;
+        _loadItemsOverride = loadItemsOverride;
         OpenItemCommand = new AsyncRelayCommand<DrawerItemViewModel?>(OpenItemAsync);
     }
 
@@ -73,7 +87,7 @@ public sealed class QuickPanelViewModel : ObservableObject
     /// <summary>
     /// 首次打开快捷面板时的完整加载入口；之后依赖增量刷新，重复打开不再全量扫描。
     /// 同时到达的加载请求经 _refreshGate 串行合并：后到的请求看到已加载后直接返回。
-    /// 尚未初始化期间收到的文件变更无需记录——首次打开总是完整加载，不会遗漏。
+    /// 尚未开始首次加载时无需记录变更；加载期间的变更会触发一次补读。
     /// </summary>
     public async Task EnsureLoadedAsync()
     {
@@ -87,7 +101,7 @@ public sealed class QuickPanelViewModel : ObservableObject
         {
             if (!_hasLoaded)
             {
-                _hasLoaded = await LoadCoreAsync();
+                await LoadWithCatchUpAsync();
             }
         }
         finally
@@ -102,7 +116,7 @@ public sealed class QuickPanelViewModel : ObservableObject
         await _refreshGate.WaitAsync();
         try
         {
-            _hasLoaded = await LoadCoreAsync();
+            await LoadWithCatchUpAsync();
         }
         finally
         {
@@ -118,10 +132,40 @@ public sealed class QuickPanelViewModel : ObservableObject
     {
         if (!_hasLoaded)
         {
+            _refreshPendingDuringFirstLoad |= _firstLoadInProgress;
             return;
         }
 
         await LoadAsync();
+    }
+
+    private async Task LoadWithCatchUpAsync()
+    {
+        var isFirstLoad = !_hasLoaded;
+        if (isFirstLoad)
+        {
+            _firstLoadInProgress = true;
+        }
+
+        try
+        {
+            _hasLoaded = await LoadCoreAsync();
+            if (isFirstLoad && _hasLoaded && _refreshPendingDuringFirstLoad)
+            {
+                // Refresh calls made while the first query was in flight were skipped.
+                // Read again after marking loaded so later calls wait on _refreshGate.
+                _refreshPendingDuringFirstLoad = false;
+                _hasLoaded = await LoadCoreAsync();
+            }
+        }
+        finally
+        {
+            if (isFirstLoad)
+            {
+                _firstLoadInProgress = false;
+                _refreshPendingDuringFirstLoad = false;
+            }
+        }
     }
 
     private async Task<bool> LoadCoreAsync()
@@ -134,7 +178,7 @@ public sealed class QuickPanelViewModel : ObservableObject
                 boxes.Select(async box =>
                     (box.Id, Style: await _boxVisualStyleStore.LoadAsync(box))));
             var stylesByBoxId = boxStyles.ToDictionary(entry => entry.Id, entry => entry.Style);
-            var items = await _drawerService.GetAllItemsAsync();
+            var items = await (_loadItemsOverride?.Invoke() ?? _drawerService.GetAllItemsAsync());
 
             _allItems = CreateItemViewModels(items, boxesById, stylesByBoxId);
             ApplyFilter();
@@ -152,7 +196,7 @@ public sealed class QuickPanelViewModel : ObservableObject
     {
         if (!_hasLoaded)
         {
-            // 尚未完成首次加载：增量刷新没有意义，首次打开时会完整加载全部盒子。
+            _refreshPendingDuringFirstLoad |= _firstLoadInProgress;
             return;
         }
 

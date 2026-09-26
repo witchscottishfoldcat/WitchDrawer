@@ -38,10 +38,14 @@ public sealed partial class DesktopBoxManager
         return positions.Length;
     }
 
-    public async Task<bool> HasLayoutBackupAsync(int slot)
+    public async Task<bool> HasLayoutBackupAsync(
+        int slot,
+        StartupSettingsSnapshot? startupSnapshot = null)
     {
         var key = GetLayoutBackupSettingKey(slot);
-        var value = await _drawerService.GetSettingAsync(key);
+        var value = startupSnapshot is not null
+            ? startupSnapshot.Get(key)
+            : await _drawerService.GetSettingAsync(key);
         var hasBackup = TryParseLayoutBackup(value, out _);
         if (!hasBackup && !string.IsNullOrWhiteSpace(value))
         {

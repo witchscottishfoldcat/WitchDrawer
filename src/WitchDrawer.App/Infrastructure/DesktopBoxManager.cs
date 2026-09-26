@@ -133,6 +133,8 @@ public sealed partial class DesktopBoxManager
     private int _refreshVersion;
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
 
+    internal void InvalidateRefresh() => Interlocked.Increment(ref _refreshVersion);
+
     public async Task RefreshAsync(StartupSettingsSnapshot? startupSnapshot = null)
     {
         if (_closing)
@@ -187,8 +189,10 @@ public sealed partial class DesktopBoxManager
                     await _boxPositionLockStateStore.LoadAsync(
                         box.Id,
                         startupSnapshot: startupSnapshot);
+                var isNewWindow = false;
                 if (!_windows.TryGetValue(box.Id, out var window))
                 {
+                    isNewWindow = true;
                     var layoutSettings = new DesktopBoxLayoutSettings(
                         box.Type == WitchDrawer.Core.Models.BoxType.Drawer);
                     var savedPreset = startupSnapshot is not null
@@ -281,6 +285,15 @@ public sealed partial class DesktopBoxManager
 
                 window.SetDesktopForeground(_desktopIsForeground);
                 window.QueueSendToBottom();
+
+                if (isNewWindow)
+                {
+                    // Each new WPF window builds a large visual tree. Render it and
+                    // process input before constructing the next one. Existing-window
+                    // refreshes have no such work and should complete without a yield.
+                    await System.Windows.Threading.Dispatcher.Yield(
+                        System.Windows.Threading.DispatcherPriority.Background);
+                }
             }
 
             ResolveWindowOverlaps();

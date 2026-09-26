@@ -20,6 +20,84 @@ namespace WitchDrawer.App.Tests;
 public sealed class DesktopBoxGridAlignmentTests
 {
     [Theory]
+    [InlineData(1.0)]
+    [InlineData(1.25)]
+    [InlineData(1.5)]
+    public void DrawerCover_FirstTileStaysPixelAlignedAcrossResize(double dpi)
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            Window? window = null;
+            try
+            {
+                var model = CreateViewModel(BoxType.Drawer, "6x6", true, false, false);
+                window = LoadWindow(model, dpi);
+                var content = (FrameworkElement)window.Content;
+                var coverItems = (ItemsControl)window.FindName("DrawerCoverItems");
+                var border = (FrameworkElement)window.FindName("WindowBorder");
+                var firstTile = (FrameworkElement)coverItems.ItemContainerGenerator.ContainerFromIndex(0);
+                var before = firstTile.TranslatePoint(new Point(), border);
+                var firstFrame = (Border)((StackPanel)FindDescendant<Button>(firstTile).Content).Children[0];
+                var frameBefore = firstFrame.TranslatePoint(new Point(), border);
+                var secondTile = (FrameworkElement)coverItems.ItemContainerGenerator.ContainerFromIndex(1);
+                var secondFrame = (Border)((StackPanel)FindDescendant<Button>(secondTile).Content).Children[0];
+                var secondBefore = secondFrame.TranslatePoint(new Point(), border);
+
+                var inset = DesktopBoxLayoutSettings.DrawerSurfaceInset * 2;
+                model.BeginDrawerCoverResize();
+                model.PreviewDrawerCoverResize(
+                    (3 * model.LayoutSettings.DrawerCoverCellWidth) + inset,
+                    (4 * model.LayoutSettings.DrawerCoverCellHeight) + inset);
+                content.InvalidateMeasure();
+                content.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                content.Arrange(new Rect(content.DesiredSize));
+                content.UpdateLayout();
+                var previewSecond = secondFrame.TranslatePoint(new Point(), border);
+                Assert.Equal(2, model.DrawerCoverColumns);
+                Assert.True(Math.Abs(secondBefore.X - previewSecond.X) * dpi < 0.5,
+                    $"Second icon shifted during resize preview from {secondBefore.X} to {previewSecond.X} DIP at {dpi} DPI.");
+
+                model.EndDrawerCoverResize(commit: true);
+                content.InvalidateMeasure();
+                content.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                content.Arrange(new Rect(content.DesiredSize));
+                content.UpdateLayout();
+
+                var afterTile = (FrameworkElement)coverItems.ItemContainerGenerator.ContainerFromIndex(0);
+                var after = afterTile.TranslatePoint(new Point(), border);
+                var frameAfter = firstFrame.TranslatePoint(new Point(), border);
+                var secondAfter = secondFrame.TranslatePoint(new Point(), border);
+                Assert.Same(firstTile, afterTile);
+                Assert.True(Math.Abs(before.X - after.X) * dpi < 0.5,
+                    $"First tile shifted horizontally from {before.X} to {after.X} DIP at {dpi} DPI.");
+                Assert.True(Math.Abs(before.Y - after.Y) * dpi < 0.5,
+                    $"First tile shifted vertically from {before.Y} to {after.Y} DIP at {dpi} DPI.");
+                Assert.True(Math.Abs(frameBefore.X - frameAfter.X) * dpi < 0.5,
+                    $"First icon shifted horizontally from {frameBefore.X} to {frameAfter.X} DIP at {dpi} DPI.");
+                Assert.True(Math.Abs(frameBefore.Y - frameAfter.Y) * dpi < 0.5,
+                    $"First icon shifted vertically from {frameBefore.Y} to {frameAfter.Y} DIP at {dpi} DPI.");
+                Assert.True(Math.Abs(secondBefore.X - secondAfter.X) * dpi < 0.5,
+                    $"Second icon shifted horizontally from {secondBefore.X} to {secondAfter.X} DIP at {dpi} DPI.");
+                Assert.True(Math.Abs(secondBefore.Y - secondAfter.Y) * dpi < 0.5,
+                    $"Second icon shifted vertically from {secondBefore.Y} to {secondAfter.Y} DIP at {dpi} DPI.");
+            }
+            catch (Exception exception)
+            {
+                failure = exception;
+            }
+            finally
+            {
+                window?.Close();
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        Assert.True(thread.Join(TimeSpan.FromSeconds(15)), "Drawer cover layout test timed out.");
+        Assert.Null(failure);
+    }
+
+    [Theory]
     [InlineData("6x6", 1, false)]
     [InlineData("6x6", 2, false)]
     [InlineData("6x6", 3, false)]

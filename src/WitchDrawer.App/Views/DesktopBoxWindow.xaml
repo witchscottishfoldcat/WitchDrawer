@@ -1113,8 +1113,9 @@
             <Grid Grid.Row="1"
                   Panel.ZIndex="5"
                   Background="Transparent"
-                  Width="{Binding DrawerCoverWidth}"
-                  Height="{Binding DrawerContentHeight}"
+                  Width="{Binding DrawerCoverDisplayWidth}"
+                  Height="{Binding DrawerCoverDisplayContentHeight}"
+                  ClipToBounds="True"
                   Opacity="{Binding AutoHideContentOpacity}"
                   PreviewMouseMove="OnDrawerIconMouseMove"
                   PreviewMouseLeftButtonDown="OnDrawerSurfacePreviewMouseLeftButtonDown"
@@ -1132,11 +1133,18 @@
                         </Style>
                     </Grid.Style>
                     <ItemsControl x:Name="DrawerCoverItems"
+                                  Width="{Binding DrawerCoverGridWidth}"
+                                  Height="{Binding DrawerCoverGridHeight}"
+                                  HorizontalAlignment="Left"
+                                  VerticalAlignment="Top"
                                   ItemsSource="{Binding DrawerCoverTiles}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <UniformGrid Columns="{Binding DataContext.DrawerCoverColumns, RelativeSource={RelativeSource AncestorType=Window}}"
-                                             Rows="{Binding DataContext.DrawerCoverRows, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                <controls:FixedCellGridPanel
+                                    Columns="{Binding DataContext.DrawerCoverColumns, RelativeSource={RelativeSource AncestorType=Window}}"
+                                    Rows="{Binding DataContext.DrawerCoverRows, RelativeSource={RelativeSource AncestorType=Window}}"
+                                    CellWidth="{Binding DataContext.LayoutSettings.DrawerCoverCellWidth, RelativeSource={RelativeSource AncestorType=Window}}"
+                                    CellHeight="{Binding DataContext.LayoutSettings.DrawerCoverCellHeight, RelativeSource={RelativeSource AncestorType=Window}}" />
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>

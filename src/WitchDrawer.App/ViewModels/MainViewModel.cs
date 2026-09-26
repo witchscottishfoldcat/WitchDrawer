@@ -182,7 +182,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public event EventHandler<BoxItemsChangedEventArgs>? ItemsChanged;
 
-    public ObservableCollection<BoxViewModel> Boxes { get; } = [];
+    public ResettableObservableCollection<BoxViewModel> Boxes { get; } = [];
 
     public ResettableObservableCollection<DrawerItemViewModel> Items { get; } = [];
 

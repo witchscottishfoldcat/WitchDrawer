@@ -64,6 +64,52 @@ public sealed class QuickPanelLazyLoadTests
     }
 
     [Fact]
+    public async Task ChangeDuringFirstQuery_IsReadAgainBeforePanelOpens()
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var (service, _) = await CreateServiceAsync(root);
+            var box = await service.CreateBoxAsync("普通盒", BoxType.Normal);
+            await ImportFileAsync(service, root, box.Id, "a.txt");
+            var staleItems = await service.GetAllItemsAsync();
+            var queryStarted = new TaskCompletionSource<bool>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            var finishFirstQuery = new TaskCompletionSource<bool>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            var queryCount = 0;
+
+            async Task<IReadOnlyList<DrawerItem>> ReadItemsAsync()
+            {
+                if (Interlocked.Increment(ref queryCount) == 1)
+                {
+                    queryStarted.TrySetResult(true);
+                    await finishFirstQuery.Task;
+                    return staleItems;
+                }
+
+                return await service.GetAllItemsAsync();
+            }
+
+            var viewModel = CreateViewModel(service, ReadItemsAsync);
+            var loading = viewModel.EnsureLoadedAsync();
+            await queryStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+            await ImportFileAsync(service, root, box.Id, "b.txt");
+            await viewModel.RefreshBoxAsync(box.Id);
+            finishFirstQuery.TrySetResult(true);
+            await loading;
+
+            Assert.Equal(2, queryCount);
+            Assert.Equal(2, viewModel.Items.Count);
+        }
+        finally
+        {
+            DeleteTempRoot(root);
+        }
+    }
+
+    [Fact]
     public async Task RepeatedOpen_DoesNotRescan_IncrementalRefreshStillWorks()
     {
         var root = CreateTempRoot();
@@ -138,12 +184,15 @@ public sealed class QuickPanelLazyLoadTests
         await service.ImportPathAsync(boxId, sourceFile);
     }
 
-    private static QuickPanelViewModel CreateViewModel(DrawerService service) =>
+    private static QuickPanelViewModel CreateViewModel(
+        DrawerService service,
+        Func<Task<IReadOnlyList<DrawerItem>>>? loadItemsOverride = null) =>
         new(
             service,
             new NoOpFileLauncher(),
             new RecordingLogger(),
-            new BoxVisualStyleStore(service, new RecordingLogger()));
+            new BoxVisualStyleStore(service, new RecordingLogger()),
+            loadItemsOverride);
 
     private static async Task<(DrawerService Service, DrawerRepository Repository)> CreateServiceAsync(string root)
     {

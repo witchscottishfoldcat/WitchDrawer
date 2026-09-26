@@ -52,6 +52,7 @@ public partial class DesktopBoxWindow : Window
     private DesktopToolWindow? _nativeWindow;
     private double _drawerResizeStartWidth;
     private double _drawerResizeStartHeight;
+    private bool _isDrawerResizing;
     private NativePoint _drawerResizeStartCursor;
     private double _mappingListResizeStartWidth;
     private NativePoint _mappingListResizeStartCursor;

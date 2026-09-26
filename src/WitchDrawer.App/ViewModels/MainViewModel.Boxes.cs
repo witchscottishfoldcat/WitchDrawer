@@ -18,7 +18,7 @@ public sealed partial class MainViewModel
             var boxes = await _drawerService.GetBoxesAsync();
             var presentedBoxes = await LoadBoxPresentationAsync(boxes, startupSnapshot);
 
-            Boxes.Clear();
+            var loadedBoxes = new List<BoxViewModel>(presentedBoxes.Length);
             foreach (var (box, visualStyle, isPositionLocked) in presentedBoxes)
             {
                 var boxViewModel = new BoxViewModel(
@@ -28,8 +28,11 @@ public sealed partial class MainViewModel
                     isPositionLocked,
                     _logger);
                 await boxViewModel.InitializeSettingsAsync(startupSnapshot);
-                Boxes.Add(boxViewModel);
+                loadedBoxes.Add(boxViewModel);
             }
+            // The sidebar is already attached to Boxes. Publish the startup set once
+            // so WPF does not remeasure it after every individual Add.
+            Boxes.ReplaceAll(loadedBoxes);
 
             await SelectBoxAsync(Boxes.FirstOrDefault(box => box.Id == existingSelection) ?? Boxes.FirstOrDefault());
 

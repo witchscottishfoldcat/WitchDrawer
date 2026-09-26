@@ -30,9 +30,9 @@ public partial class App : Application
     private TaskbarIcon? _taskbarIcon;
     private MainWindow? _mainWindow;
     private DesktopBoxManager? _desktopBoxManager;
+    private TaskCompletionSource<DesktopBoxManager>? _desktopReady;
     private IAppLogger? _logger;
     private int _shutdownStarted;
-    private bool _startupDesktopRefreshPending = true;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -79,6 +79,9 @@ public partial class App : Application
             return;
         }
 
+        var desktopReady = new TaskCompletionSource<DesktopBoxManager>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        _desktopReady = desktopReady;
         try
         {
             // ForCurrentUser 会创建目录并校验可写性（SQLite WAL 需要同目录旁路文件）。
@@ -139,7 +142,6 @@ public partial class App : Application
                 launcher,
                 logger,
                 boxVisualStyleStore);
-            var quickPanel = new QuickPanelWindow(quickPanelViewModel);
             var mainViewModel = new MainViewModel(
                 drawerService,
                 todoService,
@@ -153,58 +155,51 @@ public partial class App : Application
                 paths,
                 dataStorageMigrationService,
                 autoHideSettingsStore);
-            _desktopBoxManager = new DesktopBoxManager(
-                drawerService,
-                todoService,
-                launcher,
-                shellChangeNotifier,
-                logger,
-                boxVisualStyleStore,
-                boxPositionLockStateStore,
-                () => mainViewModel.IsDesktopDoubleClickEnabled);
             _mainWindow = new MainWindow(
                 mainViewModel,
-                quickPanel,
+                () => new QuickPanelWindow(quickPanelViewModel),
                 logger,
                 quickPanelHotKeySettings,
                 quickPanelHotKey);
-            _desktopBoxManager.ShowDesktopActivated += (_, _) =>
-                _mainWindow.SendBehindDesktop();
             StartSingleInstanceServer(logger);
-            startupTimer.Mark("主窗口与桌面盒子管理器构建完成");
+            startupTimer.Mark("主窗口构建完成");
+            var refreshCoordinator = new StartupBoxRefreshCoordinator();
 
             // 这些事件处理器是 async void：刷新期间的异常（如 SQLite 写入失败）会直接逃出
             // 成为进程级未处理异常，必须就地捕获记录。
             mainViewModel.BoxesChanged += async (_, _) =>
             {
-                // 启动首刷由下方统一入口负责；运行期间新增、删除盒子仍走这里刷新。
-                if (_startupDesktopRefreshPending)
+                if (!refreshCoordinator.ShouldRefreshNow())
                 {
+                    if (refreshCoordinator.HasPendingRefresh)
+                    {
+                        // The startup settings snapshot predates this box change.
+                        // Stop the snapshot refresh and replay from live settings.
+                        _desktopBoxManager?.InvalidateRefresh();
+                    }
                     return;
                 }
 
-                await GuardRefreshAsync(() => _desktopBoxManager.RefreshAsync(), "RefreshAsync", logger);
+                await GuardRefreshAsync(
+                    async () => await (await desktopReady.Task).RefreshAsync(),
+                    "RefreshAsync",
+                    logger);
             };
             mainViewModel.ItemsChanged += async (_, eventArgs) =>
-                await GuardRefreshAsync(() => _desktopBoxManager.RefreshItemsAsync(eventArgs.BoxId), "RefreshItemsAsync", logger);
-            _desktopBoxManager.ItemsChanged += async (_, eventArgs) =>
                 await GuardRefreshAsync(
-                    () => mainViewModel.ReloadItemsFromDesktopAsync(eventArgs.BoxId),
-                    "ReloadItemsFromDesktopAsync",
+                    async () => await (await desktopReady.Task).RefreshItemsAsync(eventArgs.BoxId),
+                    "RefreshItemsAsync",
                     logger);
-            _desktopBoxManager.DesktopBackgroundDoubleClicked += (_, _) =>
-            {
-                if (mainViewModel.ToggleDesktopIconsCommand.CanExecute(null))
-                {
-                    mainViewModel.ToggleDesktopIconsCommand.Execute(null);
-                }
-            };
-            _mainWindow.ReopenBoxRequested += async (_, boxId) => await _desktopBoxManager.ShowAsync(boxId);
+            _mainWindow.ReopenBoxRequested += async (_, boxId) =>
+                await GuardRefreshAsync(
+                    async () => { await (await desktopReady.Task).ShowAsync(boxId); },
+                    "ShowAsync",
+                    logger);
             _mainWindow.RecordLayoutBackupRequested += async (_, slot) =>
                 await GuardRefreshAsync(
                     async () =>
                     {
-                        var count = await _desktopBoxManager.RecordLayoutBackupAsync(slot);
+                        var count = await (await desktopReady.Task).RecordLayoutBackupAsync(slot);
                         _mainWindow.SetLayoutBackupSlotState(slot, hasBackup: true);
                         mainViewModel.ReportStatus($"已将 {count} 个盒子记录到布局备份槽位 {slot}");
                     },
@@ -214,7 +209,7 @@ public partial class App : Application
                 await GuardRefreshAsync(
                     async () =>
                     {
-                        var result = await _desktopBoxManager.RestoreLayoutBackupAsync(slot);
+                        var result = await (await desktopReady.Task).RestoreLayoutBackupAsync(slot);
                         if (!result.BackupFound)
                         {
                             _mainWindow.SetLayoutBackupSlotState(slot, hasBackup: false);
@@ -234,7 +229,7 @@ public partial class App : Application
                 await GuardRefreshAsync(
                     async () =>
                     {
-                        var deleted = await _desktopBoxManager.DeleteLayoutBackupAsync(slot);
+                        var deleted = await (await desktopReady.Task).DeleteLayoutBackupAsync(slot);
                         _mainWindow.SetLayoutBackupSlotState(slot, hasBackup: false);
                         mainViewModel.ReportStatus(
                             deleted
@@ -247,7 +242,7 @@ public partial class App : Application
                 await GuardRefreshAsync(
                     async () =>
                     {
-                        if (await _desktopBoxManager.CenterBoxOnScreenAsync(boxId))
+                        if (await (await desktopReady.Task).CenterBoxOnScreenAsync(boxId))
                         {
                             mainViewModel.ReportStatus("已将盒子召回主屏中心");
                         }
@@ -255,7 +250,10 @@ public partial class App : Application
                     "CenterBoxOnScreenAsync",
                     logger);
             _mainWindow.DesktopShellRestarted += async (_, _) =>
-                await _desktopBoxManager.RecoverDesktopHostsAsync();
+                await GuardRefreshAsync(
+                    async () => await (await desktopReady.Task).RecoverDesktopHostsAsync(),
+                    "RecoverDesktopHostsAsync",
+                    logger);
             mainViewModel.UpdateRequested += async (_, result) =>
             {
                 var versionText = $"v{result.LatestVersion.Major}.{result.LatestVersion.Minor}.{result.LatestVersion.Build}";
@@ -276,16 +274,6 @@ public partial class App : Application
                 await PerformShutdownAsync();
             };
 
-            var layoutBackupStates = await Task.WhenAll(
-                Enumerable.Range(1, 3).Select(async slot =>
-                    (Slot: slot, HasBackup: await _desktopBoxManager.HasLayoutBackupAsync(slot))));
-            foreach (var state in layoutBackupStates)
-            {
-                _mainWindow.SetLayoutBackupSlotState(state.Slot, state.HasBackup);
-            }
-
-            InitializeTaskbarIcon(paths, logger);
-
             MainWindow = _mainWindow;
             if (silentStart)
             {
@@ -295,13 +283,88 @@ public partial class App : Application
             {
                 _mainWindow.Show();
             }
-            startupTimer.Mark("主窗口已显示（首个可操作窗口）");
+            startupTimer.Mark(silentStart ? "主窗口已隐藏（静默启动）" : "主窗口已显示");
+            if (!silentStart)
+            {
+                // Show() 返回时首帧还在派发器队列里。让渲染先完成，再继续
+                // 初始化托盘与桌面盒子；静默启动没有首帧，不需要这一轮调度。
+                await System.Windows.Threading.Dispatcher.Yield(
+                    System.Windows.Threading.DispatcherPriority.Input);
+            }
+
+            if (Volatile.Read(ref _shutdownStarted) != 0)
+            {
+                return;
+            }
+
+            InitializeTaskbarIcon(paths, logger);
+            // 管理器的窗口监控与鼠标钩子安装发生在首帧之后。
+            var desktopBoxManager = new DesktopBoxManager(
+                drawerService,
+                todoService,
+                launcher,
+                shellChangeNotifier,
+                logger,
+                boxVisualStyleStore,
+                boxPositionLockStateStore,
+                () => mainViewModel.IsDesktopDoubleClickEnabled);
+            _desktopBoxManager = desktopBoxManager;
+            desktopBoxManager.ShowDesktopActivated += (_, _) =>
+                _mainWindow.SendBehindDesktop();
+            desktopBoxManager.ItemsChanged += async (_, eventArgs) =>
+                await GuardRefreshAsync(
+                    async () =>
+                    {
+                        await desktopReady.Task;
+                        await mainViewModel.ReloadItemsFromDesktopAsync(eventArgs.BoxId);
+                    },
+                    "ReloadItemsFromDesktopAsync",
+                    logger);
+            desktopBoxManager.DesktopBackgroundDoubleClicked += (_, _) =>
+            {
+                if (mainViewModel.ToggleDesktopIconsCommand.CanExecute(null))
+                {
+                    mainViewModel.ToggleDesktopIconsCommand.Execute(null);
+                }
+            };
+            startupTimer.Mark("桌面盒子管理器就绪（首帧后）");
+
+            var layoutBackupStates = await Task.WhenAll(
+                Enumerable.Range(1, 3).Select(async slot =>
+                    (Slot: slot, HasBackup: await desktopBoxManager.HasLayoutBackupAsync(slot, startupSettings))));
+            if (Volatile.Read(ref _shutdownStarted) != 0)
+            {
+                return;
+            }
+            foreach (var state in layoutBackupStates)
+            {
+                _mainWindow.SetLayoutBackupSlotState(state.Slot, state.HasBackup);
+            }
+            startupTimer.Mark("布局备份状态就绪（启动快照）");
+
             await mainViewModel.LoadAsync(startupSettings);
+            if (Volatile.Read(ref _shutdownStarted) != 0)
+            {
+                return;
+            }
+            refreshCoordinator.MarkMainViewModelLoaded();
             startupTimer.Mark("主窗口数据加载完成");
             // 快捷面板不再随启动预加载：首次打开时由 EnsureLoadedAsync 完整加载。
             // 桌面盒子首次刷新只有这一个入口，串行保护与运行期刷新事件保持不变。
-            await _desktopBoxManager.RefreshAsync(startupSettings);
-            _startupDesktopRefreshPending = false;
+            await desktopBoxManager.RefreshAsync(startupSettings);
+            if (Volatile.Read(ref _shutdownStarted) != 0)
+            {
+                return;
+            }
+            if (refreshCoordinator.CompleteInitialRefresh())
+            {
+                await desktopBoxManager.RefreshAsync();
+                if (Volatile.Read(ref _shutdownStarted) != 0)
+                {
+                    return;
+                }
+            }
+            desktopReady.TrySetResult(desktopBoxManager);
             startupTimer.Mark("桌面盒子全部就绪");
             if (drawerService.RecoveryWarnings.Count > 0)
             {
@@ -322,6 +385,7 @@ public partial class App : Application
         }
         catch (Exception exception)
         {
+            desktopReady.TrySetException(exception);
             var sb = new System.Text.StringBuilder();
             var ex = exception;
             while (ex != null)
@@ -361,11 +425,20 @@ public partial class App : Application
             : AppTheme.Moe;
     }
 
-    private static async Task GuardRefreshAsync(Func<Task> refresh, string operationName, IAppLogger logger)
+    private async Task GuardRefreshAsync(Func<Task> refresh, string operationName, IAppLogger logger)
     {
+        if (Volatile.Read(ref _shutdownStarted) != 0)
+        {
+            return;
+        }
+
         try
         {
             await refresh();
+        }
+        catch (OperationCanceledException) when (Volatile.Read(ref _shutdownStarted) != 0)
+        {
+            // Pending startup actions are canceled when the user exits.
         }
         catch (Exception exception)
         {
@@ -537,6 +610,7 @@ public partial class App : Application
             return;
         }
 
+        _desktopReady?.TrySetCanceled();
         _taskbarIcon?.Dispose();
         _taskbarIcon = null;
 

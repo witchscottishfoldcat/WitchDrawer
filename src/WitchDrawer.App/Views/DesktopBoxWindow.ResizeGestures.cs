@@ -12,8 +12,10 @@ public partial class DesktopBoxWindow
 {
     private void OnDrawerResizeStarted(object sender, DragStartedEventArgs e)
     {
+        _isDrawerResizing = true;
         _drawerResizeStartWidth = ViewModel.DrawerCoverWidth;
         _drawerResizeStartHeight = ViewModel.DrawerCoverHeight;
+        ViewModel.BeginDrawerCoverResize();
         GetCursorPos(out _drawerResizeStartCursor);
         e.Handled = true;
     }
@@ -28,7 +30,7 @@ public partial class DesktopBoxWindow
         var horizontalDelta = currentCursor.X - _drawerResizeStartCursor.X;
         var verticalDelta = currentCursor.Y - _drawerResizeStartCursor.Y;
         var dpi = VisualTreeHelper.GetDpi(this);
-        ViewModel.ResizeDrawerCover(
+        ViewModel.PreviewDrawerCoverResize(
             _drawerResizeStartWidth + (horizontalDelta / Math.Max(0.1, dpi.DpiScaleX)),
             _drawerResizeStartHeight + (verticalDelta / Math.Max(0.1, dpi.DpiScaleY)));
         e.Handled = true;
@@ -36,14 +38,18 @@ public partial class DesktopBoxWindow
 
     private async void OnDrawerResizeCompleted(object sender, DragCompletedEventArgs e)
     {
+        _isDrawerResizing = false;
         if (e.Canceled)
         {
             // 拖拽被取消（如捕获丢失/Alt+Tab 切走）：回滚到拖拽前的尺寸，不保存。
-            ViewModel.ResizeDrawerCover(_drawerResizeStartWidth, _drawerResizeStartHeight);
+            ViewModel.EndDrawerCoverResize(commit: false);
+            QueueVisibleBoundsClamp();
             e.Handled = true;
             return;
         }
 
+        ViewModel.EndDrawerCoverResize(commit: true);
+        QueueVisibleBoundsClamp();
         try
         {
             await ViewModel.SaveDrawerCoverSizeAsync();

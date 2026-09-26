@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Threading;
 using WitchDrawer.Native.Windows;
 using static WitchDrawer.Native.Windows.User32Interop;
 
@@ -184,11 +185,28 @@ public partial class DesktopBoxWindow
                 _isMappingViewTransitioning,
                 _isRollTransitioning,
                 IsVisible,
-                e.PreviousSize != e.NewSize))
+                e.PreviousSize != e.NewSize,
+                _isDrawerResizing))
         {
             return;
         }
 
+        ClampVisibleBoundsToWorkArea();
+    }
+
+    private void QueueVisibleBoundsClamp()
+    {
+        _ = Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+        {
+            if (_isVisibleBoundsClampingEnabled && IsVisible && !_isDrawerResizing)
+            {
+                ClampVisibleBoundsToWorkArea();
+            }
+        });
+    }
+
+    private void ClampVisibleBoundsToWorkArea()
+    {
         // 尺寸必须取布局结果（ActualWidth/Height）而非 HWND 矩形：SizeToContent 的
         // HWND 缩放与 SizeChanged 事件不同步，事件触发时 HWND 可能仍是初始尺寸，
         // 读 HWND 会把正常窗口误判为越界并错误钳回左上（首次显示时必现）。
@@ -230,10 +248,12 @@ public partial class DesktopBoxWindow
         bool isMappingViewTransitioning,
         bool isRollTransitioning,
         bool isVisible,
-        bool sizeChanged) =>
+        bool sizeChanged,
+        bool isDrawerResizing = false) =>
         isClampingEnabled
         && !isMappingViewTransitioning
         && !isRollTransitioning
+        && !isDrawerResizing
         && isVisible
         && sizeChanged;
 

@@ -224,6 +224,31 @@ public sealed class DesktopBoxLayoutSettingsTests
         Assert.Equal(2, actual.Rows);
     }
 
+    [Fact]
+    public void DrawerResize_DragHoldsGridAcrossSmallCursorOscillations()
+    {
+        const double inset = DesktopBoxLayoutSettings.DrawerSurfaceInset * 2;
+        const double cellWidth = 55;
+        const double cellHeight = 71;
+        var height = (2 * cellHeight) + inset;
+
+        var nearGrowth = DesktopBoxViewModel.NormalizeDrawerCoverSizeForDrag(
+            (3.51 * cellWidth) + inset, height, cellWidth, cellHeight, 3, 2);
+        var grown = DesktopBoxViewModel.NormalizeDrawerCoverSizeForDrag(
+            (3.61 * cellWidth) + inset, height, cellWidth, cellHeight, 3, 2);
+        var nearShrink = DesktopBoxViewModel.NormalizeDrawerCoverSizeForDrag(
+            (3.49 * cellWidth) + inset, height, cellWidth, cellHeight, 4, 2);
+        var shrunk = DesktopBoxViewModel.NormalizeDrawerCoverSizeForDrag(
+            (3.39 * cellWidth) + inset, height, cellWidth, cellHeight, 4, 2);
+
+        Assert.Equal(3, nearGrowth.Columns);
+        Assert.Equal(4, grown.Columns);
+        Assert.Equal(4, nearShrink.Columns);
+        Assert.Equal(3, shrunk.Columns);
+        Assert.All(new[] { nearGrowth, grown, nearShrink, shrunk },
+            result => Assert.Equal(2, result.Rows));
+    }
+
     [Theory]
     [InlineData(4, 71, false)]
     [InlineData(5, 55, false)]

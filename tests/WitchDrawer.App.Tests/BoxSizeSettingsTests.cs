@@ -185,6 +185,72 @@ public sealed class BoxSizeSettingsTests
     }
 
     [Fact]
+    public void DrawerCoverResize_KeepsExistingIconTilesAndSkipsUnchangedPreview()
+    {
+        var paths = new AppPaths(Path.Combine(Path.GetTempPath(), "WitchDrawerCoverResize", Guid.NewGuid().ToString("N")));
+        var repository = new DrawerRepository(paths.DatabasePath);
+        var now = DateTimeOffset.UtcNow;
+        var box = new Box(Guid.NewGuid(), "抽屉", BoxType.Drawer, null, 0, now, now);
+        var viewModel = new DesktopBoxViewModel(
+            box,
+            new DrawerService(paths, repository),
+            new TodoService(repository),
+            new NoOpFileLauncher(),
+            new WitchDrawer.Native.Files.ShellChangeNotifierService(),
+            new RecordingLogger(),
+            BoxVisualStyle.Modern);
+        for (var index = 0; index < 8; index++)
+        {
+            viewModel.Items.Add(new DrawerItemViewModel(new DrawerItem(
+                Guid.NewGuid(), box.Id, $"item {index}", ItemKind.File,
+                null, null, index, now, now, index, 0)));
+        }
+
+        var cellWidth = viewModel.LayoutSettings.DrawerCoverCellWidth;
+        var cellHeight = viewModel.LayoutSettings.DrawerCoverCellHeight;
+        var inset = DesktopBoxLayoutSettings.DrawerSurfaceInset * 2;
+        viewModel.ResizeDrawerCover((2 * cellWidth) + inset, (2 * cellHeight) + inset);
+        var firstTile = viewModel.DrawerCoverTiles[0];
+        var expandTile = viewModel.DrawerCoverTiles[^1];
+        firstTile.IsSelected = true;
+
+        viewModel.ResizeDrawerCover((3 * cellWidth) + inset, (2 * cellHeight) + inset);
+
+        Assert.Same(firstTile, viewModel.DrawerCoverTiles[0]);
+        Assert.True(viewModel.DrawerCoverTiles[0].IsSelected);
+        Assert.Same(expandTile, viewModel.DrawerCoverTiles[^1]);
+        Assert.Equal(6, viewModel.DrawerCoverTiles.Count);
+        Assert.Equal(viewModel.Items[5], viewModel.DrawerPreviewItems[0]);
+
+        var collectionChanges = 0;
+        viewModel.DrawerCoverTiles.CollectionChanged += (_, _) => collectionChanges++;
+        viewModel.DrawerPreviewItems.CollectionChanged += (_, _) => collectionChanges++;
+        viewModel.ResizeDrawerCover((2 * cellWidth) + inset, (3 * cellHeight) + inset);
+
+        Assert.Equal(0, collectionChanges);
+        Assert.Same(firstTile, viewModel.DrawerCoverTiles[0]);
+        Assert.Same(expandTile, viewModel.DrawerCoverTiles[^1]);
+
+        var committedWidth = viewModel.DrawerCoverWidth;
+        var committedGridWidth = viewModel.DrawerCoverGridWidth;
+        viewModel.BeginDrawerCoverResize();
+        viewModel.PreviewDrawerCoverResize((3 * cellWidth) + inset, (3 * cellHeight) + inset);
+        Assert.True(viewModel.DrawerCoverDisplayWidth > committedWidth);
+        Assert.Equal(committedWidth, viewModel.DrawerCoverWidth);
+        Assert.Equal(committedGridWidth, viewModel.DrawerCoverGridWidth);
+        Assert.Equal(0, collectionChanges);
+        viewModel.EndDrawerCoverResize(commit: false);
+        Assert.Equal(committedWidth, viewModel.DrawerCoverDisplayWidth);
+
+        viewModel.BeginDrawerCoverResize();
+        viewModel.PreviewDrawerCoverResize((3 * cellWidth) + inset, (3 * cellHeight) + inset);
+        viewModel.EndDrawerCoverResize(commit: true);
+        Assert.Equal(3, viewModel.DrawerCoverColumns);
+        Assert.Equal(8, viewModel.DrawerCoverTiles.Count);
+        Assert.Same(firstTile, viewModel.DrawerCoverTiles[0]);
+    }
+
+    [Fact]
     public async Task SizeSettingsViewModel_PersistsFixedModeAndBroadcasts()
     {
         var root = CreateTempRoot();

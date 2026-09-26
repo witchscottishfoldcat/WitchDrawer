@@ -261,6 +261,7 @@ public sealed partial class DesktopBoxViewModel
         OnPropertyChanged(nameof(IsHeaderTitleVisible));
         OnPropertyChanged(nameof(HeaderRowHeight));
         OnPropertyChanged(nameof(DrawerContentHeight));
+        OnPropertyChanged(nameof(DrawerCoverDisplayContentHeight));
     }
 
     public async Task LoadRollUpStateAsync(StartupSettingsSnapshot? snapshot = null)

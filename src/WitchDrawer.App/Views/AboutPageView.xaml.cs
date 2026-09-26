@@ -12,10 +12,11 @@ public partial class AboutPageView : UserControl
     internal const string SupportPageUri = "https://www.witchcat.cn/zh/support";
 
     /// <summary>
-    /// Owned by the hosting window; assigned right after the view is created so
-    /// failure logging keeps going through the same application logger.
+    /// Owned by the hosting window; assigned right after startup so failure logging
+    /// keeps going through the same application logger. Static because the view is
+    /// hosted by LazyPageHost and is not instantiated until first shown.
     /// </summary>
-    internal IAppLogger? Logger { get; set; }
+    internal static IAppLogger? Logger { get; set; }
 
     public AboutPageView()
     {

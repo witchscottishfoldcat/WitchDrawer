@@ -92,6 +92,10 @@ public sealed partial class DesktopBoxViewModel : ObservableObject
     private bool _isHoverRollUpEnabled;
     private double _drawerCoverWidth = DefaultDrawerCoverWidth;
     private double _drawerCoverHeight = DefaultDrawerCoverHeight;
+    private double _drawerCoverPreviewWidth = double.NaN;
+    private double _drawerCoverPreviewHeight = double.NaN;
+    private int _drawerCoverPreviewColumns;
+    private int _drawerCoverPreviewRows;
     private int _drawerCoverColumns = 3;
     private int _drawerCoverRows = 2;
     private DrawerItemSortMode _drawerItemSortMode = DrawerItemSortMode.Free;
@@ -213,9 +217,9 @@ public sealed partial class DesktopBoxViewModel : ObservableObject
 
     public int GridLayoutVersion { get; private set; }
 
-    public ObservableCollection<DrawerItemViewModel> DrawerPreviewItems { get; } = [];
+    public ResettableObservableCollection<DrawerItemViewModel> DrawerPreviewItems { get; } = [];
 
-    public ObservableCollection<DrawerCoverTileViewModel> DrawerCoverTiles { get; } = [];
+    public ResettableObservableCollection<DrawerCoverTileViewModel> DrawerCoverTiles { get; } = [];
 
     public ResettableObservableCollection<DrawerItemViewModel> DrawerSecondaryItems { get; } = [];
 
@@ -333,15 +337,27 @@ public sealed partial class DesktopBoxViewModel : ObservableObject
 
     public double DrawerCoverWidth => _drawerCoverWidth;
 
+    public double DrawerCoverDisplayWidth => double.IsNaN(_drawerCoverPreviewWidth)
+        ? DrawerCoverWidth
+        : _drawerCoverPreviewWidth;
+
     public double DrawerCoverHeight => _drawerCoverHeight;
 
     public double DrawerContentHeight => CalculateDrawerContentHeight(
         DrawerCoverHeight,
         IsTitleVisible);
 
+    public double DrawerCoverDisplayContentHeight => CalculateDrawerContentHeight(
+        double.IsNaN(_drawerCoverPreviewHeight) ? DrawerCoverHeight : _drawerCoverPreviewHeight,
+        IsTitleVisible);
+
     public int DrawerCoverColumns => _drawerCoverColumns;
 
     public int DrawerCoverRows => _drawerCoverRows;
+
+    public double DrawerCoverGridWidth => DrawerCoverColumns * LayoutSettings.DrawerCoverCellWidth;
+
+    public double DrawerCoverGridHeight => DrawerCoverRows * LayoutSettings.DrawerCoverCellHeight;
 
     public int DrawerCoverCapacity => DrawerCoverColumns * DrawerCoverRows;
 
@@ -542,6 +558,7 @@ public sealed partial class DesktopBoxViewModel : ObservableObject
         OnPropertyChanged(nameof(HeaderRowHeight));
         OnPropertyChanged(nameof(ContentRowHeight));
         OnPropertyChanged(nameof(DrawerContentHeight));
+        OnPropertyChanged(nameof(DrawerCoverDisplayContentHeight));
         OnPropertyChanged(nameof(IsMappingListMode));
         OnPropertyChanged(nameof(IsGridMode));
         OnPropertyChanged(nameof(TypeLabel));
