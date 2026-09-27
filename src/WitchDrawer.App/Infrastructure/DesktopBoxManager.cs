@@ -33,7 +33,7 @@ public sealed partial class DesktopBoxManager
     private readonly BoxVisualStyleStore _boxVisualStyleStore;
     private readonly BoxPositionLockStateStore _boxPositionLockStateStore;
     private readonly Dictionary<Guid, DesktopBoxWindow> _windows = [];
-    private readonly ForegroundWindowMonitor _foregroundWindowMonitor;
+    private readonly ForegroundWindowMonitor? _foregroundWindowMonitor;
     private readonly GlobalMouseButtonMonitor _mouseButtonMonitor;
     private readonly DesktopDoubleClickDetector _desktopDoubleClickDetector = new();
     private readonly Channel<DesktopMouseButtonEvent> _desktopMouseButtonEvents =
@@ -74,13 +74,20 @@ public sealed partial class DesktopBoxManager
         _boxVisualStyleStore = boxVisualStyleStore;
         _boxPositionLockStateStore = boxPositionLockStateStore;
         _isDesktopDoubleClickEnabled = isDesktopDoubleClickEnabled;
-        _foregroundWindowMonitor = new ForegroundWindowMonitor();
-        _foregroundWindowMonitor.ForegroundWindowChanged += OnForegroundWindowChanged;
-        _desktopIsForeground = ForegroundWindowMonitor.IsDesktopWindow(
-            ForegroundWindowMonitor.GetCurrentForegroundWindow());
-        if (!_foregroundWindowMonitor.IsActive)
+        if (DesktopWindowLayer.IsEnabled)
         {
-            _logger.Info("Foreground window monitoring is unavailable; Show Desktop layering may be limited.");
+            InitializeDesktopLayer();
+        }
+        else
+        {
+            _foregroundWindowMonitor = new ForegroundWindowMonitor();
+            _foregroundWindowMonitor.ForegroundWindowChanged += OnForegroundWindowChanged;
+            _desktopIsForeground = ForegroundWindowMonitor.IsDesktopWindow(
+                ForegroundWindowMonitor.GetCurrentForegroundWindow());
+            if (!_foregroundWindowMonitor.IsActive)
+            {
+                _logger.Info("Foreground window monitoring is unavailable; Show Desktop layering may be limited.");
+            }
         }
 
         // 盒子带 WS_EX_NOACTIVATE，点击不激活窗口，桌面点击不会产生 Deactivated
@@ -170,6 +177,7 @@ public sealed partial class DesktopBoxManager
                 win.PreviewMouseLeftButtonUp -= OnWindowMouseUp;
                 win.AutoHideHoverEntered -= OnWindowAutoHideHoverEntered;
                 win.AutoHideHoverLeft -= OnWindowAutoHideHoverLeft;
+                win.DesktopLayerChanged -= QueueDesktopLayerUpdate;
                 win.ForceClose();
                 _windows.Remove(removedId);
             }
@@ -233,6 +241,7 @@ public sealed partial class DesktopBoxManager
                     _windows.Add(box.Id, window);
 
                     window.LocationChanged += OnWindowLocationChanged;
+                    window.DesktopLayerChanged += QueueDesktopLayerUpdate;
                     window.PreviewMouseLeftButtonUp += OnWindowMouseUp;
                     window.AutoHideHoverEntered += OnWindowAutoHideHoverEntered;
                     window.AutoHideHoverLeft += OnWindowAutoHideHoverLeft;
@@ -256,6 +265,7 @@ public sealed partial class DesktopBoxManager
                     // 窗口首次可见时就已经在桌面层，不会先浮在最上层闪一帧再被压回。
                     new System.Windows.Interop.WindowInteropHelper(window).EnsureHandle();
                     window.Show();
+                    MaintainDesktopLayer();
                     window.SetPositionLocked(isPositionLocked);
                     window.SetDesktopForeground(_desktopIsForeground);
                     window.QueueSendToBottom();
@@ -297,7 +307,7 @@ public sealed partial class DesktopBoxManager
             }
 
             ResolveWindowOverlaps();
-            if (DesktopToolWindow.RepairShellLastActivePopup())
+            if (!DesktopWindowLayer.IsEnabled && DesktopToolWindow.RepairShellLastActivePopup())
             {
                 _logger.Info("Reset Progman last-active-popup after attaching desktop boxes.");
             }
@@ -362,7 +372,11 @@ public sealed partial class DesktopBoxManager
 
         // TaskbarCreated is broadcast as Explorer comes back. Give Progman a
         // short window to finish creating before resolving the new owner HWND.
-        await Task.Delay(350);
+        if (!DesktopWindowLayer.IsEnabled)
+        {
+            await Task.Delay(350);
+        }
+        _desktopLayerHost = nint.Zero;
         if (_closing)
         {
             return;
@@ -380,6 +394,7 @@ public sealed partial class DesktopBoxManager
 
             window.LocationChanged -= OnWindowLocationChanged;
             window.PreviewMouseLeftButtonUp -= OnWindowMouseUp;
+            window.DesktopLayerChanged -= QueueDesktopLayerUpdate;
             // 外部（Explorer 重建桌面）销毁 HWND 不会触发 WPF Closed，必须显式 ForceClose
             // 让 OnClosed 里的退订/清理执行，否则整棵窗口对象图被静态事件永久引用（僵尸泄漏）。
             window.ForceClose();
@@ -392,7 +407,7 @@ public sealed partial class DesktopBoxManager
             await RefreshAsync();
         }
 
-        if (DesktopToolWindow.RepairShellLastActivePopup())
+        if (!DesktopWindowLayer.IsEnabled && DesktopToolWindow.RepairShellLastActivePopup())
         {
             _logger.Info("Reset Progman last-active-popup after recovering desktop hosts.");
         }
@@ -477,6 +492,7 @@ public sealed partial class DesktopBoxManager
     public async Task CloseAllAsync()
     {
         _closing = true;
+        DisposeDesktopLayer();
         await SaveAllPositionsAsync();
         foreach (var window in _windows.Values)
         {
@@ -484,6 +500,7 @@ public sealed partial class DesktopBoxManager
             window.PreviewMouseLeftButtonUp -= OnWindowMouseUp;
             window.AutoHideHoverEntered -= OnWindowAutoHideHoverEntered;
             window.AutoHideHoverLeft -= OnWindowAutoHideHoverLeft;
+            window.DesktopLayerChanged -= QueueDesktopLayerUpdate;
             window.ForceClose();
         }
 
@@ -491,8 +508,11 @@ public sealed partial class DesktopBoxManager
         var foregroundChangeCts = Interlocked.Exchange(ref _foregroundChangeCts, null);
         foregroundChangeCts?.Cancel();
         foregroundChangeCts?.Dispose();
-        _foregroundWindowMonitor.ForegroundWindowChanged -= OnForegroundWindowChanged;
-        _foregroundWindowMonitor.Dispose();
+        if (_foregroundWindowMonitor is not null)
+        {
+            _foregroundWindowMonitor.ForegroundWindowChanged -= OnForegroundWindowChanged;
+            _foregroundWindowMonitor.Dispose();
+        }
         _mouseButtonMonitor.MouseButtonDown -= OnGlobalMouseButtonDown;
         _mouseButtonMonitor.MouseButtonPressed -= OnGlobalMouseButtonPressed;
         _mouseButtonMonitor.Dispose();

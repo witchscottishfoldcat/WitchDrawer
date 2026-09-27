@@ -35,10 +35,10 @@ internal static class DesktopShellHost
         return worker != nint.Zero ? worker : shellWindow;
     }
 
-    private static bool HasDesktopView(nint window) =>
+    internal static bool HasDesktopView(nint window) =>
         FindWindowExW(window, nint.Zero, "SHELLDLL_DefView", null) != nint.Zero;
 
-    private static nint FindDesktopWorker(nint shellWindow)
+    internal static nint FindDesktopWorker(nint shellWindow)
     {
         GetWindowThreadProcessId(shellWindow, out var shellProcessId);
         if (shellProcessId == 0)
