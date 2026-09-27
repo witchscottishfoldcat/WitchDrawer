@@ -55,6 +55,7 @@ public sealed class DesktopBoxGridAlignmentTests
                 content.UpdateLayout();
                 var previewSecond = secondFrame.TranslatePoint(new Point(), border);
                 Assert.Equal(2, model.DrawerCoverColumns);
+                Assert.Equal(3, model.DrawerCoverDisplayColumns);
                 Assert.True(Math.Abs(secondBefore.X - previewSecond.X) * dpi < 0.5,
                     $"Second icon shifted during resize preview from {secondBefore.X} to {previewSecond.X} DIP at {dpi} DPI.");
 

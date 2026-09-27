@@ -1133,16 +1133,16 @@
                         </Style>
                     </Grid.Style>
                     <ItemsControl x:Name="DrawerCoverItems"
-                                  Width="{Binding DrawerCoverGridWidth}"
-                                  Height="{Binding DrawerCoverGridHeight}"
+                                  Width="{Binding DrawerCoverDisplayGridWidth}"
+                                  Height="{Binding DrawerCoverDisplayGridHeight}"
                                   HorizontalAlignment="Left"
                                   VerticalAlignment="Top"
                                   ItemsSource="{Binding DrawerCoverTiles}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <controls:FixedCellGridPanel
-                                    Columns="{Binding DataContext.DrawerCoverColumns, RelativeSource={RelativeSource AncestorType=Window}}"
-                                    Rows="{Binding DataContext.DrawerCoverRows, RelativeSource={RelativeSource AncestorType=Window}}"
+                                    Columns="{Binding DataContext.DrawerCoverDisplayColumns, RelativeSource={RelativeSource AncestorType=Window}}"
+                                    Rows="{Binding DataContext.DrawerCoverDisplayRows, RelativeSource={RelativeSource AncestorType=Window}}"
                                     CellWidth="{Binding DataContext.LayoutSettings.DrawerCoverCellWidth, RelativeSource={RelativeSource AncestorType=Window}}"
                                     CellHeight="{Binding DataContext.LayoutSettings.DrawerCoverCellHeight, RelativeSource={RelativeSource AncestorType=Window}}" />
                             </ItemsPanelTemplate>

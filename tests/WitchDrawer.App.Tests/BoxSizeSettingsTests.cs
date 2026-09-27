@@ -238,9 +238,17 @@ public sealed class BoxSizeSettingsTests
         Assert.True(viewModel.DrawerCoverDisplayWidth > committedWidth);
         Assert.Equal(committedWidth, viewModel.DrawerCoverWidth);
         Assert.Equal(committedGridWidth, viewModel.DrawerCoverGridWidth);
-        Assert.Equal(0, collectionChanges);
+        Assert.Equal(3, viewModel.DrawerCoverDisplayColumns);
+        Assert.Equal(3, viewModel.DrawerCoverDisplayRows);
+        Assert.Equal(3 * cellWidth, viewModel.DrawerCoverDisplayGridWidth);
+        Assert.Equal(8, viewModel.DrawerCoverTiles.Count);
+        Assert.Same(firstTile, viewModel.DrawerCoverTiles[0]);
+        Assert.True(collectionChanges > 0);
         viewModel.EndDrawerCoverResize(commit: false);
         Assert.Equal(committedWidth, viewModel.DrawerCoverDisplayWidth);
+        Assert.Equal(2, viewModel.DrawerCoverDisplayColumns);
+        Assert.Equal(6, viewModel.DrawerCoverTiles.Count);
+        Assert.Same(expandTile, viewModel.DrawerCoverTiles[^1]);
 
         viewModel.BeginDrawerCoverResize();
         viewModel.PreviewDrawerCoverResize((3 * cellWidth) + inset, (3 * cellHeight) + inset);
@@ -248,6 +256,17 @@ public sealed class BoxSizeSettingsTests
         Assert.Equal(3, viewModel.DrawerCoverColumns);
         Assert.Equal(8, viewModel.DrawerCoverTiles.Count);
         Assert.Same(firstTile, viewModel.DrawerCoverTiles[0]);
+
+        viewModel.ResizeDrawerCover(cellWidth + inset, (3 * cellHeight) + inset);
+        viewModel.BeginDrawerCoverResize();
+        viewModel.PreviewDrawerCoverResize(cellWidth + inset, (2 * cellHeight) + inset);
+        Assert.Equal(1, viewModel.DrawerCoverDisplayColumns);
+        Assert.Equal(2, viewModel.DrawerCoverDisplayRows);
+        Assert.Equal(2, viewModel.DrawerCoverTiles.Count);
+        Assert.Same(expandTile, viewModel.DrawerCoverTiles[^1]);
+        viewModel.EndDrawerCoverResize(commit: true);
+        Assert.Equal(1, viewModel.DrawerCoverColumns);
+        Assert.Equal(2, viewModel.DrawerCoverRows);
     }
 
     [Fact]

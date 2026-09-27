@@ -186,7 +186,7 @@ public sealed class DesktopBoxLayoutSettingsTests
 
     [Theory]
     [InlineData(80, 80, 64, 146, 82, 2, 1)]
-    [InlineData(80, 120, 64, 146, 82, 2, 1)]
+    [InlineData(80, 120, 64, 82, 146, 1, 2)]
     [InlineData(300, 300, 64, 274, 274, 4, 4)]
     [InlineData(420.26, 180.74, 54, 396, 180, 7, 3)]
     public void DrawerResize_SnapsWidthAndHeightToIndependentGridSteps(
@@ -222,6 +222,18 @@ public sealed class DesktopBoxLayoutSettingsTests
         Assert.Equal(160, actual.Height);
         Assert.Equal(2, actual.Columns);
         Assert.Equal(2, actual.Rows);
+    }
+
+    [Fact]
+    public void DrawerResize_CanShrinkToTwoVerticallyStackedCells()
+    {
+        const double cell = 55;
+        const double inset = DesktopBoxLayoutSettings.DrawerSurfaceInset * 2;
+
+        var actual = DesktopBoxViewModel.NormalizeDrawerCoverSizeForDrag(
+            cell + inset, (2 * cell) + inset, cell, cell, 1, 3);
+
+        Assert.Equal((cell + inset, (2 * cell) + inset, 1, 2), actual);
     }
 
     [Fact]

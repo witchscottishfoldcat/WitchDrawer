@@ -359,6 +359,20 @@ public sealed partial class DesktopBoxViewModel : ObservableObject
 
     public double DrawerCoverGridHeight => DrawerCoverRows * LayoutSettings.DrawerCoverCellHeight;
 
+    public int DrawerCoverDisplayColumns => double.IsNaN(_drawerCoverPreviewWidth)
+        ? DrawerCoverColumns
+        : _drawerCoverPreviewColumns;
+
+    public int DrawerCoverDisplayRows => double.IsNaN(_drawerCoverPreviewHeight)
+        ? DrawerCoverRows
+        : _drawerCoverPreviewRows;
+
+    public double DrawerCoverDisplayGridWidth =>
+        DrawerCoverDisplayColumns * LayoutSettings.DrawerCoverCellWidth;
+
+    public double DrawerCoverDisplayGridHeight =>
+        DrawerCoverDisplayRows * LayoutSettings.DrawerCoverCellHeight;
+
     public int DrawerCoverCapacity => DrawerCoverColumns * DrawerCoverRows;
 
     public bool DrawerHasOverflow => Items.Count > DrawerCoverCapacity;

@@ -6,6 +6,8 @@ namespace WitchDrawer.App.ViewModels;
 /// <summary>DesktopBoxViewModel 的抽屉封面部分：封面尺寸设置、封面预览与二级弹窗容量/尺寸计算。</summary>
 public sealed partial class DesktopBoxViewModel
 {
+    private DrawerCoverTileViewModel? _cachedDrawerExpandTile;
+
     public void ResizeDrawerCover(double width, double height)
     {
         var previousDirectItemCount = DrawerDirectItemCount;
@@ -44,6 +46,7 @@ public sealed partial class DesktopBoxViewModel
         OnPropertyChanged(nameof(DrawerCoverDisplayContentHeight));
         OnPropertyChanged(nameof(DrawerCoverGridWidth));
         OnPropertyChanged(nameof(DrawerCoverGridHeight));
+        NotifyDrawerCoverDisplayGridChanged();
         if (previousDirectItemCount != DrawerDirectItemCount
             || previousHasOverflow != DrawerHasOverflow)
         {
@@ -68,6 +71,8 @@ public sealed partial class DesktopBoxViewModel
             LayoutSettings.DrawerCoverCellHeight,
             _drawerCoverPreviewColumns,
             _drawerCoverPreviewRows);
+        var gridChanged = _drawerCoverPreviewColumns != normalized.Columns
+            || _drawerCoverPreviewRows != normalized.Rows;
         _drawerCoverPreviewColumns = normalized.Columns;
         _drawerCoverPreviewRows = normalized.Rows;
         if (_drawerCoverPreviewWidth != normalized.Width)
@@ -80,6 +85,12 @@ public sealed partial class DesktopBoxViewModel
         {
             _drawerCoverPreviewHeight = normalized.Height;
             OnPropertyChanged(nameof(DrawerCoverDisplayContentHeight));
+        }
+
+        if (gridChanged)
+        {
+            NotifyDrawerCoverDisplayGridChanged();
+            RefreshDrawerPreview();
         }
     }
 
@@ -96,6 +107,16 @@ public sealed partial class DesktopBoxViewModel
 
         OnPropertyChanged(nameof(DrawerCoverDisplayWidth));
         OnPropertyChanged(nameof(DrawerCoverDisplayContentHeight));
+        NotifyDrawerCoverDisplayGridChanged();
+        RefreshDrawerPreview();
+    }
+
+    private void NotifyDrawerCoverDisplayGridChanged()
+    {
+        OnPropertyChanged(nameof(DrawerCoverDisplayColumns));
+        OnPropertyChanged(nameof(DrawerCoverDisplayRows));
+        OnPropertyChanged(nameof(DrawerCoverDisplayGridWidth));
+        OnPropertyChanged(nameof(DrawerCoverDisplayGridHeight));
     }
 
     public async Task LoadDrawerCoverSizeAsync(StartupSettingsSnapshot? snapshot = null)
@@ -177,11 +198,9 @@ public sealed partial class DesktopBoxViewModel
                 MidpointRounding.AwayFromZero),
             1,
             maximumRows);
-        if (columns * rows < 2 || (columns == 1 && rows == 2))
+        if (columns * rows < 2)
         {
-            // The minimum drawer is always the established horizontal "1 + four previews"
-            // shape. A 1x2 cover makes the primary and composite tiles stack vertically and
-            // visually turns the already-finished drawer into a different component.
+            // Keep at least one file tile and one overflow tile when the cover is minimized.
             columns = 2;
             rows = 1;
         }
@@ -288,7 +307,6 @@ public sealed partial class DesktopBoxViewModel
     {
         var existingTiles = new Dictionary<DrawerItemViewModel, DrawerCoverTileViewModel>(
             ReferenceEqualityComparer.Instance);
-        DrawerCoverTileViewModel? expandTile = null;
         foreach (var tile in DrawerCoverTiles)
         {
             if (tile.Item is { } item)
@@ -297,12 +315,14 @@ public sealed partial class DesktopBoxViewModel
             }
             else if (tile.IsExpandTile)
             {
-                expandTile = tile;
+                _cachedDrawerExpandTile = tile;
             }
         }
 
-        var directItemCount = DrawerDirectItemCount;
-        var tiles = new List<DrawerCoverTileViewModel>(directItemCount + (DrawerHasOverflow ? 1 : 0));
+        var capacity = DrawerCoverDisplayColumns * DrawerCoverDisplayRows;
+        var directItemCount = CalculateDrawerDirectItemCount(Items.Count, capacity);
+        var hasOverflow = Items.Count > capacity;
+        var tiles = new List<DrawerCoverTileViewModel>(directItemCount + (hasOverflow ? 1 : 0));
         for (var index = 0; index < directItemCount; index++)
         {
             var item = Items[index];
@@ -311,13 +331,13 @@ public sealed partial class DesktopBoxViewModel
                 : DrawerCoverTileViewModel.ForItem(item));
         }
 
-        if (DrawerHasOverflow)
+        if (hasOverflow)
         {
-            tiles.Add(expandTile ?? DrawerCoverTileViewModel.Expand());
+            tiles.Add(_cachedDrawerExpandTile ??= DrawerCoverTileViewModel.Expand());
         }
 
         DrawerCoverTiles.Synchronize(tiles);
-        DrawerPreviewItems.Synchronize(DrawerHasOverflow
+        DrawerPreviewItems.Synchronize(hasOverflow
             ? Items.Skip(directItemCount).Take(4)
             : []);
     }
