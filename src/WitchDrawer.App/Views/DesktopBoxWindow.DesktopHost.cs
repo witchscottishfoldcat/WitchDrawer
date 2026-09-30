@@ -160,6 +160,20 @@ public partial class DesktopBoxWindow
         nint longParameter,
         ref bool handled)
     {
+        if (DesktopToolWindow.IsMouseActivationMessage(message))
+        {
+            // Active window tracking can bypass WS_EX_NOACTIVATE. Always reject
+            // mouse activation while preserving input, including on Windows 11.
+            if (!DesktopWindowLayer.IsEnabled)
+            {
+                // Only the legacy path owns the box from Explorer; detach before
+                // mouse input so the shell cannot record it as its last active popup.
+                _nativeWindow?.SuspendDesktopOwnershipForMouseInput();
+            }
+            handled = true;
+            return DesktopToolWindow.GetMouseActivateWithoutActivationResult();
+        }
+
         if (DesktopWindowLayer.IsEnabled)
         {
             if (DesktopToolWindow.IsMinimizeSystemCommand(message, wordParameter))
@@ -171,17 +185,6 @@ public partial class DesktopBoxWindow
                 NotifyDesktopLayerChanged();
             }
             return nint.Zero;
-        }
-
-        if (DesktopToolWindow.IsMouseActivationMessage(message))
-        {
-            // Detach before mouse input so Explorer cannot record this box as
-            // Progman's last active popup. Explicit MA_NOACTIVATE still delivers
-            // the click, but guarantees that menu/selection input never makes a
-            // desktop box the foreground window.
-            _nativeWindow?.SuspendDesktopOwnershipForMouseInput();
-            handled = true;
-            return DesktopToolWindow.GetMouseActivateWithoutActivationResult();
         }
 
         if (DesktopToolWindow.IsMouseInteractionCompletionMessage(message))
