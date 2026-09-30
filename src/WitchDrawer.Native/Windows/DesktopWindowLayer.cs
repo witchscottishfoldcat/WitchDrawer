@@ -3,10 +3,10 @@ using static WitchDrawer.Native.Windows.User32Interop;
 
 namespace WitchDrawer.Native.Windows;
 
-/// <summary>Unowned Windows 11 boxes, immediately above the real desktop view host.</summary>
+/// <summary>Unowned boxes for the targeted Windows compatibility path, above the desktop view host.</summary>
 public static class DesktopWindowLayer
 {
-    public static bool IsEnabled => OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000);
+    public static bool IsEnabled => DesktopWindowLayerPolicy.IsEnabled;
 
     public static void Configure(nint handle)
     {

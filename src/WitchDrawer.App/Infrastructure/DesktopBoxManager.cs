@@ -76,10 +76,12 @@ public sealed partial class DesktopBoxManager
         _isDesktopDoubleClickEnabled = isDesktopDoubleClickEnabled;
         if (DesktopWindowLayer.IsEnabled)
         {
+            _logger.Info($"Desktop layer policy: event-driven compatibility for Windows 11 Pro for Workstations 23H2; OS={Environment.OSVersion.Version}.");
             InitializeDesktopLayer();
         }
         else
         {
+            _logger.Info($"Desktop layer policy: existing shell ownership; OS={Environment.OSVersion.Version}.");
             _foregroundWindowMonitor = new ForegroundWindowMonitor();
             _foregroundWindowMonitor.ForegroundWindowChanged += OnForegroundWindowChanged;
             _desktopIsForeground = ForegroundWindowMonitor.IsDesktopWindow(
