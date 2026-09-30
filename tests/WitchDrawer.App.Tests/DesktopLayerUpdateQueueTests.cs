@@ -78,6 +78,36 @@ public sealed class DesktopLayerUpdateQueueTests
     });
 
     [Fact]
+    public void ShellBurstAcrossDispatcherTurns_IsRepairedOnceAfterSettling() => RunSta(() =>
+    {
+        var calls = 0;
+        using var queue = new DesktopLayerUpdateQueue(Dispatcher.CurrentDispatcher, () => calls++, _ => { });
+        for (var index = 0; index < 3; index++)
+        {
+            queue.Request();
+            Pump(TimeSpan.FromMilliseconds(20));
+            Assert.Equal(0, calls);
+        }
+        Pump();
+        Assert.Equal(1, calls);
+        Pump();
+        Assert.Equal(1, calls);
+    });
+
+    [Fact]
+    public void Dispose_AfterSettlingHasStarted_CancelsRepair() => RunSta(() =>
+    {
+        var calls = 0;
+        var queue = new DesktopLayerUpdateQueue(Dispatcher.CurrentDispatcher, () => calls++, _ => { });
+        queue.Request();
+        Pump(TimeSpan.FromMilliseconds(20));
+        Assert.Equal(0, calls);
+        Task.Run(queue.Dispose).GetAwaiter().GetResult();
+        Pump();
+        Assert.Equal(0, calls);
+    });
+
+    [Fact]
     public void Snapshot_ExcludesDeliberatelyHiddenClosedAndCollapsedWindows()
     {
         var windows = new[]
@@ -89,11 +119,23 @@ public sealed class DesktopLayerUpdateQueueTests
         Assert.Equal(windows[0], Assert.Single(result));
     }
 
-    private static void Pump()
+    private static void Pump(TimeSpan? duration = null)
     {
         var frame = new DispatcherFrame();
-        Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () => frame.Continue = false);
-        Dispatcher.PushFrame(frame);
+        var timeout = new DispatcherTimer(DispatcherPriority.Background, Dispatcher.CurrentDispatcher)
+        {
+            Interval = duration ?? TimeSpan.FromMilliseconds(180)
+        };
+        timeout.Tick += (_, _) => frame.Continue = false;
+        try
+        {
+            timeout.Start();
+            Dispatcher.PushFrame(frame);
+        }
+        finally
+        {
+            timeout.Stop();
+        }
     }
 
     internal static void RunSta(Action action)
