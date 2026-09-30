@@ -432,7 +432,6 @@ public sealed partial class DesktopBoxManager
             {
                 await window.ViewModel.LoadAsync();
                 window.Show();
-                MaintainDesktopLayer();
             }
 
             window.QueueSendToBottom();
@@ -472,7 +471,6 @@ public sealed partial class DesktopBoxManager
                 }
 
                 window.Show();
-                MaintainDesktopLayer();
                 window.QueueSendToBottom();
             }
         }
