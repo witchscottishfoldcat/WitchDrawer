@@ -372,6 +372,12 @@ public sealed partial class DesktopBoxViewModel
         }
     }
 
+    public async Task RefreshAfterItemTransferAsync()
+    {
+        await LoadAsync();
+        ItemsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     public Task CompleteDragOutAsync(DrawerItemViewModel? item)
     {
         return DeleteItemAsync(item);

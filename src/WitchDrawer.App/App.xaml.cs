@@ -656,19 +656,10 @@ public partial class App : Application
             var processPath = Environment.ProcessPath;
             if (!string.IsNullOrWhiteSpace(processPath))
             {
-                var arguments =
-                    "-NoProfile -WindowStyle Hidden -Command \""
-                    + $"while (Get-Process -Id {Environment.ProcessId} -ErrorAction SilentlyContinue) "
-                    + "{ Start-Sleep -Milliseconds 300 }; "
-                    + $"Start-Process -FilePath '{processPath}' -WorkingDirectory '{AppContext.BaseDirectory}'\"";
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = "powershell.exe",
-                    Arguments = arguments,
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden
-                });
+                using var currentProcess = System.Diagnostics.Process.GetCurrentProcess();
+                System.Diagnostics.Process.Start(ApplicationRestart.CreateStartInfo(
+                    processPath, AppContext.BaseDirectory, currentProcess.Id,
+                    currentProcess.StartTime.ToUniversalTime().Ticks));
             }
         }
         catch (Exception exception)

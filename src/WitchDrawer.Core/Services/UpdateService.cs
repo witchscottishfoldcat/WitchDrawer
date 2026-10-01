@@ -302,10 +302,18 @@ public sealed class UpdateService
 
     internal static string BuildUpdaterScript()
     {
+        var helperData = Convert.ToBase64String(Encoding.Unicode.GetBytes(BuildUpdaterFileOperationScript()));
+        var helperLines = helperData.Chunk(1000).Select((chunk, index) =>
+            $"{(index == 0 ? ">" : ">>")}\"%WITCHDRAWER_FILE_HELPER_DATA%\" echo {new string(chunk)}");
         return """"
 @echo off
 setlocal
 set "WITCHDRAWER_ROLLBACK=%WITCHDRAWER_UPDATE_ROOT%\rollback"
+set "WITCHDRAWER_FILE_HELPER=%WITCHDRAWER_UPDATE_ROOT%\file-operations.ps1"
+set "WITCHDRAWER_FILE_HELPER_DATA=%WITCHDRAWER_UPDATE_ROOT%\file-operations.base64"
+@@WRITE_FILE_HELPER@@
+powershell.exe -NoProfile -Command "$data = [IO.File]::ReadAllText($env:WITCHDRAWER_FILE_HELPER_DATA); [IO.File]::WriteAllText($env:WITCHDRAWER_FILE_HELPER, [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String($data)), [Text.Encoding]::UTF8)"
+if errorlevel 1 exit /b 1
 set "WITCHDRAWER_EXIT_WAIT_SECONDS=30"
 set "WITCHDRAWER_STARTUP_WAIT_SECONDS=60"
 >>"%WITCHDRAWER_UPDATE_LOG%" echo [%date% %time%] Update started.
@@ -326,7 +334,9 @@ robocopy "%WITCHDRAWER_APP_DIR%" "%WITCHDRAWER_ROLLBACK%" /E /COPY:DAT /DCOPY:DA
 if errorlevel 8 goto backup_failed
 
 rem Overlay only the release payload. Do not delete files that are not part of the release.
-robocopy "%WITCHDRAWER_PAYLOAD%" "%WITCHDRAWER_APP_DIR%" /E /IS /IT /COPY:DAT /DCOPY:DAT /R:1 /W:1 /NFL /NDL /NP >>"%WITCHDRAWER_UPDATE_LOG%" 2>&1
+set "WITCHDRAWER_FILE_OPERATION=Apply"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%WITCHDRAWER_FILE_HELPER%" >>"%WITCHDRAWER_UPDATE_LOG%" 2>&1
+if errorlevel 1223 goto elevation_cancelled
 if errorlevel 8 goto apply_failed
 
 del /q "%WITCHDRAWER_APP_DIR%\update.zip" "%WITCHDRAWER_APP_DIR%\updater.bat" >nul 2>&1
@@ -353,6 +363,12 @@ exit /b 1
 >>"%WITCHDRAWER_UPDATE_LOG%" echo [%date% %time%] Failed to restart the original installation after backup failure.
 exit /b 1
 
+:elevation_cancelled
+>>"%WITCHDRAWER_UPDATE_LOG%" echo [%date% %time%] Update elevation cancelled. Restarting the unchanged installation.
+set "WITCHDRAWER_STARTUP_SUCCESS_MARKER="
+start "" /b /d "%WITCHDRAWER_APP_DIR%" "%WITCHDRAWER_APP_EXE%" >nul 2>&1
+exit /b 1
+
 :apply_failed
 >>"%WITCHDRAWER_UPDATE_LOG%" echo [%date% %time%] Update apply failed with exit code %errorlevel%. Restoring the previous installation.
 goto rollback
@@ -362,9 +378,8 @@ goto rollback
 
 :rollback
 rem Remove only files introduced by this payload that were absent from the backup.
-powershell.exe -NoProfile -Command "$payload = $env:WITCHDRAWER_PAYLOAD; $rollback = $env:WITCHDRAWER_ROLLBACK; $app = $env:WITCHDRAWER_APP_DIR; Get-ChildItem -LiteralPath $payload -Recurse -File | ForEach-Object { $relative = $_.FullName.Substring($payload.Length).TrimStart('\'); $target = Join-Path $app $relative; if (-not (Test-Path -LiteralPath (Join-Path $rollback $relative) -PathType Leaf) -and (Test-Path -LiteralPath $target -PathType Leaf)) { Remove-Item -LiteralPath $target -Force -ErrorAction Stop } }" >>"%WITCHDRAWER_UPDATE_LOG%" 2>&1
-if errorlevel 1 goto rollback_failed
-robocopy "%WITCHDRAWER_ROLLBACK%" "%WITCHDRAWER_APP_DIR%" /E /IS /IT /COPY:DAT /DCOPY:DAT /R:1 /W:1 /NFL /NDL /NP >>"%WITCHDRAWER_UPDATE_LOG%" 2>&1
+set "WITCHDRAWER_FILE_OPERATION=Rollback"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%WITCHDRAWER_FILE_HELPER%" >>"%WITCHDRAWER_UPDATE_LOG%" 2>&1
 if errorlevel 8 goto rollback_failed
 >>"%WITCHDRAWER_UPDATE_LOG%" echo [%date% %time%] Previous installation restored. Recovery files retained at "%WITCHDRAWER_UPDATE_ROOT%".
 set "WITCHDRAWER_STARTUP_SUCCESS_MARKER="
@@ -375,8 +390,76 @@ exit /b 1
 :rollback_failed
 >>"%WITCHDRAWER_UPDATE_LOG%" echo [%date% %time%] Update rollback failed. Recovery files retained at "%WITCHDRAWER_UPDATE_ROOT%".
 exit /b 1
-"""";
+"""".Replace("@@WRITE_FILE_HELPER@@", string.Join(Environment.NewLine, helperLines), StringComparison.Ordinal);
     }
+
+    // The original, unelevated updater owns process waiting, restart and startup confirmation.
+    // Only this isolated file step elevates, so drag/drop and the startup marker still work.
+    internal static string BuildUpdaterFileOperationScript() => """
+$ErrorActionPreference = 'Stop'
+function Invoke-UpdateFiles($plan) {
+    $ErrorActionPreference = 'Stop'
+    try {
+        $app = [IO.Path]::GetFullPath($plan.AppDirectory).TrimEnd('\')
+        $payload = [IO.Path]::GetFullPath($plan.PayloadDirectory).TrimEnd('\')
+        $rollback = [IO.Path]::GetFullPath($plan.RollbackDirectory).TrimEnd('\')
+        if ($plan.Operation -eq 'Rollback') {
+            Get-ChildItem -LiteralPath $payload -Recurse -File | ForEach-Object {
+                $relative = $_.FullName.Substring($payload.Length).TrimStart('\')
+                $target = [IO.Path]::GetFullPath((Join-Path $app $relative))
+                if (-not $target.StartsWith($app + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'Invalid rollback target.' }
+                if (-not (Test-Path -LiteralPath (Join-Path $rollback $relative) -PathType Leaf) -and (Test-Path -LiteralPath $target -PathType Leaf)) {
+                    Remove-Item -LiteralPath $target -Force -ErrorAction Stop
+                }
+            }
+            $source = $rollback
+        } elseif ($plan.Operation -eq 'Apply') {
+            $source = $payload
+        } else { throw 'Invalid update operation.' }
+        & "$env:SystemRoot\System32\robocopy.exe" $source $app /E /IS /IT /COPY:DAT /DCOPY:DAT /R:1 /W:1 /NFL /NDL /NP
+        exit $LASTEXITCODE
+    } catch {
+        Write-Error $_ -ErrorAction Continue
+        exit 8
+    }
+}
+$plan = @{
+    AppDirectory = $env:WITCHDRAWER_APP_DIR
+    PayloadDirectory = $env:WITCHDRAWER_PAYLOAD
+    RollbackDirectory = $env:WITCHDRAWER_ROLLBACK
+    Operation = $env:WITCHDRAWER_FILE_OPERATION
+}
+$probePath = Join-Path $plan.AppDirectory ('.witchdrawer-write-probe-' + [Guid]::NewGuid().ToString('N'))
+$needsElevation = $false
+try {
+    $probe = [IO.File]::Open($probePath, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
+    $probe.Dispose()
+    [IO.File]::Delete($probePath)
+} catch {
+    $exception = $_.Exception
+    while ($exception.InnerException) { $exception = $exception.InnerException }
+    if ($exception -is [UnauthorizedAccessException]) { $needsElevation = $true }
+    else { Write-Error $_ -ErrorAction Continue; exit 8 }
+}
+if (-not $needsElevation) { Invoke-UpdateFiles $plan }
+
+# Shell elevation does not inherit our environment. Serialize paths as data and
+# embed only base64 in the command line so quotes/non-ASCII paths stay intact.
+$data = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(($plan | ConvertTo-Json -Compress)))
+$command = '$plan = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(''' + $data + ''')) | ConvertFrom-Json; & {' + ${function:Invoke-UpdateFiles}.ToString() + '} $plan'
+$encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command))
+try {
+    $worker = Start-Process -FilePath "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -Verb RunAs -WindowStyle Hidden -ArgumentList @('-NoProfile', '-EncodedCommand', $encoded) -PassThru
+    $worker.WaitForExit()
+    exit $worker.ExitCode
+} catch {
+    $exception = $_.Exception
+    while ($exception.InnerException) { $exception = $exception.InnerException }
+    if ($exception -is [ComponentModel.Win32Exception] -and $exception.NativeErrorCode -eq 1223) { exit 1223 }
+    Write-Error $_ -ErrorAction Continue
+    exit 8
+}
+""";
 
     internal static ProcessStartInfo CreateUpdaterStartInfo(
         string updaterPath,

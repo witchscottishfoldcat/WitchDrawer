@@ -32,7 +32,7 @@ public sealed class UpdateServiceTests
             script,
             StringComparison.Ordinal);
         Assert.Contains(
-            "robocopy \"%WITCHDRAWER_PAYLOAD%\" \"%WITCHDRAWER_APP_DIR%\" /E",
+            "WITCHDRAWER_FILE_OPERATION=Apply",
             script,
             StringComparison.Ordinal);
         Assert.Contains("if errorlevel 8 goto backup_failed", script, StringComparison.Ordinal);
@@ -42,7 +42,7 @@ public sealed class UpdateServiceTests
         Assert.Contains("Test-Path", script, StringComparison.Ordinal);
         Assert.Contains(":rollback", script, StringComparison.Ordinal);
         Assert.Contains(
-            "robocopy \"%WITCHDRAWER_ROLLBACK%\" \"%WITCHDRAWER_APP_DIR%\" /E",
+            "WITCHDRAWER_FILE_OPERATION=Rollback",
             script,
             StringComparison.Ordinal);
     }

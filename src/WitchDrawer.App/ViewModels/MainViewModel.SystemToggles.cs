@@ -143,8 +143,9 @@ public sealed partial class MainViewModel
     {
         try
         {
-            var hidden = !AreDesktopIconsHidden;
-            await DesktopIconVisibility.SetHiddenAsync(hidden);
+            // 原生层以窗口实际可见性为基准切换并返回真实结果，
+            // 不依赖本缓存的旧值（外部从桌面菜单改过状态时缓存会失步）。
+            var hidden = await DesktopIconVisibility.ToggleHiddenAsync();
             AreDesktopIconsHidden = hidden;
             StatusText = hidden ? "已隐藏 Windows 桌面图标" : "已显示 Windows 桌面图标";
         }

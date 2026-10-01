@@ -12,9 +12,12 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $projectPath = Join-Path $repoRoot 'src\WitchDrawer.App\WitchDrawer.App.csproj'
 $propsPath = Join-Path $repoRoot 'Directory.Build.props'
 
+[xml]$props = Get-Content -LiteralPath $propsPath -Raw
+$projectVersion = [string]$props.Project.PropertyGroup.Version
 if ([string]::IsNullOrWhiteSpace($Version)) {
-    [xml]$props = Get-Content -LiteralPath $propsPath -Raw
-    $Version = $props.Project.PropertyGroup.Version
+    $Version = $projectVersion
+} elseif ($Version -ne $projectVersion) {
+    throw "Requested version '$Version' does not match Directory.Build.props version '$projectVersion'. Update the project version and release notes before packaging."
 }
 
 if ($Version -notmatch '^\d+\.\d+\.\d+(?:\.\d+)?$') {

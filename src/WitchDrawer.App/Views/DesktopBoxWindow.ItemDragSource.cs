@@ -206,7 +206,7 @@ public partial class DesktopBoxWindow
                 var moved = await payload.DropCompletion;
                 if (moved && payload.TargetBoxId != ViewModel.BoxId)
                 {
-                    await ViewModel.LoadAsync();
+                    await ViewModel.RefreshAfterItemTransferAsync();
                 }
                 if (!ViewModel.Items.Any(item => item.Id == drawerItem.Id))
                 {

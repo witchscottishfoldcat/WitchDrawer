@@ -21,7 +21,15 @@ public static class DesktopIconVisibility
     private const uint MemoryCommitReserve = 0x3000;
     private const uint MemoryRelease = 0x8000;
     private const uint PageReadWrite = 0x04;
+    private const uint WindowMessageCommand = 0x0111; // WM_COMMAND
+    // 桌面视图“显示桌面图标”的切换命令（未公开命令 ID，与右键菜单里同一项）。
+    private const nint ToggleDesktopIconsCommandId = 0x7402;
+    private const int TogglePollIntervalMs = 50;
+    private const int ToggleSettleTimeoutMs = 3000;
     private static readonly nint BroadcastWindow = 0xFFFF;
+
+    // 双击可能连发：串行化切换，避免两次后台切换交错轮询。
+    private static readonly SemaphoreSlim ToggleGate = new(1, 1);
 
     public static bool IsHidden()
     {
@@ -31,51 +39,159 @@ public static class DesktopIconVisibility
         return IsHiddenRegistryValue(key?.GetValue(HideIconsValueName));
     }
 
-    public static Task SetHiddenAsync(
-        bool hidden,
-        CancellationToken cancellationToken = default) =>
-        RunSetHiddenAsync(SetHidden, hidden, cancellationToken);
-
-    internal static Task RunSetHiddenAsync(
-        Action<bool> setHidden,
-        bool hidden,
+    /// <summary>
+    /// 切换桌面图标的显示状态，返回切换后的隐藏状态。
+    /// 切换通过资源管理器自己的“显示桌面图标”命令完成，使视图内部状态、
+    /// 注册表与右键菜单保持同步；原生命令不可用时才退回直改注册表和窗口的旧路径。
+    /// </summary>
+    public static async Task<bool> ToggleHiddenAsync(
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(setHidden);
-        return Task.Run(() => setHidden(hidden), cancellationToken);
+        await ToggleGate.WaitAsync(cancellationToken);
+        try
+        {
+            return await RunToggleHiddenAsync(ToggleHidden, cancellationToken);
+        }
+        finally
+        {
+            ToggleGate.Release();
+        }
     }
 
-    public static void SetHidden(bool hidden)
+    internal static Task<bool> RunToggleHiddenAsync(
+        Func<bool> toggle,
+        CancellationToken cancellationToken = default)
     {
-        ApplyHiddenState(
-            hidden,
-            WriteHiddenRegistry,
-            FindDesktopListView,
-            SetDesktopListViewHidden,
-            NotifyDesktopIconSettingChanged);
+        ArgumentNullException.ThrowIfNull(toggle);
+        return Task.Run(toggle, cancellationToken);
     }
 
-    internal static void ApplyHiddenState(
-        bool hidden,
+    private static bool ToggleHidden() => ApplyToggle(
+        FindDesktopShellWindows,
+        IsWindowVisible,
+        IsHidden,
+        PostDesktopToggleCommand,
+        static milliseconds => Thread.Sleep(milliseconds),
+        WriteHiddenRegistry,
+        SetDesktopListViewHidden,
+        NotifyDesktopIconSettingChanged);
+
+    private static bool PostDesktopToggleCommand(nint window) => PostMessageW(
+        window,
+        WindowMessageCommand,
+        ToggleDesktopIconsCommandId,
+        nint.Zero);
+
+    /// <summary>
+    /// 切换基准取窗口实际可见性，而不是注册表或缓存：历史版本用 ShowWindow 直改
+    /// 窗口，可能留下注册表、视图内部状态、窗口可见性三者互相矛盾的状态，
+    /// 只有用户看到的状态才能解释“双击切换”的语义。
+    /// </summary>
+    internal static bool ApplyToggle(
+        Func<DesktopShellHandles> findDesktopShell,
+        Func<nint, bool> isWindowVisible,
+        Func<bool> readHiddenRegistry,
+        Func<nint, bool> postToggleCommand,
+        Action<int> wait,
         Action<bool> writeRegistry,
-        Func<nint> findDesktopListView,
         Action<nint, bool> setDesktopListViewHidden,
         Action notifySettingChanged)
     {
+        ArgumentNullException.ThrowIfNull(findDesktopShell);
+        ArgumentNullException.ThrowIfNull(isWindowVisible);
+        ArgumentNullException.ThrowIfNull(readHiddenRegistry);
+        ArgumentNullException.ThrowIfNull(postToggleCommand);
+        ArgumentNullException.ThrowIfNull(wait);
         ArgumentNullException.ThrowIfNull(writeRegistry);
-        ArgumentNullException.ThrowIfNull(findDesktopListView);
         ArgumentNullException.ThrowIfNull(setDesktopListViewHidden);
         ArgumentNullException.ThrowIfNull(notifySettingChanged);
 
-        writeRegistry(hidden);
-
-        var desktopListView = findDesktopListView();
-        if (desktopListView != nint.Zero)
+        var shell = findDesktopShell();
+        if (shell.ListView == nint.Zero)
         {
-            setDesktopListViewHidden(desktopListView, hidden);
+            // 观测不到桌面视图时无从校验真实状态，退回注册表翻转的旧语义。
+            var flipped = !readHiddenRegistry();
+            writeRegistry(flipped);
+            notifySettingChanged();
+            return flipped;
         }
 
+        var hideTarget = isWindowVisible(shell.ListView);
+        var commandTargets = CollectCommandTargets(shell);
+        if (commandTargets.Count == 0)
+        {
+            FallBackToDirectWrite(
+                hideTarget,
+                shell.ListView,
+                writeRegistry,
+                setDesktopListViewHidden,
+                notifySettingChanged);
+            return hideTarget;
+        }
+
+        foreach (var commandTarget in commandTargets)
+        {
+            if (!postToggleCommand(commandTarget))
+            {
+                continue;
+            }
+
+            // A successfully posted toggle is not safe to retry: it may still be queued.
+            // Registry writes may precede the visual change, so wait for visibility only.
+            for (var elapsed = 0; elapsed < ToggleSettleTimeoutMs; elapsed += TogglePollIntervalMs)
+            {
+                if (isWindowVisible(shell.ListView) == !hideTarget)
+                {
+                    writeRegistry(hideTarget);
+                    return hideTarget;
+                }
+                wait(TogglePollIntervalMs);
+            }
+
+            if (isWindowVisible(shell.ListView) == !hideTarget)
+            {
+                writeRegistry(hideTarget);
+                return hideTarget;
+            }
+            throw new TimeoutException("Windows 尚未完成桌面图标切换，请等待资源管理器响应。");
+        }
+
+        // Only fall back when no command was queued at all.
+        FallBackToDirectWrite(
+            hideTarget,
+            shell.ListView,
+            writeRegistry,
+            setDesktopListViewHidden,
+            notifySettingChanged);
+        return hideTarget;
+    }
+
+    private static void FallBackToDirectWrite(
+        bool hidden,
+        nint desktopListView,
+        Action<bool> writeRegistry,
+        Action<nint, bool> setDesktopListViewHidden,
+        Action notifySettingChanged)
+    {
+        writeRegistry(hidden);
+        setDesktopListViewHidden(desktopListView, hidden);
         notifySettingChanged();
+    }
+
+    private static List<nint> CollectCommandTargets(DesktopShellHandles shell)
+    {
+        var targets = new List<nint>(2);
+        if (shell.HostWindow != nint.Zero)
+        {
+            targets.Add(shell.HostWindow);
+        }
+
+        if (shell.ShellView != nint.Zero && !targets.Contains(shell.ShellView))
+        {
+            targets.Add(shell.ShellView);
+        }
+
+        return targets;
     }
 
     private static void WriteHiddenRegistry(bool hidden)
@@ -135,16 +251,22 @@ public static class DesktopIconVisibility
         _ => false
     };
 
-    private static nint FindDesktopListView()
+    internal readonly record struct DesktopShellHandles(
+        nint HostWindow,
+        nint ShellView,
+        nint ListView);
+
+    private static DesktopShellHandles FindDesktopShellWindows()
     {
-        var programManager = FindWindowW("Progman", null);
+        var hostWindow = FindWindowW("Progman", null);
         var shellView = FindWindowExW(
-            programManager,
+            hostWindow,
             nint.Zero,
             "SHELLDLL_DefView",
             null);
         if (shellView == nint.Zero)
         {
+            // Win10 的桌面视图可能挂在 WorkerW 下：枚举顶层窗口寻找携带视图的那个。
             EnumWindows(
                 (window, _) =>
                 {
@@ -153,15 +275,24 @@ public static class DesktopIconVisibility
                         nint.Zero,
                         "SHELLDLL_DefView",
                         null);
-                    return shellView == nint.Zero;
+                    if (shellView != nint.Zero)
+                    {
+                        hostWindow = window;
+                        return false;
+                    }
+
+                    return true;
                 },
                 nint.Zero);
         }
 
-        return shellView == nint.Zero
+        var listView = shellView == nint.Zero
             ? nint.Zero
             : FindWindowExW(shellView, nint.Zero, "SysListView32", null);
+        return new DesktopShellHandles(hostWindow, shellView, listView);
     }
+
+    private static nint FindDesktopListView() => FindDesktopShellWindows().ListView;
 
     private static bool IsBlankListViewPoint(nint listView, int screenX, int screenY)
     {
@@ -292,6 +423,14 @@ public static class DesktopIconVisibility
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool ShowWindow(nint window, int command);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool PostMessageW(
+        nint window,
+        uint message,
+        nint wParam,
+        nint lParam);
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

@@ -6,6 +6,33 @@ namespace WitchDrawer.Core.Tests;
 
 public sealed class SafeFileOpsTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CopyThenDelete_LongEntryName_PreservesContentAndRemovesSource(bool isDirectory)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "WitchDrawer.LongNames", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var source = Path.Combine(root, new string('s', 215) + ".txt");
+            var destination = Path.Combine(root, new string('d', 215) + ".txt");
+            if (isDirectory)
+            {
+                Directory.CreateDirectory(source);
+                File.WriteAllText(Path.Combine(source, "payload.txt"), "payload");
+            }
+            else File.WriteAllText(source, "payload");
+
+            SafeFileOps.CopyThenDelete(source, destination, isDirectory, CancellationToken.None);
+
+            Assert.Equal("payload", File.ReadAllText(isDirectory ? Path.Combine(destination, "payload.txt") : destination));
+            Assert.False(File.Exists(source) || Directory.Exists(source));
+            Assert.Single(Directory.EnumerateFileSystemEntries(root));
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
     [Fact]
     public void AreSameVolume_ReturnsTrueForPathsOnSameRoot()
     {

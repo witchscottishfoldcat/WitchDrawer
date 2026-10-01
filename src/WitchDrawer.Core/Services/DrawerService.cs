@@ -83,7 +83,8 @@ public sealed class DrawerService
     private async Task<IReadOnlyList<DrawerItem>> GetItemsCoreAsync(Guid boxId, CancellationToken cancellationToken)
     {
         await RetryPendingRecoveryOnReadAsync(cancellationToken);
-        await PruneMissingStoredItemsAsync(boxId, cancellationToken);
+        // A missing path may be a temporary rename or an inaccessible file. Reads must
+        // preserve the row containing the original location needed for restoration.
         return await _repository.GetItemsAsync(boxId, cancellationToken);
     }
 
@@ -93,7 +94,6 @@ public sealed class DrawerService
     private async Task<IReadOnlyList<DrawerItem>> GetAllItemsCoreAsync(CancellationToken cancellationToken)
     {
         await RetryPendingRecoveryOnReadAsync(cancellationToken);
-        await PruneMissingStoredItemsAsync(null, cancellationToken);
         return await _repository.GetItemsAsync(null, cancellationToken);
     }
 
@@ -103,7 +103,6 @@ public sealed class DrawerService
     private async Task<IReadOnlyList<DrawerItem>> SearchItemsCoreAsync(string query, int limit, CancellationToken cancellationToken)
     {
         await RetryPendingRecoveryOnReadAsync(cancellationToken);
-        await PruneMissingStoredItemsAsync(null, cancellationToken);
         return await _repository.SearchItemsAsync(query.Trim(), limit, cancellationToken);
     }
 
@@ -740,61 +739,6 @@ public sealed class DrawerService
         await launcher.OpenAsync(path, cancellationToken);
     }
 
-    private async Task PruneMissingStoredItemsAsync(Guid? boxId, CancellationToken cancellationToken)
-    {
-        // 存储根不可达（可移动盘/网络盘暂时掉线）时绝不能清理：
-        // 文件仍然存在只是暂时不可见，把"看不到"当成"已删除"会永久销毁记录与恢复信息，
-        // 驱动器重新挂载后文件就变成无人知晓的孤儿。
-        if (!Directory.Exists(_paths.BoxesDirectory))
-        {
-            return;
-        }
-
-        var items = await _repository.GetItemsAsync(boxId, cancellationToken);
-        var missingItems = await Task.Run(() =>
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            return items
-                .Where(IsMissingStoredItem)
-                .ToArray();
-        }, cancellationToken);
-
-        foreach (var item in missingItems)
-        {
-            await _repository.RemoveMissingItemUnlessPendingAsync(
-                item.Id, item.StoredPath!, cancellationToken);
-        }
-    }
-
-    private bool IsMissingStoredItem(DrawerItem item)
-    {
-        if (string.IsNullOrWhiteSpace(item.StoredPath))
-        {
-            return false;
-        }
-
-        try
-        {
-            var storedPath = Path.GetFullPath(item.StoredPath);
-            PathSafety.EnsureChildPath(_paths.BoxesDirectory, storedPath);
-
-            // A missing or inaccessible parent can mean an offline volume, a temporarily
-            // unavailable box directory, or a stale pre-migration path. Preserve the database
-            // record unless the containing directory is definitely reachable.
-            var parentDirectory = Path.GetDirectoryName(storedPath);
-            if (string.IsNullOrWhiteSpace(parentDirectory) || !Directory.Exists(parentDirectory))
-            {
-                return false;
-            }
-
-            return !File.Exists(storedPath) && !Directory.Exists(storedPath);
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
     private async Task RepairStoredPathsAsync(CancellationToken cancellationToken)
     {
         var boxes = await _repository.GetBoxesAsync(cancellationToken);
@@ -922,7 +866,22 @@ public sealed class DrawerService
         }
         try
         {
-            if (operation.Kind != PendingFileOperationKind.Import)
+            if (operation.Kind == PendingFileOperationKind.Import)
+            {
+                // Another queued import may already have consumed this source. Reject it
+                // before writing an intent that cannot be recovered from either path.
+                PathSafety.GetFullExistingPath(operation.SourcePath);
+                if (Directory.Exists(operation.SourcePath) != operation.IsDirectory)
+                {
+                    throw new IOException("导入源的类型已改变，请刷新后重试。");
+                }
+                var boxId = operation.ResultItem!.BoxId;
+                if (await _repository.GetBoxAsync(boxId, cancellationToken) is null)
+                {
+                    throw new InvalidOperationException("收纳盒已被删除，请刷新后重试。");
+                }
+            }
+            else
             {
                 var currentItem = await _repository.GetItemAsync(operation.ItemId, cancellationToken);
                 if (currentItem is null || !string.Equals(currentItem.StoredPath, operation.SourcePath,

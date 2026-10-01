@@ -6,14 +6,9 @@
 ;   MyAppVersion   — passed via /DMyAppVersion=1.3.2 (matches Directory.Build.props)
 ;   PublishDir     — the dotnet publish output folder containing WitchDrawer.App.exe
 ;
-; NOTE: Only the main exe + pdbs ship in the installer; the app is a
-; self-contained single-file build, so no runtime needs to be installed.
-; The in-app updater overwrites files in this same directory, so the install
-; location MUST be writable by the updater. We install to a per-machine
-; {autopf} path; the updater runs as the current user and writes into the
-; existing dir (Windows allows user writes to already-created Program Files
-; subdirs created during install in many setups; if elevation is needed the
-; updater.bat handles it via xcopy with /y).
+; Package the complete publish directory. New installations are per-user so
+; drag/drop and updates both run with ordinary user permissions. The updater
+; elevates only its file replacement step for existing protected installations.
 
 #ifndef MyAppVersion
   #define MyAppVersion "1.3.11"
@@ -37,7 +32,7 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}/issues
 AppUpdatesURL={#MyAppURL}/releases/latest
-DefaultDirName={autopf}\{#MyAppName}
+DefaultDirName={localappdata}\Programs\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir=..\publish
@@ -48,7 +43,7 @@ SolidCompression=yes
 WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-PrivilegesRequiredOverridesAllowed=dialog
+PrivilegesRequired=lowest
 UninstallDisplayIcon={app}\{#MyAppExeName}
 UninstallDisplayName={#MyAppName}
 ; Keep user data (SQLite db in LocalAppData) on uninstall — the app stores

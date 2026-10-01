@@ -517,7 +517,7 @@ public sealed class DrawerServiceTests
     }
 
     [Fact]
-    public async Task GetItemsAsync_NormalBoxRemovesMissingStoredItems()
+    public async Task GetItemsAsync_NormalBoxPreservesMissingStoredItemRecoveryInformation()
     {
         using var workspace = await TestWorkspace.CreateAsync();
         var source = workspace.CreateSourceFile("source-a", "moved-out.txt", "hello");
@@ -531,8 +531,75 @@ public sealed class DrawerServiceTests
         var storedItems = await workspace.Repository.GetItemsAsync(normalBox.Id);
 
         Assert.True(File.Exists(exportedPath));
-        Assert.Empty(items);
-        Assert.Empty(storedItems);
+        Assert.Equal(item.Id, Assert.Single(items).Id);
+        Assert.Equal(item.SourcePath, Assert.Single(storedItems).SourcePath);
+
+        var deletion = await workspace.Service.DeleteBoxAsync(normalBox.Id);
+        Assert.False(deletion.BoxRemoved);
+        Assert.Equal(1, deletion.FailedCount);
+        Assert.NotNull(await workspace.Repository.GetItemAsync(item.Id));
+    }
+
+    [Fact]
+    public async Task RefreshDuringTemporaryRename_PreservesRecordAndCanRestoreAfterFileReturns()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var box = await workspace.GetBoxAsync(BoxType.Normal);
+        var source = workspace.CreateSourceFile("source", "saving.txt", "payload");
+        var item = await workspace.Service.ImportPathAsync(box.Id, source);
+        var backup = item.StoredPath + ".backup";
+        File.Move(item.StoredPath!, backup);
+
+        await workspace.Service.GetItemsAsync(box.Id);
+        await workspace.Service.GetAllItemsAsync();
+        await workspace.Service.SearchItemsAsync("saving");
+        Assert.NotNull(await workspace.Repository.GetItemAsync(item.Id));
+
+        File.Move(backup, item.StoredPath!);
+        var restarted = new DrawerService(workspace.Paths, workspace.Repository);
+        await restarted.InitializeAsync();
+        var deletion = await restarted.DeleteBoxAsync(box.Id);
+        Assert.True(deletion.BoxRemoved);
+        Assert.Equal(1, deletion.RestoredCount);
+        Assert.Equal("payload", File.ReadAllText(source));
+    }
+
+    [Fact]
+    public async Task ConcurrentImportsOfSameSource_DoNotLeaveRecoveryJournalOrBlockBoxDeletion()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var firstBox = await workspace.GetBoxAsync(BoxType.Normal);
+        var secondBox = await workspace.Service.CreateBoxAsync("second", BoxType.Normal);
+        var source = workspace.CreateSourceFile("source", "duplicate.txt", "payload");
+        await workspace.Service.FileOperationGate.WaitAsync();
+        var first = workspace.Service.ImportPathAsync(firstBox.Id, source);
+        var second = workspace.Service.ImportPathAsync(secondBox.Id, source);
+        try
+        {
+            // Both calls can validate the same path while a previous move holds the gate.
+            await Task.Delay(300);
+            Assert.False(first.IsCompleted);
+            Assert.False(second.IsCompleted);
+        }
+        finally
+        {
+            workspace.Service.FileOperationGate.Release();
+        }
+        var failures = await Task.WhenAll(new[] { first, second }.Select(async task =>
+        {
+            try { await task; return (Exception?)null; }
+            catch (Exception exception) { return exception; }
+        }));
+        Assert.Single(failures, exception => exception is null);
+        Assert.IsAssignableFrom<IOException>(Assert.Single(failures, exception => exception is not null));
+        Assert.Empty(await workspace.Repository.GetPendingFileOperationsAsync());
+
+        var restarted = new DrawerService(workspace.Paths, workspace.Repository);
+        await restarted.InitializeAsync();
+        Assert.Empty(restarted.RecoveryWarnings);
+        Assert.True((await restarted.DeleteBoxAsync(firstBox.Id)).BoxRemoved);
+        Assert.True((await restarted.DeleteBoxAsync(secondBox.Id)).BoxRemoved);
+        Assert.Equal("payload", File.ReadAllText(source));
     }
 
     [Fact]

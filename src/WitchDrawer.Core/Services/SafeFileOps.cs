@@ -312,18 +312,23 @@ internal static class SafeFileOps
     {
         var directory = Path.GetDirectoryName(destinationPath)
             ?? throw new InvalidOperationException("Destination directory is unavailable.");
-        return Path.Combine(
-            directory,
-            $".{Path.GetFileName(destinationPath)}.witchdrawer-{(operationId ?? Guid.NewGuid()):N}.tmp");
+        return Path.Combine(directory, CreateRecoveryFileName(destinationPath, operationId, ".tmp"));
     }
 
     internal static string CreateHeldSourcePath(string sourcePath, Guid? operationId = null)
     {
         var directory = Path.GetDirectoryName(sourcePath)
             ?? throw new InvalidOperationException("Source directory is unavailable.");
-        return Path.Combine(
-            directory,
-            $".{Path.GetFileName(sourcePath)}.witchdrawer-{(operationId ?? Guid.NewGuid()):N}.moving");
+        return Path.Combine(directory, CreateRecoveryFileName(sourcePath, operationId, ".moving"));
+    }
+
+    private static string CreateRecoveryFileName(string path, Guid? operationId, string suffix)
+    {
+        var id = operationId ?? Guid.NewGuid();
+        var legacyName = $".{Path.GetFileName(path)}.witchdrawer-{id:N}{suffix}";
+        // Keep valid legacy names so journals from earlier versions still resolve.
+        // Oversized names could never have been created on the supported Windows volumes.
+        return legacyName.Length <= 255 ? legacyName : $".witchdrawer-{id:N}{suffix}";
     }
 
     private static void MoveDirectoryWithTransientLockRetry(
