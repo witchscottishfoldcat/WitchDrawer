@@ -36,6 +36,8 @@
         <SolidColorBrush x:Key="DangerBrush" Color="#FF3B30" />
         <SolidColorBrush x:Key="DangerSoftBrush" Color="#FFF1F0" />
         <SolidColorBrush x:Key="HoverBrush" Color="#EBEBF0" />
+        <SolidColorBrush x:Key="ItemHoverBrush" Color="#EBEBF0" />
+        <SolidColorBrush x:Key="ItemSelectedBrush" Color="#E7F1FF" />
         <SolidColorBrush x:Key="CardShadowBrush" Color="#12000000" />
         <SolidColorBrush x:Key="DropZoneBrush" Color="#F7F7F9" />
         <SolidColorBrush x:Key="WindowOverlayBrush" Color="#00FFFFFF" />

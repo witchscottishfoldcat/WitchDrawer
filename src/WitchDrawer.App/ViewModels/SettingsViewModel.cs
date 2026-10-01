@@ -13,7 +13,7 @@ using WitchDrawer.Core.Services;
 
 namespace WitchDrawer.App.ViewModels;
 
-public sealed class SettingsViewModel : ObservableObject
+public sealed partial class SettingsViewModel : ObservableObject
 {
     private const string ThemeSettingKey = "Theme";
     internal const string ThemeBoxOpacitySettingKeyPrefix = "ThemeBoxOpacity.";
@@ -31,6 +31,7 @@ public sealed class SettingsViewModel : ObservableObject
     private double _iconFrameTransparencyPercent;
     private readonly object _themeOpacitySaveLock = new();
     private readonly Dictionary<string, CancellationTokenSource> _themeOpacitySaveDelays = [];
+    private readonly Dictionary<string, string?> _pendingThemeSettings = [];
     private readonly SemaphoreSlim _themeOpacityWriteGate = new(1, 1);
     private bool _isSynchronizingThemeTransparency;
     private bool _editorFollowsBoxOpacity;
@@ -65,6 +66,7 @@ public sealed class SettingsViewModel : ObservableObject
         ApplyGlassThemeCommand = new AsyncRelayCommand(() => ApplyThemeAsync(AppTheme.Glass));
         ApplyCrystalThemeCommand = new AsyncRelayCommand(() => ApplyThemeAsync(AppTheme.Crystal));
         ResetThemeTransparencyCommand = new RelayCommand(ResetThemeTransparency);
+        InitializeCustomization();
         ToggleLaunchOnStartupCommand = new AsyncRelayCommand(ToggleLaunchOnStartupAsync);
         ToggleDesktopIconsCommand = new AsyncRelayCommand(ToggleDesktopIconsAsync);
         ToggleDesktopDoubleClickCommand = new AsyncRelayCommand(ToggleDesktopDoubleClickAsync);
@@ -83,6 +85,7 @@ public sealed class SettingsViewModel : ObservableObject
         // 同时让升级用户保留旧主题原本的视觉效果。
         await RestoreThemeBoxOpacitiesAsync(startupSnapshot);
         await RestoreAppearanceOpacitiesAsync(startupSnapshot);
+        await RestoreCustomizationsAsync(startupSnapshot);
         var editorOpacityFollowSetting =
             await ReadSettingAsync(EditorFollowsBoxOpacitySettingKey, startupSnapshot);
         EditorFollowsBoxOpacity = bool.TryParse(
@@ -420,7 +423,7 @@ public sealed class SettingsViewModel : ObservableObject
             foreach (var theme in Enum.GetValues<AppTheme>())
             {
                 var savedOpacity = await ReadSettingAsync(GetThemeBoxOpacitySettingKey(theme), startupSnapshot);
-                AppThemeManager.SetBoxOpacity(theme, ParseSavedOpacity(savedOpacity));
+                AppThemeManager.SetBoxOpacity(theme, ParseSavedOpacity(savedOpacity, AppThemeManager.GetDefaultBoxOpacity(theme)));
             }
 
             SynchronizeThemeTransparency();
@@ -508,6 +511,7 @@ public sealed class SettingsViewModel : ObservableObject
         {
             _isSynchronizingThemeTransparency = false;
         }
+        RefreshCustomization();
     }
 
     private void QueueThemeOpacitySave(string settingKey, string? value)
@@ -522,6 +526,7 @@ public sealed class SettingsViewModel : ObservableObject
 
             delay = new CancellationTokenSource();
             _themeOpacitySaveDelays[settingKey] = delay;
+            _pendingThemeSettings[settingKey] = value;
         }
 
         _ = PersistThemeOpacityAfterDelayAsync(settingKey, value, delay);
@@ -532,6 +537,7 @@ public sealed class SettingsViewModel : ObservableObject
         string? value,
         CancellationTokenSource delay)
     {
+        var saved = false;
         try
         {
             await Task.Delay(250, delay.Token).ConfigureAwait(false);
@@ -547,6 +553,7 @@ public sealed class SettingsViewModel : ObservableObject
                 {
                     await _settings.SetSettingAsync(settingKey, value, delay.Token).ConfigureAwait(false);
                 }
+                saved = true;
             }
             finally
             {
@@ -569,6 +576,7 @@ public sealed class SettingsViewModel : ObservableObject
                     && ReferenceEquals(currentDelay, delay))
                 {
                     _themeOpacitySaveDelays.Remove(settingKey);
+                    if (saved) _pendingThemeSettings.Remove(settingKey);
                 }
             }
 
@@ -586,7 +594,7 @@ public sealed class SettingsViewModel : ObservableObject
         return opacity.ToString("0.00", CultureInfo.InvariantCulture);
     }
 
-    private static double ParseSavedOpacity(string? value)
+    private static double ParseSavedOpacity(string? value, double fallback = AppThemeManager.DefaultBoxOpacity)
     {
         return double.TryParse(
                 value,
@@ -597,7 +605,7 @@ public sealed class SettingsViewModel : ObservableObject
                 opacity,
                 AppThemeManager.MinimumBoxOpacity,
                 AppThemeManager.MaximumBoxOpacity)
-            : AppThemeManager.DefaultBoxOpacity;
+            : fallback;
     }
     private async Task ToggleLaunchOnStartupAsync()
     {

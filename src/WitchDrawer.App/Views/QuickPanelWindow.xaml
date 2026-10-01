@@ -167,10 +167,10 @@
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource HoverBrush}" />
+                                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource ItemHoverBrush}" />
                                         </Trigger>
                                         <Trigger Property="IsSelected" Value="True">
-                                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+                                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource ItemSelectedBrush}" />
                                             <Setter TargetName="Indicator" Property="Opacity" Value="1" />
                                         </Trigger>
                                     </ControlTemplate.Triggers>

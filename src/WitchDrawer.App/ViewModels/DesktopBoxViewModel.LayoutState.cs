@@ -342,6 +342,11 @@ public sealed partial class DesktopBoxViewModel
 
     private void OnLayoutSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
+        // Corner changes only redraw borders. Do not recalculate every item's
+        // position or request icon size updates while the appearance slider moves.
+        if (e.PropertyName is nameof(DesktopBoxLayoutSettings.ItemCornerRadius)
+            or nameof(DesktopBoxLayoutSettings.IconCornerRadius)) return;
+
         if (e.PropertyName == nameof(DesktopBoxLayoutSettings.MappingListWidth)
             && !_hasCustomMappingListWidth)
         {

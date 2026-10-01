@@ -165,6 +165,7 @@ public partial class DesktopBoxWindow : Window
         AppThemeManager.ThemeChanged -= OnThemeChanged;
         AppThemeManager.BoxOpacityChanged -= OnBoxOpacityChanged;
         AppThemeManager.DesktopBoxAppearanceChanged -= OnDesktopBoxAppearanceChanged;
+        System.Windows.Media.CompositionTarget.Rendering -= OnPendingAppearanceFrame;
         Activated -= OnWindowActivated;
         Deactivated -= OnWindowDeactivated;
         StateChanged -= OnWindowStateChanged;

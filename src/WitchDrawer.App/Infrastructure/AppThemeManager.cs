@@ -1,5 +1,7 @@
 using System.Windows;
 using System.Windows.Media;
+using System.Collections.Concurrent;
+using WitchDrawer.Core.Models;
 
 namespace WitchDrawer.App.Infrastructure;
 
@@ -10,8 +12,9 @@ public sealed class ThemeBoxOpacityChangedEventArgs(AppTheme theme, double opaci
     public double Opacity { get; } = opacity;
 }
 
-public static class AppThemeManager
+public static partial class AppThemeManager
 {
+    private static readonly ConcurrentDictionary<string, Color> ParsedColors = new(StringComparer.OrdinalIgnoreCase);
     public const double DefaultBoxOpacity = 0.40;
     public const double MinimumBoxOpacity = 0.10;
     public const double MaximumBoxOpacity = 1.00;
@@ -164,10 +167,12 @@ public static class AppThemeManager
     public static void Apply(AppTheme theme)
     {
         _currentTheme = theme;
+        DesktopCorners.Apply(GetCustomization(theme));
 
-        foreach (var (key, color) in ThemeColors[theme])
+        if (Application.Current is not null)
         {
-            SetColor(key, color);
+            foreach (var (key, color) in ThemeColors[theme]) SetColor(key, color);
+            ApplySharedCustomization();
         }
 
         ThemeChanged?.Invoke(null, theme);
@@ -192,28 +197,31 @@ public static class AppThemeManager
 
     public static void ApplyDesktopBoxResources(ResourceDictionary resources)
     {
-        ApplyBoxSurfaceResources(resources);
+        ApplyBoxSurfaceResources(resources, desktop: true);
         SetResourceColor(resources, "DesktopBoxBorderBrush", GetDesktopBoxBorderColor(_currentTheme));
         SetResourceColor(resources, "DesktopIconFrameBrush", GetDesktopIconFrameColor(_currentTheme));
         SetResourceColor(resources, "DesktopIconFrameBorderBrush", GetDesktopIconFrameBorderColor(_currentTheme));
+        ApplyDesktopCustomization(resources);
     }
 
-    private static void ApplyBoxSurfaceResources(ResourceDictionary resources)
+    private static void ApplyBoxSurfaceResources(ResourceDictionary resources, bool desktop = false)
     {
-        ClearDesktopBoxResources(resources);
+        if (!desktop) ClearDesktopCustomizationResources(resources);
 
         var opacity = GetBoxOpacity(_currentTheme);
         foreach (var key in LegacyTransparentCrystalBoxColors.Keys)
         {
-            var color = GetDesktopBoxColor(_currentTheme, key, opacity);
-            if (color == ParseColor(ThemeColors[_currentTheme][key]))
+            // Desktop surface overrides are resolved once below. Removing and
+            // re-adding their brushes here invalidates every dependent visual.
+            if (desktop && key is ("GlassSurfaceBrush" or "DrawerSecondarySurfaceBrush")) continue;
+            var color = ResolveAccentColor(_currentTheme, key, GetDesktopBoxColor(_currentTheme, key, opacity));
+            var sharedColor = ResolveAccentColor(_currentTheme, key, ParseColor(ThemeColors[_currentTheme][key]));
+            if (color == sharedColor)
             {
+                if (resources.Contains(key)) resources.Remove(key);
                 continue;
             }
-
-            var brush = new SolidColorBrush(color);
-            brush.Freeze();
-            resources[key] = brush;
+            SetResourceColor(resources, key, color);
         }
     }
 
@@ -309,10 +317,12 @@ public static class AppThemeManager
         {
             BoxBorderOpacities[theme] = null;
             IconFrameOpacities[theme] = null;
+            Customizations[theme] = ThemeCustomization.Empty;
             BoxOpacities[theme] = opacity is null
                 ? GetDefaultBoxOpacity(theme)
                 : NormalizeOpacity(opacity.Value);
         }
+        DesktopCorners.Apply(ThemeCustomization.Empty);
     }
 
     public static void ApplyEditorOpacityResources(ResourceDictionary resources)
@@ -327,13 +337,18 @@ public static class AppThemeManager
 
     private static void ClearDesktopBoxResources(ResourceDictionary resources)
     {
-        resources.Remove("DesktopBoxBorderBrush");
-        resources.Remove("DesktopIconFrameBrush");
-        resources.Remove("DesktopIconFrameBorderBrush");
+        ClearDesktopCustomizationResources(resources);
         foreach (var key in LegacyTransparentCrystalBoxColors.Keys)
         {
-            resources.Remove(key);
+            if (resources.Contains(key)) resources.Remove(key);
         }
+    }
+
+    private static void ClearDesktopCustomizationResources(ResourceDictionary resources)
+    {
+        foreach (var key in new[] { "ItemHoverBrush", "ItemSelectedBrush", "DesktopBoxBorderBrush",
+            "DesktopIconFrameBrush", "DesktopIconFrameBorderBrush" })
+            if (resources.Contains(key)) resources.Remove(key);
     }
 
     public static double GetBoxBorderOpacity(AppTheme theme) =>
@@ -353,8 +368,9 @@ public static class AppThemeManager
             GetOriginalColor(theme, "GlassStrokeBrush").A, BoxBorderOpacities[theme]);
 
     internal static Color GetDesktopIconFrameColor(AppTheme theme) =>
-        AdjustAppearanceAlpha(GetOriginalColor(theme, "GlassInnerBrush"),
-            GetOriginalColor(theme, "GlassInnerBrush").A, IconFrameOpacities[theme]);
+        WithRgb(AdjustAppearanceAlpha(GetOriginalColor(theme, "GlassInnerBrush"),
+            GetOriginalColor(theme, "GlassInnerBrush").A, IconFrameOpacities[theme]),
+            GetCustomization(theme).IconBackground);
 
     internal static Color GetDesktopIconFrameBorderColor(AppTheme theme) =>
         AdjustAppearanceAlpha(GetOriginalColor(theme, "GlassStrokeBrush"),
@@ -403,6 +419,8 @@ public static class AppThemeManager
 
     private static void SetResourceColor(ResourceDictionary resources, string key, Color color)
     {
+        if (resources.Contains(key) && resources[key] is SolidColorBrush existing && existing.Color == color)
+            return;
         var brush = new SolidColorBrush(color);
         brush.Freeze();
         resources[key] = brush;
@@ -459,13 +477,11 @@ public static class AppThemeManager
 
     private static Color ParseColor(string color)
     {
-        return (Color)ColorConverter.ConvertFromString(color);
+        return ParsedColors.GetOrAdd(color, static value => (Color)ColorConverter.ConvertFromString(value));
     }
 
     private static void SetColor(string key, string color)
     {
-        var brush = new SolidColorBrush(ParseColor(color));
-        brush.Freeze();
-        Application.Current.Resources[key] = brush;
+        SetResourceColor(Application.Current.Resources, key, ParseColor(color));
     }
 }

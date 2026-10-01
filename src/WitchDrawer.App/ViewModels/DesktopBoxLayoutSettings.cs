@@ -29,6 +29,7 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
     private bool _isFileNameVisible;
     private CornerRadius _itemCornerRadius = new CornerRadius(8);
     private CornerRadius _iconCornerRadius = new CornerRadius(6);
+    private double _cornerScale = 1;
     private int _columns = 5;
     private string _currentPreset = DefaultPreset;
     private readonly bool _isDrawerMode;
@@ -129,13 +130,13 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
 
     public CornerRadius ItemCornerRadius
     {
-        get => _itemCornerRadius;
+        get => new(_itemCornerRadius.TopLeft * _cornerScale);
         set => SetProperty(ref _itemCornerRadius, value);
     }
 
     public CornerRadius IconCornerRadius
     {
-        get => _iconCornerRadius;
+        get => new(_iconCornerRadius.TopLeft * _cornerScale);
         set => SetProperty(ref _iconCornerRadius, value);
     }
 
@@ -305,6 +306,16 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
     public void SetPresetChangedCallback(Func<string, Task> callback)
     {
         _presetChangedCallback = callback;
+    }
+
+    public void ApplyCornerScale(double scale)
+    {
+        if (!double.IsFinite(scale)) return;
+        var normalized = Math.Clamp(scale, 0, 2);
+        if (_cornerScale == normalized) return;
+        _cornerScale = normalized;
+        OnPropertyChanged(nameof(ItemCornerRadius));
+        OnPropertyChanged(nameof(IconCornerRadius));
     }
 
     [CommunityToolkit.Mvvm.Input.RelayCommand]

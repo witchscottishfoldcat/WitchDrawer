@@ -1213,6 +1213,7 @@
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -1426,6 +1427,7 @@
                                                 Height="26" Padding="10,0"
                                                 AutomationProperties.Name="恢复当前主题透明度默认值" />
                                     </Grid>
+                                    <views:ThemeCustomizationView Grid.Row="6" Grid.ColumnSpan="2" Margin="0,10,0,0" DataContext="{Binding Settings}" />
                                 </Grid>
                                 </Border>
 

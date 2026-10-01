@@ -1,6 +1,6 @@
 using System.Windows;
 using System.Windows.Input;
-using System.Windows.Threading;
+using System.Windows.Media;
 using WitchDrawer.App.Infrastructure;
 
 namespace WitchDrawer.App.Views;
@@ -62,18 +62,24 @@ public partial class DesktopBoxWindow
         }
 
         _isBoxOpacityRefreshQueued = true;
-        _ = Dispatcher.BeginInvoke(
-            DispatcherPriority.Background,
-            () =>
-            {
-                _isBoxOpacityRefreshQueued = false;
-                AppThemeManager.ApplyDesktopBoxResources(Resources);
-            });
+        // Multiple pointer updates before the next frame only need one redraw.
+        CompositionTarget.Rendering += OnPendingAppearanceFrame;
+    }
+
+    private void OnPendingAppearanceFrame(object? sender, EventArgs e)
+    {
+        CompositionTarget.Rendering -= OnPendingAppearanceFrame;
+        _isBoxOpacityRefreshQueued = false;
+        AppThemeManager.ApplyDesktopBoxResources(Resources);
+        ViewModel.LayoutSettings.ApplyCornerScale(AppThemeManager.GetCustomization(AppThemeManager.CurrentTheme).IconCornerScale ?? 1);
     }
 
     private void ApplyThemeAppearance()
     {
+        CompositionTarget.Rendering -= OnPendingAppearanceFrame;
+        _isBoxOpacityRefreshQueued = false;
         AppThemeManager.ApplyDesktopBoxResources(Resources);
+        ViewModel.LayoutSettings.ApplyCornerScale(AppThemeManager.GetCustomization(AppThemeManager.CurrentTheme).IconCornerScale ?? 1);
         AppThemeManager.ApplyToWindow(this);
     }
 

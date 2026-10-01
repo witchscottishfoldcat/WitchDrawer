@@ -76,6 +76,7 @@ public partial class MainWindow : Window
         DpiChanged += OnDpiChanged;
         AppThemeManager.ThemeChanged += OnThemeChanged;
         AppThemeManager.BoxOpacityChanged += OnBoxOpacityChanged;
+        AppThemeManager.DesktopBoxAppearanceChanged += OnDesktopBoxAppearanceChanged;
         ViewModel.Settings.PropertyChanged += OnViewModelPropertyChanged;
     }
 
@@ -161,6 +162,8 @@ public partial class MainWindow : Window
         DpiChanged -= OnDpiChanged;
         AppThemeManager.ThemeChanged -= OnThemeChanged;
         AppThemeManager.BoxOpacityChanged -= OnBoxOpacityChanged;
+        AppThemeManager.DesktopBoxAppearanceChanged -= OnDesktopBoxAppearanceChanged;
+        CompositionTarget.Rendering -= OnEditorAppearanceFrame;
         ViewModel.Settings.PropertyChanged -= OnViewModelPropertyChanged;
         _source?.RemoveHook(WndProc);
         _hotKey?.Dispose();
@@ -201,6 +204,12 @@ public partial class MainWindow : Window
         QueueEditorOpacityRefresh();
     }
 
+    private void OnDesktopBoxAppearanceChanged(object? sender, AppTheme theme)
+    {
+        if (theme == AppThemeManager.CurrentTheme && ViewModel.Settings.EditorFollowsBoxOpacity)
+            QueueEditorOpacityRefresh();
+    }
+
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(SettingsViewModel.EditorFollowsBoxOpacity))
@@ -217,17 +226,20 @@ public partial class MainWindow : Window
         }
 
         _isEditorOpacityRefreshQueued = true;
-        _ = Dispatcher.BeginInvoke(
-            System.Windows.Threading.DispatcherPriority.Background,
-            () =>
-            {
-                _isEditorOpacityRefreshQueued = false;
-                RefreshEditorOpacityResources();
-            });
+        CompositionTarget.Rendering += OnEditorAppearanceFrame;
+    }
+
+    private void OnEditorAppearanceFrame(object? sender, EventArgs e)
+    {
+        CompositionTarget.Rendering -= OnEditorAppearanceFrame;
+        _isEditorOpacityRefreshQueued = false;
+        RefreshEditorOpacityResources();
     }
 
     private void ApplyThemeAppearance()
     {
+        CompositionTarget.Rendering -= OnEditorAppearanceFrame;
+        _isEditorOpacityRefreshQueued = false;
         AppThemeManager.ApplyToWindow(this);
         RefreshEditorOpacityResources();
     }

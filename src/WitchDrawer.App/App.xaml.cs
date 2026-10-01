@@ -632,6 +632,14 @@ public partial class App : Application
 
         if (_mainWindow is not null)
         {
+            try
+            {
+                await _mainWindow.ViewModel.Settings.FlushPendingThemeSettingsAsync().WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            catch (Exception exception)
+            {
+                _logger?.Error(exception, "Failed to flush theme settings during shutdown.");
+            }
             _mainWindow.ForceClose();
             _mainWindow = null;
         }

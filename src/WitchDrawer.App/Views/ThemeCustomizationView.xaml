@@ -1,0 +1,170 @@
+<UserControl x:Class="WitchDrawer.App.Views.ThemeCustomizationView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:viewModels="clr-namespace:WitchDrawer.App.ViewModels" Foreground="{DynamicResource TextPrimaryBrush}">
+    <UserControl.Resources>
+        <Style x:Key="AppearanceInput" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Padding" Value="4,2" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="11" />
+        </Style>
+        <Style x:Key="AppearanceReset" TargetType="Button" BasedOn="{StaticResource GhostButtonStyle}">
+            <Setter Property="Content" Value="默认" />
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Padding" Value="7,0" />
+            <Setter Property="Margin" Value="8,0,0,0" />
+            <Setter Property="FontSize" Value="11" />
+        </Style>
+        <Style x:Key="SwatchButton" TargetType="Button">
+            <Setter Property="Width" Value="18" />
+            <Setter Property="Height" Value="18" />
+            <Setter Property="Margin" Value="0,0,5,0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Swatch" Background="{TemplateBinding Background}" BorderBrush="{DynamicResource BorderBrushSoft}" BorderThickness="1" CornerRadius="4" />
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Swatch" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Swatch" Property="BorderThickness" Value="2" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+    <Expander Header="自定义样式" FontSize="12" Padding="0,4" Foreground="{DynamicResource TextPrimaryBrush}">
+        <StackPanel Margin="0,8,0,0">
+            <TextBlock Text="{Binding CustomizationLabel}" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,10" />
+            <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="104" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="48" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="盒子圆角" />
+                    <TextBlock Text="{Binding BoxCornerLabel}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" />
+                </StackPanel>
+                <Slider Grid.Column="1" Margin="8,0,10,0" VerticalAlignment="Center" Minimum="0" Maximum="32" SmallChange="1" IsSnapToTickEnabled="True" TickFrequency="1" Style="{DynamicResource ThemeOpacitySliderStyle}" Value="{Binding BoxCornerRadius, Mode=TwoWay}" AutomationProperties.Name="盒子圆角" />
+                <TextBox Grid.Column="2" Style="{StaticResource AppearanceInput}" Text="{Binding BoxCornerRadius, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" AutomationProperties.Name="盒子圆角数值" KeyDown="OnInputKeyDown" />
+                <Button Grid.Column="3" Style="{StaticResource AppearanceReset}" Command="{Binding ResetThemeFieldCommand}" CommandParameter="BoxCornerRadius" AutomationProperties.Name="恢复盒子圆角" />
+            </Grid>
+            <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="104" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="48" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="图标圆角比例" />
+                    <TextBlock Text="{Binding IconCornerLabel}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" />
+                </StackPanel>
+                <Slider Grid.Column="1" Margin="8,0,10,0" VerticalAlignment="Center" Minimum="0" Maximum="200" SmallChange="5" IsSnapToTickEnabled="True" TickFrequency="5" Style="{DynamicResource ThemeOpacitySliderStyle}" Value="{Binding IconCornerPercent, Mode=TwoWay}" AutomationProperties.Name="图标圆角比例" />
+                <TextBox Grid.Column="2" Style="{StaticResource AppearanceInput}" Text="{Binding IconCornerPercent, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" AutomationProperties.Name="图标圆角比例百分比" KeyDown="OnInputKeyDown" />
+                <Button Grid.Column="3" Style="{StaticResource AppearanceReset}" Command="{Binding ResetThemeFieldCommand}" CommandParameter="IconCornerScale" AutomationProperties.Name="恢复图标圆角" />
+            </Grid>
+            <Grid Margin="0,0,0,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="104" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="48" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="悬停透明度" />
+                    <TextBlock Text="{Binding HoverTransparencyLabel}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" />
+                </StackPanel>
+                <Slider Grid.Column="1" Margin="8,0,10,0" VerticalAlignment="Center" Minimum="0" Maximum="100" SmallChange="1" IsSnapToTickEnabled="True" TickFrequency="1" Style="{DynamicResource ThemeOpacitySliderStyle}" Value="{Binding ItemHoverTransparencyPercent, Mode=TwoWay}" AutomationProperties.Name="文件项悬停透明度" />
+                <TextBox Grid.Column="2" Style="{StaticResource AppearanceInput}" Text="{Binding ItemHoverTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" AutomationProperties.Name="悬停透明度百分比" KeyDown="OnInputKeyDown" />
+                <Button Grid.Column="3" Style="{StaticResource AppearanceReset}" Command="{Binding ResetThemeFieldCommand}" CommandParameter="ItemHoverOpacity" AutomationProperties.Name="恢复悬停透明度" />
+            </Grid>
+            <ItemsControl ItemsSource="{Binding ThemeColors}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Margin="0,0,0,8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="104" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="112" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+                                <ItemsControl Grid.Column="1" ItemsSource="{x:Static viewModels:ThemeColorOptionViewModel.Swatches}" Margin="8,0,0,0" VerticalAlignment="Center">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Button Style="{StaticResource SwatchButton}" Background="{Binding}" Command="{Binding DataContext.ChooseColorCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" ToolTip="{Binding}" AutomationProperties.Name="{Binding}" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Border Width="18" Height="18" Margin="0,0,5,0" CornerRadius="4" BorderBrush="{DynamicResource BorderBrushSoft}" BorderThickness="1" Background="{Binding PreviewBrush}" />
+                                    <TextBox Width="88" MaxLength="7" Style="{StaticResource AppearanceInput}" Text="{Binding Hex, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" AutomationProperties.Name="{Binding Label}" KeyDown="OnInputKeyDown" />
+                                </StackPanel>
+                                <Button Grid.Column="3" Style="{StaticResource AppearanceReset}" Command="{Binding ResetCommand}" AutomationProperties.Name="{Binding Label, StringFormat=恢复{0}}" />
+                            </Grid>
+                            <TextBlock Text="{Binding Error}" FontSize="10" Foreground="{DynamicResource DangerBrush}" Margin="104,2,0,0">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Error}" Value="">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Text="输入六位 HEX 颜色。图标圆角 100% 使用原有比例，0% 为直角。" FontSize="10.5" TextWrapping="Wrap" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,10" />
+            <Border Background="{DynamicResource PanelAltBrush}" CornerRadius="10" Padding="10">
+                <StackPanel>
+                    <TextBlock Text="效果预览" FontSize="11" Margin="0,0,0,8" />
+                    <Border Background="{Binding PreviewSurfaceBrush}" BorderBrush="{Binding PreviewBorderBrush}" BorderThickness="1" CornerRadius="{Binding PreviewBoxRadius}" Padding="12">
+                        <UniformGrid Columns="3">
+                            <StackPanel>
+                                <Border Width="52" Height="46" CornerRadius="{Binding PreviewIconRadius}">
+                                    <Border Width="30" Height="30" CornerRadius="{Binding PreviewIconRadius}" Background="{Binding PreviewFrameBrush}">
+                                        <Path Width="13" Height="17" Stretch="Uniform" Stroke="{DynamicResource TextPrimaryBrush}" StrokeThickness="1" StrokeLineJoin="Round" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M0,0 L9,0 L13,4 L13,17 L0,17 Z M9,0 L9,4 L13,4 M3,8 L10,8 M3,11 L10,11" />
+                                    </Border>
+                                </Border>
+                                <TextBlock Text="普通" FontSize="10" HorizontalAlignment="Center" />
+                            </StackPanel>
+                            <StackPanel>
+                                <Border Width="52" Height="46" Background="{Binding PreviewHoverBrush}" CornerRadius="{Binding PreviewIconRadius}">
+                                    <Border Width="30" Height="30" CornerRadius="{Binding PreviewIconRadius}" Background="{Binding PreviewFrameBrush}">
+                                        <Path Width="13" Height="17" Stretch="Uniform" Stroke="{DynamicResource TextPrimaryBrush}" StrokeThickness="1" StrokeLineJoin="Round" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M0,0 L9,0 L13,4 L13,17 L0,17 Z M9,0 L9,4 L13,4 M3,8 L10,8 M3,11 L10,11" />
+                                    </Border>
+                                </Border>
+                                <TextBlock Text="悬停" FontSize="10" HorizontalAlignment="Center" />
+                            </StackPanel>
+                            <StackPanel>
+                                <Border Width="52" Height="46" Background="{Binding PreviewSelectedBrush}" BorderBrush="{Binding PreviewAccentBrush}" BorderThickness="1" CornerRadius="{Binding PreviewIconRadius}">
+                                    <Border Width="30" Height="30" CornerRadius="{Binding PreviewIconRadius}" Background="{Binding PreviewFrameBrush}">
+                                        <Path Width="13" Height="17" Stretch="Uniform" Stroke="{DynamicResource TextPrimaryBrush}" StrokeThickness="1" StrokeLineJoin="Round" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M0,0 L9,0 L13,4 L13,17 L0,17 Z M9,0 L9,4 L13,4 M3,8 L10,8 M3,11 L10,11" />
+                                    </Border>
+                                </Border>
+                                <TextBlock Text="选中" FontSize="10" HorizontalAlignment="Center" />
+                            </StackPanel>
+                        </UniformGrid>
+                    </Border>
+                </StackPanel>
+            </Border>
+            <DockPanel Margin="0,10,0,0">
+                <Button DockPanel.Dock="Right" Content="恢复当前主题预设" Command="{Binding ResetThemePresetCommand}" Style="{StaticResource GhostButtonStyle}" Height="28" Padding="10,0" Foreground="{DynamicResource AccentBrush}" />
+                <TextBlock Text="每套主题分别保存，恢复后回到原始外观。" FontSize="10.5" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,10,0" />
+            </DockPanel>
+        </StackPanel>
+    </Expander>
+</UserControl>
