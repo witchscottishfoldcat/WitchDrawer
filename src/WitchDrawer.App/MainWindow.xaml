@@ -1,4 +1,4 @@
-<Window x:Class="WitchDrawer.App.MainWindow"
+﻿<Window x:Class="WitchDrawer.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:views="clr-namespace:WitchDrawer.App.Views"
@@ -512,55 +512,267 @@
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
 
-                        <!-- Dashboard Info Header -->
-                        <Grid Grid.Row="0" Margin="0,0,0,14">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <Border Width="5"
-                                            Height="5"
-                                            Background="{DynamicResource AccentBrush}"
-                                            CornerRadius="3"
-                                            Margin="1,0,8,0"
-                                            VerticalAlignment="Center" />
-                                    <TextBlock Text="{Binding SelectedBox.Description, TargetNullValue=选择左侧的收纳盒开始整理}"
-                                               Foreground="{DynamicResource TextMutedBrush}"
-                                               FontSize="11.5"
-                                               FontWeight="Medium"
-                                               />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,3,0,0">
-                                    <TextBlock Text="{Binding SelectedBox.Name, TargetNullValue=选择一个收纳盒}"
-                                               Foreground="{DynamicResource TextPrimaryBrush}"
-                                               FontSize="28"
-                                               FontWeight="SemiBold" />
-                                    
-                                    <!-- 重命名收纳盒悬浮按钮与浮窗 -->
-                                    <Grid Margin="10,1,0,0">
-                                         <Button x:Name="BtnRenameBox"
-                                                 Click="OnRenameBoxClicked"
-                                                 Focusable="False"
-                                                 Style="{StaticResource GhostButtonStyle}"
-                                                 AutomationProperties.Name="重命名当前收纳盒"
-                                                 Width="32" Height="32"
-                                                 Padding="0"
-                                                 ToolTip="重命名收纳盒"
-                                                 BorderThickness="0">
-                                            <Path Data="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
-                                                  Fill="{DynamicResource TextMutedBrush}"
-                                                  Stretch="Uniform" Width="14" Height="14" />
-                                        </Button>
-
-                                        <Popup x:Name="RenameBoxPopup"
+                        <!-- Selected box: three consistent entry points -->
+                        <Grid x:Name="SelectedBoxToolbar" Grid.Row="0" Margin="0,0,0,18">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,16,0" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding SelectedBox.Name, TargetNullValue=选择一个收纳盒}"
+                                           TextTrimming="CharacterEllipsis" FontSize="24" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                                <TextBlock Text="{Binding SelectedBox.Description, TargetNullValue=选择左侧的收纳盒开始整理}"
+                                           Foreground="{DynamicResource TextMutedBrush}" FontSize="11" Margin="0,5,0,0" />
+                            </StackPanel>
+                            <StackPanel x:Name="BoxToolbarButtons" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Style.Triggers><DataTrigger Binding="{Binding SelectedBox}" Value="{x:Null}"><Setter Property="IsEnabled" Value="False" /></DataTrigger></Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <Grid Margin="0,0,8,0" Visibility="{Binding SelectedBox.SupportsSorting, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <Button x:Name="DrawerSortMenuButton" Style="{StaticResource BoxToolbarButtonStyle}" Click="OnOpenDrawerSortMenu"
+                                            ToolTip="选择排序方式" AutomationProperties.Name="排序方式">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding SelectedBox.DrawerSortModeLabel, StringFormat=排序 · {0}}" VerticalAlignment="Center" />
+                                            <TextBlock Text="&#xE70D;" FontFamily="Segoe Fluent Icons" FontSize="8" Margin="8,0,0,0" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Popup x:Name="DrawerSortPopup" PreviewKeyDown="OnBoxPopupKeyDown"
+                                           PlacementTarget="{Binding ElementName=DrawerSortMenuButton}"
+                                           Placement="Bottom"
+                                           VerticalOffset="6"
+                                           AllowsTransparency="True"
+                                           StaysOpen="False"
+                                           PopupAnimation="Fade">
+                                        <Border Margin="12"
+                                                Padding="5"
+                                                MinWidth="156"
+                                                Background="{DynamicResource PanelBrush}"
+                                                BorderBrush="{DynamicResource BorderBrushSoft}"
+                                                BorderThickness="1"
+                                                CornerRadius="12">
+                                            <Border.Effect>
+                                                <DropShadowEffect BlurRadius="14"
+                                                                  ShadowDepth="3"
+                                                                  Opacity="0.12"
+                                                                  Direction="270" />
+                                            </Border.Effect>
+                                            <StackPanel>
+                                                <Button Command="{Binding SelectedBox.ApplyDrawerSortModeCommand}"
+                                                        CommandParameter="{x:Static viewModels:DrawerItemSortMode.Free}"
+                                                        Click="OnDrawerSortOptionClicked"
+                                                        Style="{StaticResource BoxMenuItemButtonStyle}"
+                                                        Padding="10,0">
+                                                    <Grid Width="128">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="18" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="&#xE73E;"
+                                                                   FontFamily="Segoe Fluent Icons"
+                                                                   Foreground="{DynamicResource AccentBrush}"
+                                                                   Visibility="{Binding SelectedBox.IsFreeSort, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                        <TextBlock Grid.Column="1" Text="自由" />
+                                                    </Grid>
+                                                </Button>
+                                                <Button Command="{Binding SelectedBox.ApplyDrawerSortModeCommand}"
+                                                        CommandParameter="{x:Static viewModels:DrawerItemSortMode.Name}"
+                                                        Click="OnDrawerSortOptionClicked"
+                                                        Style="{StaticResource BoxMenuItemButtonStyle}"
+                                                        Padding="10,0">
+                                                    <Grid Width="128">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="18" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="&#xE73E;"
+                                                                   FontFamily="Segoe Fluent Icons"
+                                                                   Foreground="{DynamicResource AccentBrush}"
+                                                                   Visibility="{Binding SelectedBox.IsDrawerSortByName, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                        <TextBlock Grid.Column="1" Text="名称" />
+                                                    </Grid>
+                                                </Button>
+                                                <Button Command="{Binding SelectedBox.ApplyDrawerSortModeCommand}"
+                                                        CommandParameter="{x:Static viewModels:DrawerItemSortMode.Size}"
+                                                        Click="OnDrawerSortOptionClicked"
+                                                        Style="{StaticResource BoxMenuItemButtonStyle}"
+                                                        Padding="10,0">
+                                                    <Grid Width="128">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="18" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="&#xE73E;"
+                                                                   FontFamily="Segoe Fluent Icons"
+                                                                   Foreground="{DynamicResource AccentBrush}"
+                                                                   Visibility="{Binding SelectedBox.IsDrawerSortBySize, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                        <TextBlock Grid.Column="1" Text="大小" />
+                                                    </Grid>
+                                                </Button>
+                                                <Button Command="{Binding SelectedBox.ApplyDrawerSortModeCommand}"
+                                                        CommandParameter="{x:Static viewModels:DrawerItemSortMode.ItemType}"
+                                                        Click="OnDrawerSortOptionClicked"
+                                                        Style="{StaticResource BoxMenuItemButtonStyle}"
+                                                        Padding="10,0">
+                                                    <Grid Width="128">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="18" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="&#xE73E;"
+                                                                   FontFamily="Segoe Fluent Icons"
+                                                                   Foreground="{DynamicResource AccentBrush}"
+                                                                   Visibility="{Binding SelectedBox.IsDrawerSortByItemType, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                        <TextBlock Grid.Column="1" Text="项目类型" />
+                                                    </Grid>
+                                                </Button>
+                                                <Button Command="{Binding SelectedBox.ApplyDrawerSortModeCommand}"
+                                                        CommandParameter="{x:Static viewModels:DrawerItemSortMode.ModifiedDate}"
+                                                        Click="OnDrawerSortOptionClicked"
+                                                        Style="{StaticResource BoxMenuItemButtonStyle}"
+                                                        Padding="10,0">
+                                                    <Grid Width="128">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="18" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="&#xE73E;"
+                                                                   FontFamily="Segoe Fluent Icons"
+                                                                   Foreground="{DynamicResource AccentBrush}"
+                                                                   Visibility="{Binding SelectedBox.IsDrawerSortByModifiedDate, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                        <TextBlock Grid.Column="1" Text="修改日期" />
+                                                    </Grid>
+                                                </Button>
+                                            </StackPanel>
+                                        </Border>
+                                    </Popup>
+                                </Grid>
+                                <Grid Margin="0,0,8,0" Visibility="{Binding IsSelectedTodoBox, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                                    <Button x:Name="BoxDisplaySettingsButton" Style="{StaticResource BoxToolbarButtonStyle}" Click="OnOpenBoxDisplaySettings"
+                                            AutomationProperties.Name="显示设置" ToolTip="图标、悬停、标题与盒子尺寸">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="显示设置" VerticalAlignment="Center" />
+                                            <TextBlock Text="&#xE70D;" FontFamily="Segoe Fluent Icons" FontSize="8" Margin="8,0,0,0" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Popup x:Name="BoxDisplaySettingsPopup" PlacementTarget="{Binding ElementName=BoxDisplaySettingsButton}"
+                                           Placement="Custom" AllowsTransparency="True" StaysOpen="True">
+                                        <Border Width="360" Padding="16" Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource BorderBrushSoft}"
+                                                BorderThickness="1" CornerRadius="12" PreviewKeyDown="OnBoxPopupKeyDown">
+                                            <views:BoxDisplaySettingsView x:Name="BoxDisplaySettings" />
+                                        </Border>
+                                    </Popup>
+                                </Grid>
+                                <Grid>
+                                    <Button x:Name="BtnMoreBoxActions" Style="{StaticResource BoxToolbarButtonStyle}" Click="OnOpenBoxActionsMenu"
+                                            ToolTip="重命名、桌面位置与删除" AutomationProperties.Name="更多收纳盒操作">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="更多" VerticalAlignment="Center" />
+                                            <TextBlock Text="&#xE70D;" FontFamily="Segoe Fluent Icons" FontSize="8" Margin="8,0,0,0" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Popup x:Name="BoxActionsPopup" PreviewKeyDown="OnBoxPopupKeyDown"
+                                               PlacementTarget="{Binding ElementName=BtnMoreBoxActions}"
+                                               Placement="Bottom"
+                                               VerticalOffset="6"
+                                               AllowsTransparency="True"
+                                               StaysOpen="True"
+                                               PopupAnimation="Fade">
+                                            <Border Margin="14"
+                                                    Padding="6"
+                                                    MinWidth="174"
+                                                    Background="{DynamicResource PanelBrush}"
+                                                    BorderBrush="{DynamicResource BorderBrushSoft}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="12">
+                                                <Border.Effect>
+                                                    <DropShadowEffect BlurRadius="16"
+                                                                      ShadowDepth="4"
+                                                                      Opacity="0.14"
+                                                                      Direction="270" />
+                                                </Border.Effect>
+                                                <StackPanel>
+                                                    <Button Content="重命名" Click="OnRenameBoxClicked" Style="{StaticResource BoxMenuItemButtonStyle}"
+                                                            AutomationProperties.Name="重命名当前收纳盒" />
+                                                    <Button Click="OnShowDesktopBoxClicked"
+                                                            Style="{StaticResource BoxMenuItemButtonStyle}"
+                                                            AutomationProperties.Name="显示桌面收纳盒"
+                                                            Padding="10,0"
+                                                            HorizontalContentAlignment="Left">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="&#xE890;"
+                                                                       Width="20"
+                                                                       FontFamily="Segoe Fluent Icons"
+                                                                       FontSize="13"
+                                                                       Foreground="{DynamicResource TextMutedBrush}" />
+                                                            <TextBlock Text="显示桌面收纳盒"
+                                                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                                                       FontSize="12" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                    <Button Command="{Binding ToggleSelectedBoxPositionLockCommand}"
+                                                            Click="OnBoxActionMenuItemClicked"
+                                                            Style="{StaticResource BoxMenuItemButtonStyle}"
+                                                            AutomationProperties.Name="{Binding SelectedBox.PositionLockButtonToolTip}"
+                                                            Padding="10,0"
+                                                            HorizontalContentAlignment="Left">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="&#xE72E;"
+                                                                       Width="20"
+                                                                       FontFamily="Segoe Fluent Icons"
+                                                                       FontSize="13"
+                                                                       Foreground="{DynamicResource TextMutedBrush}" />
+                                                            <TextBlock Text="{Binding SelectedBox.PositionLockButtonToolTip}"
+                                                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                                                       FontSize="12" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                    <Button Click="OnRecallBoxClicked"
+                                                            Style="{StaticResource BoxMenuItemButtonStyle}"
+                                                            AutomationProperties.Name="将盒子召回屏幕中心"
+                                                            Padding="10,0"
+                                                            HorizontalContentAlignment="Left">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="&#xE72C;"
+                                                                       Width="20"
+                                                                       FontFamily="Segoe Fluent Icons"
+                                                                       FontSize="13"
+                                                                       Foreground="{DynamicResource TextMutedBrush}" />
+                                                            <TextBlock Text="召回屏幕中心"
+                                                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                                                       FontSize="12" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                    <Border Height="1"
+                                                            Margin="8,4"
+                                                            Background="{DynamicResource BorderBrushSoft}" />
+                                                    <Button Click="OnDeleteBoxClicked"
+                                                            Style="{StaticResource BoxMenuItemButtonStyle}"
+                                                            Foreground="{DynamicResource DangerBrush}"
+                                                            AutomationProperties.Name="删除收纳盒"
+                                                            Padding="10,0"
+                                                            HorizontalContentAlignment="Left">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="&#xE74D;"
+                                                                       Width="20"
+                                                                       FontFamily="Segoe Fluent Icons"
+                                                                       FontSize="13" />
+                                                            <TextBlock Text="删除收纳盒"
+                                                                       FontSize="12" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                </StackPanel>
+                                            </Border>
+                                        </Popup>
+                                </Grid>
+                            </StackPanel>
+                            <Grid Width="0" Height="0">
+                                <Popup x:Name="RenameBoxPopup"
                                                StaysOpen="False"
                                                AllowsTransparency="True"
-                                               PlacementTarget="{Binding ElementName=BtnRenameBox}"
-                                               Placement="Right"
-                                               HorizontalOffset="10"
-                                               VerticalOffset="-12"
+                                               PlacementTarget="{Binding ElementName=BtnMoreBoxActions}"
+                                               Placement="Bottom"
+                                               HorizontalOffset="-150"
+                                               VerticalOffset="6"
                                                PopupAnimation="Fade">
                                             <Border Background="{DynamicResource PanelBrush}"
                                                     BorderBrush="{DynamicResource BorderBrushSoft}"
@@ -582,7 +794,7 @@
                                                              Padding="8,0"
                                                              KeyDown="OnRenameBoxKeyDown"
                                                              PreviewKeyDown="OnRenameBoxPreviewKeyDown" />
-                                                    <Button Content="确认" 
+                                                    <Button Content="确认"
                                                             Click="OnConfirmRenameBoxClicked"
                                                             Style="{StaticResource PrimaryButtonStyle}"
                                                             Margin="8,0,0,0"
@@ -590,10 +802,7 @@
                                                 </StackPanel>
                                             </Border>
                                         </Popup>
-                                    </Grid>
-
-                                    <Grid Width="0" Margin="0">
-                                        <Popup x:Name="DeleteConfirmPopup"
+                                <Popup x:Name="DeleteConfirmPopup"
                                                StaysOpen="False"
                                                AllowsTransparency="True"
                                                PlacementTarget="{Binding ElementName=BtnMoreBoxActions}"
@@ -639,7 +848,7 @@
                                                 </StackPanel>
                                             </Border>
                                         </Popup>
-                                        <Popup x:Name="RecallBoxConfirmPopup"
+                                <Popup x:Name="RecallBoxConfirmPopup"
                                                StaysOpen="False"
                                                AllowsTransparency="True"
                                                PlacementTarget="{Binding ElementName=BtnMoreBoxActions}"
@@ -688,348 +897,7 @@
                                                 </StackPanel>
                                             </Border>
                                         </Popup>
-                                    </Grid>
-
-                                    <Grid Margin="6,1,0,0">
-                                        <Button x:Name="BtnMoreBoxActions"
-                                                Width="32"
-                                                Height="32"
-                                                MinWidth="32"
-                                                MinHeight="32"
-                                                Padding="0"
-                                                Style="{StaticResource GhostButtonStyle}"
-                                                Click="OnOpenBoxActionsMenu"
-                                                ToolTip="更多收纳盒操作"
-                                                AutomationProperties.Name="更多收纳盒操作">
-                                            <TextBlock Text="&#xE712;"
-                                                       FontFamily="Segoe Fluent Icons"
-                                                       FontSize="15"
-                                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                                                       HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center" />
-                                        </Button>
-
-                                        <Popup x:Name="BoxActionsPopup"
-                                               PlacementTarget="{Binding ElementName=BtnMoreBoxActions}"
-                                               Placement="Bottom"
-                                               VerticalOffset="6"
-                                               HorizontalOffset="-116"
-                                               AllowsTransparency="True"
-                                               StaysOpen="True"
-                                               PopupAnimation="Fade">
-                                            <Border Margin="14"
-                                                    Padding="6"
-                                                    MinWidth="174"
-                                                    Background="{DynamicResource PanelBrush}"
-                                                    BorderBrush="{DynamicResource BorderBrushSoft}"
-                                                    BorderThickness="1"
-                                                    CornerRadius="12">
-                                                <Border.Effect>
-                                                    <DropShadowEffect BlurRadius="16"
-                                                                      ShadowDepth="4"
-                                                                      Opacity="0.14"
-                                                                      Direction="270" />
-                                                </Border.Effect>
-                                                <StackPanel>
-                                                    <Button Click="OnShowDesktopBoxClicked"
-                                                            Style="{StaticResource GhostButtonStyle}"
-                                                            AutomationProperties.Name="显示桌面收纳盒"
-                                                            Padding="10,8"
-                                                            HorizontalContentAlignment="Left">
-                                                        <StackPanel Orientation="Horizontal">
-                                                            <TextBlock Text="&#xE890;"
-                                                                       Width="20"
-                                                                       FontFamily="Segoe Fluent Icons"
-                                                                       FontSize="13"
-                                                                       Foreground="{DynamicResource TextMutedBrush}" />
-                                                            <TextBlock Text="显示桌面收纳盒"
-                                                                       Foreground="{DynamicResource TextPrimaryBrush}"
-                                                                       FontSize="12" />
-                                                        </StackPanel>
-                                                    </Button>
-                                                    <Button Command="{Binding ToggleSelectedBoxPositionLockCommand}"
-                                                            Click="OnBoxActionMenuItemClicked"
-                                                            Style="{StaticResource GhostButtonStyle}"
-                                                            AutomationProperties.Name="{Binding SelectedBox.PositionLockButtonToolTip}"
-                                                            Padding="10,8"
-                                                            HorizontalContentAlignment="Left">
-                                                        <StackPanel Orientation="Horizontal">
-                                                            <TextBlock Text="&#xE72E;"
-                                                                       Width="20"
-                                                                       FontFamily="Segoe Fluent Icons"
-                                                                       FontSize="13"
-                                                                       Foreground="{DynamicResource TextMutedBrush}" />
-                                                            <TextBlock Text="{Binding SelectedBox.PositionLockButtonToolTip}"
-                                                                       Foreground="{DynamicResource TextPrimaryBrush}"
-                                                                       FontSize="12" />
-                                                        </StackPanel>
-                                                    </Button>
-                                                    <Button Click="OnRecallBoxClicked"
-                                                            Style="{StaticResource GhostButtonStyle}"
-                                                            AutomationProperties.Name="将盒子召回屏幕中心"
-                                                            Padding="10,8"
-                                                            HorizontalContentAlignment="Left">
-                                                        <StackPanel Orientation="Horizontal">
-                                                            <TextBlock Text="&#xE72C;"
-                                                                       Width="20"
-                                                                       FontFamily="Segoe Fluent Icons"
-                                                                       FontSize="13"
-                                                                       Foreground="{DynamicResource TextMutedBrush}" />
-                                                            <TextBlock Text="召回屏幕中心"
-                                                                       Foreground="{DynamicResource TextPrimaryBrush}"
-                                                                       FontSize="12" />
-                                                        </StackPanel>
-                                                    </Button>
-                                                    <Button Command="{Binding SelectedBox.ToggleTitleVisibilityCommand}"
-                                                            Click="OnBoxActionMenuItemClicked"
-                                                            Style="{StaticResource GhostButtonStyle}"
-                                                            AutomationProperties.Name="{Binding SelectedBox.TitleVisibilityAutomationName}"
-                                                            Padding="10,8"
-                                                            HorizontalContentAlignment="Left">
-                                                        <StackPanel Orientation="Horizontal">
-                                                            <TextBlock Text="&#xE890;"
-                                                                       Width="20"
-                                                                       FontFamily="Segoe Fluent Icons"
-                                                                       FontSize="13"
-                                                                       Foreground="{DynamicResource TextMutedBrush}" />
-                                                            <TextBlock Text="{Binding SelectedBox.TitleVisibilityAutomationName}"
-                                                                       Foreground="{DynamicResource TextPrimaryBrush}"
-                                                                       FontSize="12" />
-                                                        </StackPanel>
-                                                    </Button>
-                                                    <Button Command="{Binding SelectedBox.ToggleFileNameVisibilityCommand}"
-                                                            Click="OnBoxActionMenuItemClicked"
-                                                            Style="{StaticResource GhostButtonStyle}"
-                                                            Visibility="{Binding SelectedBox.SupportsFileNameVisibility, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                                            AutomationProperties.Name="{Binding SelectedBox.FileNameVisibilityAutomationName}"
-                                                            Padding="10,8"
-                                                            HorizontalContentAlignment="Left">
-                                                        <StackPanel Orientation="Horizontal">
-                                                            <TextBlock Text="&#xE8D2;"
-                                                                       Width="20"
-                                                                       FontFamily="Segoe Fluent Icons"
-                                                                       FontSize="13"
-                                                                       Foreground="{DynamicResource TextMutedBrush}" />
-                                                            <TextBlock Text="{Binding SelectedBox.FileNameVisibilityAutomationName}"
-                                                                       Foreground="{DynamicResource TextPrimaryBrush}"
-                                                                       FontSize="12" />
-                                                        </StackPanel>
-                                                    </Button>
-                                                    <Border Height="1"
-                                                            Margin="8,4"
-                                                            Background="{DynamicResource BorderBrushSoft}" />
-                                                    <Button Click="OnDeleteBoxClicked"
-                                                            Style="{StaticResource GhostButtonStyle}"
-                                                            Foreground="{DynamicResource DangerBrush}"
-                                                            AutomationProperties.Name="删除收纳盒"
-                                                            Padding="10,8"
-                                                            HorizontalContentAlignment="Left">
-                                                        <StackPanel Orientation="Horizontal">
-                                                            <TextBlock Text="&#xE74D;"
-                                                                       Width="20"
-                                                                       FontFamily="Segoe Fluent Icons"
-                                                                       FontSize="13" />
-                                                            <TextBlock Text="删除收纳盒"
-                                                                       FontSize="12" />
-                                                        </StackPanel>
-                                                    </Button>
-                                                </StackPanel>
-                                            </Border>
-                                        </Popup>
-                                    </Grid>
-                                </StackPanel>
-                            </StackPanel>
-
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                <Grid Margin="0,0,8,0"
-                                      Visibility="{Binding SelectedBox.SupportsSorting, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                    <Button x:Name="DrawerSortMenuButton"
-                                            Click="OnOpenDrawerSortMenu"
-                                            Style="{StaticResource GhostButtonStyle}"
-                                            Padding="9,5"
-                                            ToolTip="选择排序方式（自由排序记忆你摆放的布局）">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="&#xE8CB;"
-                                                       FontFamily="Segoe Fluent Icons"
-                                                       FontSize="11"
-                                                       Foreground="{DynamicResource TextMutedBrush}"
-                                                       VerticalAlignment="Center"
-                                                       Margin="0,0,6,0" />
-                                            <TextBlock Text="排序"
-                                                       Foreground="{DynamicResource TextMutedBrush}"
-                                                       FontSize="11"
-                                                       FontWeight="SemiBold"
-                                                       VerticalAlignment="Center" />
-                                            <TextBlock Text="{Binding SelectedBox.DrawerSortModeLabel, StringFormat= · {0}}"
-                                                       Foreground="{DynamicResource AccentBrush}"
-                                                       FontSize="11"
-                                                       FontWeight="SemiBold"
-                                                       VerticalAlignment="Center" />
-                                            <TextBlock Text="&#xE70D;"
-                                                       FontFamily="Segoe Fluent Icons"
-                                                       FontSize="8"
-                                                       Foreground="{DynamicResource TextMutedBrush}"
-                                                       VerticalAlignment="Center"
-                                                       Margin="6,0,0,0" />
-                                        </StackPanel>
-                                    </Button>
-
-                                    <Popup x:Name="DrawerSortPopup"
-                                           PlacementTarget="{Binding ElementName=DrawerSortMenuButton}"
-                                           Placement="Bottom"
-                                           VerticalOffset="5"
-                                           AllowsTransparency="True"
-                                           StaysOpen="False"
-                                           PopupAnimation="Fade">
-                                        <Border Margin="12"
-                                                Padding="5"
-                                                MinWidth="156"
-                                                Background="{DynamicResource PanelBrush}"
-                                                BorderBrush="{DynamicResource BorderBrushSoft}"
-                                                BorderThickness="1"
-                                                CornerRadius="12">
-                                            <Border.Effect>
-                                                <DropShadowEffect BlurRadius="14"
-                                                                  ShadowDepth="3"
-                                                                  Opacity="0.12"
-                                                                  Direction="270" />
-                                            </Border.Effect>
-                                            <StackPanel>
-                                                <Button Command="{Binding SelectedBox.ApplyDrawerSortModeCommand}"
-                                                        CommandParameter="{x:Static viewModels:DrawerItemSortMode.Free}"
-                                                        Click="OnDrawerSortOptionClicked"
-                                                        Style="{StaticResource GhostButtonStyle}"
-                                                        Padding="10,8">
-                                                    <Grid Width="128">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="18" />
-                                                            <ColumnDefinition Width="*" />
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBlock Text="&#xE73E;"
-                                                                   FontFamily="Segoe Fluent Icons"
-                                                                   Foreground="{DynamicResource AccentBrush}"
-                                                                   Visibility="{Binding SelectedBox.IsFreeSort, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                                        <TextBlock Grid.Column="1" Text="自由" />
-                                                    </Grid>
-                                                </Button>
-                                                <Button Command="{Binding SelectedBox.ApplyDrawerSortModeCommand}"
-                                                        CommandParameter="{x:Static viewModels:DrawerItemSortMode.Name}"
-                                                        Click="OnDrawerSortOptionClicked"
-                                                        Style="{StaticResource GhostButtonStyle}"
-                                                        Padding="10,8">
-                                                    <Grid Width="128">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="18" />
-                                                            <ColumnDefinition Width="*" />
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBlock Text="&#xE73E;"
-                                                                   FontFamily="Segoe Fluent Icons"
-                                                                   Foreground="{DynamicResource AccentBrush}"
-                                                                   Visibility="{Binding SelectedBox.IsDrawerSortByName, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                                        <TextBlock Grid.Column="1" Text="名称" />
-                                                    </Grid>
-                                                </Button>
-                                                <Button Command="{Binding SelectedBox.ApplyDrawerSortModeCommand}"
-                                                        CommandParameter="{x:Static viewModels:DrawerItemSortMode.Size}"
-                                                        Click="OnDrawerSortOptionClicked"
-                                                        Style="{StaticResource GhostButtonStyle}"
-                                                        Padding="10,8">
-                                                    <Grid Width="128">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="18" />
-                                                            <ColumnDefinition Width="*" />
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBlock Text="&#xE73E;"
-                                                                   FontFamily="Segoe Fluent Icons"
-                                                                   Foreground="{DynamicResource AccentBrush}"
-                                                                   Visibility="{Binding SelectedBox.IsDrawerSortBySize, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                                        <TextBlock Grid.Column="1" Text="大小" />
-                                                    </Grid>
-                                                </Button>
-                                                <Button Command="{Binding SelectedBox.ApplyDrawerSortModeCommand}"
-                                                        CommandParameter="{x:Static viewModels:DrawerItemSortMode.ItemType}"
-                                                        Click="OnDrawerSortOptionClicked"
-                                                        Style="{StaticResource GhostButtonStyle}"
-                                                        Padding="10,8">
-                                                    <Grid Width="128">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="18" />
-                                                            <ColumnDefinition Width="*" />
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBlock Text="&#xE73E;"
-                                                                   FontFamily="Segoe Fluent Icons"
-                                                                   Foreground="{DynamicResource AccentBrush}"
-                                                                   Visibility="{Binding SelectedBox.IsDrawerSortByItemType, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                                        <TextBlock Grid.Column="1" Text="项目类型" />
-                                                    </Grid>
-                                                </Button>
-                                                <Button Command="{Binding SelectedBox.ApplyDrawerSortModeCommand}"
-                                                        CommandParameter="{x:Static viewModels:DrawerItemSortMode.ModifiedDate}"
-                                                        Click="OnDrawerSortOptionClicked"
-                                                        Style="{StaticResource GhostButtonStyle}"
-                                                        Padding="10,8">
-                                                    <Grid Width="128">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="18" />
-                                                            <ColumnDefinition Width="*" />
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBlock Text="&#xE73E;"
-                                                                   FontFamily="Segoe Fluent Icons"
-                                                                   Foreground="{DynamicResource AccentBrush}"
-                                                                   Visibility="{Binding SelectedBox.IsDrawerSortByModifiedDate, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                                        <TextBlock Grid.Column="1" Text="修改日期" />
-                                                    </Grid>
-                                                </Button>
-                                            </StackPanel>
-                                        </Border>
-                                    </Popup>
-                                </Grid>
-                                <Border Background="{DynamicResource PanelAltBrush}"
-                                        BorderThickness="0"
-                                        CornerRadius="9"
-                                        Padding="10,6"
-                                        Margin="0,0,8,0"
-                                        Visibility="Collapsed">
-                                    <StackPanel Orientation="Horizontal">
-                                        <Path Data="M 1,4 L 10,1 L 19,4 L 19,15 L 10,18 L 1,15 Z M 1,4 L 10,7 L 19,4 M 10,7 L 10,18" 
-                                              Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.2" Width="12" Height="12" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                        <TextBlock Text="{Binding Boxes.Count, StringFormat={}{0} 个收纳盒}"
-                                                   Foreground="{DynamicResource TextPrimaryBrush}" FontSize="11" FontWeight="SemiBold" />
-                                    </StackPanel>
-                                </Border>
-                                <Border Background="{DynamicResource PanelBrush}"
-                                        BorderBrush="{DynamicResource BorderBrushSoft}"
-                                        BorderThickness="1"
-                                        CornerRadius="9"
-                                        Padding="10,6"
-                                        Visibility="Collapsed">
-                                    <StackPanel Orientation="Horizontal">
-                                        <Path Data="M 2,1 L 9,1 L 13,5 L 13,14 L 2,14 Z M 9,1 L 9,5 L 13,5" 
-                                              Stroke="{DynamicResource TextMutedBrush}" StrokeThickness="1.2" Width="11" Height="12" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                        <TextBlock Text="{Binding Items.Count, StringFormat={}{0} 个文件}"
-                                                   Foreground="{DynamicResource TextMutedBrush}" FontSize="11" FontWeight="SemiBold" />
-                                    </StackPanel>
-                                </Border>
-                                <Border Background="{DynamicResource PanelBrush}"
-                                        BorderBrush="{DynamicResource BorderBrushSoft}"
-                                        BorderThickness="1"
-                                        CornerRadius="9"
-                                        Padding="10,6"
-                                        Visibility="Collapsed">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="&#xE8FD;"
-                                                   FontFamily="Segoe Fluent Icons"
-                                                   Foreground="{DynamicResource TextMutedBrush}"
-                                                   FontSize="11"
-                                                   VerticalAlignment="Center"
-                                                   Margin="0,0,6,0" />
-                                        <TextBlock Text="{Binding TodoBoxDetail.RemainingCount, StringFormat=剩余 {0} 项}"
-                                                   Foreground="{DynamicResource TextMutedBrush}"
-                                                   FontSize="11"
-                                                   FontWeight="SemiBold" />
-                                    </StackPanel>
-                                </Border>
-                            </StackPanel>
+                            </Grid>
                         </Grid>
 
                         <Grid Grid.Row="1" VerticalAlignment="Stretch">
@@ -1044,7 +912,6 @@
                                 </Style>
                             </Grid.Style>
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
@@ -1052,610 +919,8 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
 
-                            <!-- Selected box controls -->
-                            <Grid Grid.Row="0" Margin="0,0,0,8" VerticalAlignment="Stretch">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" /> <!-- 顶部状态卡片 -->
-                                    <RowDefinition Height="Auto" /> <!-- 收纳盒属性配置卡片 -->
-                                    <RowDefinition Height="*" />    <!-- 投放区：使用 * 星号自适应撑满左侧的全部剩余纵向空间 -->
-                                </Grid.RowDefinitions>
-
-                                <!-- 顶部精美渐变桌面状态卡片 -->
-                                <Border Grid.Row="0"
-                                        Background="{DynamicResource AccentSoftBrush}"
-                                        BorderBrush="{DynamicResource BorderBrushSoft}"
-                                        BorderThickness="1"
-                                        CornerRadius="16"
-                                        Margin="0,0,0,10"
-                                        Visibility="Collapsed">
-                                    <Grid>
-                                        <Border CornerRadius="16" IsHitTestVisible="False" Opacity="0.45">
-                                            <Border.Background>
-                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                                    <GradientStop Color="#66FFFFFF" Offset="0" />
-                                                    <GradientStop Color="#00FFFFFF" Offset="0.7" />
-                                                    <GradientStop Color="#140EA5E9" Offset="1" />
-                                                </LinearGradientBrush>
-                                            </Border.Background>
-                                        </Border>
-                                        <StackPanel Margin="14,12">
-                                            <TextBlock Text="桌面收纳栏"
-                                                       Foreground="{DynamicResource TextMutedBrush}"
-                                                       FontSize="11.5"
-                                                       FontWeight="SemiBold"
-                                                       />
-                                            <TextBlock Text="{Binding Boxes.Count}"
-                                                       Foreground="{DynamicResource AccentBrush}"
-                                                       FontSize="26"
-                                                       FontWeight="Bold"
-                                                       Margin="0,1,0,0" />
-                                            <TextBlock Text="所有收纳盒已同步到桌面"
-                                                       Foreground="{DynamicResource TextMutedBrush}"
-                                                       FontSize="10.5"
-                                                       Margin="0,2,0,0" />
-                                        </StackPanel>
-                                    </Grid>
-                                </Border>
-
-                                <!-- 扁平合并型“收纳盒配置”超级卡片 (高度极度紧凑自适应) -->
-                                <Border Grid.Row="1"
-                                        Background="{DynamicResource PanelBrush}"
-                                        BorderBrush="{DynamicResource BorderBrushSoft}"
-                                        BorderThickness="1"
-                                        CornerRadius="14"
-                                        Padding="14,3"
-                                        Margin="0">
-                                    <!-- 预留两行的完整高度（38 + 4 + 38）。
-                                         字体或缩放需要更多空间时允许撑高，避免尺寸控件被动画宿主裁切。 -->
-                                    <Grid x:Name="BoxControlsPageHost"
-                                          MinHeight="80"
-                                          ClipToBounds="True">
-                                        <VisualStateManager.VisualStateGroups>
-                                            <VisualStateGroup x:Name="BoxControlsPageStates">
-                                                <VisualStateGroup.Transitions>
-                                                    <VisualTransition GeneratedDuration="0:0:0.2">
-                                                        <VisualTransition.GeneratedEasingFunction>
-                                                            <CubicEase EasingMode="EaseOut" />
-                                                        </VisualTransition.GeneratedEasingFunction>
-                                                    </VisualTransition>
-                                                </VisualStateGroup.Transitions>
-                                                <VisualState x:Name="PrimaryControlsState">
-                                                    <Storyboard>
-                                                        <DoubleAnimation Storyboard.TargetName="BoxControlsPrimaryPanel"
-                                                                         Storyboard.TargetProperty="Opacity"
-                                                                         To="1" />
-                                                        <DoubleAnimation Storyboard.TargetName="BoxControlsPrimaryTransform"
-                                                                         Storyboard.TargetProperty="X"
-                                                                         To="0" />
-                                                        <DoubleAnimation Storyboard.TargetName="BoxVisualStyleSecondaryPanel"
-                                                                         Storyboard.TargetProperty="Opacity"
-                                                                         To="0" />
-                                                        <DoubleAnimation Storyboard.TargetName="BoxVisualStyleSecondaryTransform"
-                                                                         Storyboard.TargetProperty="X"
-                                                                         To="28" />
-                                                    </Storyboard>
-                                                </VisualState>
-                                                <VisualState x:Name="VisualStyleSelectionState">
-                                                    <Storyboard>
-                                                        <DoubleAnimation Storyboard.TargetName="BoxControlsPrimaryPanel"
-                                                                         Storyboard.TargetProperty="Opacity"
-                                                                         To="0" />
-                                                        <DoubleAnimation Storyboard.TargetName="BoxControlsPrimaryTransform"
-                                                                         Storyboard.TargetProperty="X"
-                                                                         To="-28" />
-                                                        <DoubleAnimation Storyboard.TargetName="BoxVisualStyleSecondaryPanel"
-                                                                         Storyboard.TargetProperty="Opacity"
-                                                                         To="1" />
-                                                        <DoubleAnimation Storyboard.TargetName="BoxVisualStyleSecondaryTransform"
-                                                                         Storyboard.TargetProperty="X"
-                                                                         To="0" />
-                                                    </Storyboard>
-                                                </VisualState>
-                                            </VisualStateGroup>
-                                        </VisualStateManager.VisualStateGroups>
-
-                                        <Grid x:Name="BoxControlsPrimaryPanel"
-                                              VerticalAlignment="Center">
-                                            <Grid.RenderTransform>
-                                                <TranslateTransform x:Name="BoxControlsPrimaryTransform" />
-                                            </Grid.RenderTransform>
-                                            <Grid.RowDefinitions>
-                                                <RowDefinition Height="38" />
-                                                <RowDefinition Height="Auto" />
-                                            </Grid.RowDefinitions>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="132" />
-                                                <ColumnDefinition Width="178" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-
-                                            <Grid Grid.Column="0"
-                                                  Height="38"
-                                                  Margin="0,0,12,0"
-                                                  VerticalAlignment="Center">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                                <TextBlock Text="收纳方式"
-                                                           Style="{StaticResource BoxControlLabelStyle}" />
-                                                <Border Grid.Column="1"
-                                                        Margin="8,0,0,0"
-                                                        Padding="6,2"
-                                                        VerticalAlignment="Center"
-                                                        Background="{DynamicResource AccentSoftBrush}"
-                                                        CornerRadius="6">
-                                                    <TextBlock Text="{Binding SelectedBox.TypeLabel}"
-                                                               Foreground="{DynamicResource AccentBrush}"
-                                                               FontSize="10.5"
-                                                               FontWeight="SemiBold" />
-                                                </Border>
-                                            </Grid>
-
-                                            <Grid Grid.Column="1"
-                                                  Height="38"
-                                                  Margin="8,0,12,0"
-                                                  VerticalAlignment="Center"
-                                                  Visibility="{Binding SelectedBox.CanSelectVisualStyle, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Text="图标风格"
-                                                           Style="{StaticResource BoxControlLabelStyle}" />
-                                                <Button x:Name="BoxVisualStyleDrawerToggle"
-                                                        Grid.Column="1"
-                                                        Margin="8,0,0,0"
-                                                        Content="{Binding SelectedBox.VisualStyleLabel}"
-                                                        Style="{StaticResource VisualStylePickerButtonStyle}"
-                                                        ToolTip="选择图标风格"
-                                                        Click="OnOpenBoxVisualStylePage" />
-                                            </Grid>
-
-                                            <Grid Grid.Column="1"
-                                                  Height="38"
-                                                  Margin="8,0,12,0"
-                                                  VerticalAlignment="Center"
-                                                  Visibility="Collapsed">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Text="抽屉名称"
-                                                           Style="{StaticResource BoxControlLabelStyle}" />
-                                                <Button Grid.Column="1"
-                                                        Margin="8,0,0,0"
-                                                        Content="{Binding SelectedBox.TitleVisibilityAutomationName}"
-                                                        Command="{Binding SelectedBox.ToggleTitleVisibilityCommand}"
-                                                        Style="{StaticResource VisualStylePickerButtonStyle}"
-                                                        ToolTip="显示或隐藏桌面抽屉名称" />
-                                            </Grid>
-
-                                            <Grid
-                                                  Height="38"
-                                                  Margin="8,0,0,0"
-                                                  VerticalAlignment="Center">
-                                                <Grid.Style>
-                                                    <Style TargetType="{x:Type Grid}">
-                                                        <Setter Property="Grid.Column" Value="2" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding SelectedBox.IsDrawerBox}" Value="True">
-                                                                <Setter Property="Grid.Column" Value="1" />
-                                                                <Setter Property="Grid.ColumnSpan" Value="2" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Grid.Style>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Text="图标大小"
-                                                           Margin="0,0,10,0"
-                                                           Style="{StaticResource BoxControlLabelStyle}" />
-
-                                                <Border Grid.Column="1"
-                                                    Height="36"
-                                                    Background="{DynamicResource PanelAltBrush}"
-                                                    BorderBrush="{DynamicResource BorderBrushSoft}"
-                                                    BorderThickness="1"
-                                                    CornerRadius="10"
-                                                    Padding="2">
-                                            <UniformGrid Columns="4" Rows="1" VerticalAlignment="Center">
-                                                <Button Content="超大"
-                                                        ToolTip="超大图标"
-                                                        Style="{StaticResource ExtraLargeIconSizeButtonStyle}"
-                                                        Command="{Binding SelectedBox.LayoutSettings.ApplyPresetCommand}"
-                                                        CommandParameter="3x3" />
-                                                <Button Content="大"
-                                                        ToolTip="大图标"
-                                                        Style="{StaticResource LargeIconSizeButtonStyle}"
-                                                        Command="{Binding SelectedBox.LayoutSettings.ApplyPresetCommand}"
-                                                        CommandParameter="4x4" />
-                                                <Button Content="中"
-                                                        ToolTip="中等图标"
-                                                        Style="{StaticResource MediumIconSizeButtonStyle}"
-                                                        Command="{Binding SelectedBox.LayoutSettings.ApplyPresetCommand}"
-                                                        CommandParameter="5x5" />
-                                                <Button Content="小"
-                                                        ToolTip="小图标"
-                                                        Style="{StaticResource SmallIconSizeButtonStyle}"
-                                                        Command="{Binding SelectedBox.LayoutSettings.ApplyPresetCommand}"
-                                                        CommandParameter="6x6" />
-                                                </UniformGrid>
-                                                 </Border>
-                                             </Grid>
-
-                                            <Grid Grid.Row="1"
-                                                  Grid.ColumnSpan="3"
-                                                  Height="34"
-                                                  Margin="0,6,0,0"
-                                                  Visibility="Collapsed">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Text="排序"
-                                                           Margin="0,0,10,0"
-                                                           Style="{StaticResource BoxControlLabelStyle}" />
-                                                <Border Grid.Column="1"
-                                                        Padding="2"
-                                                        Background="{DynamicResource PanelAltBrush}"
-                                                        BorderBrush="{DynamicResource BorderBrushSoft}"
-                                                        BorderThickness="1"
-                                                        CornerRadius="10">
-                                                    <UniformGrid Columns="4" Rows="1">
-                                                        <Button Content="名称"
-                                                                Style="{StaticResource DrawerSortByNameButtonStyle}"
-                                                                Command="{Binding SelectedBox.ApplyDrawerSortModeCommand}"
-                                                                CommandParameter="{x:Static viewModels:DrawerItemSortMode.Name}" />
-                                                        <Button Content="大小"
-                                                                Style="{StaticResource DrawerSortBySizeButtonStyle}"
-                                                                Command="{Binding SelectedBox.ApplyDrawerSortModeCommand}"
-                                                                CommandParameter="{x:Static viewModels:DrawerItemSortMode.Size}" />
-                                                        <Button Content="项目类型"
-                                                                Style="{StaticResource DrawerSortByTypeButtonStyle}"
-                                                                Command="{Binding SelectedBox.ApplyDrawerSortModeCommand}"
-                                                                CommandParameter="{x:Static viewModels:DrawerItemSortMode.ItemType}" />
-                                                        <Button Content="修改日期"
-                                                                Style="{StaticResource DrawerSortByDateButtonStyle}"
-                                                                Command="{Binding SelectedBox.ApplyDrawerSortModeCommand}"
-                                                                CommandParameter="{x:Static viewModels:DrawerItemSortMode.ModifiedDate}" />
-                                                    </UniformGrid>
-                                                </Border>
-                                            </Grid>
-
-                                            <Grid Grid.Row="1"
-                                                  Grid.Column="0"
-                                                  Grid.ColumnSpan="2"
-                                                  Height="38"
-                                                  Margin="0,4,12,0"
-                                                  Visibility="{Binding SelectedBox.SupportsHoverRollUp, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Text="悬停展开"
-                                                           Margin="0,0,10,0"
-                                                           Style="{StaticResource BoxControlLabelStyle}" />
-                                                <Button Grid.Column="1"
-                                                        MinWidth="72"
-                                                        Content="{Binding SelectedBox.HoverRollUpButtonLabel}"
-                                                        Command="{Binding SelectedBox.ToggleHoverRollUpCommand}"
-                                                        ToolTip="{Binding SelectedBox.HoverRollUpButtonToolTip}"
-                                                        AutomationProperties.Name="{Binding SelectedBox.HoverRollUpButtonToolTip}">
-                                                    <Button.Style>
-                                                        <Style TargetType="{x:Type Button}"
-                                                               BasedOn="{StaticResource VisualStylePickerButtonStyle}">
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding SelectedBox.IsHoverRollUpEnabled}" Value="True">
-                                                                    <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
-                                                                    <Setter Property="Foreground" Value="White" />
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </Button.Style>
-                                                </Button>
-                                            </Grid>
-
-                                            <Grid Height="38">
-                                                <Grid.Style>
-                                                    <Style TargetType="{x:Type Grid}">
-                                                        <Setter Property="Grid.Row" Value="1" />
-                                                        <Setter Property="Grid.Column" Value="2" />
-                                                        <Setter Property="Margin" Value="8,4,0,0" />
-                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding SelectedBox.SupportsFixedSize}" Value="True">
-                                                                <Setter Property="Visibility" Value="Visible" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Grid.Style>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Text="盒子尺寸"
-                                                           Margin="0,0,8,0"
-                                                           Style="{StaticResource BoxControlLabelStyle}" />
-                                                <StackPanel Grid.Column="1"
-                                                            Orientation="Horizontal"
-                                                            HorizontalAlignment="Left"
-                                                                VerticalAlignment="Center">
-                                                    <Border Padding="1"
-                                                            Background="{DynamicResource PanelAltBrush}"
-                                                            BorderBrush="{DynamicResource BorderBrushSoft}"
-                                                            BorderThickness="1"
-                                                            CornerRadius="9"
-                                                            ToolTip="{Binding BoxSizeSettings.ModeSummary}">
-                                                        <UniformGrid Columns="2" Rows="1">
-                                                            <Button Content="自适应"
-                                                                    Style="{StaticResource AdaptiveSizeModeButtonStyle}"
-                                                                    Command="{Binding BoxSizeSettings.UseAdaptiveModeCommand}" />
-                                                            <Button Content="固定格数"
-                                                                    Style="{StaticResource FixedSizeModeButtonStyle}"
-                                                                    Command="{Binding BoxSizeSettings.UseFixedModeCommand}" />
-                                                        </UniformGrid>
-                                                    </Border>
-                                                    <StackPanel Orientation="Horizontal"
-                                                                Margin="8,0,0,0"
-                                                                VerticalAlignment="Center"
-                                                                ToolTip="{Binding BoxSizeSettings.ExtentHint}">
-                                                        <StackPanel.Style>
-                                                            <Style TargetType="{x:Type StackPanel}">
-                                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding BoxSizeSettings.IsFixedMode}" Value="True">
-                                                                        <Setter Property="Visibility" Value="Visible" />
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </StackPanel.Style>
-                                                        <Button Content="−"
-                                                                Style="{StaticResource SizeStepperButtonStyle}"
-                                                                Command="{Binding BoxSizeSettings.DecreaseColumnsCommand}"
-                                                                ToolTip="减少列数" />
-                                                        <Border Background="{DynamicResource PanelAltBrush}"
-                                                                BorderBrush="{DynamicResource BorderBrushSoft}"
-                                                                BorderThickness="1"
-                                                                CornerRadius="6"
-                                                                MinWidth="22"
-                                                                Padding="3,1"
-                                                                Margin="2,0"
-                                                                VerticalAlignment="Center">
-                                                            <TextBlock Text="{Binding BoxSizeSettings.FixedColumns}"
-                                                                       HorizontalAlignment="Center"
-                                                                       FontSize="11"
-                                                                       FontWeight="SemiBold"
-                                                                       Foreground="{DynamicResource TextPrimaryBrush}" />
-                                                        </Border>
-                                                        <Button Content="＋"
-                                                                Style="{StaticResource SizeStepperButtonStyle}"
-                                                                Command="{Binding BoxSizeSettings.IncreaseColumnsCommand}"
-                                                                ToolTip="增加列数" />
-                                                        <TextBlock Text="×"
-                                                                   Margin="4,0"
-                                                                   VerticalAlignment="Center"
-                                                                   FontSize="11"
-                                                                   Foreground="{DynamicResource TextMutedBrush}" />
-                                                        <Button Content="−"
-                                                                Style="{StaticResource SizeStepperButtonStyle}"
-                                                                Command="{Binding BoxSizeSettings.DecreaseRowsCommand}"
-                                                                ToolTip="减少行数" />
-                                                        <Border Background="{DynamicResource PanelAltBrush}"
-                                                                BorderBrush="{DynamicResource BorderBrushSoft}"
-                                                                BorderThickness="1"
-                                                                CornerRadius="6"
-                                                                MinWidth="22"
-                                                                Padding="3,1"
-                                                                Margin="2,0"
-                                                                VerticalAlignment="Center">
-                                                            <TextBlock Text="{Binding BoxSizeSettings.FixedRows}"
-                                                                       HorizontalAlignment="Center"
-                                                                       FontSize="11"
-                                                                       FontWeight="SemiBold"
-                                                                       Foreground="{DynamicResource TextPrimaryBrush}" />
-                                                        </Border>
-                                                        <Button Content="＋"
-                                                                Style="{StaticResource SizeStepperButtonStyle}"
-                                                                Command="{Binding BoxSizeSettings.IncreaseRowsCommand}"
-                                                                ToolTip="增加行数" />
-                                                    </StackPanel>
-                                                </StackPanel>
-                                            </Grid>
-
-                                         </Grid>
-
-                                        <Grid x:Name="BoxVisualStyleSecondaryPanel"
-                                              Opacity="0"
-                                              VerticalAlignment="Center"
-                                              IsHitTestVisible="False">
-                                            <Grid.RenderTransform>
-                                                <TranslateTransform x:Name="BoxVisualStyleSecondaryTransform"
-                                                                    X="28" />
-                                            </Grid.RenderTransform>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-                                            <Button Grid.Column="0"
-                                                    Width="28"
-                                                    Height="28"
-                                                    Margin="0,0,8,0"
-                                                    Padding="0"
-                                                    Style="{StaticResource GhostButtonStyle}"
-                                                    Click="OnCloseBoxVisualStylePage"
-                                                    ToolTip="返回">
-                                                <TextBlock Text="&#xE72B;"
-                                                           FontFamily="Segoe Fluent Icons"
-                                                           FontSize="11"
-                                                           Foreground="{DynamicResource TextMutedBrush}"
-                                                           HorizontalAlignment="Center"
-                                                           VerticalAlignment="Center" />
-                                            </Button>
-                                            <StackPanel Grid.Column="1"
-                                                        Margin="0,0,12,0"
-                                                        VerticalAlignment="Center">
-                                                <TextBlock Text="选择图标风格"
-                                                           Foreground="{DynamicResource TextPrimaryBrush}"
-                                                           FontSize="11.5"
-                                                           FontWeight="SemiBold" />
-                                                <TextBlock Text="点击后立即应用"
-                                                           Foreground="{DynamicResource TextMutedBrush}"
-                                                           FontSize="9.5"
-                                                           Margin="0,1,0,0" />
-                                            </StackPanel>
-                                            <Border Grid.Column="2"
-                                                    Padding="2"
-                                                    Background="{DynamicResource PanelAltBrush}"
-                                                    BorderBrush="{DynamicResource BorderBrushSoft}"
-                                                    BorderThickness="1"
-                                                    CornerRadius="10">
-                                                <ItemsControl ItemsSource="{Binding BoxVisualStyleOptions}">
-                                                    <ItemsControl.ItemsPanel>
-                                                        <ItemsPanelTemplate>
-                                                            <UniformGrid Columns="2" />
-                                                        </ItemsPanelTemplate>
-                                                    </ItemsControl.ItemsPanel>
-                                                    <ItemsControl.ItemTemplate>
-                                                        <DataTemplate>
-                                                            <Button Click="OnBoxVisualStyleSelected"
-                                                                    Margin="2"
-                                                                    Padding="8,7"
-                                                                    HorizontalContentAlignment="Stretch">
-                                                                <Button.Style>
-                                                                    <Style TargetType="{x:Type Button}"
-                                                                           BasedOn="{StaticResource GhostButtonStyle}">
-                                                                        <Setter Property="Background" Value="Transparent" />
-                                                                        <Setter Property="BorderBrush" Value="Transparent" />
-                                                                        <Setter Property="BorderThickness" Value="1" />
-                                                                        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
-                                                                        <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
-                                                                        <Setter Property="RenderTransform">
-                                                                            <Setter.Value>
-                                                                                <ScaleTransform ScaleX="1" ScaleY="1" />
-                                                                            </Setter.Value>
-                                                                        </Setter>
-                                                                        <Style.Triggers>
-                                                                            <Trigger Property="IsMouseOver" Value="True">
-                                                                                <Setter Property="Background" Value="{DynamicResource HoverBrush}" />
-                                                                            </Trigger>
-                                                                            <DataTrigger Value="True">
-                                                                                <DataTrigger.Binding>
-                                                                                    <MultiBinding Converter="{StaticResource BoxVisualStyleEqualityConverter}">
-                                                                                        <Binding Path="Style" />
-                                                                                        <Binding Path="DataContext.SelectedBox.VisualStyle"
-                                                                                                 RelativeSource="{RelativeSource AncestorType={x:Type ItemsControl}}" />
-                                                                                    </MultiBinding>
-                                                                                </DataTrigger.Binding>
-                                                                                <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
-                                                                                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
-                                                                                <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
-                                                                                <DataTrigger.EnterActions>
-                                                                                    <BeginStoryboard>
-                                                                                        <Storyboard>
-                                                                                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
-                                                                                                             From="0.94"
-                                                                                                             To="1"
-                                                                                                             Duration="0:0:0.18">
-                                                                                                <DoubleAnimation.EasingFunction>
-                                                                                                    <BackEase Amplitude="0.28"
-                                                                                                              EasingMode="EaseOut" />
-                                                                                                </DoubleAnimation.EasingFunction>
-                                                                                            </DoubleAnimation>
-                                                                                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
-                                                                                                             From="0.94"
-                                                                                                             To="1"
-                                                                                                             Duration="0:0:0.18">
-                                                                                                <DoubleAnimation.EasingFunction>
-                                                                                                    <BackEase Amplitude="0.28"
-                                                                                                              EasingMode="EaseOut" />
-                                                                                                </DoubleAnimation.EasingFunction>
-                                                                                            </DoubleAnimation>
-                                                                                        </Storyboard>
-                                                                                    </BeginStoryboard>
-                                                                                </DataTrigger.EnterActions>
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </Button.Style>
-                                                                <Grid>
-                                                                    <Grid.ColumnDefinitions>
-                                                                        <ColumnDefinition Width="28" />
-                                                                        <ColumnDefinition Width="*" />
-                                                                    </Grid.ColumnDefinitions>
-                                                                    <Border Width="24"
-                                                                            Height="24"
-                                                                            CornerRadius="7"
-                                                                            Background="{DynamicResource AccentSoftBrush}">
-                                                                        <TextBlock Text="{Binding Glyph}"
-                                                                                   FontFamily="Segoe Fluent Icons"
-                                                                                   FontSize="12"
-                                                                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                                                                                   HorizontalAlignment="Center"
-                                                                                   VerticalAlignment="Center" />
-                                                                    </Border>
-                                                                    <StackPanel Grid.Column="1" Margin="6,0,0,0">
-                                                                        <TextBlock Text="{Binding Name}"
-                                                                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                                                                                   FontSize="11"
-                                                                                   FontWeight="SemiBold" />
-                                                                        <TextBlock Text="{Binding Description}"
-                                                                                   Foreground="{DynamicResource TextMutedBrush}"
-                                                                                   FontSize="9"
-                                                                                   Margin="0,1,0,0"
-                                                                                   TextTrimming="CharacterEllipsis" />
-                                                                    </StackPanel>
-                                                                </Grid>
-                                                            </Button>
-                                                        </DataTemplate>
-                                                    </ItemsControl.ItemTemplate>
-                                                </ItemsControl>
-                                            </Border>
-                                        </Grid>
-                                    </Grid>
-                                 </Border>
-
-                                <!-- 投放区 (去除硬编码高度，高度由 Grid 自动伸缩拉长并保持居中，实现与右侧完美对称对齐！) -->
-                                <Border Grid.Row="2"
-                                        Background="{DynamicResource DropZoneBrush}"
-                                        BorderBrush="{DynamicResource BorderBrushSoft}"
-                                        BorderThickness="1"
-                                        CornerRadius="16"
-                                        MinHeight="82"
-                                        VerticalAlignment="Stretch"
-                                        Visibility="Collapsed">
-                                    <Grid>
-                                        <Rectangle Stroke="{DynamicResource BorderBrushSoft}"
-                                                   StrokeThickness="1"
-                                                   StrokeDashArray="3 4"
-                                                   RadiusX="15"
-                                                   RadiusY="15"
-                                                   Margin="4"
-                                                   Opacity="0.8" />
-                                        <StackPanel Margin="8" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <Path Data="M 6,1 L 6,11 M 2,7 L 6,11 L 10,7 M 1,14 L 11,14" 
-                                                  Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" 
-                                                  Width="12" Height="14" HorizontalAlignment="Center" Margin="0,0,0,6" SnapsToDevicePixels="True" />
-                                            <TextBlock Text="投放区"
-                                                       Foreground="{DynamicResource TextPrimaryBrush}"
-                                                       FontSize="12.5"
-                                                       FontWeight="SemiBold"
-                                                       HorizontalAlignment="Center" />
-                                            <TextBlock Text="拖入文件至此快速归纳"
-                                                       Margin="0,2,0,0"
-                                                       FontSize="10"
-                                                       Foreground="{DynamicResource TextMutedBrush}"
-                                                       HorizontalAlignment="Center" />
-                                        </StackPanel>
-                                    </Grid>
-                                </Border>
-                            </Grid>
-
                             <!-- Right Files List (Glass Card panel) -->
-                            <Border Grid.Row="1"
+                            <Border Grid.Row="0"
                                     Background="{DynamicResource PanelBrush}"
                                     BorderBrush="{DynamicResource BorderBrushSoft}"
                                     BorderThickness="1"
@@ -1691,7 +956,7 @@
                                         </Border>
                                     </Grid>
 
-                                    <Grid>
+                                    <Grid SizeChanged="OnMainItemsViewportSizeChanged">
                                         <!-- Empty State -->
                                         <Grid Visibility="{Binding Items.Count, Converter={StaticResource ZeroToVisibilityConverter}}">
                                             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,0,0,16">
@@ -1702,7 +967,7 @@
                                                            FontSize="14.5"
                                                            FontWeight="SemiBold"
                                                            HorizontalAlignment="Center" />
-                                                <TextBlock Text="把文件拖到下方投放栏即可归类到这里"
+                                                <TextBlock Text="把文件拖到这里即可整理到当前收纳盒"
                                                            Foreground="{DynamicResource TextMutedBrush}"
                                                            FontSize="11.5"
                                                            Margin="0,5,0,0"
@@ -1711,12 +976,9 @@
                                         </Grid>
 
                                         <!-- Files ListBox -->
-                                        <!-- MaxHeight = 4 行 × 行高 48（ListBoxItem MinHeight），BorderThickness=0
-                                             去掉默认边框：视口恰好容纳 4 个完整项，底部不再露出半行。 -->
                                         <ListBox x:Name="MainItemsList"
                                                  ItemsSource="{Binding Items}"
-                                                 VerticalAlignment="Stretch"
-                                                 MaxHeight="192"
+                                                 VerticalAlignment="Top"
                                                  BorderThickness="0"
                                                  ClipToBounds="True"
                                                  PreviewKeyDown="OnMainItemsPreviewKeyDown"
@@ -1873,59 +1135,12 @@
                                  </DockPanel>
                              </Border>
 
-                            <Border Grid.Row="2"
-                                    MinHeight="54"
-                                    Background="{DynamicResource PanelBrush}"
-                                    BorderBrush="{DynamicResource BorderBrushSoft}"
-                                    BorderThickness="1"
-                                    CornerRadius="14">
-                                <Grid Margin="14,6">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <Border Width="36"
-                                            Height="36"
-                                            Background="{DynamicResource AccentSoftBrush}"
-                                            CornerRadius="10"
-                                            VerticalAlignment="Center">
-                                        <Path Data="M 7,1 L 7,11 M 3,7 L 7,11 L 11,7 M 2,14 L 12,14"
-                                              Stroke="{DynamicResource AccentBrush}"
-                                              StrokeThickness="1.7"
-                                              StrokeStartLineCap="Round"
-                                              StrokeEndLineCap="Round"
-                                              Width="13"
-                                              Height="15"
-                                              Stretch="Uniform" />
-                                    </Border>
-
-                                    <StackPanel Grid.Column="1"
-                                                Margin="10,0,12,0"
-                                                VerticalAlignment="Center">
-                                        <TextBlock Text="拖入文件到当前收纳盒"
-                                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                                   FontSize="13"
-                                                   FontWeight="SemiBold" />
-                                        <TextBlock Text="普通盒会移动文件，映射盒只保存原路径"
-                                                   Margin="0,2,0,0"
-                                                   Foreground="{DynamicResource TextMutedBrush}"
-                                                   FontSize="11" />
-                                    </StackPanel>
-
-                                    <Border Grid.Column="2"
-                                            VerticalAlignment="Center"
-                                            Background="{DynamicResource PanelAltBrush}"
-                                            BorderThickness="0"
-                                            CornerRadius="8"
-                                            Padding="10,5">
-                                        <TextBlock Text="拖放即可整理"
-                                                   Foreground="{DynamicResource TextMutedBrush}"
-                                                   FontSize="11"
-                                                   FontWeight="Medium" />
-                                    </Border>
-                                </Grid>
+                            <Border Grid.Row="1" Padding="2,7" Background="Transparent">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE896;" FontFamily="Segoe Fluent Icons" FontSize="12" Margin="0,0,8,0"
+                                               Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
+                                    <TextBlock Text="将文件拖到列表中整理" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" />
+                                </StackPanel>
                             </Border>
                          </Grid>
 

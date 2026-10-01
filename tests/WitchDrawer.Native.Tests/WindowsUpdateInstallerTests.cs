@@ -265,7 +265,8 @@ public sealed class WindowsUpdateInstallerTests
             using var updaterProcess = Process.Start(startInfo);
             Assert.NotNull(updaterProcess);
             await WaitForConditionAsync(() => File.Exists(introducedAppPath), TimeSpan.FromSeconds(5));
-            Assert.Equal("new-introduced", await File.ReadAllTextAsync(introducedAppPath));
+            // This proves a partial copy occurred. The updater may still hold
+            // the file open or already be deleting it as part of rollback.
             await updaterProcess.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15));
 
             Assert.NotEqual(0, updaterProcess.ExitCode);

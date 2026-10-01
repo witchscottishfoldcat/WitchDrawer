@@ -1,7 +1,8 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -35,8 +36,6 @@ public partial class MainWindow : Window
     private Point? _boxDragStart;
     private BoxViewModel? _boxDragSource;
     private ListBoxItem? _boxDropTarget;
-    private bool _isBoxVisualStylePageOpen;
-    private bool _isBoxVisualStyleTransitioning;
     private bool _isEditorOpacityRefreshQueued;
     private readonly HashSet<int> _recordedLayoutBackupSlots = [];
     public event EventHandler? WindowHidden;
@@ -71,6 +70,7 @@ public partial class MainWindow : Window
         _quickPanelHotKey = quickPanelHotKey;
         InitializeComponent();
         AboutPageView.Logger = _logger;
+        BoxDisplaySettings.Logger = _logger;
         UpdateHotKeyUi("点击按钮可修改");
         Loaded += OnLoaded;
         DpiChanged += OnDpiChanged;
@@ -645,7 +645,7 @@ public partial class MainWindow : Window
         if (sender is ListBox listBox && listBox.SelectedItem is not null)
         {
             listBox.ScrollIntoView(listBox.SelectedItem);
-            ShowPrimaryBoxControls();
+            CloseBoxPopups();
             ShowSelectedBoxOverview();
         }
     }
@@ -835,60 +835,59 @@ public partial class MainWindow : Window
         await ViewModel.CreateMappingBoxCommand.ExecuteAsync(null);
     }
 
-    private void OnOpenBoxVisualStylePage(object sender, RoutedEventArgs e)
+    private void OnOpenBoxDisplaySettings(object sender, RoutedEventArgs e)
     {
-        if (_isBoxVisualStylePageOpen
-            || _isBoxVisualStyleTransitioning
-            || ViewModel.SelectedBox?.CanSelectVisualStyle != true)
+        var open = !BoxDisplaySettingsPopup.IsOpen;
+        CloseBoxPopups();
+        if (open && BoxDisplaySettingsPopup.Child is Border surface)
         {
-            return;
+            var chromeWidth = surface.Padding.Left + surface.Padding.Right + surface.BorderThickness.Left + surface.BorderThickness.Right;
+            var chromeHeight = surface.Padding.Top + surface.Padding.Bottom + surface.BorderThickness.Top + surface.BorderThickness.Bottom;
+            var expanded = BoxDisplaySettings.MeasureExpandedSize(surface.Width - chromeWidth);
+            BoxSettingsPopupPlacement.Configure(BoxDisplaySettingsPopup, BoxDisplaySettingsButton,
+                new Size(surface.Width, expanded.Height + chromeHeight));
         }
-
-        _isBoxVisualStylePageOpen = true;
-        BoxControlsPrimaryPanel.IsHitTestVisible = false;
-        BoxVisualStyleSecondaryPanel.IsHitTestVisible = true;
-        VisualStateManager.GoToElementState(
-            BoxControlsPageHost,
-            "VisualStyleSelectionState",
-            useTransitions: true);
+        BoxDisplaySettingsPopup.IsOpen = open && ViewModel.SelectedBox is not null;
+        e.Handled = true;
     }
 
-    private void OnCloseBoxVisualStylePage(object sender, RoutedEventArgs e)
+    private void OnMainItemsViewportSizeChanged(object sender, SizeChangedEventArgs e)
     {
-        ShowPrimaryBoxControls();
+        if (MainItemsList is null) return;
+        const double rowHeight = 48;
+        // Fill the available space with complete rows, so the last filename
+        // and its path are never cut in half by the viewport.
+        MainItemsList.MaxHeight = e.NewSize.Height >= rowHeight
+            ? Math.Floor(e.NewSize.Height / rowHeight) * rowHeight
+            : double.PositiveInfinity;
     }
 
-    private async void OnBoxVisualStyleSelected(object sender, RoutedEventArgs e)
+    private void CloseBoxPopups()
     {
-        if (_isBoxVisualStyleTransitioning
-            || sender is not Button { DataContext: BoxVisualStyleOption option } button)
-        {
-            return;
-        }
+        // SelectedItem can raise SelectionChanged before later XAML names
+        // have been connected during InitializeComponent.
+        if (!IsInitialized) return;
+        BoxDisplaySettingsPopup.IsOpen = false;
+        DrawerSortPopup.IsOpen = false;
+        BoxActionsPopup.IsOpen = false;
+        RenameBoxPopup.IsOpen = false;
+        DeleteConfirmPopup.IsOpen = false;
+        RecallBoxConfirmPopup.IsOpen = false;
+    }
 
-        _isBoxVisualStyleTransitioning = true;
-        BoxVisualStyleSecondaryPanel.IsHitTestVisible = false;
-        try
-        {
-            TryAnimateVisualStyleSelection(button);
-            await Task.Delay(170);
-            await ViewModel.SetSelectedBoxVisualStyleCommand.ExecuteAsync(option);
-            await Task.Delay(40);
-        }
-        catch (Exception exception)
-        {
-            _logger.Error(exception, "Failed to complete box visual style selection animation.");
-        }
-        finally
-        {
-            ShowPrimaryBoxControls();
-            _isBoxVisualStyleTransitioning = false;
-        }
+    private void OnBoxPopupKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape) return;
+        if (e.OriginalSource is ComboBox { IsDropDownOpen: true }) return;
+        CloseBoxPopups();
+        e.Handled = true;
     }
 
     private void OnOpenDrawerSortMenu(object sender, RoutedEventArgs e)
     {
-        DrawerSortPopup.IsOpen = true;
+        var open = !DrawerSortPopup.IsOpen;
+        CloseBoxPopups();
+        DrawerSortPopup.IsOpen = open;
         e.Handled = true;
     }
 
@@ -899,7 +898,9 @@ public partial class MainWindow : Window
 
     private void OnOpenBoxActionsMenu(object sender, RoutedEventArgs e)
     {
-        BoxActionsPopup.IsOpen = !BoxActionsPopup.IsOpen;
+        var open = !BoxActionsPopup.IsOpen;
+        CloseBoxPopups();
+        BoxActionsPopup.IsOpen = open;
         e.Handled = true;
     }
 
@@ -1086,97 +1087,42 @@ public partial class MainWindow : Window
 
     private void OnMainWindowPreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (!BoxActionsPopup.IsOpen || e.OriginalSource is not DependencyObject source)
+        if (e.OriginalSource is not DependencyObject source) return;
+        if (ReferenceEquals(source, BtnMoreBoxActions) || BtnMoreBoxActions.IsAncestorOf(source)
+            || ReferenceEquals(source, BoxDisplaySettingsButton) || BoxDisplaySettingsButton.IsAncestorOf(source)
+            || ReferenceEquals(source, DrawerSortMenuButton) || DrawerSortMenuButton.IsAncestorOf(source)) return;
+        foreach (var popup in new[] { BoxDisplaySettingsPopup, BoxActionsPopup, DrawerSortPopup })
         {
-            return;
+            if (popup.IsOpen && IsWithinBoxPopup(popup, source)) return;
         }
-
-        if (ReferenceEquals(source, BtnMoreBoxActions) || BtnMoreBoxActions.IsAncestorOf(source))
-        {
-            return;
-        }
-
         BoxActionsPopup.IsOpen = false;
+        BoxDisplaySettingsPopup.IsOpen = false;
+    }
+
+    internal static bool IsWithinBoxPopup(Popup popup, DependencyObject source)
+    {
+        // ComboBox dropdowns have a separate visual root. Follow logical and
+        // template ownership as well, so an option click can finish selection
+        // before any outside-click handling closes the settings panel.
+        for (DependencyObject? current = source; current is not null;)
+        {
+            if (ReferenceEquals(current, popup) || ReferenceEquals(current, popup.Child)) return true;
+            current = LogicalTreeHelper.GetParent(current)
+                ?? (current as FrameworkElement)?.TemplatedParent
+                ?? (current is Visual ? VisualTreeHelper.GetParent(current) : null);
+        }
+        return false;
     }
 
     private void OnMainWindowDeactivated(object? sender, EventArgs e)
     {
-        BoxActionsPopup.IsOpen = false;
+        CloseBoxPopups();
     }
 
     private async void OnCreateDrawerBoxClicked(object sender, RoutedEventArgs e)
     {
         CreateBoxPopup.IsOpen = false;
         await ViewModel.CreateDrawerBoxCommand.ExecuteAsync(null);
-    }
-
-    private void TryAnimateVisualStyleSelection(Button button)
-    {
-        try
-        {
-            var currentTransform = button.RenderTransform as ScaleTransform;
-            var scaleTransform = EnsureAnimatableScaleTransform(currentTransform);
-            if (!ReferenceEquals(scaleTransform, currentTransform))
-            {
-                button.RenderTransform = scaleTransform;
-            }
-
-            AnimateVisualStyleSelection(scaleTransform);
-        }
-        catch (Exception exception)
-        {
-            // The style change is functional behavior; its decorative pulse must
-            // never prevent the command from running.
-            _logger.Error(exception, "Failed to animate box visual style selection; continuing without animation.");
-        }
-    }
-
-    internal static ScaleTransform EnsureAnimatableScaleTransform(ScaleTransform? scaleTransform)
-    {
-        if (scaleTransform is null)
-        {
-            return new ScaleTransform(1, 1);
-        }
-
-        return scaleTransform.IsFrozen
-            ? scaleTransform.CloneCurrentValue()
-            : scaleTransform;
-    }
-
-    private void ShowPrimaryBoxControls()
-    {
-        if (!_isBoxVisualStylePageOpen && !_isBoxVisualStyleTransitioning)
-        {
-            return;
-        }
-
-        _isBoxVisualStylePageOpen = false;
-        BoxVisualStyleSecondaryPanel.IsHitTestVisible = false;
-        BoxControlsPrimaryPanel.IsHitTestVisible = true;
-        VisualStateManager.GoToElementState(
-            BoxControlsPageHost,
-            "PrimaryControlsState",
-            useTransitions: true);
-    }
-
-    private static void AnimateVisualStyleSelection(ScaleTransform scaleTransform)
-    {
-        var easing = new BackEase
-        {
-            Amplitude = 0.3,
-            EasingMode = EasingMode.EaseOut
-        };
-        var pulse = new DoubleAnimation(
-            fromValue: 1,
-            toValue: 1.07,
-            duration: TimeSpan.FromMilliseconds(85))
-        {
-            AutoReverse = true,
-            EasingFunction = easing
-        };
-
-        scaleTransform.BeginAnimation(ScaleTransform.ScaleXProperty, pulse);
-        scaleTransform.BeginAnimation(ScaleTransform.ScaleYProperty, pulse.Clone());
     }
 
     private async void OnCreateTodoBoxClicked(object sender, RoutedEventArgs e)
@@ -1207,6 +1153,7 @@ public partial class MainWindow : Window
 
     private void OnRenameBoxClicked(object sender, RoutedEventArgs e)
     {
+        CloseBoxPopups();
         RenameBoxPopup.IsOpen = true;
         TxtRenameBox.Text = ViewModel.SelectedBox?.Name ?? "";
         

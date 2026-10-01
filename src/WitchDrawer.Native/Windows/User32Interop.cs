@@ -83,6 +83,15 @@ public static class User32Interop
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool GetMonitorInfo(nint hMonitor, ref NativeMonitorInfo lpmi);
 
+    public static bool TryGetMonitorWorkArea(NativePoint point, out NativeRect workArea)
+    {
+        var monitor = MonitorFromPoint(point, MonitorDefaultToNearest);
+        var info = new NativeMonitorInfo { Size = Marshal.SizeOf<NativeMonitorInfo>() };
+        var found = monitor != nint.Zero && GetMonitorInfo(monitor, ref info);
+        workArea = info.WorkArea;
+        return found;
+    }
+
     public static int ToNativeCoordinate(double value) =>
         checked((int)Math.Round(value, MidpointRounding.AwayFromZero));
 }

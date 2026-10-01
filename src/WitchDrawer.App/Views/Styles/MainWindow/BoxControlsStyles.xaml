@@ -1,201 +1,70 @@
-<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <!-- Selected-box controls card styles (labels, visual-style picker, icon-size
-         choices, drawer sort choices, box size mode), lifted verbatim from
-         MainWindow's local resource scopes. -->
-    <Style x:Key="BoxControlLabelStyle"
-           TargetType="{x:Type TextBlock}">
-        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-        <Setter Property="FontSize" Value="11.5" />
-        <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="VerticalAlignment" Value="Center" />
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Style x:Key="BoxControlLabelStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" /><Setter Property="FontSize" Value="12" /><Setter Property="VerticalAlignment" Value="Center" />
     </Style>
-    <Style x:Key="VisualStylePickerButtonStyle"
-           TargetType="{x:Type Button}"
-           BasedOn="{StaticResource {x:Type Button}}">
-        <Setter Property="Height" Value="30" />
-        <Setter Property="MinHeight" Value="30" />
-        <Setter Property="MinWidth" Value="78" />
-        <Setter Property="Padding" Value="10,0" />
-        <Setter Property="Background" Value="{DynamicResource PanelAltBrush}" />
-        <Setter Property="BorderBrush" Value="Transparent" />
-        <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-        <Setter Property="FontSize" Value="10.5" />
-        <Setter Property="FontWeight" Value="SemiBold" />
+    <Style x:Key="BoxToolbarButtonStyle" TargetType="Button">
+        <Setter Property="Width" Value="112" /><Setter Property="Height" Value="34" /><Setter Property="Padding" Value="10,0" />
+        <Setter Property="FontSize" Value="12" /><Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" /><Setter Property="Background" Value="{DynamicResource PanelBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushSoft}" /><Setter Property="BorderThickness" Value="1" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" /><Setter Property="VerticalContentAlignment" Value="Center" /><Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+            <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+            </Border>
+        </ControlTemplate></Setter.Value></Setter>
         <Style.Triggers>
-            <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="{DynamicResource HoverBrush}" />
-            </Trigger>
-            <Trigger Property="IsKeyboardFocused" Value="True">
-                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
-                <Setter Property="BorderThickness" Value="2" />
-            </Trigger>
+            <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource HoverBrush}" /></Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True"><Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" /></Trigger>
+            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45" /></Trigger>
         </Style.Triggers>
     </Style>
-    <Style x:Key="IconSizeChoiceButtonStyle"
-           TargetType="{x:Type Button}"
-           BasedOn="{StaticResource GhostButtonStyle}">
-        <Setter Property="Background" Value="Transparent" />
-        <Setter Property="BorderBrush" Value="Transparent" />
-        <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
-        <Setter Property="MinHeight" Value="28" />
-        <Setter Property="Padding" Value="10,4" />
-        <Setter Property="FontSize" Value="10.5" />
-        <Setter Property="FontWeight" Value="Medium" />
+    <Style x:Key="BoxMenuItemButtonStyle" TargetType="Button" BasedOn="{StaticResource BoxToolbarButtonStyle}">
+        <Setter Property="Width" Value="Auto" /><Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="HorizontalContentAlignment" Value="Left" />
     </Style>
-    <Style x:Key="ExtraLargeIconSizeButtonStyle"
-           TargetType="{x:Type Button}"
-           BasedOn="{StaticResource IconSizeChoiceButtonStyle}">
-        <Style.Triggers>
-            <DataTrigger Binding="{Binding SelectedBox.LayoutSettings.IsExtraLargePreset}" Value="True">
-                <Setter Property="Background" Value="{DynamicResource PanelBrush}" />
-                <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushSoft}" />
-                <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-                <Setter Property="FontWeight" Value="SemiBold" />
-            </DataTrigger>
-        </Style.Triggers>
+    <Style x:Key="BoxSettingStepperStyle" TargetType="Button" BasedOn="{StaticResource BoxToolbarButtonStyle}">
+        <Setter Property="Width" Value="28" /><Setter Property="Height" Value="32" /><Setter Property="Padding" Value="0" />
     </Style>
-    <Style x:Key="LargeIconSizeButtonStyle"
-           TargetType="{x:Type Button}"
-           BasedOn="{StaticResource IconSizeChoiceButtonStyle}">
-        <Style.Triggers>
-            <DataTrigger Binding="{Binding SelectedBox.LayoutSettings.IsLargePreset}" Value="True">
-                <Setter Property="Background" Value="{DynamicResource PanelBrush}" />
-                <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushSoft}" />
-                <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-                <Setter Property="FontWeight" Value="SemiBold" />
-            </DataTrigger>
-        </Style.Triggers>
+    <Style x:Key="BoxSettingNumberStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" /><Setter Property="FontSize" Value="12" /><Setter Property="TextAlignment" Value="Center" /><Setter Property="VerticalAlignment" Value="Center" />
     </Style>
-    <Style x:Key="MediumIconSizeButtonStyle"
-           TargetType="{x:Type Button}"
-           BasedOn="{StaticResource IconSizeChoiceButtonStyle}">
-        <Style.Triggers>
-            <DataTrigger Binding="{Binding SelectedBox.LayoutSettings.IsMediumPreset}" Value="True">
-                <Setter Property="Background" Value="{DynamicResource PanelBrush}" />
-                <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushSoft}" />
-                <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-                <Setter Property="FontWeight" Value="SemiBold" />
-            </DataTrigger>
-        </Style.Triggers>
-    </Style>
-    <Style x:Key="SmallIconSizeButtonStyle"
-           TargetType="{x:Type Button}"
-           BasedOn="{StaticResource IconSizeChoiceButtonStyle}">
-        <Style.Triggers>
-            <DataTrigger Binding="{Binding SelectedBox.LayoutSettings.IsSmallPreset}" Value="True">
-                <Setter Property="Background" Value="{DynamicResource PanelBrush}" />
-                <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushSoft}" />
-                <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-                <Setter Property="FontWeight" Value="SemiBold" />
-            </DataTrigger>
-        </Style.Triggers>
-    </Style>
-    <Style x:Key="DrawerSortChoiceButtonStyle"
-           TargetType="{x:Type Button}"
-           BasedOn="{StaticResource GhostButtonStyle}">
-        <Setter Property="MinHeight" Value="28" />
-        <Setter Property="Padding" Value="10,4" />
-        <Setter Property="Background" Value="Transparent" />
-        <Setter Property="BorderBrush" Value="Transparent" />
-        <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
-        <Setter Property="FontSize" Value="10.5" />
-        <Setter Property="FontWeight" Value="Medium" />
-    </Style>
-    <Style x:Key="DrawerSortByNameButtonStyle"
-           TargetType="{x:Type Button}"
-           BasedOn="{StaticResource DrawerSortChoiceButtonStyle}">
-        <Style.Triggers>
-            <DataTrigger Binding="{Binding SelectedBox.IsDrawerSortByName}" Value="True">
-                <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
-                <Setter Property="Foreground" Value="White" />
-                <Setter Property="FontWeight" Value="SemiBold" />
-            </DataTrigger>
-        </Style.Triggers>
-    </Style>
-    <Style x:Key="DrawerSortBySizeButtonStyle"
-           TargetType="{x:Type Button}"
-           BasedOn="{StaticResource DrawerSortChoiceButtonStyle}">
-        <Style.Triggers>
-            <DataTrigger Binding="{Binding SelectedBox.IsDrawerSortBySize}" Value="True">
-                <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
-                <Setter Property="Foreground" Value="White" />
-                <Setter Property="FontWeight" Value="SemiBold" />
-            </DataTrigger>
-        </Style.Triggers>
-    </Style>
-    <Style x:Key="DrawerSortByTypeButtonStyle"
-           TargetType="{x:Type Button}"
-           BasedOn="{StaticResource DrawerSortChoiceButtonStyle}">
-        <Style.Triggers>
-            <DataTrigger Binding="{Binding SelectedBox.IsDrawerSortByItemType}" Value="True">
-                <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
-                <Setter Property="Foreground" Value="White" />
-                <Setter Property="FontWeight" Value="SemiBold" />
-            </DataTrigger>
-        </Style.Triggers>
-    </Style>
-    <Style x:Key="DrawerSortByDateButtonStyle"
-           TargetType="{x:Type Button}"
-           BasedOn="{StaticResource DrawerSortChoiceButtonStyle}">
-        <Style.Triggers>
-            <DataTrigger Binding="{Binding SelectedBox.IsDrawerSortByModifiedDate}" Value="True">
-                <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
-                <Setter Property="Foreground" Value="White" />
-                <Setter Property="FontWeight" Value="SemiBold" />
-            </DataTrigger>
-        </Style.Triggers>
-    </Style>
-    <Style x:Key="SizeModeChoiceButtonStyle"
-           TargetType="{x:Type Button}"
-           BasedOn="{StaticResource GhostButtonStyle}">
-        <Setter Property="MinHeight" Value="26" />
-        <Setter Property="Padding" Value="8,2" />
-        <Setter Property="Background" Value="Transparent" />
-        <Setter Property="BorderBrush" Value="Transparent" />
-        <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
-        <Setter Property="FontSize" Value="10" />
-        <Setter Property="FontWeight" Value="Medium" />
-    </Style>
-    <Style x:Key="AdaptiveSizeModeButtonStyle"
-           TargetType="{x:Type Button}"
-           BasedOn="{StaticResource SizeModeChoiceButtonStyle}">
-        <Style.Triggers>
-            <DataTrigger Binding="{Binding BoxSizeSettings.IsAdaptiveMode}" Value="True">
-                <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
-                <Setter Property="Foreground" Value="White" />
-                <Setter Property="FontWeight" Value="SemiBold" />
-            </DataTrigger>
-        </Style.Triggers>
-    </Style>
-    <Style x:Key="FixedSizeModeButtonStyle"
-           TargetType="{x:Type Button}"
-           BasedOn="{StaticResource SizeModeChoiceButtonStyle}">
-        <Style.Triggers>
-            <DataTrigger Binding="{Binding BoxSizeSettings.IsFixedMode}" Value="True">
-                <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
-                <Setter Property="Foreground" Value="White" />
-                <Setter Property="FontWeight" Value="SemiBold" />
-            </DataTrigger>
-        </Style.Triggers>
-    </Style>
-    <Style x:Key="SizeStepperButtonStyle"
-           TargetType="{x:Type Button}"
-           BasedOn="{StaticResource GhostButtonStyle}">
-        <Setter Property="Width" Value="20" />
-        <Setter Property="Height" Value="20" />
-        <Setter Property="MinWidth" Value="0" />
-        <Setter Property="MinHeight" Value="0" />
-        <Setter Property="Padding" Value="0" />
-        <Setter Property="FontSize" Value="11" />
-        <Setter Property="FontWeight" Value="SemiBold" />
+    <Style x:Key="BoxSettingChoiceStyle" TargetType="ComboBox">
+        <Setter Property="Height" Value="32" /><Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" /><Setter Property="Background" Value="{DynamicResource PanelAltBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushSoft}" /><Setter Property="MaxDropDownHeight" Value="220" />
+        <Setter Property="ItemContainerStyle"><Setter.Value><Style TargetType="ComboBoxItem">
+            <Setter Property="Padding" Value="10,7" /><Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ComboBoxItem">
+                <Border x:Name="ItemRoot" Padding="{TemplateBinding Padding}" CornerRadius="6" Background="Transparent"><ContentPresenter /></Border>
+                <ControlTemplate.Triggers>
+                    <Trigger Property="IsHighlighted" Value="True"><Setter TargetName="ItemRoot" Property="Background" Value="{DynamicResource HoverBrush}" /></Trigger>
+                    <Trigger Property="IsSelected" Value="True"><Setter TargetName="ItemRoot" Property="Background" Value="{DynamicResource AccentSoftBrush}" /></Trigger>
+                </ControlTemplate.Triggers>
+            </ControlTemplate></Setter.Value></Setter>
+        </Style></Setter.Value></Setter>
+        <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ComboBox">
+            <Grid x:Name="ChoiceRoot">
+                <ToggleButton Focusable="False" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                              IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}" ClickMode="Press">
+                    <ToggleButton.Template><ControlTemplate TargetType="ToggleButton">
+                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="8" />
+                    </ControlTemplate></ToggleButton.Template>
+                </ToggleButton>
+                <ContentPresenter Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                  ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}" ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
+                                  Margin="10,0,28,0" VerticalAlignment="Center" IsHitTestVisible="False" />
+                <TextBlock Text="&#xE70D;" FontFamily="Segoe Fluent Icons" FontSize="8" Margin="0,0,11,0" HorizontalAlignment="Right" VerticalAlignment="Center" IsHitTestVisible="False" Foreground="{DynamicResource TextMutedBrush}" />
+                <Popup x:Name="PART_Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True" Focusable="False">
+                    <Border Width="{Binding ActualWidth, ElementName=ChoiceRoot}" Margin="0,4,0,0" Padding="4" Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource BorderBrushSoft}" BorderThickness="1" CornerRadius="8">
+                        <ScrollViewer MaxHeight="{TemplateBinding MaxDropDownHeight}" CanContentScroll="True"><ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained" /></ScrollViewer>
+                    </Border>
+                </Popup>
+            </Grid>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" /></Trigger>
+                <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource HoverBrush}" /></Trigger>
+                <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45" /></Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate></Setter.Value></Setter>
     </Style>
 </ResourceDictionary>
