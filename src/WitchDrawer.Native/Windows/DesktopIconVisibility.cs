@@ -181,14 +181,16 @@ public static class DesktopIconVisibility
     private static List<nint> CollectCommandTargets(DesktopShellHandles shell)
     {
         var targets = new List<nint>(2);
-        if (shell.HostWindow != nint.Zero)
-        {
-            targets.Add(shell.HostWindow);
-        }
-
-        if (shell.ShellView != nint.Zero && !targets.Contains(shell.ShellView))
+        // SHELLDLL_DefView owns the command. Progman/WorkerW can accept the
+        // posted message without handling it, which otherwise causes a timeout.
+        if (shell.ShellView != nint.Zero)
         {
             targets.Add(shell.ShellView);
+        }
+
+        if (shell.HostWindow != nint.Zero && !targets.Contains(shell.HostWindow))
+        {
+            targets.Add(shell.HostWindow);
         }
 
         return targets;

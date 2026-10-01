@@ -40,7 +40,7 @@ public sealed class DesktopIconVisibilityTests
     }
 
     [Fact]
-    public void ApplyToggle_UsesShellCommandOnFirstAttemptWhenVisibilityChanges()
+    public void ApplyToggle_UsesShellViewWhenHostAcceptsButIgnoresCommand()
     {
         var listView = new nint(42);
         var progman = new nint(7);
@@ -59,7 +59,11 @@ public sealed class DesktopIconVisibilityTests
             window =>
             {
                 posts.Add(window);
-                visible = false;
+                // Progman/WorkerW can accept WM_COMMAND without changing the view.
+                if (window == defView)
+                {
+                    visible = false;
+                }
                 return true;
             },
             _ => { },
@@ -72,7 +76,7 @@ public sealed class DesktopIconVisibilityTests
             () => notifications++);
 
         Assert.True(result);
-        Assert.Equal([progman], posts);
+        Assert.Equal([defView], posts);
         Assert.Equal([true], registryWrites);
         Assert.Empty(legacyWrites);
         Assert.Equal(0, notifications);
@@ -139,7 +143,7 @@ public sealed class DesktopIconVisibilityTests
             (_, _) => legacyCalls++,
             () => notifications++));
 
-        Assert.Equal([new nint(7)], posts);
+        Assert.Equal([new nint(9)], posts);
         Assert.Equal(0, legacyCalls);
         Assert.Equal(0, notifications);
     }
@@ -175,7 +179,7 @@ public sealed class DesktopIconVisibilityTests
             () => notifications++);
 
         Assert.True(result);
-        Assert.Equal([new nint(7), new nint(9)], posts);
+        Assert.Equal([new nint(9), new nint(7)], posts);
         Assert.Equal([(listView, true)], legacyWrites);
         Assert.Equal([true], registryWrites);
         Assert.Equal(1, notifications);
@@ -237,6 +241,36 @@ public sealed class DesktopIconVisibilityTests
 
         Assert.True(result);
         Assert.Equal([defView], posts);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(9)]
+    public void ApplyToggle_UsesHostWhenShellViewIsMissingOrPostingFails(int shellViewHandle)
+    {
+        var host = new nint(7);
+        var visible = true;
+        var posts = new List<nint>();
+
+        var hidden = DesktopIconVisibility.ApplyToggle(
+            () => new(host, new nint(shellViewHandle), new nint(42)),
+            _ => visible,
+            () => false,
+            window =>
+            {
+                posts.Add(window);
+                if (window != host) return false;
+                visible = false;
+                return true;
+            },
+            _ => { },
+            _ => { },
+            (_, _) => throw new InvalidOperationException("Shell command succeeded; no fallback expected."),
+            () => throw new InvalidOperationException("Shell command succeeded; no fallback expected."));
+
+        Assert.True(hidden);
+        Assert.False(visible);
+        Assert.Equal(shellViewHandle == 0 ? [host] : new[] { new nint(shellViewHandle), host }, posts);
     }
 
     [Fact]
