@@ -630,7 +630,7 @@ public sealed class BoxSizeSettingsTests
             File.WriteAllText(source, "success");
             File.WriteAllText(blocked, "keep");
             var events = 0;
-            viewModel.ItemsChanged += (_, _) => events++;
+            service.Changes.ContentChanged += (_, _) => events++;
             using var fileLock = new FileStream(blocked, FileMode.Open, FileAccess.Read, FileShare.None);
 
             var importedIds = await viewModel.ImportPathsAsync([source, blocked], null, null);
@@ -794,7 +794,7 @@ public sealed class FixedModeImportEnforcementTests
             var launcher = new NoOpFileLauncher();
             var visualStyleStore = new BoxVisualStyleStore(drawerService, logger);
             var quickPanel = new QuickPanelViewModel(drawerService, launcher, logger, visualStyleStore);
-            var viewModel = new MainViewModel(
+            var viewModel = MainViewModelFactory.Create(
                 drawerService,
                 new TodoService(repository),
                 launcher,

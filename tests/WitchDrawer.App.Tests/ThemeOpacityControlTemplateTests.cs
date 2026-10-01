@@ -62,10 +62,10 @@ public sealed class ThemeOpacityControlTemplateTests
             element => (string?)element.Attribute(XamlNamespace + "Name") == "EditorOpacityFollowToggle");
 
         Assert.Equal(
-            "{Binding EditorFollowsBoxOpacity, Mode=OneWay}",
+            "{Binding Settings.EditorFollowsBoxOpacity, Mode=OneWay}",
             (string?)toggle.Attribute("IsChecked"));
         Assert.Equal(
-            "{Binding ToggleEditorOpacityFollowCommand}",
+            "{Binding Settings.ToggleEditorOpacityFollowCommand}",
             (string?)toggle.Attribute("Command"));
         Assert.Equal(
             "编辑页跟随透明度",

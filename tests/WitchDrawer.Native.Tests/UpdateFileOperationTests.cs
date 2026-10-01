@@ -2,9 +2,9 @@ using System.Diagnostics;
 using System.Runtime.Versioning;
 using System.Security.AccessControl;
 using System.Security.Principal;
-using WitchDrawer.Core.Services;
+using WitchDrawer.Native.Windows;
 
-namespace WitchDrawer.Core.Tests;
+namespace WitchDrawer.Native.Tests;
 
 [SupportedOSPlatform("windows")]
 public sealed class UpdateFileOperationTests
@@ -47,7 +47,7 @@ function Start-Process {
     $result | Add-Member -MemberType ScriptMethod -Name WaitForExit -Value {} -PassThru
 }
 """;
-            await File.WriteAllTextAsync(scriptPath, hooks + Environment.NewLine + UpdateService.BuildUpdaterFileOperationScript());
+            await File.WriteAllTextAsync(scriptPath, hooks + Environment.NewLine + WindowsUpdateInstaller.BuildUpdaterFileOperationScript());
             var startInfo = new ProcessStartInfo("powershell.exe")
             {
                 UseShellExecute = false, CreateNoWindow = true,

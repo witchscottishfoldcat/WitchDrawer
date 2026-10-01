@@ -25,7 +25,7 @@ public sealed class ArchivePageSelectionTests
             var launcher = new NoOpFileLauncher();
             var visualStyleStore = new BoxVisualStyleStore(drawerService, logger);
             var quickPanel = new QuickPanelViewModel(drawerService, launcher, logger, visualStyleStore);
-            var viewModel = new MainViewModel(
+            var viewModel = MainViewModelFactory.Create(
                 drawerService,
                 new TodoService(repository),
                 launcher,
@@ -78,7 +78,7 @@ public sealed class ArchivePageSelectionTests
             var launcher = new NoOpFileLauncher();
             var visualStyleStore = new BoxVisualStyleStore(drawerService, logger);
             var quickPanel = new QuickPanelViewModel(drawerService, launcher, logger, visualStyleStore);
-            var viewModel = new MainViewModel(
+            var viewModel = MainViewModelFactory.Create(
                 drawerService,
                 new TodoService(repository),
                 launcher,
@@ -130,7 +130,7 @@ public sealed class ArchivePageSelectionTests
             var launcher = new NoOpFileLauncher();
             var visualStyleStore = new BoxVisualStyleStore(drawerService, logger);
             var quickPanel = new QuickPanelViewModel(drawerService, launcher, logger, visualStyleStore);
-            var viewModel = new MainViewModel(
+            var viewModel = MainViewModelFactory.Create(
                 drawerService,
                 new TodoService(repository),
                 launcher,
@@ -150,7 +150,7 @@ public sealed class ArchivePageSelectionTests
             await viewModel.CreateDrawerBoxCommand.ExecuteAsync(null);
             Assert.NotNull(viewModel.SelectedBox);
 
-            viewModel.ShowSettingsCommand.Execute(null);
+            await viewModel.ShowSettingsCommand.ExecuteAsync(null);
 
             Assert.True(viewModel.IsSettingsPage);
             Assert.Null(viewModel.SelectedBox);

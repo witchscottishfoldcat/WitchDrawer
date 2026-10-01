@@ -1,5 +1,5 @@
+using WitchDrawer.Core.Abstractions;
 using System.Globalization;
-using WitchDrawer.Core.Services;
 
 namespace WitchDrawer.App.Infrastructure;
 
@@ -28,7 +28,7 @@ public sealed record AutoHideSettings(
 /// 持久化“自动隐藏”全局设置：是否开启、隐藏时内容的透明度、悬停取消隐藏范围。
 /// 与桌面盒子透明度（<see cref="AppThemeManager"/>）相互独立。
 /// </summary>
-public sealed class AutoHideSettingsStore(DrawerService drawerService)
+public sealed class AutoHideSettingsStore(ISettingsStore store)
 {
     private const string IsEnabledSettingKey = "AutoHide.Enabled";
     private const string HiddenTransparencySettingKey = "AutoHide.HiddenTransparency";
@@ -86,27 +86,27 @@ public sealed class AutoHideSettingsStore(DrawerService drawerService)
         AutoHideSettings settings,
         CancellationToken cancellationToken = default)
     {
-        await drawerService.SetSettingAsync(
+        await store.SetSettingAsync(
             IsEnabledSettingKey,
             settings.IsEnabled.ToString(CultureInfo.InvariantCulture),
             cancellationToken);
-        await drawerService.SetSettingAsync(
+        await store.SetSettingAsync(
             HiddenTransparencySettingKey,
             ClampHiddenPercent(settings.HiddenTransparencyPercent).ToString(CultureInfo.InvariantCulture),
             cancellationToken);
-        await drawerService.SetSettingAsync(
+        await store.SetSettingAsync(
             RevealScopeSettingKey,
             settings.RevealScope.ToString(),
             cancellationToken);
-        await drawerService.SetSettingAsync(
+        await store.SetSettingAsync(
             FadeWholeBoxSettingKey,
             settings.FadeWholeBox.ToString(CultureInfo.InvariantCulture),
             cancellationToken);
-        await drawerService.SetSettingAsync(
+        await store.SetSettingAsync(
             FadeTitleSettingKey,
             settings.FadeTitle.ToString(CultureInfo.InvariantCulture),
             cancellationToken);
-        await drawerService.SetSettingAsync(
+        await store.SetSettingAsync(
             FadeBorderSettingKey,
             settings.FadeBorder.ToString(CultureInfo.InvariantCulture),
             cancellationToken);
@@ -118,7 +118,7 @@ public sealed class AutoHideSettingsStore(DrawerService drawerService)
         StartupSettingsSnapshot? startupSnapshot)
         => startupSnapshot is not null
             ? startupSnapshot.Get(key)
-            : await drawerService.GetSettingAsync(key, cancellationToken);
+            : await store.GetSettingAsync(key, cancellationToken);
 
     private static int ClampHiddenPercent(int hiddenTransparencyPercent)
     {

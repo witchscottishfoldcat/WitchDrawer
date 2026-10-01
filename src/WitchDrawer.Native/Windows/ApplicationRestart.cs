@@ -1,10 +1,10 @@
 using System.Diagnostics;
 
-namespace WitchDrawer.App.Infrastructure;
+namespace WitchDrawer.Native.Windows;
 
-internal static class ApplicationRestart
+public static class ApplicationRestart
 {
-    internal static ProcessStartInfo CreateStartInfo(
+    public static ProcessStartInfo CreateStartInfo(
         string executablePath, string workingDirectory, int processId, long processStartTimeUtcTicks)
     {
         var startInfo = new ProcessStartInfo

@@ -77,7 +77,7 @@ public partial class AboutPageView : UserControl
         ExportDiagnosticLogsButton.IsEnabled = false;
         try
         {
-            var result = await ViewModel.ExportDiagnosticLogsAsync(dialog.FileName);
+            var result = await ViewModel.Maintenance.ExportDiagnosticLogsAsync(dialog.FileName);
             MessageBox.Show(
                 owner,
                 $"诊断日志已导出。\n\n包含日志：{result.LogFileCount} 个\n保存位置：{result.ArchivePath}",

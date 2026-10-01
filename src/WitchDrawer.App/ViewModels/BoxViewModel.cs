@@ -1,3 +1,4 @@
+using WitchDrawer.Core.Abstractions;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Messaging;
 using WitchDrawer.App.Infrastructure;
@@ -10,7 +11,7 @@ namespace WitchDrawer.App.ViewModels;
 
 public sealed partial class BoxViewModel : ObservableObject
 {
-    private readonly DrawerService _drawerService;
+    private readonly ISettingsStore _settings;
     private readonly IAppLogger _logger;
     private BoxVisualStyle _visualStyle;
     private bool _isPositionLocked;
@@ -21,13 +22,13 @@ public sealed partial class BoxViewModel : ObservableObject
 
     public BoxViewModel(
         Box model,
-        DrawerService drawerService,
+        ISettingsStore settings,
         BoxVisualStyle visualStyle,
         bool isPositionLocked,
         IAppLogger? logger = null)
     {
         Model = model;
-        _drawerService = drawerService;
+        _settings = settings;
         _logger = logger ?? NullAppLogger.Instance;
         _visualStyle = visualStyle;
         _isPositionLocked = isPositionLocked;
@@ -35,7 +36,7 @@ public sealed partial class BoxViewModel : ObservableObject
         LayoutSettings = new DesktopBoxLayoutSettings(model.Type == BoxType.Drawer);
         LayoutSettings.SetPresetChangedCallback(async (preset) => 
         {
-            await _drawerService.SetSettingAsync(GetLayoutPresetSettingKey(Id), preset);
+            await _settings.SetSettingAsync(GetLayoutPresetSettingKey(Id), preset);
             WeakReferenceMessenger.Default.Send(new BoxLayoutPresetChangedMessage(Id, preset));
         });
 
@@ -80,7 +81,7 @@ public sealed partial class BoxViewModel : ObservableObject
     private async Task<string?> ReadSettingAsync(string key, StartupSettingsSnapshot? snapshot)
         => snapshot is not null
             ? snapshot.Get(key)
-            : await _drawerService.GetSettingAsync(key);
+            : await _settings.GetSettingAsync(key);
 
     private async Task LoadPresetAsync(StartupSettingsSnapshot? snapshot = null)
     {
@@ -272,7 +273,7 @@ public sealed partial class BoxViewModel : ObservableObject
     private async Task ToggleTitleVisibilityAsync()
     {
         var isVisible = !IsTitleVisible;
-        await _drawerService.SetSettingAsync(
+        await _settings.SetSettingAsync(
             GetTitleVisibilitySettingKey(Id),
             isVisible.ToString());
         ApplyTitleVisibility(isVisible);
@@ -301,7 +302,7 @@ public sealed partial class BoxViewModel : ObservableObject
         }
 
         var isVisible = !IsFileNameVisible;
-        await _drawerService.SetSettingAsync(
+        await _settings.SetSettingAsync(
             GetFileNameVisibilitySettingKey(Id),
             isVisible.ToString());
         ApplyFileNameVisibility(isVisible);
@@ -324,7 +325,7 @@ public sealed partial class BoxViewModel : ObservableObject
         }
 
         var isEnabled = !IsHoverRollUpEnabled;
-        await _drawerService.SetSettingAsync(
+        await _settings.SetSettingAsync(
             GetHoverRollUpEnabledSettingKey(Id),
             isEnabled.ToString());
         ApplyHoverRollUpEnabled(isEnabled);
@@ -347,7 +348,7 @@ public sealed partial class BoxViewModel : ObservableObject
             return;
         }
 
-        await _drawerService.SetSettingAsync(
+        await _settings.SetSettingAsync(
             GetBoxSortModeSettingKey(Id),
             sortMode.ToString());
         ApplyDrawerSortMode(sortMode);

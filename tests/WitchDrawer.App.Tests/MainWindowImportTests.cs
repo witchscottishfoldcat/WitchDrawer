@@ -26,7 +26,7 @@ public sealed class MainWindowImportTests
             var launcher = new NoOpLauncher();
             var styles = new BoxVisualStyleStore(service, logger);
             var quickPanel = new QuickPanelViewModel(service, launcher, logger, styles);
-            var viewModel = new MainViewModel(service, new TodoService(repository), launcher,
+            var viewModel = MainViewModelFactory.Create(service, new TodoService(repository), launcher,
                 new WitchDrawer.Native.Files.ShellChangeNotifierService(), logger,
                 quickPanel, new UpdateService(logger), styles,
                 new BoxPositionLockStateStore(service, logger), paths,
@@ -40,7 +40,7 @@ public sealed class MainWindowImportTests
             File.WriteAllText(good, "success");
             File.WriteAllText(blocked, "keep");
             var events = 0;
-            viewModel.ItemsChanged += (_, _) => events++;
+            service.Changes.ContentChanged += (_, _) => events++;
             using var fileLock = new FileStream(blocked, FileMode.Open, FileAccess.Read, FileShare.None);
 
             await viewModel.ImportPathsAsync([good, blocked]);

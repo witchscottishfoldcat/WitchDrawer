@@ -14,7 +14,7 @@ using WitchDrawer.Native.Windows;
 
 namespace WitchDrawer.App.Infrastructure;
 
-public sealed partial class DesktopBoxManager
+public sealed partial class DesktopBoxManager : IBoxContentRefreshTarget
 {
     private const string BoxPositionSettingPrefix = "BoxPosition:";
     private const string PhysicalPositionPrefix = "px:";
@@ -124,8 +124,6 @@ public sealed partial class DesktopBoxManager
             static (recipient, message) => recipient.ApplyIconToolTipMode(message));
     }
 
-    public event EventHandler<BoxItemsChangedEventArgs>? ItemsChanged;
-
     public event EventHandler? DesktopBackgroundDoubleClicked;
 
     public event EventHandler? ShowDesktopActivated;
@@ -222,9 +220,6 @@ public sealed partial class DesktopBoxManager
                     await viewModel.LoadHoverRollUpEnabledAsync(startupSnapshot);
                     await viewModel.LoadSortModeAsync(startupSnapshot);
                     await viewModel.LoadSizeModeAsync(startupSnapshot);
-                    viewModel.ItemsChanged += (_, _) => ItemsChanged?.Invoke(
-                        this,
-                        new BoxItemsChangedEventArgs(viewModel.BoxId));
 
                     window = new DesktopBoxWindow(viewModel);
                     var requiresOverlapResolution =
@@ -311,6 +306,12 @@ public sealed partial class DesktopBoxManager
     /// <summary>
     /// Reloads item lists for existing desktop windows without recreating them.
     /// </summary>
+    public async Task RefreshContentAsync(BoxRefreshRequest request)
+    {
+        if (request.BoxIds is null) await RefreshItemsAsync();
+        else foreach (var boxId in request.BoxIds) await RefreshItemsAsync(boxId);
+    }
+
     public async Task RefreshItemsAsync(Guid? affectedBoxId = null)
     {
         if (_closing)

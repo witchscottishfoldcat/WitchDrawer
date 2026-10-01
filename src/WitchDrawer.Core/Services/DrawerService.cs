@@ -5,24 +5,27 @@ using Microsoft.Data.Sqlite;
 
 namespace WitchDrawer.Core.Services;
 
-public sealed class DrawerService
+public sealed class DrawerService : ISettingsStore
 {
     private readonly AppPaths _paths;
     private readonly DrawerRepository _repository;
     private readonly List<string> _recoveryWarnings = [];
     private volatile bool _retryPendingRecoveryOnRead;
     private readonly SemaphoreSlim _fileOperationGate = new(1, 1);
-    private readonly SemaphoreSlim _settingsWriteGate = new(1, 1);
+    public ISettingsStore Settings { get; }
+    public BoxChangeNotifier Changes { get; }
 
     // Exposed so tests can simulate a live journaled operation holding the gate.
     internal SemaphoreSlim FileOperationGate => _fileOperationGate;
 
     public IReadOnlyList<string> RecoveryWarnings => _recoveryWarnings;
 
-    public DrawerService(AppPaths paths, DrawerRepository repository)
+    public DrawerService(AppPaths paths, DrawerRepository repository, BoxChangeNotifier? changes = null)
     {
         _paths = paths;
         _repository = repository;
+        Settings = new SettingsService(repository);
+        Changes = changes ?? new BoxChangeNotifier();
     }
 
     /// <summary>
@@ -210,10 +213,12 @@ public sealed class DrawerService
                 fullSourcePath, targetPath, isDirectory, item);
             var completed = await ExecuteJournaledOperationAsync(operation, cancellationToken);
 
+            Changes.Publish(boxId);
             return completed.ResultItem!;
         }
 
         await _repository.AddItemAsync(item, cancellationToken);
+        Changes.Publish(boxId);
         return item;
     }
 
@@ -260,6 +265,7 @@ public sealed class DrawerService
         if (item.BoxId == targetBoxId)
         {
             await UpdateItemGridPositionAsync(itemId, gridColumn, gridRow, cancellationToken);
+            Changes.Publish(targetBoxId);
             return;
         }
 
@@ -318,6 +324,7 @@ public sealed class DrawerService
                 Guid.NewGuid(), PendingFileOperationKind.Move, item.Id,
                 fullSourcePath, targetPath, isDirectory, resultItem);
             await ExecuteJournaledOperationAsync(operation, cancellationToken);
+            Changes.Publish(sourceBox.Id, targetBox.Id);
 
             return;
         }
@@ -332,6 +339,7 @@ public sealed class DrawerService
             gridColumn,
             gridRow,
             cancellationToken);
+        Changes.Publish(sourceBox.Id, targetBox.Id);
     }
 
     public Task<string> ExportItemToDirectoryAsync(
@@ -369,6 +377,7 @@ public sealed class DrawerService
             sourcePath, targetPath, isDirectory, null);
         var completed = await ExecuteJournaledOperationAsync(operation, cancellationToken);
 
+        Changes.Publish(item.BoxId);
         return completed.TargetPath;
     }
 
@@ -383,10 +392,13 @@ public sealed class DrawerService
         if (string.IsNullOrWhiteSpace(item.StoredPath))
         {
             await _repository.RemoveItemAsync(itemId, cancellationToken);
+            Changes.Publish(item.BoxId);
             return ItemDeleteResult.ReferenceRemoved(item.Id, item.DisplayName);
         }
 
-        return await RestoreAndRemoveStoredItemAsync(item, reservedTargets: null, cancellationToken);
+        var result = await RestoreAndRemoveStoredItemAsync(item, reservedTargets: null, cancellationToken);
+        Changes.Publish(item.BoxId);
+        return result;
     }
 
     public Task<BoxDeleteResult> DeleteBoxAsync(Guid boxId, CancellationToken cancellationToken = default)
@@ -397,7 +409,9 @@ public sealed class DrawerService
         await _fileOperationGate.WaitAsync(cancellationToken);
         try
         {
-            return await DeleteBoxCoreAsync(boxId, cancellationToken);
+            var result = await DeleteBoxCoreAsync(boxId, cancellationToken);
+            if (result.BoxRemoved || result.RestoredCount > 0) Changes.Publish(boxId);
+            return result;
         }
         finally
         {
@@ -666,48 +680,18 @@ public sealed class DrawerService
         }
     }
 
+    // Compatibility for existing callers. New settings components depend on ISettingsStore.
     public Task<string?> GetSettingAsync(string key, CancellationToken cancellationToken = default)
-    {
-        return _repository.GetSettingAsync(key, cancellationToken);
-    }
+        => Settings.GetSettingAsync(key, cancellationToken);
 
-    /// <summary>
-    /// 启动时一次性读取全部设置（单连接单查询），供主窗口与桌面盒子共享启动快照。
-    /// 快照仅用于本轮启动；运行期间的读取仍走 <see cref="GetSettingAsync"/>。
-    /// </summary>
-    public Task<IReadOnlyDictionary<string, string>> GetAllSettingsAsync(
-        CancellationToken cancellationToken = default)
-        => Task.Run(() => _repository.GetAllSettingsAsync(cancellationToken), cancellationToken);
+    public Task<IReadOnlyDictionary<string, string>> GetAllSettingsAsync(CancellationToken cancellationToken = default)
+        => Settings.GetAllSettingsAsync(cancellationToken);
 
-    public async Task SetSettingAsync(string key, string value, CancellationToken cancellationToken = default)
-    {
-        // Queue before dispatching to the pool so rapid UI changes cannot persist
-        // an older value after a newer one. Waiting for SQLite never blocks WPF.
-        await _settingsWriteGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            await Task.Run(() => _repository.SetSettingAsync(key, value, cancellationToken), cancellationToken)
-                .ConfigureAwait(false);
-        }
-        finally
-        {
-            _settingsWriteGate.Release();
-        }
-    }
+    public Task SetSettingAsync(string key, string value, CancellationToken cancellationToken = default)
+        => Settings.SetSettingAsync(key, value, cancellationToken);
 
-    public async Task<bool> DeleteSettingAsync(string key, CancellationToken cancellationToken = default)
-    {
-        await _settingsWriteGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            return await Task.Run(() => _repository.DeleteSettingAsync(key, cancellationToken), cancellationToken)
-                .ConfigureAwait(false);
-        }
-        finally
-        {
-            _settingsWriteGate.Release();
-        }
-    }
+    public Task<bool> DeleteSettingAsync(string key, CancellationToken cancellationToken = default)
+        => Settings.DeleteSettingAsync(key, cancellationToken);
 
     public Task RenameBoxAsync(Guid boxId, string newName, CancellationToken cancellationToken = default)
         => Task.Run(() => RenameBoxCoreAsync(boxId, newName, cancellationToken), cancellationToken);

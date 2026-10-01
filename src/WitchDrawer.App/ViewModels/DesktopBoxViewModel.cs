@@ -211,8 +211,6 @@ public sealed partial class DesktopBoxViewModel : ObservableObject
         StatusText = message;
     }
 
-    public event EventHandler? ItemsChanged;
-
     public ResettableObservableCollection<DrawerItemViewModel> Items { get; } = [];
 
     public int GridLayoutVersion { get; private set; }

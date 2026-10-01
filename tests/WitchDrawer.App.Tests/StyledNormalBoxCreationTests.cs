@@ -33,7 +33,7 @@ public sealed class StyledNormalBoxCreationTests
                 launcher,
                 logger,
                 visualStyleStore);
-            var viewModel = new MainViewModel(
+            var viewModel = MainViewModelFactory.Create(
                 drawerService,
                 new TodoService(repository),
                 launcher,

@@ -22,14 +22,14 @@ public sealed class SettingsToggleTemplateTests
 
         Assert.Equal("{x:Type ToggleButton}", (string?)style.Attribute("TargetType"));
         Assert.Contains(toggles, element =>
-            (string?)element.Attribute("IsChecked") == "{Binding LaunchOnStartup, Mode=OneWay}" &&
-            (string?)element.Attribute("Command") == "{Binding ToggleLaunchOnStartupCommand}");
+            (string?)element.Attribute("IsChecked") == "{Binding Settings.LaunchOnStartup, Mode=OneWay}" &&
+            (string?)element.Attribute("Command") == "{Binding Settings.ToggleLaunchOnStartupCommand}");
         Assert.Contains(toggles, element =>
-            (string?)element.Attribute("IsChecked") == "{Binding AreDesktopIconsHidden, Mode=OneWay}" &&
-            (string?)element.Attribute("Command") == "{Binding ToggleDesktopIconsCommand}");
+            (string?)element.Attribute("IsChecked") == "{Binding Settings.AreDesktopIconsHidden, Mode=OneWay}" &&
+            (string?)element.Attribute("Command") == "{Binding Settings.ToggleDesktopIconsCommand}");
         Assert.Contains(toggles, element =>
-            (string?)element.Attribute("IsChecked") == "{Binding IsDesktopDoubleClickEnabled, Mode=OneWay}" &&
-            (string?)element.Attribute("Command") == "{Binding ToggleDesktopDoubleClickCommand}");
+            (string?)element.Attribute("IsChecked") == "{Binding Settings.IsDesktopDoubleClickEnabled, Mode=OneWay}" &&
+            (string?)element.Attribute("Command") == "{Binding Settings.ToggleDesktopDoubleClickCommand}");
     }
 
     private static string GetMainWindowXamlPath() =>

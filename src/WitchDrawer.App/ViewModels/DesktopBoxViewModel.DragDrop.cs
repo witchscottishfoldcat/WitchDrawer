@@ -262,7 +262,6 @@ public sealed partial class DesktopBoxViewModel
                     ? $"已收纳 {importedIds.Count} 项，盒子已满"
                     : "盒子已满，无法收纳"
                 : $"已收纳 {importedIds.Count} 项";
-            ItemsChanged?.Invoke(this, EventArgs.Empty);
             return importedIds;
         }
         catch (Exception exception)
@@ -278,7 +277,6 @@ public sealed partial class DesktopBoxViewModel
                 {
                     _logger.Error(refreshException, "Failed to refresh partially imported files.");
                 }
-                ItemsChanged?.Invoke(this, EventArgs.Empty);
             }
             StatusText = $"已收纳 {importedIds.Count} 项，其余未导入：{exception.Message}";
             return importedIds;
@@ -299,7 +297,6 @@ public sealed partial class DesktopBoxViewModel
         try
         {
             IsBusy = true;
-            var movedAcrossBoxes = false;
             var currentItem = Items.FirstOrDefault(item => item.Id == itemId);
             if (currentItem is not null)
             {
@@ -350,13 +347,8 @@ public sealed partial class DesktopBoxViewModel
                 }
 
                 await LoadAsync();
-                movedAcrossBoxes = true;
             }
 
-            if (movedAcrossBoxes)
-            {
-                ItemsChanged?.Invoke(this, EventArgs.Empty);
-            }
 
             return true;
         }
@@ -370,12 +362,6 @@ public sealed partial class DesktopBoxViewModel
         {
             IsBusy = false;
         }
-    }
-
-    public async Task RefreshAfterItemTransferAsync()
-    {
-        await LoadAsync();
-        ItemsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public Task CompleteDragOutAsync(DrawerItemViewModel? item)
@@ -405,7 +391,6 @@ public sealed partial class DesktopBoxViewModel
                 item.Model.ItemKind == ItemKind.Directory));
             await LoadAsync();
             StatusText = $"已移到桌面：{Path.GetFileName(exportedPath)}";
-            ItemsChanged?.Invoke(this, EventArgs.Empty);
             return true;
         }
         catch (Exception exception)

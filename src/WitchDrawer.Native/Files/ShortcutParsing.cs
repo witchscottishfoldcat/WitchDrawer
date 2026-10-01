@@ -1,13 +1,11 @@
-using System.IO;
-
-namespace WitchDrawer.App.Infrastructure;
+namespace WitchDrawer.Native.Files;
 
 /// <summary>
 /// Pure parsing helpers for shortcut icon metadata, kept separate from the
-/// P/Invoke-heavy <see cref="ShellIconProvider"/> so they can be unit-tested
+/// P/Invoke-heavy <see cref="ShellIconExtractor"/> so they can be unit-tested
 /// without touching the file system or Win32.
 /// </summary>
-internal static class ShortcutParsing
+public static class ShortcutParsing
 {
     /// <summary>
     /// Parses a .url (Internet Shortcut) INI payload into an

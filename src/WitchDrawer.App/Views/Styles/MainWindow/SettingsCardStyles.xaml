@@ -63,7 +63,7 @@
            TargetType="{x:Type Button}"
            BasedOn="{StaticResource AutoHideScopeButtonBaseStyle}">
         <Style.Triggers>
-            <DataTrigger Binding="{Binding IsAutoHideScopeHoveredOnly}" Value="True">
+            <DataTrigger Binding="{Binding Settings.IsAutoHideScopeHoveredOnly}" Value="True">
                 <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
                 <Setter Property="Foreground" Value="White" />
                 <Setter Property="FontWeight" Value="SemiBold" />
@@ -74,7 +74,7 @@
            TargetType="{x:Type Button}"
            BasedOn="{StaticResource AutoHideScopeButtonBaseStyle}">
         <Style.Triggers>
-            <DataTrigger Binding="{Binding IsAutoHideScopeAll}" Value="True">
+            <DataTrigger Binding="{Binding Settings.IsAutoHideScopeAll}" Value="True">
                 <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
                 <Setter Property="Foreground" Value="White" />
                 <Setter Property="FontWeight" Value="SemiBold" />

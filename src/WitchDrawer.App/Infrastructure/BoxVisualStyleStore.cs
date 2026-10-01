@@ -1,13 +1,13 @@
+using WitchDrawer.Core.Abstractions;
 using System.Collections.Concurrent;
 using WitchDrawer.App.ViewModels;
 using WitchDrawer.Core.Logging;
 using WitchDrawer.Core.Models;
-using WitchDrawer.Core.Services;
 
 namespace WitchDrawer.App.Infrastructure;
 
 public sealed class BoxVisualStyleStore(
-    DrawerService drawerService,
+    ISettingsStore settings,
     IAppLogger logger)
 {
     private const string SettingKeyPrefix = "BoxVisualStyle:";
@@ -35,7 +35,7 @@ public sealed class BoxVisualStyleStore(
         {
             savedValue = startupSnapshot is not null
                 ? startupSnapshot.Get(GetSettingKey(box.Id))
-                : await Task.Run(() => drawerService.GetSettingAsync(
+                : await Task.Run(() => settings.GetSettingAsync(
                     GetSettingKey(box.Id),
                     cancellationToken), cancellationToken);
         }
@@ -82,7 +82,7 @@ public sealed class BoxVisualStyleStore(
 
         try
         {
-            await drawerService.SetSettingAsync(
+            await settings.SetSettingAsync(
                 GetSettingKey(boxId),
                 style.ToString(),
                 cancellationToken);

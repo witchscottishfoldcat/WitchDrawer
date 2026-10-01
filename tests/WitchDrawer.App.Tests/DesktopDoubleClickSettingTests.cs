@@ -21,11 +21,11 @@ public sealed class DesktopDoubleClickSettingTests
             var repository = new DrawerRepository(paths.DatabasePath);
             var drawerService = new DrawerService(paths, repository);
             await drawerService.InitializeAsync();
-            await drawerService.SetSettingAsync(MainViewModel.DesktopDoubleClickSettingKey, bool.TrueString);
+            await drawerService.SetSettingAsync(SettingsViewModel.DesktopDoubleClickSettingKey, bool.TrueString);
             var logger = new RecordingLogger();
             var launcher = new NoOpFileLauncher();
             var visualStyleStore = new BoxVisualStyleStore(drawerService, logger);
-            var viewModel = new MainViewModel(
+            var viewModel = MainViewModelFactory.Create(
                 drawerService,
                 new TodoService(repository),
                 launcher,
@@ -43,14 +43,14 @@ public sealed class DesktopDoubleClickSettingTests
                 new AutoHideSettingsStore(drawerService));
 
             await viewModel.LoadAsync();
-            Assert.True(viewModel.IsDesktopDoubleClickEnabled);
+            Assert.True(viewModel.Settings.IsDesktopDoubleClickEnabled);
 
-            await viewModel.ToggleDesktopDoubleClickCommand.ExecuteAsync(null);
+            await viewModel.Settings.ToggleDesktopDoubleClickCommand.ExecuteAsync(null);
 
-            Assert.False(viewModel.IsDesktopDoubleClickEnabled);
+            Assert.False(viewModel.Settings.IsDesktopDoubleClickEnabled);
             Assert.Equal(
                 bool.FalseString,
-                await drawerService.GetSettingAsync(MainViewModel.DesktopDoubleClickSettingKey));
+                await drawerService.GetSettingAsync(SettingsViewModel.DesktopDoubleClickSettingKey));
         }
         finally
         {

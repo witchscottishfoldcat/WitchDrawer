@@ -28,8 +28,8 @@
                             FontSize="12" />
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-            <Button Content="撤销删除" Command="{Binding UndoArchivedDeleteCommand}"
-                    Visibility="{Binding ArchiveUndo.IsAvailable, Converter={StaticResource BooleanToVisibilityConverter}}"
+            <Button Content="撤销删除" Command="{Binding Archive.UndoArchivedDeleteCommand}"
+                    Visibility="{Binding Archive.ArchiveUndo.IsAvailable, Converter={StaticResource BooleanToVisibilityConverter}}"
                     Style="{StaticResource GhostButtonStyle}" Margin="0,0,8,0"
                     ToolTip="删除后 10 秒内可撤销" />
             <Border
@@ -37,7 +37,7 @@
                     Background="{DynamicResource AccentSoftBrush}"
                     CornerRadius="11"
                     Padding="13,7">
-                <TextBlock Text="{Binding ArchivedTodos.Count, StringFormat={}{0} 项}"
+                <TextBlock Text="{Binding Archive.ArchivedTodos.Count, StringFormat={}{0} 项}"
                            Foreground="{DynamicResource AccentBrush}"
                            FontSize="12"
                            FontWeight="SemiBold" />
@@ -54,7 +54,7 @@
             <Grid>
                 <StackPanel HorizontalAlignment="Center"
                             VerticalAlignment="Center"
-                            Visibility="{Binding ArchivedTodos.Count, Converter={StaticResource ZeroToVisibilityConverter}}">
+                            Visibility="{Binding Archive.ArchivedTodos.Count, Converter={StaticResource ZeroToVisibilityConverter}}">
                     <Border Width="48"
                             Height="48"
                             Background="{DynamicResource AccentSoftBrush}"
@@ -82,7 +82,7 @@
                                FontSize="12" />
                 </StackPanel>
 
-                <ListBox ItemsSource="{Binding ArchivedTodos}"
+                <ListBox ItemsSource="{Binding Archive.ArchivedTodos}"
                          Background="Transparent"
                          BorderThickness="0"
                          ScrollViewer.CanContentScroll="True"
@@ -159,7 +159,7 @@
                                 </StackPanel>
                                 <Button Grid.Column="2"
                                         Content="恢复"
-                                        Command="{Binding DataContext.RestoreArchivedTodoCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        Command="{Binding DataContext.Archive.RestoreArchivedTodoCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                         CommandParameter="{Binding}"
                                         Style="{StaticResource GhostButtonStyle}"
                                         Foreground="{DynamicResource AccentBrush}"
@@ -167,7 +167,7 @@
                                         Padding="10,4" />
                                 <Button Grid.Column="3"
                                         Content="删除"
-                                        Command="{Binding DataContext.DeleteArchivedTodoCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        Command="{Binding DataContext.Archive.DeleteArchivedTodoCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                         CommandParameter="{Binding}"
                                         Style="{StaticResource GhostButtonStyle}"
                                         Foreground="{DynamicResource TextMutedBrush}"

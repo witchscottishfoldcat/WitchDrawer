@@ -26,7 +26,7 @@ public sealed class DrawerBoxCreationTests
             var launcher = new NoOpFileLauncher();
             var visualStyleStore = new BoxVisualStyleStore(drawerService, logger);
             var quickPanel = new QuickPanelViewModel(drawerService, launcher, logger, visualStyleStore);
-            var viewModel = new MainViewModel(
+            var viewModel = MainViewModelFactory.Create(
                 drawerService,
                 new TodoService(repository),
                 launcher,

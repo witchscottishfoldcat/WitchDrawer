@@ -1,115 +1,77 @@
-using System.Collections.ObjectModel;
-using System.Globalization;
-using System.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using CommunityToolkit.Mvvm.Messaging;
 using WitchDrawer.App.Infrastructure;
-using WitchDrawer.App.Messages;
-using WitchDrawer.Core;
 using WitchDrawer.Core.Abstractions;
 using WitchDrawer.Core.Logging;
 using WitchDrawer.Core.Models;
 using WitchDrawer.Core.Services;
-using WitchDrawer.Native.Windows;
 
 namespace WitchDrawer.App.ViewModels;
 
-public sealed partial class MainViewModel : ObservableObject
+public sealed partial class MainViewModel : ObservableObject, IBoxContentRefreshTarget
 {
+    private readonly UiOperationState _operations;
+    public SettingsViewModel Settings { get; }
+    public UpdateViewModel Updates { get; }
+    public ArchiveViewModel Archive { get; }
+    public MaintenanceViewModel Maintenance { get; }
+    private Task RunBusyAsync(Func<Task> action) => _operations.RunAsync(action);
+
+    private async Task ShowArchiveAsync()
+    {
+        SelectedBox = null;
+        IsArchivePage = true;
+        IsSettingsPage = false;
+        IsAboutPage = false;
+        await Archive.LoadAsync();
+    }
+
     private const double ItemIconSizeDip = 19;
-    private const string ThemeSettingKey = "Theme";
-    internal const string ThemeBoxOpacitySettingKeyPrefix = "ThemeBoxOpacity.";
-    internal const string BoxBorderOpacitySettingKeyPrefix = "DesktopBoxBorderOpacity.";
-    internal const string IconFrameOpacitySettingKeyPrefix = "DesktopIconFrameOpacity.";
-    internal const string ThemeBoxOpacityMigrationVersionSettingKey = "ThemeBoxOpacityVersion";
-    private const string ThemeBoxOpacityMigrationVersion = "2";
-    internal const string EditorFollowsBoxOpacitySettingKey = "EditorFollowsBoxOpacity";
-    internal const string DesktopDoubleClickSettingKey = "DesktopDoubleClickToggle";
-    internal const string IconToolTipCompactSettingKey = "IconToolTipCompact";
     internal const string AboutPageShownSettingKey = "AboutPageShown";
-    private const string StartupRegistryKeyName = "WitchDrawer";
 
     private readonly DrawerService _drawerService;
-    private readonly TodoService _todoService;
     private readonly IFileLauncher _launcher;
     private readonly IShellChangeNotifier _shellChangeNotifier;
     private readonly IAppLogger _logger;
-    private readonly QuickPanelViewModel _quickPanelViewModel;
-    private readonly UpdateService _updateService;
     private readonly BoxVisualStyleStore _boxVisualStyleStore;
     private readonly BoxPositionLockStateStore _boxPositionLockStateStore;
-    private readonly AppPaths _appPaths;
-    private readonly DataStorageMigrationService _dataStorageMigrationService;
-    private readonly DiagnosticLogExportService _diagnosticLogExportService;
     private BoxViewModel? _selectedBox;
     private CancellationTokenSource? _itemsLoadCts;
     private int _itemsLoadVersion;
-    private bool _isBusy;
     private bool _pendingDesktopReload;
-    private Guid? _pendingDesktopReloadBoxId;
+    private BoxRefreshRequest? _pendingDesktopReloadRequest;
     private bool _isSettingsPage;
     private bool _isAboutPage;
     private bool _isArchivePage;
-    private string _statusText = "准备就绪";
-    private string _themeLabel = "清透雅致";
-    private AppTheme _currentTheme;
-    private double _themeTransparencyPercent = (1 - AppThemeManager.DefaultBoxOpacity) * 100;
-    private double _boxBorderTransparencyPercent;
-    private double _iconFrameTransparencyPercent;
-    private readonly object _themeOpacitySaveLock = new();
-    private readonly Dictionary<string, CancellationTokenSource> _themeOpacitySaveDelays = [];
-    private readonly SemaphoreSlim _themeOpacityWriteGate = new(1, 1);
-    private bool _isSynchronizingThemeTransparency;
-    private bool _editorFollowsBoxOpacity;
-    private bool _iconToolTipCompact;
-    private readonly AutoHideSettingsStore _autoHideSettingsStore;
-    private bool _autoHideEnabled;
-    private int _autoHideHiddenTransparencyPercent = AutoHideSettings.DefaultHiddenTransparencyPercent;
-    private AutoHideRevealScope _autoHideRevealScope = AutoHideRevealScope.HoveredBoxOnly;
-    private bool _autoHideFadeWholeBox = true;
-    private bool _autoHideFadeTitle = true;
-    private bool _autoHideFadeBorder = true;
-    private CancellationTokenSource? _autoHideSaveCts;
-    private bool _launchOnStartup;
-    private bool _areDesktopIconsHidden;
-    private bool _isDesktopDoubleClickEnabled;
-    private string _updateStatusText = string.Empty;
-    private bool _isCheckingUpdate;
-    private string? _pendingUpdateSha256;
     private double _iconDpiScaleX = 1;
     private double _iconDpiScaleY = 1;
 
     public MainViewModel(
-        DrawerService drawerService,
-        TodoService todoService,
-        IFileLauncher launcher,
-        IShellChangeNotifier shellChangeNotifier,
-        IAppLogger logger,
-        QuickPanelViewModel quickPanelViewModel,
-        UpdateService updateService,
-        BoxVisualStyleStore boxVisualStyleStore,
-        BoxPositionLockStateStore boxPositionLockStateStore,
-        AppPaths appPaths,
-        DataStorageMigrationService dataStorageMigrationService,
-        AutoHideSettingsStore autoHideSettingsStore)
+        DrawerService drawerService, TodoService todoService,
+        IFileLauncher launcher, IShellChangeNotifier shellChangeNotifier, IAppLogger logger,
+        BoxVisualStyleStore boxVisualStyleStore, BoxPositionLockStateStore boxPositionLockStateStore,
+        SettingsViewModel settings, UpdateViewModel updates, ArchiveViewModel archive,
+        MaintenanceViewModel maintenance, UiOperationState operations)
     {
         _drawerService = drawerService;
-        _todoService = todoService;
         _launcher = launcher;
         _shellChangeNotifier = shellChangeNotifier;
         _logger = logger;
-        _quickPanelViewModel = quickPanelViewModel;
-        _updateService = updateService;
         _boxVisualStyleStore = boxVisualStyleStore;
         _boxPositionLockStateStore = boxPositionLockStateStore;
-        _appPaths = appPaths;
-        _dataStorageMigrationService = dataStorageMigrationService;
-        _diagnosticLogExportService = new DiagnosticLogExportService(appPaths);
-        _autoHideSettingsStore = autoHideSettingsStore;
+        Settings = settings;
+        Updates = updates;
+        Archive = archive;
+        Maintenance = maintenance;
+        _operations = operations;
+        operations.PropertyChanged += (_, e) =>
+        {
+            OnPropertyChanged(e.PropertyName);
+            if (e.PropertyName == nameof(IsBusy) && !IsBusy) FlushPendingDesktopReload();
+        };
         TodoBoxDetail = new TodoBoxDetailViewModel(todoService, logger);
-        TodoBoxDetail.ItemsChanged += OnTodoBoxDetailItemsChanged;
-        BoxSizeSettings = new BoxSizeSettingsViewModel(drawerService, logger);
+        TodoBoxDetail.ItemsChanged += (_, _) => ReportStatus(TodoBoxDetail.StatusText);
+        BoxSizeSettings = new BoxSizeSettingsViewModel(drawerService.Settings, logger);
 
         LoadCommand = new AsyncRelayCommand(() => LoadAsync());
         CreateNormalBoxCommand = new AsyncRelayCommand(
@@ -133,27 +95,6 @@ public sealed partial class MainViewModel : ObservableObject
         RenameSelectedBoxCommand = new AsyncRelayCommand<string?>(RenameSelectedBoxAsync, _ => SelectedBox is not null);
         OpenItemCommand = new AsyncRelayCommand<DrawerItemViewModel?>(OpenItemAsync);
         DeleteItemCommand = new AsyncRelayCommand<DrawerItemViewModel?>(DeleteItemAsync);
-        RestoreArchivedTodoCommand = new AsyncRelayCommand<ArchivedTodoItemViewModel?>(RestoreArchivedTodoAsync);
-        DeleteArchivedTodoCommand = new AsyncRelayCommand<ArchivedTodoItemViewModel?>(DeleteArchivedTodoAsync);
-        UndoArchivedDeleteCommand = new AsyncRelayCommand(UndoArchivedDeleteAsync, () => !IsBusy && ArchiveUndo.IsAvailable);
-        ArchiveUndo.AvailabilityChanged += (_, _) => UndoArchivedDeleteCommand.NotifyCanExecuteChanged();
-        SetCurrentTheme(AppThemeManager.CurrentTheme);
-
-        ApplyMoeThemeCommand = new AsyncRelayCommand(() => ApplyThemeAsync(AppTheme.Moe));
-        ApplyGlassThemeCommand = new AsyncRelayCommand(() => ApplyThemeAsync(AppTheme.Glass));
-        ApplyCrystalThemeCommand = new AsyncRelayCommand(() => ApplyThemeAsync(AppTheme.Crystal));
-        ResetThemeTransparencyCommand = new RelayCommand(ResetThemeTransparency);
-        ToggleLaunchOnStartupCommand = new AsyncRelayCommand(ToggleLaunchOnStartupAsync);
-        ToggleDesktopIconsCommand = new AsyncRelayCommand(ToggleDesktopIconsAsync);
-        ToggleDesktopDoubleClickCommand = new AsyncRelayCommand(ToggleDesktopDoubleClickAsync);
-        ToggleEditorOpacityFollowCommand = new AsyncRelayCommand(ToggleEditorOpacityFollowAsync);
-        ToggleIconToolTipCompactCommand = new AsyncRelayCommand(ToggleIconToolTipCompactAsync);
-        ToggleAutoHideEnabledCommand = new AsyncRelayCommand(ToggleAutoHideEnabledAsync);
-        ApplyAutoHideScopeHoveredOnlyCommand =
-            new AsyncRelayCommand(() => ApplyAutoHideRevealScopeAsync(AutoHideRevealScope.HoveredBoxOnly));
-        ApplyAutoHideScopeAllCommand =
-            new AsyncRelayCommand(() => ApplyAutoHideRevealScopeAsync(AutoHideRevealScope.AllBoxes));
-        CheckForUpdateCommand = new AsyncRelayCommand(CheckForUpdateAsync);
         ShowDashboardCommand = new RelayCommand(() =>
         {
             IsArchivePage = false;
@@ -161,13 +102,13 @@ public sealed partial class MainViewModel : ObservableObject
             IsAboutPage = false;
         });
         ShowArchiveCommand = new AsyncRelayCommand(ShowArchiveAsync);
-        ShowSettingsCommand = new RelayCommand(() =>
+        ShowSettingsCommand = new AsyncRelayCommand(async () =>
         {
             SelectedBox = null;
-            AreDesktopIconsHidden = DesktopIconVisibility.IsHidden();
             IsArchivePage = false;
             IsSettingsPage = true;
             IsAboutPage = false;
+            await Settings.RefreshDesktopStateAsync();
         });
         ShowAboutCommand = new RelayCommand(() =>
         {
@@ -180,13 +121,9 @@ public sealed partial class MainViewModel : ObservableObject
 
     public event EventHandler? BoxesChanged;
 
-    public event EventHandler<BoxItemsChangedEventArgs>? ItemsChanged;
-
     public ResettableObservableCollection<BoxViewModel> Boxes { get; } = [];
 
     public ResettableObservableCollection<DrawerItemViewModel> Items { get; } = [];
-
-    public ObservableCollection<ArchivedTodoItemViewModel> ArchivedTodos { get; } = [];
 
     public TodoBoxDetailViewModel TodoBoxDetail { get; }
 
@@ -232,45 +169,11 @@ public sealed partial class MainViewModel : ObservableObject
 
     public IAsyncRelayCommand<DrawerItemViewModel?> DeleteItemCommand { get; }
 
-    public IAsyncRelayCommand<ArchivedTodoItemViewModel?> RestoreArchivedTodoCommand { get; }
-
-    public IAsyncRelayCommand<ArchivedTodoItemViewModel?> DeleteArchivedTodoCommand { get; }
-
-    public IAsyncRelayCommand UndoArchivedDeleteCommand { get; }
-
-    public TodoUndoViewModel ArchiveUndo { get; } = new();
-
-    public IAsyncRelayCommand ApplyMoeThemeCommand { get; }
-
-    public IAsyncRelayCommand ApplyGlassThemeCommand { get; }
-
-    public IAsyncRelayCommand ApplyCrystalThemeCommand { get; }
-
-    public IRelayCommand ResetThemeTransparencyCommand { get; }
-
-    public IAsyncRelayCommand ToggleLaunchOnStartupCommand { get; }
-
-    public IAsyncRelayCommand ToggleDesktopIconsCommand { get; }
-
-    public IAsyncRelayCommand ToggleDesktopDoubleClickCommand { get; }
-
-    public IAsyncRelayCommand ToggleEditorOpacityFollowCommand { get; }
-
-    public IAsyncRelayCommand ToggleIconToolTipCompactCommand { get; }
-
-    public IAsyncRelayCommand ToggleAutoHideEnabledCommand { get; }
-
-    public IAsyncRelayCommand ApplyAutoHideScopeHoveredOnlyCommand { get; }
-
-    public IAsyncRelayCommand ApplyAutoHideScopeAllCommand { get; }
-
-    public IAsyncRelayCommand CheckForUpdateCommand { get; }
-
     public IRelayCommand ShowDashboardCommand { get; }
 
     public IAsyncRelayCommand ShowArchiveCommand { get; }
 
-    public IRelayCommand ShowSettingsCommand { get; }
+    public IAsyncRelayCommand ShowSettingsCommand { get; }
 
     public IRelayCommand ShowAboutCommand { get; }
 
@@ -292,8 +195,8 @@ public sealed partial class MainViewModel : ObservableObject
 
     public bool IsBusy
     {
-        get => _isBusy;
-        private set => SetProperty(ref _isBusy, value);
+        get => _operations.IsBusy;
+        private set => _operations.IsBusy = value;
     }
 
     public bool IsSettingsPage
@@ -316,8 +219,8 @@ public sealed partial class MainViewModel : ObservableObject
 
     public string StatusText
     {
-        get => _statusText;
-        private set => SetProperty(ref _statusText, value);
+        get => _operations.StatusText;
+        private set => _operations.StatusText = value;
     }
 
     internal void ReportStatus(string message)
@@ -327,228 +230,6 @@ public sealed partial class MainViewModel : ObservableObject
             StatusText = message;
         }
     }
-
-    public string ThemeLabel
-    {
-        get => _themeLabel;
-        private set => SetProperty(ref _themeLabel, value);
-    }
-
-    public AppTheme CurrentTheme
-    {
-        get => _currentTheme;
-        private set
-        {
-            if (SetProperty(ref _currentTheme, value))
-            {
-                OnPropertyChanged(nameof(IsMoeTheme));
-                OnPropertyChanged(nameof(IsGlassTheme));
-                OnPropertyChanged(nameof(IsCrystalTheme));
-            }
-        }
-    }
-
-    public bool IsMoeTheme => CurrentTheme == AppTheme.Moe;
-
-    public bool IsGlassTheme => CurrentTheme == AppTheme.Glass;
-
-    public bool IsCrystalTheme => CurrentTheme == AppTheme.Crystal;
-
-    public double ThemeTransparencyPercent
-    {
-        get => _themeTransparencyPercent;
-        set
-        {
-            if (!double.IsFinite(value))
-            {
-                return;
-            }
-
-            var normalized = Math.Clamp(
-                Math.Round(value),
-                0,
-                (1 - AppThemeManager.MinimumBoxOpacity) * 100);
-            if (SetProperty(ref _themeTransparencyPercent, normalized))
-            {
-                OnPropertyChanged(nameof(ThemeTransparencyLabel));
-                var opacity = 1 - (normalized / 100);
-                if (!_isSynchronizingThemeTransparency)
-                {
-                    AppThemeManager.SetBoxOpacity(CurrentTheme, opacity);
-                    SynchronizeThemeTransparency();
-                    QueueThemeOpacitySave(GetThemeBoxOpacitySettingKey(CurrentTheme), FormatOpacity(opacity));
-                }
-            }
-        }
-    }
-
-    public string ThemeTransparencyLabel => $"{ThemeTransparencyPercent:0}%";
-
-    public double BoxBorderTransparencyPercent
-    {
-        get => _boxBorderTransparencyPercent;
-        set => SetAppearanceTransparency(ref _boxBorderTransparencyPercent, value,
-            nameof(BoxBorderTransparencyPercent), BoxBorderOpacitySettingKeyPrefix,
-            AppThemeManager.SetBoxBorderOpacity);
-    }
-
-    public double IconFrameTransparencyPercent
-    {
-        get => _iconFrameTransparencyPercent;
-        set => SetAppearanceTransparency(ref _iconFrameTransparencyPercent, value,
-            nameof(IconFrameTransparencyPercent), IconFrameOpacitySettingKeyPrefix,
-            AppThemeManager.SetIconFrameOpacity);
-    }
-
-    public bool EditorFollowsBoxOpacity
-    {
-        get => _editorFollowsBoxOpacity;
-        private set => SetProperty(ref _editorFollowsBoxOpacity, value);
-    }
-
-    /// <summary>
-    /// 图标名称（悬停提示）显示模式。<see langword="false"/> = 完整显示（文件路径），
-    /// <see langword="true"/> = 精简显示（文件名，快捷方式自动去掉 .lnk）。
-    /// </summary>
-    public bool IconToolTipCompact
-    {
-        get => _iconToolTipCompact;
-        private set => SetProperty(ref _iconToolTipCompact, value);
-    }
-
-    public bool AutoHideEnabled
-    {
-        get => _autoHideEnabled;
-        private set => SetProperty(ref _autoHideEnabled, value);
-    }
-
-    public int AutoHideHiddenTransparencyPercent
-    {
-        get => _autoHideHiddenTransparencyPercent;
-        set
-        {
-            var clamped = Math.Clamp(value, 0, 100);
-            if (!SetProperty(ref _autoHideHiddenTransparencyPercent, clamped))
-            {
-                return;
-            }
-
-            // 立即应用（拖动滑块时实时预览），仅持久化走防抖。
-            PublishAutoHideSettings();
-            QueueAutoHideSave();
-        }
-    }
-
-    public AutoHideRevealScope AutoHideRevealScope
-    {
-        get => _autoHideRevealScope;
-        private set
-        {
-            if (!SetProperty(ref _autoHideRevealScope, value))
-            {
-                return;
-            }
-
-            OnPropertyChanged(nameof(IsAutoHideScopeHoveredOnly));
-            OnPropertyChanged(nameof(IsAutoHideScopeAll));
-        }
-    }
-
-    public bool IsAutoHideScopeHoveredOnly => AutoHideRevealScope == AutoHideRevealScope.HoveredBoxOnly;
-
-    public bool IsAutoHideScopeAll => AutoHideRevealScope == AutoHideRevealScope.AllBoxes;
-
-    /// <summary>
-    /// 是否在自动隐藏时连同收纳盒外壳（背景/边框/阴影）一起透明。与内容透明相互独立。
-    /// </summary>
-    public bool AutoHideFadeWholeBox
-    {
-        get => _autoHideFadeWholeBox;
-        set
-        {
-            if (SetProperty(ref _autoHideFadeWholeBox, value))
-            {
-                PublishAutoHideSettings();
-                QueueAutoHideSave();
-            }
-        }
-    }
-
-    /// <summary>
-    /// 是否在自动隐藏时连同收纳盒标题一起透明。与内容透明相互独立。
-    /// </summary>
-    public bool AutoHideFadeTitle
-    {
-        get => _autoHideFadeTitle;
-        set
-        {
-            if (SetProperty(ref _autoHideFadeTitle, value))
-            {
-                PublishAutoHideSettings();
-                QueueAutoHideSave();
-            }
-        }
-    }
-
-    /// <summary>
-    /// 是否在自动隐藏时连同收纳盒边框（描边）一起透明。与内容透明相互独立。
-    /// </summary>
-    public bool AutoHideFadeBorder
-    {
-        get => _autoHideFadeBorder;
-        set
-        {
-            if (SetProperty(ref _autoHideFadeBorder, value))
-            {
-                PublishAutoHideSettings();
-                QueueAutoHideSave();
-            }
-        }
-    }
-
-    public bool LaunchOnStartup
-    {
-        get => _launchOnStartup;
-        private set => SetProperty(ref _launchOnStartup, value);
-    }
-
-    public bool AreDesktopIconsHidden
-    {
-        get => _areDesktopIconsHidden;
-        private set => SetProperty(ref _areDesktopIconsHidden, value);
-    }
-
-    public bool IsDesktopDoubleClickEnabled
-    {
-        get => _isDesktopDoubleClickEnabled;
-        private set => SetProperty(ref _isDesktopDoubleClickEnabled, value);
-    }
-
-    public string UpdateStatusText
-    {
-        get => _updateStatusText;
-        private set => SetProperty(ref _updateStatusText, value);
-    }
-
-    public bool IsCheckingUpdate
-    {
-        get => _isCheckingUpdate;
-        private set => SetProperty(ref _isCheckingUpdate, value);
-    }
-
-    public string CurrentVersionText
-    {
-        get
-        {
-            var version = GetCurrentVersion();
-            return $"v{version.Major}.{version.Minor}.{version.Build}";
-        }
-    }
-
-    /// <summary>
-    /// 当前生效的数据根目录（数据库与收纳盒文件所在位置）。
-    /// </summary>
-    public string CurrentDataDirectory => _appPaths.RootDirectory;
 
     private int GetIconPixelSize(bool isPixelated)
     {
@@ -565,10 +246,4 @@ public sealed partial class MainViewModel : ObservableObject
         return double.IsFinite(value) && value > 0 ? value : 1;
     }
 
-    private static double? ParseAppearanceOpacity(string? value) =>
-        double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var opacity)
-        && double.IsFinite(opacity) && opacity >= 0 && opacity <= 1 ? opacity : null;
-
-    public event EventHandler<UpdateCheckResult>? UpdateRequested;
-    public event EventHandler? UpdateConfirmed;
 }

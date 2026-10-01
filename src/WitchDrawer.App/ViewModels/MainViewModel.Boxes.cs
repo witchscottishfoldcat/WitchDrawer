@@ -3,7 +3,6 @@ using CommunityToolkit.Mvvm.Messaging;
 using WitchDrawer.App.Infrastructure;
 using WitchDrawer.App.Messages;
 using WitchDrawer.Core.Models;
-using WitchDrawer.Native.Windows;
 
 namespace WitchDrawer.App.ViewModels;
 
@@ -23,7 +22,7 @@ public sealed partial class MainViewModel
             {
                 var boxViewModel = new BoxViewModel(
                     box,
-                    _drawerService,
+                    _drawerService.Settings,
                     visualStyle,
                     isPositionLocked,
                     _logger);
@@ -36,33 +35,7 @@ public sealed partial class MainViewModel
 
             await SelectBoxAsync(Boxes.FirstOrDefault(box => box.Id == existingSelection) ?? Boxes.FirstOrDefault());
 
-            // 必须在首次启动标记写入前判断是否为旧安装，才能让新用户使用二段透明度，
-            // 同时让升级用户保留旧主题原本的视觉效果。
-            await RestoreThemeBoxOpacitiesAsync(startupSnapshot);
-            await RestoreAppearanceOpacitiesAsync(startupSnapshot);
-            var editorOpacityFollowSetting =
-                await ReadSettingAsync(EditorFollowsBoxOpacitySettingKey, startupSnapshot);
-            EditorFollowsBoxOpacity = bool.TryParse(
-                editorOpacityFollowSetting,
-                out var editorFollowsBoxOpacity)
-                && editorFollowsBoxOpacity;
-
-            var iconToolTipCompactSetting =
-                await ReadSettingAsync(IconToolTipCompactSettingKey, startupSnapshot);
-            IconToolTipCompact = bool.TryParse(
-                iconToolTipCompactSetting,
-                out var iconToolTipCompact)
-                && iconToolTipCompact;
-            PublishIconToolTipMode();
-
-            var autoHideSettings = await _autoHideSettingsStore.LoadAsync(startupSnapshot: startupSnapshot);
-            AutoHideEnabled = autoHideSettings.IsEnabled;
-            AutoHideHiddenTransparencyPercent = autoHideSettings.HiddenTransparencyPercent;
-            AutoHideRevealScope = autoHideSettings.RevealScope;
-            AutoHideFadeWholeBox = autoHideSettings.FadeWholeBox;
-            AutoHideFadeTitle = autoHideSettings.FadeTitle;
-            AutoHideFadeBorder = autoHideSettings.FadeBorder;
-            PublishAutoHideSettings();
+            await Settings.LoadAsync(startupSnapshot);
 
             var aboutPageShown = await ReadSettingAsync(AboutPageShownSettingKey, startupSnapshot);
             if (!bool.TryParse(aboutPageShown, out var hasShownAboutPage) || !hasShownAboutPage)
@@ -80,30 +53,22 @@ public sealed partial class MainViewModel
                 }
             }
 
-            LaunchOnStartup = ReadStartupRegistry();
-            AreDesktopIconsHidden = DesktopIconVisibility.IsHidden();
-            var desktopDoubleClickSetting =
-                await ReadSettingAsync(DesktopDoubleClickSettingKey, startupSnapshot);
-            IsDesktopDoubleClickEnabled =
-                bool.TryParse(desktopDoubleClickSetting, out var desktopDoubleClickEnabled)
-                && desktopDoubleClickEnabled;
             StatusText = $"{Boxes.Count} 个收纳盒已同步到桌面";
             BoxesChanged?.Invoke(this, EventArgs.Empty);
         });
     }
 
     /// <summary>
-    /// Reloads items/quick-panel state without raising BoxesChanged (avoids desktop refresh loops).
+    /// Reloads this window after committed content changes without notifying other surfaces.
     /// </summary>
-    public async Task ReloadItemsFromDesktopAsync(Guid? affectedBoxId = null)
+    public async Task RefreshContentAsync(BoxRefreshRequest request)
     {
         if (IsBusy)
         {
-            // 忙时合流而非丢弃：记录一次待刷，忙完补刷；null 表示全量，
-            // 一旦出现第二个不同盒子的变更就保持全量。
-            _pendingDesktopReloadBoxId = _pendingDesktopReload
-                ? (_pendingDesktopReloadBoxId == affectedBoxId ? affectedBoxId : null)
-                : affectedBoxId;
+            // 忙时合流而非丢弃：记录一次待刷，忙完补刷；BoxIds 为 null 表示全量，
+            // 对同一批次受影响盒子合并，避免刷新无关盒子。
+            _pendingDesktopReloadRequest = _pendingDesktopReloadRequest is null
+                ? request : _pendingDesktopReloadRequest.Merge(request);
             _pendingDesktopReload = true;
             return;
         }
@@ -111,22 +76,15 @@ public sealed partial class MainViewModel
         try
         {
             IsBusy = true;
-            if (affectedBoxId is null || SelectedBox?.Id == affectedBoxId.Value)
+            if (SelectedBox is null || request.Affects(SelectedBox.Id))
             {
                 await LoadItemsForSelectedBoxAsync(SelectedBox);
             }
             if (IsArchivePage)
             {
-                await LoadArchivedTodosAsync();
+                await Archive.LoadAsync();
             }
-            if (affectedBoxId is Guid boxId)
-            {
-                await _quickPanelViewModel.RefreshBoxAsync(boxId);
-            }
-            else
-            {
-                await _quickPanelViewModel.RefreshAllAsync();
-            }
+
         }
         catch (Exception exception)
         {
@@ -148,9 +106,9 @@ public sealed partial class MainViewModel
         }
 
         _pendingDesktopReload = false;
-        var boxId = _pendingDesktopReloadBoxId;
-        _pendingDesktopReloadBoxId = null;
-        _ = ReloadItemsFromDesktopAsync(boxId);
+        var request = _pendingDesktopReloadRequest!;
+        _pendingDesktopReloadRequest = null;
+        _ = RefreshContentAsync(request);
     }
 
     public async Task ReorderBoxAsync(Guid draggedBoxId, Guid targetBoxId, bool insertAfter)
@@ -251,7 +209,6 @@ public sealed partial class MainViewModel
             }
 
             await LoadItemsForSelectedBoxAsync(selectedBox);
-            await _quickPanelViewModel.RefreshBoxAsync(selectedBox.Id);
             StatusText = importFailure is not null
                 ? $"已导入 {imported} 项，其余未导入：{importFailure.Message}"
                 : skippedForCapacity > 0
@@ -259,7 +216,6 @@ public sealed partial class MainViewModel
                     ? $"已导入 {imported} 项到 {selectedBox.Name}，盒子已满（{skippedForCapacity} 项未导入）"
                     : $"{selectedBox.Name} 已满，无法导入"
                 : $"已导入 {imported} 项到 {selectedBox.Name}";
-            ItemsChanged?.Invoke(this, new BoxItemsChangedEventArgs(selectedBox.Id));
         });
     }
 
@@ -337,7 +293,6 @@ public sealed partial class MainViewModel
             await _boxVisualStyleStore.SaveAsync(selectedBox.Id, option.Style);
             selectedBox.ApplyVisualStyle(option.Style);
             await LoadItemsForSelectedBoxAsync(selectedBox);
-            await _quickPanelViewModel.RefreshBoxAsync(selectedBox.Id);
             StatusText = $"已将“{selectedBox.Name}”切换为{option.Name}";
             BoxesChanged?.Invoke(this, EventArgs.Empty);
         });
@@ -426,7 +381,7 @@ public sealed partial class MainViewModel
             {
                 var boxViewModel = new BoxViewModel(
                     box,
-                    _drawerService,
+                    _drawerService.Settings,
                     visualStyle,
                     isPositionLocked,
                     _logger);
@@ -439,10 +394,8 @@ public sealed partial class MainViewModel
                     ? Boxes.FirstOrDefault()
                     : Boxes.FirstOrDefault(box => box.Id == result.BoxId) ?? Boxes.FirstOrDefault());
 
-            await _quickPanelViewModel.RefreshBoxAsync(selectedBox.Id);
             StatusText = result.StatusMessage;
             BoxesChanged?.Invoke(this, EventArgs.Empty);
-            ItemsChanged?.Invoke(this, new BoxItemsChangedEventArgs(selectedBox.Id));
         });
     }
 
@@ -465,7 +418,7 @@ public sealed partial class MainViewModel
             {
                 var boxViewModel = new BoxViewModel(
                     box,
-                    _drawerService,
+                    _drawerService.Settings,
                     visualStyle,
                     isPositionLocked,
                     _logger);
@@ -475,7 +428,6 @@ public sealed partial class MainViewModel
 
             await SelectBoxAsync(Boxes.FirstOrDefault(b => b.Id == selectedBox.Id) ?? Boxes.FirstOrDefault());
 
-            await _quickPanelViewModel.RefreshBoxAsync(selectedBox.Id);
             StatusText = $"已重命名收纳盒为 {newName.Trim()}";
             BoxesChanged?.Invoke(this, EventArgs.Empty);
         });
@@ -503,6 +455,7 @@ public sealed partial class MainViewModel
     private async Task SelectBoxAsync(BoxViewModel? box)
     {
         UpdateSelectedBoxCore(box);
+        await BoxSizeSettings.WaitForPendingLoadsAsync();
         await LoadItemsForSelectedBoxAsync(box);
     }
 
@@ -620,9 +573,7 @@ public sealed partial class MainViewModel
         {
             var result = await _drawerService.DeleteItemAsync(item.Id);
             await LoadItemsForSelectedBoxAsync(SelectedBox);
-            await _quickPanelViewModel.RefreshBoxAsync(item.Model.BoxId);
             StatusText = result.StatusMessage;
-            ItemsChanged?.Invoke(this, new BoxItemsChangedEventArgs(item.Model.BoxId));
         });
     }
 }

@@ -1996,22 +1996,22 @@
                                                    FontWeight="SemiBold"
                                                    FontSize="13"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <TextBlock Text="{Binding ThemeLabel, StringFormat=当前风格：{0}}"
+                                        <TextBlock Text="{Binding Settings.ThemeLabel, StringFormat=当前风格：{0}}"
                                                    Margin="0,2,0,0"
                                                    FontSize="11.5"
                                                    Foreground="{DynamicResource TextMutedBrush}" />
                                     </StackPanel>
                                     <UniformGrid Grid.Column="1" Columns="3" VerticalAlignment="Center">
                                         <Button Content="清透雅致"
-                                                Command="{Binding ApplyMoeThemeCommand}"
+                                                Command="{Binding Settings.ApplyMoeThemeCommand}"
                                                 Style="{StaticResource MoeThemeChoiceButtonStyle}"
                                                 Margin="0,0,6,0" />
                                         <Button Content="暗黑曜石"
-                                                Command="{Binding ApplyGlassThemeCommand}"
+                                                Command="{Binding Settings.ApplyGlassThemeCommand}"
                                                 Style="{StaticResource GlassThemeChoiceButtonStyle}"
                                                 Margin="0,0,6,0" />
                                         <Button Content="全透水晶"
-                                                Command="{Binding ApplyCrystalThemeCommand}"
+                                                Command="{Binding Settings.ApplyCrystalThemeCommand}"
                                                 Style="{StaticResource CrystalThemeChoiceButtonStyle}" />
                                     </UniformGrid>
                                     <Grid Grid.Row="1"
@@ -2035,7 +2035,7 @@
                                                 IsMoveToPointEnabled="True"
                                                 Style="{StaticResource ThemeOpacitySliderStyle}"
                                                 VerticalAlignment="Center"
-                                                Value="{Binding ThemeTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                Value="{Binding Settings.ThemeTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                         <StackPanel Grid.Column="2"
                                                     Orientation="Horizontal"
                                                     HorizontalAlignment="Right"
@@ -2051,7 +2051,7 @@
                                                      FontWeight="SemiBold"
                                                      KeyDown="OnThemeTransparencyInputKeyDown"
                                                      LostFocus="OnThemeTransparencyInputLostFocus"
-                                                     Text="{Binding ThemeTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" />
+                                                     Text="{Binding Settings.ThemeTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" />
                                             <TextBlock Text="%"
                                                        Margin="2,0,0,0"
                                                        VerticalAlignment="Center"
@@ -2082,7 +2082,7 @@
                                                 Style="{StaticResource ThemeOpacitySliderStyle}"
                                                 VerticalAlignment="Center"
                                                 AutomationProperties.Name="盒子边线透明度"
-                                                Value="{Binding BoxBorderTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                Value="{Binding Settings.BoxBorderTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                         <StackPanel Grid.Column="2"
                                                     Orientation="Horizontal"
                                                     HorizontalAlignment="Right"
@@ -2099,7 +2099,7 @@
                                                      KeyDown="OnThemeTransparencyInputKeyDown"
                                                      LostFocus="OnThemeTransparencyInputLostFocus"
                                                      AutomationProperties.Name="盒子边线透明度百分比"
-                                                     Text="{Binding BoxBorderTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" />
+                                                     Text="{Binding Settings.BoxBorderTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" />
                                             <TextBlock Text="%"
                                                        Margin="2,0,0,0"
                                                        VerticalAlignment="Center"
@@ -2130,7 +2130,7 @@
                                                 Style="{StaticResource ThemeOpacitySliderStyle}"
                                                 VerticalAlignment="Center"
                                                 AutomationProperties.Name="图标背景框透明度"
-                                                Value="{Binding IconFrameTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                Value="{Binding Settings.IconFrameTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                         <StackPanel Grid.Column="2"
                                                     Orientation="Horizontal"
                                                     HorizontalAlignment="Right"
@@ -2147,7 +2147,7 @@
                                                      KeyDown="OnThemeTransparencyInputKeyDown"
                                                      LostFocus="OnThemeTransparencyInputLostFocus"
                                                      AutomationProperties.Name="图标背景框透明度百分比"
-                                                     Text="{Binding IconFrameTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" />
+                                                     Text="{Binding Settings.IconFrameTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" />
                                             <TextBlock Text="%"
                                                        Margin="2,0,0,0"
                                                        VerticalAlignment="Center"
@@ -2178,8 +2178,8 @@
                                                       Margin="12,0,0,0"
                                                       VerticalAlignment="Center"
                                                       Style="{StaticResource SettingsToggleButtonStyle}"
-                                                      IsChecked="{Binding EditorFollowsBoxOpacity, Mode=OneWay}"
-                                                      Command="{Binding ToggleEditorOpacityFollowCommand}"
+                                                      IsChecked="{Binding Settings.EditorFollowsBoxOpacity, Mode=OneWay}"
+                                                      Command="{Binding Settings.ToggleEditorOpacityFollowCommand}"
                                                       AutomationProperties.Name="编辑页跟随透明度" />
                                     </Grid>
                                     <Grid Grid.Row="5" Grid.ColumnSpan="2" Margin="0,9,0,0">
@@ -2193,7 +2193,7 @@
                                                    Foreground="{DynamicResource TextMutedBrush}" />
                                         <Button Grid.Column="1"
                                                 Content="恢复默认"
-                                                Command="{Binding ResetThemeTransparencyCommand}"
+                                                Command="{Binding Settings.ResetThemeTransparencyCommand}"
                                                 Style="{StaticResource GhostButtonStyle}"
                                                 Foreground="{DynamicResource AccentBrush}"
                                                 Height="26" Padding="10,0"
@@ -2229,8 +2229,8 @@
                                                               Margin="12,0,0,0"
                                                               VerticalAlignment="Center"
                                                               Style="{StaticResource SettingsToggleButtonStyle}"
-                                                              IsChecked="{Binding AutoHideEnabled, Mode=OneWay}"
-                                                              Command="{Binding ToggleAutoHideEnabledCommand}"
+                                                              IsChecked="{Binding Settings.AutoHideEnabled, Mode=OneWay}"
+                                                              Command="{Binding Settings.ToggleAutoHideEnabledCommand}"
                                                               AutomationProperties.Name="自动隐藏" />
                                             </Grid>
                                             <Grid Margin="0,10,0,0">
@@ -2252,7 +2252,7 @@
                                                         IsMoveToPointEnabled="True"
                                                         Style="{StaticResource ThemeOpacitySliderStyle}"
                                                         VerticalAlignment="Center"
-                                                        Value="{Binding AutoHideHiddenTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                        Value="{Binding Settings.AutoHideHiddenTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                                 <StackPanel Grid.Column="2"
                                                             Orientation="Horizontal"
                                                             HorizontalAlignment="Right"
@@ -2268,7 +2268,7 @@
                                                              FontWeight="SemiBold"
                                                              KeyDown="OnThemeTransparencyInputKeyDown"
                                                              LostFocus="OnThemeTransparencyInputLostFocus"
-                                                             Text="{Binding AutoHideHiddenTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" />
+                                                             Text="{Binding Settings.AutoHideHiddenTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" />
                                                     <TextBlock Text="%"
                                                                Margin="2,0,0,0"
                                                                VerticalAlignment="Center"
@@ -2286,15 +2286,15 @@
                                                     <CheckBox Content="收纳盒"
                                                               VerticalAlignment="Center"
                                                               Style="{StaticResource SettingsCheckBoxStyle}"
-                                                              IsChecked="{Binding AutoHideFadeWholeBox, Mode=TwoWay}" />
+                                                              IsChecked="{Binding Settings.AutoHideFadeWholeBox, Mode=TwoWay}" />
                                                     <CheckBox Content="收纳盒标题"
                                                               VerticalAlignment="Center"
                                                               Style="{StaticResource SettingsCheckBoxStyle}"
-                                                              IsChecked="{Binding AutoHideFadeTitle, Mode=TwoWay}" />
+                                                              IsChecked="{Binding Settings.AutoHideFadeTitle, Mode=TwoWay}" />
                                                     <CheckBox Content="收纳盒边框"
                                                               VerticalAlignment="Center"
                                                               Style="{StaticResource SettingsCheckBoxStyle}"
-                                                              IsChecked="{Binding AutoHideFadeBorder, Mode=TwoWay}" />
+                                                              IsChecked="{Binding Settings.AutoHideFadeBorder, Mode=TwoWay}" />
                                                 </UniformGrid>
                                             </StackPanel>
                                             <StackPanel Margin="0,10,0,0">
@@ -2312,10 +2312,10 @@
                                                         <Button Content="仅被悬停的收纳盒"
                                                                 Margin="0,0,4,0"
                                                                 Style="{StaticResource AutoHideScopeHoveredButtonStyle}"
-                                                                Command="{Binding ApplyAutoHideScopeHoveredOnlyCommand}" />
+                                                                Command="{Binding Settings.ApplyAutoHideScopeHoveredOnlyCommand}" />
                                                         <Button Content="全部收纳盒"
                                                                 Style="{StaticResource AutoHideScopeAllButtonStyle}"
-                                                                Command="{Binding ApplyAutoHideScopeAllCommand}" />
+                                                                Command="{Binding Settings.ApplyAutoHideScopeAllCommand}" />
                                                     </UniformGrid>
                                                 </Border>
                                             </StackPanel>
@@ -2349,8 +2349,8 @@
                                                   Margin="12,0,0,0"
                                                   VerticalAlignment="Center"
                                                   Style="{StaticResource SettingsToggleButtonStyle}"
-                                                  IsChecked="{Binding IconToolTipCompact, Mode=OneWay}"
-                                                  Command="{Binding ToggleIconToolTipCompactCommand}"
+                                                  IsChecked="{Binding Settings.IconToolTipCompact, Mode=OneWay}"
+                                                  Command="{Binding Settings.ToggleIconToolTipCompactCommand}"
                                                   AutomationProperties.Name="图标名称精简显示" />
                                 </Grid>
                                 </Border>
@@ -2609,19 +2609,19 @@
                                                    FontWeight="SemiBold"
                                                    FontSize="13"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <TextBlock Text="{Binding CurrentVersionText}"
+                                        <TextBlock Text="{Binding Updates.CurrentVersionText}"
                                                    Margin="0,2,0,0"
                                                    FontSize="11.5"
                                                    Foreground="{DynamicResource TextMutedBrush}" />
-                                        <TextBlock Text="{Binding UpdateStatusText}"
+                                        <TextBlock Text="{Binding Updates.UpdateStatusText}"
                                                    Margin="0,2,0,0"
                                                    FontSize="11"
                                                    Foreground="{DynamicResource TextMutedBrush}"
-                                                   Visibility="{Binding UpdateStatusText, Converter={StaticResource NonEmptyToVisibilityConverter}}" />
+                                                   Visibility="{Binding Updates.UpdateStatusText, Converter={StaticResource NonEmptyToVisibilityConverter}}" />
                                     </StackPanel>
                                     <Button Grid.Column="1"
                                             Content="检查更新"
-                                             Command="{Binding CheckForUpdateCommand}"
+                                             Command="{Binding Updates.CheckForUpdateCommand}"
                                              Style="{StaticResource PrimaryButtonStyle}"
                                              Height="28"
                                             Padding="12,0"
@@ -2646,7 +2646,7 @@
                                                    FontWeight="SemiBold"
                                                    FontSize="13"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <TextBlock Text="{Binding CurrentDataDirectory}"
+                                        <TextBlock Text="{Binding Maintenance.CurrentDataDirectory}"
                                                    Margin="0,2,0,0"
                                                    FontSize="11.5"
                                                    TextWrapping="Wrap"
@@ -2693,8 +2693,8 @@
                                                   Margin="12,0,0,0"
                                                   VerticalAlignment="Center"
                                                   Style="{StaticResource SettingsToggleButtonStyle}"
-                                                  IsChecked="{Binding LaunchOnStartup, Mode=OneWay}"
-                                                  Command="{Binding ToggleLaunchOnStartupCommand}"
+                                                  IsChecked="{Binding Settings.LaunchOnStartup, Mode=OneWay}"
+                                                  Command="{Binding Settings.ToggleLaunchOnStartupCommand}"
                                                   AutomationProperties.Name="开机自启动" />
                                 </Grid>
                                 </Border>
@@ -2726,8 +2726,8 @@
                                                       Margin="12,0,0,0"
                                                       VerticalAlignment="Center"
                                                       Style="{StaticResource SettingsToggleButtonStyle}"
-                                                      IsChecked="{Binding AreDesktopIconsHidden, Mode=OneWay}"
-                                                      Command="{Binding ToggleDesktopIconsCommand}"
+                                                      IsChecked="{Binding Settings.AreDesktopIconsHidden, Mode=OneWay}"
+                                                      Command="{Binding Settings.ToggleDesktopIconsCommand}"
                                                       AutomationProperties.Name="隐藏桌面图标" />
                                     </Grid>
                                 </Border>
@@ -2759,8 +2759,8 @@
                                                       Margin="12,0,0,0"
                                                       VerticalAlignment="Center"
                                                       Style="{StaticResource SettingsToggleButtonStyle}"
-                                                      IsChecked="{Binding IsDesktopDoubleClickEnabled, Mode=OneWay}"
-                                                      Command="{Binding ToggleDesktopDoubleClickCommand}"
+                                                      IsChecked="{Binding Settings.IsDesktopDoubleClickEnabled, Mode=OneWay}"
+                                                      Command="{Binding Settings.ToggleDesktopDoubleClickCommand}"
                                                       AutomationProperties.Name="双击桌面切换图标" />
                                     </Grid>
                                 </Border>

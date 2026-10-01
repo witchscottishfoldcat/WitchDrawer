@@ -113,7 +113,7 @@ public sealed class TodoBoxDetailViewModelTests
             launcher,
             logger,
             visualStyleStore);
-        var viewModel = new MainViewModel(
+        var viewModel = MainViewModelFactory.Create(
             workspace.DrawerService,
             workspace.TodoService,
             launcher,
@@ -135,7 +135,7 @@ public sealed class TodoBoxDetailViewModelTests
         viewModel.SelectedBox = Assert.Single(
             viewModel.Boxes,
             box => box.Id == workspace.TodoBox.Id);
-        await viewModel.ReloadItemsFromDesktopAsync();
+        await viewModel.RefreshContentAsync(BoxRefreshRequest.All);
 
         Assert.True(viewModel.IsSelectedTodoBox);
         Assert.False(viewModel.CanImportFiles);
@@ -147,7 +147,7 @@ public sealed class TodoBoxDetailViewModelTests
         viewModel.SelectedBox = Assert.Single(
             viewModel.Boxes,
             box => box.Type == BoxType.Normal);
-        await viewModel.ReloadItemsFromDesktopAsync();
+        await viewModel.RefreshContentAsync(BoxRefreshRequest.All);
 
         Assert.False(viewModel.IsSelectedTodoBox);
         Assert.True(viewModel.CanImportFiles);

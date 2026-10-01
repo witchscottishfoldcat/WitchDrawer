@@ -1,3 +1,4 @@
+using WitchDrawer.Native.Files;
 using WitchDrawer.App.Infrastructure;
 
 namespace WitchDrawer.App.Tests;

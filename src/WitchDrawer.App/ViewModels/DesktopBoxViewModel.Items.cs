@@ -176,7 +176,6 @@ public sealed partial class DesktopBoxViewModel
             var result = await _drawerService.DeleteItemAsync(item.Id);
             await LoadAsync();
             StatusText = result.StatusMessage;
-            ItemsChanged?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception exception)
         {

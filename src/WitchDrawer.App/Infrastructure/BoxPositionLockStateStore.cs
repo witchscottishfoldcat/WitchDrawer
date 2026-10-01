@@ -1,11 +1,11 @@
+using WitchDrawer.Core.Abstractions;
 using System.Collections.Concurrent;
 using WitchDrawer.Core.Logging;
-using WitchDrawer.Core.Services;
 
 namespace WitchDrawer.App.Infrastructure;
 
 public sealed class BoxPositionLockStateStore(
-    DrawerService drawerService,
+    ISettingsStore settings,
     IAppLogger logger)
 {
     private const string SettingKeyPrefix = "BoxPositionLocked:";
@@ -26,7 +26,7 @@ public sealed class BoxPositionLockStateStore(
         {
             savedValue = startupSnapshot is not null
                 ? startupSnapshot.Get(GetSettingKey(boxId))
-                : await drawerService.GetSettingAsync(
+                : await settings.GetSettingAsync(
                     GetSettingKey(boxId),
                     cancellationToken);
         }
@@ -64,7 +64,7 @@ public sealed class BoxPositionLockStateStore(
     {
         try
         {
-            await drawerService.SetSettingAsync(
+            await settings.SetSettingAsync(
                 GetSettingKey(boxId),
                 isPositionLocked.ToString(),
                 cancellationToken);

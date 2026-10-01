@@ -38,16 +38,16 @@ public sealed class QuickPanelIncrementalRefreshTests
             await target.LoadAsync();
             await quick.EnsureLoadedAsync();
             var changes = new List<Guid>();
-            var refreshes = new List<Task>();
-            source.ItemsChanged += (_, _) => { changes.Add(first.Id); refreshes.Add(quick.RefreshBoxAsync(first.Id)); };
-            target.ItemsChanged += (_, _) => { changes.Add(second.Id); refreshes.Add(quick.RefreshBoxAsync(second.Id)); };
+            drawer.Changes.ContentChanged += (_, e) => changes.AddRange(e.BoxIds);
+            using var coordinator = new BoxContentSyncCoordinator(drawer.Changes,
+                [quick, new DesktopTestTarget(source), new DesktopTestTarget(target)],
+                action => action(), logger);
 
             Assert.True(await target.DropDrawerItemAsync(item.Id, 0, 0));
-            await source.RefreshAfterItemTransferAsync();
-            await Task.WhenAll(refreshes);
+            await coordinator.WhenIdleAsync();
             await quick.EnsureLoadedAsync();
 
-            Assert.Equal(new[] { second.Id, first.Id }, changes);
+            Assert.Equal(new[] { first.Id, second.Id }, changes);
             Assert.Empty(source.Items);
             Assert.Single(target.Items);
             var shown = Assert.Single(quick.Items);
@@ -56,6 +56,12 @@ public sealed class QuickPanelIncrementalRefreshTests
             Assert.True(File.Exists(shown.PathLabel));
         }
         finally { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); }
+    }
+
+    private sealed class DesktopTestTarget(DesktopBoxViewModel viewModel) : IBoxContentRefreshTarget
+    {
+        public Task RefreshContentAsync(BoxRefreshRequest request)
+            => request.Affects(viewModel.BoxId) ? viewModel.LoadAsync() : Task.CompletedTask;
     }
 
     [Fact]

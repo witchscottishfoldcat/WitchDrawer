@@ -201,14 +201,10 @@ public partial class DesktopBoxWindow
             if (internalDropSucceeded)
             {
                 // Dropped onto a WitchDrawer box (same box = rearrange, other box = move).
-                // The destination performs the move asynchronously; wait for it to commit
-                // before refreshing the source box.
+                // The destination performs the move asynchronously. Core notifies the
+                // synchronization coordinator of both boxes after the operation commits.
                 var moved = await payload.DropCompletion;
                 if (moved && payload.TargetBoxId != ViewModel.BoxId)
-                {
-                    await ViewModel.RefreshAfterItemTransferAsync();
-                }
-                if (!ViewModel.Items.Any(item => item.Id == drawerItem.Id))
                 {
                     _keyboardDeleteTarget = null;
                 }

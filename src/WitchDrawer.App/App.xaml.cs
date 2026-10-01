@@ -30,6 +30,7 @@ public partial class App : Application
     private TaskbarIcon? _taskbarIcon;
     private MainWindow? _mainWindow;
     private DesktopBoxManager? _desktopBoxManager;
+    private BoxContentSyncCoordinator? _contentSync;
     private TaskCompletionSource<DesktopBoxManager>? _desktopReady;
     private IAppLogger? _logger;
     private int _shutdownStarted;
@@ -109,17 +110,18 @@ public partial class App : Application
 
             startupTimer.Mark("启动快捷方式迁移完成");
             var repository = new DrawerRepository(paths.DatabasePath);
-            var drawerService = new DrawerService(paths, repository);
+            var changes = new BoxChangeNotifier(logger);
+            var drawerService = new DrawerService(paths, repository, changes);
             var launcher = new ShellFileLauncher();
             var shellChangeNotifier = new ShellChangeNotifierService();
-            var todoService = new TodoService(repository);
-            var updateService = new UpdateService(logger);
+            var todoService = new TodoService(repository, changes: changes);
+            var updateService = new UpdateService(logger, new WindowsUpdateInstaller());
             await updateService.CleanupLegacyUpdaterArtifactsAsync();
-            var quickPanelHotKeySettings = new QuickPanelHotKeySettingsStore(drawerService);
-            var boxVisualStyleStore = new BoxVisualStyleStore(drawerService, logger);
+            var quickPanelHotKeySettings = new QuickPanelHotKeySettingsStore(drawerService.Settings);
+            var boxVisualStyleStore = new BoxVisualStyleStore(drawerService.Settings, logger);
             var boxPositionLockStateStore =
-                new BoxPositionLockStateStore(drawerService, logger);
-            var autoHideSettingsStore = new AutoHideSettingsStore(drawerService);
+                new BoxPositionLockStateStore(drawerService.Settings, logger);
+            var autoHideSettingsStore = new AutoHideSettingsStore(drawerService.Settings);
             var storageLocationStore = StorageLocationStore.ForCurrentUser();
             var dataStorageMigrationService =
                 new DataStorageMigrationService(paths, repository, storageLocationStore);
@@ -142,19 +144,16 @@ public partial class App : Application
                 launcher,
                 logger,
                 boxVisualStyleStore);
-            var mainViewModel = new MainViewModel(
-                drawerService,
-                todoService,
-                launcher,
-                shellChangeNotifier,
-                logger,
-                quickPanelViewModel,
-                updateService,
-                boxVisualStyleStore,
-                boxPositionLockStateStore,
-                paths,
-                dataStorageMigrationService,
-                autoHideSettingsStore);
+            var operations = new UiOperationState(logger);
+            var settings = new SettingsViewModel(drawerService.Settings, logger,
+                new WindowsDesktopIntegration(), autoHideSettingsStore, operations);
+            var updates = new UpdateViewModel(updateService, logger, operations);
+            var archive = new ArchiveViewModel(drawerService, todoService, logger, operations);
+            var maintenance = new MaintenanceViewModel(paths, dataStorageMigrationService,
+                new DiagnosticLogExportService(paths), logger, operations);
+            var mainViewModel = new MainViewModel(drawerService, todoService, launcher,
+                shellChangeNotifier, logger, boxVisualStyleStore, boxPositionLockStateStore,
+                settings, updates, archive, maintenance, operations);
             _mainWindow = new MainWindow(
                 mainViewModel,
                 () => new QuickPanelWindow(quickPanelViewModel),
@@ -185,11 +184,6 @@ public partial class App : Application
                     "RefreshAsync",
                     logger);
             };
-            mainViewModel.ItemsChanged += async (_, eventArgs) =>
-                await GuardRefreshAsync(
-                    async () => await (await desktopReady.Task).RefreshItemsAsync(eventArgs.BoxId),
-                    "RefreshItemsAsync",
-                    logger);
             _mainWindow.ReopenBoxRequested += async (_, boxId) =>
                 await GuardRefreshAsync(
                     async () => { await (await desktopReady.Task).ShowAsync(boxId); },
@@ -254,7 +248,7 @@ public partial class App : Application
                     async () => await (await desktopReady.Task).RecoverDesktopHostsAsync(),
                     "RecoverDesktopHostsAsync",
                     logger);
-            mainViewModel.UpdateRequested += async (_, result) =>
+            mainViewModel.Updates.UpdateRequested += async (_, result) =>
             {
                 var versionText = $"v{result.LatestVersion.Major}.{result.LatestVersion.Minor}.{result.LatestVersion.Build}";
                 var dialogResult = System.Windows.MessageBox.Show(
@@ -265,11 +259,11 @@ public partial class App : Application
 
                 if (dialogResult == System.Windows.MessageBoxResult.OK)
                 {
-                    await mainViewModel.ExecuteUpdateAsync(result.DownloadUrl);
+                    await mainViewModel.Updates.ExecuteUpdateAsync(result.DownloadUrl);
                 }
             };
 
-            mainViewModel.UpdateConfirmed += async (_, _) =>
+            mainViewModel.Updates.UpdateConfirmed += async (_, _) =>
             {
                 await PerformShutdownAsync();
             };
@@ -307,24 +301,23 @@ public partial class App : Application
                 logger,
                 boxVisualStyleStore,
                 boxPositionLockStateStore,
-                () => mainViewModel.IsDesktopDoubleClickEnabled);
+                () => mainViewModel.Settings.IsDesktopDoubleClickEnabled);
             _desktopBoxManager = desktopBoxManager;
             desktopBoxManager.ShowDesktopActivated += (_, _) =>
                 _mainWindow.SendBehindDesktop();
-            desktopBoxManager.ItemsChanged += async (_, eventArgs) =>
-                await GuardRefreshAsync(
-                    async () =>
-                    {
-                        await desktopReady.Task;
-                        await mainViewModel.ReloadItemsFromDesktopAsync(eventArgs.BoxId);
-                    },
-                    "ReloadItemsFromDesktopAsync",
-                    logger);
+            _contentSync = new BoxContentSyncCoordinator(changes,
+                [mainViewModel, quickPanelViewModel, desktopBoxManager],
+                action => Dispatcher.BeginInvoke(action), logger);
+            mainViewModel.BoxesChanged += (_, _) =>
+            {
+                if (desktopReady.Task.IsCompletedSuccessfully)
+                    _contentSync?.Request(BoxRefreshRequest.All);
+            };
             desktopBoxManager.DesktopBackgroundDoubleClicked += (_, _) =>
             {
-                if (mainViewModel.ToggleDesktopIconsCommand.CanExecute(null))
+                if (mainViewModel.Settings.ToggleDesktopIconsCommand.CanExecute(null))
                 {
-                    mainViewModel.ToggleDesktopIconsCommand.Execute(null);
+                    mainViewModel.Settings.ToggleDesktopIconsCommand.Execute(null);
                 }
             };
             startupTimer.Mark("桌面盒子管理器就绪（首帧后）");
@@ -614,6 +607,8 @@ public partial class App : Application
         _taskbarIcon?.Dispose();
         _taskbarIcon = null;
 
+        _contentSync?.Dispose();
+        _contentSync = null;
         var desktopBoxManager = _desktopBoxManager;
         _desktopBoxManager = null;
         if (desktopBoxManager is not null)

@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="WitchDrawer.App.Tests" />
+    <InternalsVisibleTo Include="WitchDrawer.Native.Tests" />
   </ItemGroup>
 
   <PropertyGroup>

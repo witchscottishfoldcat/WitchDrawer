@@ -8,7 +8,7 @@ using WitchDrawer.Core.Services;
 
 namespace WitchDrawer.App.ViewModels;
 
-public sealed class QuickPanelViewModel : ObservableObject
+public sealed class QuickPanelViewModel : ObservableObject, IBoxContentRefreshTarget
 {
     private const double ItemIconSizeDip = 30;
 
@@ -128,6 +128,12 @@ public sealed class QuickPanelViewModel : ObservableObject
     /// 运行期间的全量刷新：仅在已完成首次加载后执行；
     /// 未初始化时跳过，避免快捷面板从未打开却提前全量扫描。
     /// </summary>
+    public async Task RefreshContentAsync(BoxRefreshRequest request)
+    {
+        if (request.BoxIds is null) await RefreshAllAsync();
+        else foreach (var boxId in request.BoxIds) await RefreshBoxAsync(boxId);
+    }
+
     public async Task RefreshAllAsync()
     {
         if (!_hasLoaded)

@@ -8,13 +8,15 @@ public sealed class TodoService
     public const int MaximumTitleLength = 200;
     public static readonly TimeSpan DeleteUndoWindow = TimeSpan.FromSeconds(10);
     private readonly DrawerRepository _repository;
+    public BoxChangeNotifier Changes { get; }
     private readonly TimeProvider _timeProvider;
     private readonly SemaphoreSlim _operationGate = new(1, 1);
     private readonly Dictionary<Guid, (TodoItem Item, DateTimeOffset ExpiresAt)> _undoEntries = [];
 
-    public TodoService(DrawerRepository repository, TimeProvider? timeProvider = null)
+    public TodoService(DrawerRepository repository, TimeProvider? timeProvider = null, BoxChangeNotifier? changes = null)
     {
         _repository = repository;
+        Changes = changes ?? new BoxChangeNotifier();
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
@@ -49,6 +51,7 @@ public sealed class TodoService
             var todo = new TodoItem(Guid.NewGuid(), boxId, normalizedTitle, false,
                 await _repository.GetNextTodoSortOrderAsync(boxId, cancellationToken), now, now);
             await _repository.AddTodoAsync(todo, cancellationToken);
+            Changes.Publish(boxId);
             return todo;
         }, cancellationToken);
 
@@ -59,6 +62,7 @@ public sealed class TodoService
             var existing = await RequireTodoAsync(todoId, cancellationToken);
             var updatedAt = _timeProvider.GetUtcNow();
             await _repository.UpdateTodoTitleAsync(todoId, normalizedTitle, expectedTitle, updatedAt, cancellationToken);
+            Changes.Publish(existing.BoxId);
             return existing with { Title = normalizedTitle, UpdatedAt = updatedAt };
         }, cancellationToken);
 
@@ -70,11 +74,18 @@ public sealed class TodoService
             var updatedAt = _timeProvider.GetUtcNow();
             DateTimeOffset? completedAt = isCompleted ? updatedAt : null;
             await _repository.UpdateTodoCompletionAsync(todoId, isCompleted, completedAt, updatedAt, cancellationToken);
+            Changes.Publish(existing.BoxId);
             return existing with { IsCompleted = isCompleted, CompletedAt = completedAt, UpdatedAt = updatedAt };
         }, cancellationToken);
 
     public Task DeleteTodoAsync(Guid todoId, CancellationToken cancellationToken = default) =>
-        ExecuteAsync(async () => { await _repository.RemoveTodoAsync(todoId, cancellationToken); return true; }, cancellationToken);
+        ExecuteAsync(async () =>
+        {
+            var existing = await _repository.GetTodoAsync(todoId, cancellationToken);
+            await _repository.RemoveTodoAsync(todoId, cancellationToken);
+            if (existing is not null) Changes.Publish(existing.BoxId);
+            return true;
+        }, cancellationToken);
 
     public Task<TodoDeleteUndo> DeleteWithUndoAsync(Guid todoId, CancellationToken cancellationToken = default) =>
         ExecuteAsync(async () =>
@@ -83,6 +94,7 @@ public sealed class TodoService
             await _repository.RemoveTodoAsync(todoId, cancellationToken);
             var undo = new TodoDeleteUndo(Guid.NewGuid(), existing.BoxId, _timeProvider.GetUtcNow() + DeleteUndoWindow);
             _undoEntries.Add(undo.Token, (existing, undo.ExpiresAt));
+            Changes.Publish(existing.BoxId);
             return undo;
         }, cancellationToken);
 
@@ -93,6 +105,7 @@ public sealed class TodoService
             await RequireTodoBoxAsync(entry.Item.BoxId, cancellationToken);
             await _repository.AddTodoAsync(entry.Item, cancellationToken);
             _undoEntries.Remove(token);
+            Changes.Publish(entry.Item.BoxId);
             return entry.Item;
         }, cancellationToken);
 
@@ -100,7 +113,9 @@ public sealed class TodoService
         ExecuteAsync(async () =>
         {
             await RequireTodoBoxAsync(boxId, cancellationToken);
-            return await _repository.ArchiveCompletedTodosAsync(boxId, _timeProvider.GetUtcNow(), cancellationToken);
+            var count = await _repository.ArchiveCompletedTodosAsync(boxId, _timeProvider.GetUtcNow(), cancellationToken);
+            if (count > 0) Changes.Publish(boxId);
+            return count;
         }, cancellationToken);
 
     public Task<TodoItem> RestoreArchivedAsync(Guid todoId, CancellationToken cancellationToken = default) =>
@@ -110,6 +125,7 @@ public sealed class TodoService
             if (!existing.IsArchived) return existing;
             var updatedAt = _timeProvider.GetUtcNow();
             await _repository.UpdateTodoArchiveStateAsync(todoId, false, null, updatedAt, cancellationToken);
+            Changes.Publish(existing.BoxId);
             return existing with { IsArchived = false, ArchivedAt = null, UpdatedAt = updatedAt };
         }, cancellationToken);
 

@@ -1,8 +1,8 @@
-using WitchDrawer.Core.Services;
+using WitchDrawer.Core.Abstractions;
 
 namespace WitchDrawer.App.Infrastructure;
 
-internal sealed class QuickPanelHotKeySettingsStore(DrawerService drawerService)
+internal sealed class QuickPanelHotKeySettingsStore(ISettingsStore settings)
 {
     internal const string SettingKey = "QuickPanelHotKey";
 
@@ -12,7 +12,7 @@ internal sealed class QuickPanelHotKeySettingsStore(DrawerService drawerService)
     {
         var savedValue = startupSnapshot is not null
             ? startupSnapshot.Get(SettingKey)
-            : await drawerService.GetSettingAsync(SettingKey, cancellationToken);
+            : await settings.GetSettingAsync(SettingKey, cancellationToken);
         return QuickPanelHotKey.TryParse(savedValue, out var hotKey)
             ? hotKey
             : QuickPanelHotKey.Default;
@@ -26,6 +26,6 @@ internal sealed class QuickPanelHotKeySettingsStore(DrawerService drawerService)
             throw new ArgumentException("快捷键组合无效。", nameof(hotKey));
         }
 
-        return drawerService.SetSettingAsync(SettingKey, hotKey.Serialize(), cancellationToken);
+        return settings.SetSettingAsync(SettingKey, hotKey.Serialize(), cancellationToken);
     }
 }

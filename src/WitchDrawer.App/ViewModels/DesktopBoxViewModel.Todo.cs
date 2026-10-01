@@ -101,7 +101,6 @@ public sealed partial class DesktopBoxViewModel
             NotifyTodoCommands();
             await _todoViewGate.WaitAsync();
             StatusText = await operation();
-            ItemsChanged?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception exception)
         {

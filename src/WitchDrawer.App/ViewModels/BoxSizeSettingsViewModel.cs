@@ -5,6 +5,7 @@ using WitchDrawer.App.Messages;
 using WitchDrawer.Core.Logging;
 using WitchDrawer.Core.Models;
 using WitchDrawer.Core.Services;
+using WitchDrawer.Core.Abstractions;
 
 namespace WitchDrawer.App.ViewModels;
 
@@ -15,7 +16,8 @@ namespace WitchDrawer.App.ViewModels;
 /// </summary>
 public sealed partial class BoxSizeSettingsViewModel : ObservableObject
 {
-    private readonly DrawerService _drawerService;
+    private readonly ISettingsStore _settings;
+    private Task _pendingLoads = Task.CompletedTask;
     private readonly IAppLogger _logger;
     private readonly Dictionary<Guid, (int Columns, int Rows)> _extents = [];
     private BoxViewModel? _selectedBox;
@@ -29,9 +31,9 @@ public sealed partial class BoxSizeSettingsViewModel : ObservableObject
     private int _stateVersion;
     private int _appliedStateVersion = -1;
 
-    public BoxSizeSettingsViewModel(DrawerService drawerService, IAppLogger logger)
+    public BoxSizeSettingsViewModel(ISettingsStore settings, IAppLogger logger)
     {
-        _drawerService = drawerService;
+        _settings = settings;
         _logger = logger;
 
         WeakReferenceMessenger.Default.Register<BoxSizeSettingsViewModel, BoxGridExtentChangedMessage>(
@@ -69,8 +71,10 @@ public sealed partial class BoxSizeSettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(ExtentHint));
         OnPropertyChanged(nameof(ModeSummary));
         NotifyBoundsChanged();
-        _ = LoadStateAsync(target, version);
+        _pendingLoads = Task.WhenAll(_pendingLoads, LoadStateAsync(target, version));
     }
+
+    internal Task WaitForPendingLoadsAsync() => _pendingLoads;
 
     public bool IsFixedMode
     {
@@ -201,7 +205,7 @@ public sealed partial class BoxSizeSettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(ModeSummary));
         try
         {
-            await _drawerService.SetSettingAsync(
+            await _settings.SetSettingAsync(
                 BoxViewModel.GetSizeModeSettingKey(box.Id),
                 state.Serialize());
         }
@@ -225,7 +229,7 @@ public sealed partial class BoxSizeSettingsViewModel : ObservableObject
         string? saved;
         try
         {
-            saved = await _drawerService.GetSettingAsync(BoxViewModel.GetSizeModeSettingKey(box.Id));
+            saved = await _settings.GetSettingAsync(BoxViewModel.GetSizeModeSettingKey(box.Id));
         }
         catch (Exception exception)
         {

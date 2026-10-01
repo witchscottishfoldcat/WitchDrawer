@@ -76,7 +76,7 @@ public partial class MainWindow : Window
         DpiChanged += OnDpiChanged;
         AppThemeManager.ThemeChanged += OnThemeChanged;
         AppThemeManager.BoxOpacityChanged += OnBoxOpacityChanged;
-        ViewModel.PropertyChanged += OnViewModelPropertyChanged;
+        ViewModel.Settings.PropertyChanged += OnViewModelPropertyChanged;
     }
 
     private bool _forceClosing;
@@ -161,7 +161,7 @@ public partial class MainWindow : Window
         DpiChanged -= OnDpiChanged;
         AppThemeManager.ThemeChanged -= OnThemeChanged;
         AppThemeManager.BoxOpacityChanged -= OnBoxOpacityChanged;
-        ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        ViewModel.Settings.PropertyChanged -= OnViewModelPropertyChanged;
         _source?.RemoveHook(WndProc);
         _hotKey?.Dispose();
         _quickPanel?.ForceClose();
@@ -193,7 +193,7 @@ public partial class MainWindow : Window
 
     private void OnBoxOpacityChanged(object? sender, ThemeBoxOpacityChangedEventArgs e)
     {
-        if (e.Theme != AppThemeManager.CurrentTheme || !ViewModel.EditorFollowsBoxOpacity)
+        if (e.Theme != AppThemeManager.CurrentTheme || !ViewModel.Settings.EditorFollowsBoxOpacity)
         {
             return;
         }
@@ -203,7 +203,7 @@ public partial class MainWindow : Window
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(MainViewModel.EditorFollowsBoxOpacity))
+        if (e.PropertyName == nameof(SettingsViewModel.EditorFollowsBoxOpacity))
         {
             QueueEditorOpacityRefresh();
         }
@@ -234,7 +234,7 @@ public partial class MainWindow : Window
 
     private void RefreshEditorOpacityResources()
     {
-        if (ViewModel.EditorFollowsBoxOpacity)
+        if (ViewModel.Settings.EditorFollowsBoxOpacity)
         {
             AppThemeManager.ApplyEditorOpacityResources(Resources);
             return;
@@ -293,7 +293,7 @@ public partial class MainWindow : Window
         var targetDirectory = dialog.FolderName;
         if (string.Equals(
                 Path.GetFullPath(targetDirectory),
-                Path.GetFullPath(viewModel.CurrentDataDirectory),
+                Path.GetFullPath(viewModel.Maintenance.CurrentDataDirectory),
                 StringComparison.OrdinalIgnoreCase))
         {
             MessageBox.Show(
@@ -307,7 +307,7 @@ public partial class MainWindow : Window
 
         var confirm = MessageBox.Show(
             this,
-            $"将把数据从\n{viewModel.CurrentDataDirectory}\n\n迁移到\n{targetDirectory}\n\n迁移完成后需要重启应用才会使用新目录，是否继续？",
+            $"将把数据从\n{viewModel.Maintenance.CurrentDataDirectory}\n\n迁移到\n{targetDirectory}\n\n迁移完成后需要重启应用才会使用新目录，是否继续？",
             "迁移数据存储位置",
             MessageBoxButton.OKCancel,
             MessageBoxImage.Question);
@@ -318,7 +318,7 @@ public partial class MainWindow : Window
 
         try
         {
-            await viewModel.MigrateDataDirectoryAsync(targetDirectory);
+            await viewModel.Maintenance.MigrateDataDirectoryAsync(targetDirectory);
         }
         catch (Exception exception)
         {

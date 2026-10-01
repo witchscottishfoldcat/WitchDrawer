@@ -1,8 +1,8 @@
 using System.Diagnostics;
 using System.IO;
-using WitchDrawer.App.Infrastructure;
+using WitchDrawer.Native.Windows;
 
-namespace WitchDrawer.App.Tests;
+namespace WitchDrawer.Native.Tests;
 
 public sealed class ApplicationRestartTests
 {

@@ -18,10 +18,10 @@ public sealed class ThemeOpacitySettingTests
     {
         await using var workspace = await ThemeWorkspace.CreateAsync();
         AppThemeManager.ResetBoxOpacitiesForTests();
-        await workspace.DrawerService.SetSettingAsync(MainViewModel.ThemeBoxOpacityMigrationVersionSettingKey, "2");
+        await workspace.DrawerService.SetSettingAsync(SettingsViewModel.ThemeBoxOpacityMigrationVersionSettingKey, "2");
         foreach (var theme in Enum.GetValues<AppTheme>())
         {
-            await workspace.DrawerService.SetSettingAsync(MainViewModel.GetThemeBoxOpacitySettingKey(theme), "0.68765");
+            await workspace.DrawerService.SetSettingAsync(SettingsViewModel.GetThemeBoxOpacitySettingKey(theme), "0.68765");
         }
 
         try
@@ -34,8 +34,8 @@ public sealed class ThemeOpacitySettingTests
                     AppThemeManager.GetDesktopBoxBorderColor(theme));
                 Assert.Equal(AppThemeManager.GetDesktopBoxColor(theme, "GlassInnerBrush", 0.68765),
                     AppThemeManager.GetDesktopIconFrameColor(theme));
-                Assert.Null(await workspace.DrawerService.GetSettingAsync(MainViewModel.BoxBorderOpacitySettingKeyPrefix + theme));
-                Assert.Null(await workspace.DrawerService.GetSettingAsync(MainViewModel.IconFrameOpacitySettingKeyPrefix + theme));
+                Assert.Null(await workspace.DrawerService.GetSettingAsync(SettingsViewModel.BoxBorderOpacitySettingKeyPrefix + theme));
+                Assert.Null(await workspace.DrawerService.GetSettingAsync(SettingsViewModel.IconFrameOpacitySettingKeyPrefix + theme));
             }
         }
         finally
@@ -52,8 +52,8 @@ public sealed class ThemeOpacitySettingTests
         var values = new[] { (AppTheme.Moe, "0.70", "0.35"), (AppTheme.Glass, "0", "1"), (AppTheme.Crystal, "0.55", "0.15") };
         foreach (var (theme, border, frame) in values)
         {
-            await workspace.DrawerService.SetSettingAsync(MainViewModel.BoxBorderOpacitySettingKeyPrefix + theme, border);
-            await workspace.DrawerService.SetSettingAsync(MainViewModel.IconFrameOpacitySettingKeyPrefix + theme, frame);
+            await workspace.DrawerService.SetSettingAsync(SettingsViewModel.BoxBorderOpacitySettingKeyPrefix + theme, border);
+            await workspace.DrawerService.SetSettingAsync(SettingsViewModel.IconFrameOpacitySettingKeyPrefix + theme, frame);
         }
 
         try
@@ -81,9 +81,9 @@ public sealed class ThemeOpacitySettingTests
     {
         await using var workspace = await ThemeWorkspace.CreateAsync();
         AppThemeManager.ResetBoxOpacitiesForTests();
-        var theme = workspace.ViewModel.CurrentTheme;
-        await workspace.DrawerService.SetSettingAsync(MainViewModel.BoxBorderOpacitySettingKeyPrefix + theme, value);
-        await workspace.DrawerService.SetSettingAsync(MainViewModel.IconFrameOpacitySettingKeyPrefix + theme, value);
+        var theme = workspace.ViewModel.Settings.CurrentTheme;
+        await workspace.DrawerService.SetSettingAsync(SettingsViewModel.BoxBorderOpacitySettingKeyPrefix + theme, value);
+        await workspace.DrawerService.SetSettingAsync(SettingsViewModel.IconFrameOpacitySettingKeyPrefix + theme, value);
         try
         {
             await workspace.ViewModel.LoadAsync();
@@ -106,27 +106,27 @@ public sealed class ThemeOpacitySettingTests
         try
         {
             await workspace.ViewModel.LoadAsync();
-            var theme = workspace.ViewModel.CurrentTheme;
+            var theme = workspace.ViewModel.Settings.CurrentTheme;
             var opacity = AppThemeManager.GetBoxOpacity(theme);
             for (var percent = 10; percent <= 75; percent++)
             {
-                workspace.ViewModel.BoxBorderTransparencyPercent = percent;
-                workspace.ViewModel.IconFrameTransparencyPercent = percent - 10;
+                workspace.ViewModel.Settings.BoxBorderTransparencyPercent = percent;
+                workspace.ViewModel.Settings.IconFrameTransparencyPercent = percent - 10;
             }
 
-            workspace.ViewModel.BoxBorderTransparencyPercent = double.NaN;
-            workspace.ViewModel.IconFrameTransparencyPercent = double.PositiveInfinity;
-            await WaitForSettingAsync(workspace, MainViewModel.BoxBorderOpacitySettingKeyPrefix + theme, "0.25");
-            await WaitForSettingAsync(workspace, MainViewModel.IconFrameOpacitySettingKeyPrefix + theme, "0.35");
+            workspace.ViewModel.Settings.BoxBorderTransparencyPercent = double.NaN;
+            workspace.ViewModel.Settings.IconFrameTransparencyPercent = double.PositiveInfinity;
+            await WaitForSettingAsync(workspace, SettingsViewModel.BoxBorderOpacitySettingKeyPrefix + theme, "0.25");
+            await WaitForSettingAsync(workspace, SettingsViewModel.IconFrameOpacitySettingKeyPrefix + theme, "0.35");
             AppThemeManager.ResetBoxOpacitiesForTests();
             await workspace.ViewModel.LoadAsync();
-            Assert.Equal(75, workspace.ViewModel.BoxBorderTransparencyPercent);
-            Assert.Equal(65, workspace.ViewModel.IconFrameTransparencyPercent);
+            Assert.Equal(75, workspace.ViewModel.Settings.BoxBorderTransparencyPercent);
+            Assert.Equal(65, workspace.ViewModel.Settings.IconFrameTransparencyPercent);
             Assert.Equal(opacity, AppThemeManager.GetBoxOpacity(theme));
             foreach (var other in Enum.GetValues<AppTheme>().Where(value => value != theme))
             {
-                Assert.Null(await workspace.DrawerService.GetSettingAsync(MainViewModel.BoxBorderOpacitySettingKeyPrefix + other));
-                Assert.Null(await workspace.DrawerService.GetSettingAsync(MainViewModel.IconFrameOpacitySettingKeyPrefix + other));
+                Assert.Null(await workspace.DrawerService.GetSettingAsync(SettingsViewModel.BoxBorderOpacitySettingKeyPrefix + other));
+                Assert.Null(await workspace.DrawerService.GetSettingAsync(SettingsViewModel.IconFrameOpacitySettingKeyPrefix + other));
             }
         }
         finally
@@ -140,22 +140,22 @@ public sealed class ThemeOpacitySettingTests
     {
         await using var workspace = await ThemeWorkspace.CreateAsync();
         AppThemeManager.ResetBoxOpacitiesForTests();
-        var theme = workspace.ViewModel.CurrentTheme;
+        var theme = workspace.ViewModel.Settings.CurrentTheme;
         var other = Enum.GetValues<AppTheme>().First(value => value != theme);
-        await workspace.DrawerService.SetSettingAsync(MainViewModel.BoxBorderOpacitySettingKeyPrefix + theme, "0.15");
-        await workspace.DrawerService.SetSettingAsync(MainViewModel.IconFrameOpacitySettingKeyPrefix + theme, "0.25");
-        await workspace.DrawerService.SetSettingAsync(MainViewModel.BoxBorderOpacitySettingKeyPrefix + other, "0.55");
-        await workspace.DrawerService.SetSettingAsync(MainViewModel.EditorFollowsBoxOpacitySettingKey, bool.TrueString);
+        await workspace.DrawerService.SetSettingAsync(SettingsViewModel.BoxBorderOpacitySettingKeyPrefix + theme, "0.15");
+        await workspace.DrawerService.SetSettingAsync(SettingsViewModel.IconFrameOpacitySettingKeyPrefix + theme, "0.25");
+        await workspace.DrawerService.SetSettingAsync(SettingsViewModel.BoxBorderOpacitySettingKeyPrefix + other, "0.55");
+        await workspace.DrawerService.SetSettingAsync(SettingsViewModel.EditorFollowsBoxOpacitySettingKey, bool.TrueString);
         try
         {
             await workspace.ViewModel.LoadAsync();
-            workspace.ViewModel.ThemeTransparencyPercent = 42;
-            workspace.ViewModel.BoxBorderTransparencyPercent = 95;
-            workspace.ViewModel.IconFrameTransparencyPercent = 65;
-            workspace.ViewModel.ResetThemeTransparencyCommand.Execute(null);
-            await WaitForSettingAsync(workspace, MainViewModel.BoxBorderOpacitySettingKeyPrefix + theme, null);
-            await WaitForSettingAsync(workspace, MainViewModel.IconFrameOpacitySettingKeyPrefix + theme, null);
-            await WaitForSettingAsync(workspace, MainViewModel.GetThemeBoxOpacitySettingKey(theme),
+            workspace.ViewModel.Settings.ThemeTransparencyPercent = 42;
+            workspace.ViewModel.Settings.BoxBorderTransparencyPercent = 95;
+            workspace.ViewModel.Settings.IconFrameTransparencyPercent = 65;
+            workspace.ViewModel.Settings.ResetThemeTransparencyCommand.Execute(null);
+            await WaitForSettingAsync(workspace, SettingsViewModel.BoxBorderOpacitySettingKeyPrefix + theme, null);
+            await WaitForSettingAsync(workspace, SettingsViewModel.IconFrameOpacitySettingKeyPrefix + theme, null);
+            await WaitForSettingAsync(workspace, SettingsViewModel.GetThemeBoxOpacitySettingKey(theme),
                 FormatOpacity(AppThemeManager.GetDefaultBoxOpacity(theme)));
             AppThemeManager.ResetBoxOpacitiesForTests();
             await workspace.ViewModel.LoadAsync();
@@ -165,7 +165,7 @@ public sealed class ThemeOpacitySettingTests
             Assert.Equal(AppThemeManager.GetDesktopBoxColor(theme, "GlassInnerBrush", AppThemeManager.GetBoxOpacity(theme)),
                 AppThemeManager.GetDesktopIconFrameColor(theme));
             Assert.Equal(0.55, AppThemeManager.GetBoxBorderOpacity(other));
-            Assert.True(workspace.ViewModel.EditorFollowsBoxOpacity);
+            Assert.True(workspace.ViewModel.Settings.EditorFollowsBoxOpacity);
         }
         finally
         {
@@ -207,15 +207,15 @@ public sealed class ThemeOpacitySettingTests
                 Assert.Equal(
                     FormatOpacity(AppThemeManager.GetDefaultBoxOpacity(theme)),
                     await workspace.DrawerService.GetSettingAsync(
-                        MainViewModel.GetThemeBoxOpacitySettingKey(theme)));
+                        SettingsViewModel.GetThemeBoxOpacitySettingKey(theme)));
             }
 
-            Assert.Equal(0, workspace.ViewModel.ThemeTransparencyPercent);
-            Assert.Equal("0%", workspace.ViewModel.ThemeTransparencyLabel);
+            Assert.Equal(0, workspace.ViewModel.Settings.ThemeTransparencyPercent);
+            Assert.Equal("0%", workspace.ViewModel.Settings.ThemeTransparencyLabel);
             Assert.Equal(
                 "2",
                 await workspace.DrawerService.GetSettingAsync(
-                    MainViewModel.ThemeBoxOpacityMigrationVersionSettingKey));
+                    SettingsViewModel.ThemeBoxOpacityMigrationVersionSettingKey));
         }
         finally
         {
@@ -286,16 +286,16 @@ public sealed class ThemeOpacitySettingTests
     {
         await using var workspace = await ThemeWorkspace.CreateAsync();
         await workspace.DrawerService.SetSettingAsync(
-            MainViewModel.ThemeBoxOpacityMigrationVersionSettingKey,
+            SettingsViewModel.ThemeBoxOpacityMigrationVersionSettingKey,
             "2");
         await workspace.DrawerService.SetSettingAsync(
-            MainViewModel.GetThemeBoxOpacitySettingKey(AppTheme.Moe),
+            SettingsViewModel.GetThemeBoxOpacitySettingKey(AppTheme.Moe),
             "0.25");
         await workspace.DrawerService.SetSettingAsync(
-            MainViewModel.GetThemeBoxOpacitySettingKey(AppTheme.Glass),
+            SettingsViewModel.GetThemeBoxOpacitySettingKey(AppTheme.Glass),
             "0.55");
         await workspace.DrawerService.SetSettingAsync(
-            MainViewModel.GetThemeBoxOpacitySettingKey(AppTheme.Crystal),
+            SettingsViewModel.GetThemeBoxOpacitySettingKey(AppTheme.Crystal),
             "0.85");
         AppThemeManager.ResetBoxOpacitiesForTests();
 
@@ -318,16 +318,16 @@ public sealed class ThemeOpacitySettingTests
     {
         await using var workspace = await ThemeWorkspace.CreateAsync();
         await workspace.DrawerService.SetSettingAsync(
-            MainViewModel.ThemeBoxOpacityMigrationVersionSettingKey,
+            SettingsViewModel.ThemeBoxOpacityMigrationVersionSettingKey,
             "1");
         await workspace.DrawerService.SetSettingAsync(
-            MainViewModel.GetThemeBoxOpacitySettingKey(AppTheme.Moe),
+            SettingsViewModel.GetThemeBoxOpacitySettingKey(AppTheme.Moe),
             "0.25");
         await workspace.DrawerService.SetSettingAsync(
-            MainViewModel.GetThemeBoxOpacitySettingKey(AppTheme.Glass),
+            SettingsViewModel.GetThemeBoxOpacitySettingKey(AppTheme.Glass),
             "1.00");
         await workspace.DrawerService.SetSettingAsync(
-            MainViewModel.GetThemeBoxOpacitySettingKey(AppTheme.Crystal),
+            SettingsViewModel.GetThemeBoxOpacitySettingKey(AppTheme.Crystal),
             "1.00");
         AppThemeManager.ResetBoxOpacitiesForTests();
 
@@ -341,7 +341,7 @@ public sealed class ThemeOpacitySettingTests
             Assert.Equal(
                 "2",
                 await workspace.DrawerService.GetSettingAsync(
-                    MainViewModel.ThemeBoxOpacityMigrationVersionSettingKey));
+                    SettingsViewModel.ThemeBoxOpacityMigrationVersionSettingKey));
         }
         finally
         {
@@ -359,9 +359,9 @@ public sealed class ThemeOpacitySettingTests
         {
             await workspace.ViewModel.LoadAsync();
 
-            workspace.ViewModel.ThemeTransparencyPercent = 35;
+            workspace.ViewModel.Settings.ThemeTransparencyPercent = 35;
 
-            var settingKey = MainViewModel.GetThemeBoxOpacitySettingKey(
+            var settingKey = SettingsViewModel.GetThemeBoxOpacitySettingKey(
                 AppThemeManager.CurrentTheme);
             string? savedOpacity = null;
             for (var attempt = 0; attempt < 40 && savedOpacity != "0.65"; attempt++)
@@ -386,15 +386,15 @@ public sealed class ThemeOpacitySettingTests
 
         await workspace.ViewModel.LoadAsync();
 
-        Assert.False(workspace.ViewModel.EditorFollowsBoxOpacity);
+        Assert.False(workspace.ViewModel.Settings.EditorFollowsBoxOpacity);
 
-        await workspace.ViewModel.ToggleEditorOpacityFollowCommand.ExecuteAsync(null);
+        await workspace.ViewModel.Settings.ToggleEditorOpacityFollowCommand.ExecuteAsync(null);
 
-        Assert.True(workspace.ViewModel.EditorFollowsBoxOpacity);
+        Assert.True(workspace.ViewModel.Settings.EditorFollowsBoxOpacity);
         Assert.Equal(
             bool.TrueString,
             await workspace.DrawerService.GetSettingAsync(
-                MainViewModel.EditorFollowsBoxOpacitySettingKey));
+                SettingsViewModel.EditorFollowsBoxOpacitySettingKey));
     }
 
     [Fact]
@@ -402,12 +402,12 @@ public sealed class ThemeOpacitySettingTests
     {
         await using var workspace = await ThemeWorkspace.CreateAsync();
         await workspace.DrawerService.SetSettingAsync(
-            MainViewModel.EditorFollowsBoxOpacitySettingKey,
+            SettingsViewModel.EditorFollowsBoxOpacitySettingKey,
             bool.TrueString);
 
         await workspace.ViewModel.LoadAsync();
 
-        Assert.True(workspace.ViewModel.EditorFollowsBoxOpacity);
+        Assert.True(workspace.ViewModel.Settings.EditorFollowsBoxOpacity);
     }
 
     [Fact]
@@ -419,12 +419,12 @@ public sealed class ThemeOpacitySettingTests
         try
         {
             await workspace.ViewModel.LoadAsync();
-            workspace.ViewModel.ThemeTransparencyPercent = 35;
+            workspace.ViewModel.Settings.ThemeTransparencyPercent = 35;
 
-            workspace.ViewModel.ThemeTransparencyPercent = double.NaN;
-            workspace.ViewModel.ThemeTransparencyPercent = double.PositiveInfinity;
+            workspace.ViewModel.Settings.ThemeTransparencyPercent = double.NaN;
+            workspace.ViewModel.Settings.ThemeTransparencyPercent = double.PositiveInfinity;
 
-            Assert.Equal(35, workspace.ViewModel.ThemeTransparencyPercent);
+            Assert.Equal(35, workspace.ViewModel.Settings.ThemeTransparencyPercent);
         }
         finally
         {
@@ -468,7 +468,7 @@ public sealed class ThemeOpacitySettingTests
             var logger = new RecordingLogger();
             var launcher = new NoOpFileLauncher();
             var visualStyleStore = new BoxVisualStyleStore(drawerService, logger);
-            var viewModel = new MainViewModel(
+            var viewModel = MainViewModelFactory.Create(
                 drawerService,
                 new TodoService(repository),
                 launcher,
