@@ -117,6 +117,39 @@ public sealed class TodoEditorInteractionTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public Task DetailView_ShowsUndoWithoutCompletedTasks(bool hasActiveTodo) => RunOnStaAsync(() =>
+    {
+        var now = DateTimeOffset.UtcNow;
+        var boxId = Guid.NewGuid();
+        var model = new TodoBoxDetailViewModel(
+            new TodoService(new DrawerRepository("unused-undo-layout-test.db")), NullAppLogger.Instance);
+        if (hasActiveTodo)
+            model.ActiveTodos.Add(new TodoItemViewModel(new TodoItem(Guid.NewGuid(), boxId,
+                "剩下的待办", false, 0, now, now)));
+        model.Undo.Offer(new TodoDeleteUndo(Guid.NewGuid(), boxId, now.AddSeconds(10)));
+        try
+        {
+            var view = LoadDetailView();
+            view.DataContext = model;
+            view.Measure(new Size(560, 350));
+            view.Arrange(new Rect(0, 0, 560, 350));
+            view.UpdateLayout();
+            var undo = Assert.Single(Descendants<Button>(view), button =>
+                ReferenceEquals(button.Command, model.UndoDeleteCommand));
+            for (DependencyObject? current = undo; current is not null; current = VisualTreeHelper.GetParent(current))
+                if (current is UIElement element) Assert.Equal(Visibility.Visible, element.Visibility);
+            Assert.Equal(34, undo.ActualHeight);
+            Assert.Same(model.UndoDeleteCommand, undo.Command);
+            var bounds = undo.TransformToAncestor(view).TransformBounds(new Rect(undo.RenderSize));
+            Assert.InRange(bounds.Bottom, 1, view.ActualHeight);
+        }
+        finally { model.Undo.Clear(); }
+        return Task.CompletedTask;
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public Task DesktopView_KeepsEditorWithinTheCompactBox(bool empty) => RunOnStaAsync(() =>
     {
         var now = DateTimeOffset.UtcNow;

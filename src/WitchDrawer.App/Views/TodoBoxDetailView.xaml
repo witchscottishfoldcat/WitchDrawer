@@ -6,25 +6,65 @@
              UseLayoutRounding="True"
              SnapsToDevicePixels="True">
     <UserControl.Resources>
-        <Style x:Key="TodoSummaryCardStyle" TargetType="{x:Type Border}">
-            <Setter Property="Background" Value="{DynamicResource PanelBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushSoft}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="12" />
-            <Setter Property="Padding" Value="13,9" />
+        <Style x:Key="TodoSectionToggleStyle" TargetType="{x:Type ToggleButton}">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="2,0" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ToggleButton}">
+                        <Border x:Name="Root" Background="Transparent" BorderBrush="Transparent"
+                                BorderThickness="1" CornerRadius="9" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Left" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource HoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="TodoListStyle" TargetType="{x:Type ListBox}" BasedOn="{StaticResource {x:Type ListBox}}">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+            <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True" />
+            <Setter Property="VirtualizingPanel.VirtualizationMode" Value="Recycling" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ListBox}">
+                        <ScrollViewer Focusable="False"
+                                      CanContentScroll="{TemplateBinding ScrollViewer.CanContentScroll}"
+                                      HorizontalScrollBarVisibility="{TemplateBinding ScrollViewer.HorizontalScrollBarVisibility}"
+                                      VerticalScrollBarVisibility="{TemplateBinding ScrollViewer.VerticalScrollBarVisibility}">
+                            <ItemsPresenter />
+                        </ScrollViewer>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style x:Key="TodoRowContainerStyle" TargetType="{x:Type ListBoxItem}">
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="FocusVisualStyle" Value="{x:Null}" />
             <Setter Property="Padding" Value="0" />
-            <Setter Property="Margin" Value="0,0,0,4" />
+            <Setter Property="Margin" Value="0,0,0,2" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type ListBoxItem}">
                         <Border x:Name="RowSurface"
-                                MinHeight="45"
-                                Padding="10,7"
+                                MinHeight="48"
+                                Padding="8,4"
                                 Background="Transparent"
                                 BorderBrush="Transparent"
                                 BorderThickness="1"
@@ -68,6 +108,7 @@
             <Setter Property="Padding" Value="0" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
             <Setter Property="FocusVisualStyle" Value="{x:Null}" />
             <Setter Property="Template">
                 <Setter.Value>
@@ -136,156 +177,73 @@
         </DataTemplate>
     </UserControl.Resources>
 
-    <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
+    <Border Padding="14"
+            Background="{DynamicResource PanelBrush}"
+            BorderBrush="{DynamicResource BorderBrushSoft}"
+            BorderThickness="1"
+            CornerRadius="16">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
 
-        <Grid Grid.Row="0" Margin="0,0,0,9">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="1.08*" />
-                <ColumnDefinition Width="1.08*" />
-                <ColumnDefinition Width="1.5*" />
-            </Grid.ColumnDefinitions>
-
-            <Border Grid.Column="0"
-                    Margin="0,0,7,0"
-                    Style="{StaticResource TodoSummaryCardStyle}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Border Width="30"
-                            Height="30"
-                            CornerRadius="9"
-                            Background="{DynamicResource AccentSoftBrush}">
-                        <TextBlock Text="&#xE8FD;"
-                                   FontFamily="Segoe Fluent Icons"
-                                   FontSize="14"
-                                   Foreground="{DynamicResource AccentBrush}"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center" />
-                    </Border>
-                    <StackPanel Grid.Column="1" Margin="9,0,0,0" VerticalAlignment="Center">
-                        <TextBlock Text="待完成"
-                                   Foreground="{DynamicResource TextMutedBrush}"
-                                   FontSize="10" />
-                        <TextBlock Text="{Binding RemainingCount}"
-                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                   FontSize="18"
-                                   FontWeight="SemiBold" />
-                    </StackPanel>
-                </Grid>
-            </Border>
-
-            <Border Grid.Column="1"
-                    Margin="0,0,7,0"
-                    Style="{StaticResource TodoSummaryCardStyle}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Border Width="30"
-                            Height="30"
-                            CornerRadius="9"
-                            Background="{DynamicResource GlassInnerBrush}">
-                        <TextBlock Text="&#xE73E;"
-                                   FontFamily="Segoe Fluent Icons"
-                                   FontSize="14"
-                                   Foreground="{DynamicResource TextMutedBrush}"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center" />
-                    </Border>
-                    <StackPanel Grid.Column="1" Margin="9,0,0,0" VerticalAlignment="Center">
-                        <TextBlock Text="已完成"
-                                   Foreground="{DynamicResource TextMutedBrush}"
-                                   FontSize="10" />
-                        <TextBlock Text="{Binding CompletedCount}"
-                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                   FontSize="18"
-                                   FontWeight="SemiBold" />
-                    </StackPanel>
-                </Grid>
-            </Border>
-
-            <Border Grid.Column="2"
-                    Style="{StaticResource TodoSummaryCardStyle}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="清单完成率"
-                                   Foreground="{DynamicResource TextMutedBrush}"
-                                   FontSize="10" />
-                        <ProgressBar Height="5"
-                                     Margin="0,7,12,0"
-                                     Minimum="0"
-                                     Maximum="100"
-                                     Value="{Binding CompletionPercentage, Mode=OneWay}"
-                                     Foreground="{DynamicResource AccentBrush}"
-                                     Background="{DynamicResource PanelAltBrush}"
-                                     BorderThickness="0" />
-                    </StackPanel>
-                    <TextBlock Grid.Column="1"
-                               Text="{Binding CompletionPercentage, StringFormat={}{0}%}"
-                               Foreground="{DynamicResource AccentBrush}"
-                               FontSize="18"
-                               FontWeight="SemiBold"
-                               VerticalAlignment="Center" />
-                </Grid>
-            </Border>
-        </Grid>
-
-        <Border Grid.Row="1"
-                Margin="0,0,0,9"
-                Padding="8"
-                Background="{DynamicResource PanelBrush}"
-                BorderBrush="{DynamicResource BorderBrushSoft}"
-                BorderThickness="1"
-                CornerRadius="12">
-            <Grid>
+            <Grid Grid.Row="0" Margin="2,0,2,12">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse Width="6" Height="6" Fill="{DynamicResource AccentBrush}" Margin="0,0,8,0" />
+                    <TextBlock Text="待办清单"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               FontSize="13"
+                               FontWeight="SemiBold" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Foreground="{DynamicResource TextMutedBrush}" FontSize="11.5">
+                        <Run Text="待完成 " /><Run Text="{Binding RemainingCount, Mode=OneWay}" Foreground="{DynamicResource TextPrimaryBrush}" FontWeight="SemiBold" />
+                    </TextBlock>
+                    <TextBlock Text="·" Foreground="{DynamicResource TextMutedBrush}" Margin="8,0" />
+                    <TextBlock Foreground="{DynamicResource TextMutedBrush}" FontSize="11.5">
+                        <Run Text="已完成 " /><Run Text="{Binding CompletedCount, Mode=OneWay}" Foreground="{DynamicResource TextPrimaryBrush}" FontWeight="SemiBold" />
+                    </TextBlock>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0"
+                                Visibility="{Binding IsEmpty, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                        <ProgressBar Width="60" Height="4" VerticalAlignment="Center"
+                                     Minimum="0" Maximum="100"
+                                     Value="{Binding CompletionPercentage, Mode=OneWay}"
+                                     Foreground="{DynamicResource AccentBrush}"
+                                     Background="{DynamicResource PanelAltBrush}" BorderThickness="0"
+                                     ToolTip="清单完成进度" />
+                        <TextBlock Text="{Binding CompletionPercentage, StringFormat={}{0}%}"
+                                   FontSize="10.5" Foreground="{DynamicResource TextMutedBrush}" Margin="8,0,0,0" />
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
 
-                <Border Width="34"
-                        Height="34"
-                        CornerRadius="9"
-                        Background="{DynamicResource AccentSoftBrush}">
-                    <TextBlock Text="+"
-                               Foreground="{DynamicResource AccentBrush}"
-                               FontSize="20"
-                               FontWeight="Medium"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center" />
-                </Border>
-
-                <Grid Grid.Column="1" Margin="9,0">
-                    <TextBox Text="{Binding NewTodoTitle, UpdateSourceTrigger=PropertyChanged}"
-                             MaxLength="200"
-                             Height="34"
-                             Padding="9,0"
+            <Grid Grid.Row="1" Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid Margin="0,0,8,0">
+                    <TextBox x:Name="NewTodoInput"
+                             Text="{Binding NewTodoTitle, UpdateSourceTrigger=PropertyChanged}"
+                             MaxLength="200" Height="34" Padding="10,0"
                              VerticalContentAlignment="Center"
                              Foreground="{DynamicResource TextPrimaryBrush}"
                              Background="{DynamicResource PanelAltBrush}"
                              BorderBrush="{DynamicResource BorderBrushSoft}"
-                             BorderThickness="1"
-                             FontSize="12"
-                             ToolTip="输入任务，按 Enter 添加" />
-                    <TextBlock Text="写下一件要做的事…"
-                               Margin="10,0,0,0"
-                               Foreground="{DynamicResource TextMutedBrush}"
-                               FontSize="11.5"
-                               VerticalAlignment="Center"
-                               IsHitTestVisible="False">
+                             BorderThickness="1" FontSize="12"
+                             ToolTip="输入任务，按 Enter 添加"
+                             AutomationProperties.Name="新待办内容" />
+                    <TextBlock Text="添加一件要做的事…" Margin="11,0,0,0"
+                               Foreground="{DynamicResource TextMutedBrush}" FontSize="12"
+                               VerticalAlignment="Center" IsHitTestVisible="False">
                         <TextBlock.Style>
                             <Style TargetType="{x:Type TextBlock}">
                                 <Setter Property="Visibility" Value="Collapsed" />
@@ -298,148 +256,124 @@
                         </TextBlock.Style>
                     </TextBlock>
                 </Grid>
-
-                <Button Grid.Column="2"
-                        Content="添加任务"
-                        Command="{Binding AddTodoCommand}"
-                        IsDefault="True"
-                        Height="34"
-                        Padding="16,0"
-                        Style="{StaticResource PrimaryButtonStyle}" />
+                <Button Grid.Column="1" Command="{Binding AddTodoCommand}"
+                        IsDefault="True" Width="112" Height="34" Padding="12,0" FontSize="12"
+                        Style="{StaticResource PrimaryButtonStyle}"
+                        AutomationProperties.Name="添加任务">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="+" Margin="0,0,6,0" />
+                        <TextBlock Text="添加任务" />
+                    </StackPanel>
+                </Button>
             </Grid>
-        </Border>
 
-        <Border Grid.Row="2"
-                Padding="12"
-                Background="{DynamicResource PanelBrush}"
-                BorderBrush="{DynamicResource BorderBrushSoft}"
-                BorderThickness="1"
-                CornerRadius="12">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
-
-                <Grid Grid.Row="0" Margin="2,0,2,9">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Border Width="16"
-                                Height="3"
-                                Margin="0,0,7,0"
-                                CornerRadius="2"
-                                Background="{DynamicResource AccentBrush}" />
-                        <TextBlock Text="待办清单"
-                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                   FontSize="13"
-                                   FontWeight="SemiBold" />
-                        <TextBlock Text="{Binding StatusText, StringFormat=  ·  {0}}"
-                                   Foreground="{DynamicResource TextMutedBrush}"
-                                   FontSize="10.5"
-                                   VerticalAlignment="Center" />
-                    </StackPanel>
-                    <Border Grid.Column="1"
-                            Padding="8,3"
-                            Background="{DynamicResource AccentSoftBrush}"
-                            CornerRadius="8">
-                        <TextBlock Text="{Binding TotalCount, StringFormat={}{0} 项}"
+            <Grid Grid.Row="2">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                            Visibility="{Binding HasActiveTodos, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                    <Border Width="40" Height="40" CornerRadius="12" Background="{DynamicResource AccentSoftBrush}">
+                        <TextBlock Text="&#xE73E;" FontFamily="Segoe Fluent Icons" FontSize="18"
                                    Foreground="{DynamicResource AccentBrush}"
-                                   FontSize="10.5"
-                                   FontWeight="SemiBold" />
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
-                </Grid>
-
-                <Grid Grid.Row="1">
-                    <StackPanel HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                Visibility="{Binding HasActiveTodos, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
-                        <Border Width="46"
-                                Height="46"
-                                CornerRadius="14"
-                                Background="{DynamicResource AccentSoftBrush}">
-                            <TextBlock Text="&#xE73E;"
-                                       FontFamily="Segoe Fluent Icons"
-                                       FontSize="20"
-                                       Foreground="{DynamicResource AccentBrush}"
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center" />
-                        </Border>
-                        <TextBlock Text="今天没有待完成事项"
-                                   Margin="0,9,0,0"
-                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                   FontSize="13"
-                                   FontWeight="SemiBold" />
-                        <TextBlock Text="在上方写下一件要做的小事"
-                                   Margin="0,3,0,0"
-                                   Foreground="{DynamicResource TextMutedBrush}"
-                                   FontSize="10.5" />
-                    </StackPanel>
-
-                    <ListBox ItemsSource="{Binding ActiveTodos}"
-                             ItemTemplate="{StaticResource TodoDetailItemTemplate}"
-                             ItemContainerStyle="{StaticResource TodoRowContainerStyle}"
-                             ScrollViewer.CanContentScroll="True"
-                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                             ScrollViewer.VerticalScrollBarVisibility="Auto"
-                             VirtualizingPanel.IsVirtualizing="True"
-                             VirtualizingPanel.VirtualizationMode="Recycling"
-                             Visibility="{Binding HasActiveTodos, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                </Grid>
-
-                <Grid Grid.Row="2"
-                      Margin="2,8,2,5"
-                      Visibility="{Binding HasCompletedTodos, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="已完成"
-                                   Foreground="{DynamicResource TextMutedBrush}"
-                                   FontSize="10.5"
-                                   FontWeight="SemiBold" />
-                        <Border Margin="6,0,0,0"
-                                Padding="6,2"
-                                Background="{DynamicResource PanelAltBrush}"
-                                CornerRadius="6">
-                            <TextBlock Text="{Binding CompletedCount}"
-                                       Foreground="{DynamicResource TextMutedBrush}"
-                                       FontSize="9.5"
-                                       FontWeight="SemiBold" />
-                        </Border>
-                    </StackPanel>
-                    <StackPanel Grid.Column="1" Orientation="Horizontal">
-                    <Button Content="撤销删除" Command="{Binding UndoDeleteCommand}"
-                            Visibility="{Binding Undo.IsAvailable, Converter={StaticResource BooleanToVisibilityConverter}}"
-                            Style="{StaticResource GhostButtonStyle}" Margin="0,0,6,0" Padding="8,0" />
-                    <Button
-                            Content="归档已完成"
-                            Command="{Binding ArchiveCompletedCommand}"
-                            Height="26"
-                            Padding="10,0"
-                            Style="{StaticResource GhostButtonStyle}"
-                            Foreground="{DynamicResource TextMutedBrush}"
-                            FontSize="10.5" />
-                    </StackPanel>
-                </Grid>
-
-                <ListBox Grid.Row="3"
-                         MaxHeight="94"
-                         ItemsSource="{Binding CompletedTodos}"
+                    <TextBlock Margin="0,10,0,0" HorizontalAlignment="Center"
+                               Foreground="{DynamicResource TextPrimaryBrush}" FontSize="13" FontWeight="SemiBold">
+                        <TextBlock.Style>
+                            <Style TargetType="{x:Type TextBlock}">
+                                <Setter Property="Text" Value="还没有待办事项" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsEmpty}" Value="False">
+                                        <Setter Property="Text" Value="所有事项已完成" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock Margin="0,4,0,0" HorizontalAlignment="Center"
+                               Foreground="{DynamicResource TextMutedBrush}" FontSize="11.5">
+                        <TextBlock.Style>
+                            <Style TargetType="{x:Type TextBlock}">
+                                <Setter Property="Text" Value="在上方添加任务，按 Enter 即可开始" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsEmpty}" Value="False">
+                                        <Setter Property="Text" Value="可以归档已完成的事项，或添加新的任务" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
+                <ListBox ItemsSource="{Binding ActiveTodos}"
+                         Style="{StaticResource TodoListStyle}"
                          ItemTemplate="{StaticResource TodoDetailItemTemplate}"
                          ItemContainerStyle="{StaticResource TodoRowContainerStyle}"
-                         ScrollViewer.CanContentScroll="True"
-                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                         ScrollViewer.VerticalScrollBarVisibility="Auto"
-                         VirtualizingPanel.IsVirtualizing="True"
-                         VirtualizingPanel.VirtualizationMode="Recycling"
-                         Visibility="{Binding HasCompletedTodos, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                         Visibility="{Binding HasActiveTodos, Converter={StaticResource BooleanToVisibilityConverter}}"
+                         AutomationProperties.Name="待完成事项" />
             </Grid>
-        </Border>
-    </Grid>
+
+            <Border Grid.Row="3" Margin="0,10,0,0" Padding="0,8,0,0"
+                    BorderBrush="{DynamicResource BorderBrushSoft}" BorderThickness="0,1,0,0"
+                    Visibility="{Binding HasCompletedTodos, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Grid Margin="2,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ToggleButton x:Name="CompletedTodosToggle" IsChecked="False"
+                                      HorizontalAlignment="Left" Style="{StaticResource TodoSectionToggleStyle}"
+                                      ToolTip="展开或收起已完成事项" AutomationProperties.Name="展开或收起已完成事项">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons" FontSize="10" Margin="0,0,8,0" VerticalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="{x:Type TextBlock}">
+                                            <Setter Property="Text" Value="&#xE76C;" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsChecked, ElementName=CompletedTodosToggle}" Value="True">
+                                                    <Setter Property="Text" Value="&#xE70D;" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock>
+                                    <Run Text="已完成 " /><Run Text="{Binding CompletedCount, Mode=OneWay}" FontWeight="SemiBold" />
+                                </TextBlock>
+                            </StackPanel>
+                        </ToggleButton>
+                        <Button Grid.Column="1" Content="归档已完成" Command="{Binding ArchiveCompletedCommand}"
+                                Width="112" Height="34" Padding="12,0" FontSize="12"
+                                Style="{StaticResource GhostButtonStyle}"
+                                Foreground="{DynamicResource TextMutedBrush}" />
+                    </Grid>
+                    <ListBox Grid.Row="1" MaxHeight="120"
+                             ItemsSource="{Binding CompletedTodos}"
+                             Style="{StaticResource TodoListStyle}"
+                             ItemTemplate="{StaticResource TodoDetailItemTemplate}"
+                             ItemContainerStyle="{StaticResource TodoRowContainerStyle}"
+                             Visibility="{Binding IsChecked, ElementName=CompletedTodosToggle, Converter={StaticResource BooleanToVisibilityConverter}}"
+                             AutomationProperties.Name="已完成事项" />
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="4" Margin="0,10,0,0" Padding="10,6" CornerRadius="9"
+                    Background="{DynamicResource AccentSoftBrush}"
+                    Visibility="{Binding Undo.IsAvailable, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="已删除一项待办" Foreground="{DynamicResource TextPrimaryBrush}"
+                               FontSize="11.5" VerticalAlignment="Center" />
+                    <Button Grid.Column="1" Content="撤销删除" Command="{Binding UndoDeleteCommand}"
+                            Width="112" Height="34" Padding="12,0" FontSize="12"
+                            Style="{StaticResource GhostButtonStyle}" Foreground="{DynamicResource AccentBrush}" />
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
 </UserControl>

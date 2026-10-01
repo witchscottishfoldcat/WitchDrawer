@@ -387,7 +387,7 @@ public sealed class DesktopBoxWindowTemplateTests
         Assert.Equal(0, itemPadding.Right);
         Assert.Equal(8, itemMargin.Left);
         Assert.Equal(2, itemMargin.Right - scrollMargin.Right);
-        Assert.Equal(28, actionWidth);
+        Assert.Equal(56, actionWidth);
         Assert.Equal(16, actionMargin.Right);
         Assert.True(actionMargin.Right >= scrollMargin.Right + scrollWidth);
         Assert.All(
