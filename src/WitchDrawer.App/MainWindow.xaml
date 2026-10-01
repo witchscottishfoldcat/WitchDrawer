@@ -926,7 +926,7 @@
                                     BorderThickness="1"
                                     CornerRadius="16"
                                     Padding="16,9"
-                                    Margin="0,0,0,12">
+                                    Margin="0,0,0,6">
                                 <DockPanel>
                                     <Grid DockPanel.Dock="Top" Margin="2,0,2,6">
                                         <StackPanel Orientation="Horizontal">
@@ -980,6 +980,7 @@
                                                  ItemsSource="{Binding Items}"
                                                  VerticalAlignment="Top"
                                                  BorderThickness="0"
+                                                 Padding="0"
                                                  ClipToBounds="True"
                                                  PreviewKeyDown="OnMainItemsPreviewKeyDown"
                                                  MouseDoubleClick="OnItemsMouseDoubleClick"
@@ -988,6 +989,17 @@
                                                  VirtualizingPanel.IsVirtualizing="True"
                                                  VirtualizingPanel.VirtualizationMode="Recycling"
                                                  Visibility="{Binding Items.Count, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                                            <ListBox.Template>
+                                                <ControlTemplate TargetType="{x:Type ListBox}">
+                                                    <ScrollViewer Focusable="False"
+                                                                  Padding="{TemplateBinding Padding}"
+                                                                  CanContentScroll="{TemplateBinding ScrollViewer.CanContentScroll}"
+                                                                  HorizontalScrollBarVisibility="{TemplateBinding ScrollViewer.HorizontalScrollBarVisibility}"
+                                                                  VerticalScrollBarVisibility="{TemplateBinding ScrollViewer.VerticalScrollBarVisibility}">
+                                                        <ItemsPresenter />
+                                                    </ScrollViewer>
+                                                </ControlTemplate>
+                                            </ListBox.Template>
                                             <ListBox.ItemContainerStyle>
                                                 <Style TargetType="{x:Type ListBoxItem}">
                                                     <Setter Property="MinHeight" Value="48" />
@@ -1135,7 +1147,7 @@
                                  </DockPanel>
                              </Border>
 
-                            <Border Grid.Row="1" Padding="2,7" Background="Transparent">
+                            <Border Grid.Row="1" Padding="2,4" Background="Transparent">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="&#xE896;" FontFamily="Segoe Fluent Icons" FontSize="12" Margin="0,0,8,0"
                                                Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
