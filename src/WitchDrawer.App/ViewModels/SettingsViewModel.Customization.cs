@@ -80,13 +80,17 @@ public sealed partial class SettingsViewModel
             ResetThemeTransparency();
             StatusText = $"已恢复 {ThemeLabel} 原始预设";
         });
-        ResetThemeFieldCommand = new RelayCommand<string>(field => UpdateCustomization(settings => field switch
+        ResetThemeFieldCommand = new RelayCommand<string>(field =>
         {
-            "BoxCornerRadius" => settings with { BoxCornerRadius = null },
-            "IconCornerScale" => settings with { IconCornerScale = null },
-            "ItemHoverOpacity" => settings with { ItemHoverOpacity = null },
-            _ => settings
-        }));
+            if (TryResetThemeTransparencyField(field)) return;
+            UpdateCustomization(settings => field switch
+            {
+                "BoxCornerRadius" => settings with { BoxCornerRadius = null },
+                "IconCornerScale" => settings with { IconCornerScale = null },
+                "ItemHoverOpacity" => settings with { ItemHoverOpacity = null },
+                _ => settings
+            });
+        });
         ThemeColors = new[]
         {
             new ThemeColorOptionViewModel("BoxBackground", "盒子背景", color => UpdateCustomization(s => s with { BoxBackground = color })),

@@ -90,6 +90,13 @@
             </Setter.Value>
         </Setter>
     </Style>
+    <Style x:Key="ThemeOpacityResetButtonStyle" TargetType="Button" BasedOn="{StaticResource GhostButtonStyle}">
+        <Setter Property="Content" Value="默认" />
+        <Setter Property="Height" Value="26" />
+        <Setter Property="Padding" Value="7,0" />
+        <Setter Property="Margin" Value="8,0,0,0" />
+        <Setter Property="FontSize" Value="11" />
+    </Style>
     <Style x:Key="ThemeChoiceButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource {x:Type Button}}">
         <Setter Property="Height" Value="28" />
         <Setter Property="Padding" Value="9,2" />

@@ -372,10 +372,36 @@ public sealed partial class SettingsViewModel : ObservableObject
         AppThemeManager.SetBoxOpacity(theme, opacity);
         AppThemeManager.SetBoxBorderOpacity(theme, null);
         AppThemeManager.SetIconFrameOpacity(theme, null);
-        SynchronizeThemeTransparency();
+        SynchronizeThemeTransparency(refreshControls: true);
         QueueThemeOpacitySave(GetThemeBoxOpacitySettingKey(theme), FormatOpacity(opacity));
         QueueThemeOpacitySave(BoxBorderOpacitySettingKeyPrefix + theme, null);
         QueueThemeOpacitySave(IconFrameOpacitySettingKeyPrefix + theme, null);
+    }
+
+    private bool TryResetThemeTransparencyField(string? field)
+    {
+        var theme = CurrentTheme;
+        switch (field)
+        {
+            case nameof(ThemeTransparencyPercent):
+                var opacity = AppThemeManager.GetDefaultBoxOpacity(theme);
+                AppThemeManager.SetBoxOpacity(theme, opacity);
+                QueueThemeOpacitySave(GetThemeBoxOpacitySettingKey(theme), FormatOpacity(opacity));
+                break;
+            case nameof(BoxBorderTransparencyPercent):
+                AppThemeManager.SetBoxBorderOpacity(theme, null);
+                QueueThemeOpacitySave(BoxBorderOpacitySettingKeyPrefix + theme, null);
+                break;
+            case nameof(IconFrameTransparencyPercent):
+                AppThemeManager.SetIconFrameOpacity(theme, null);
+                QueueThemeOpacitySave(IconFrameOpacitySettingKeyPrefix + theme, null);
+                break;
+            default:
+                return false;
+        }
+
+        SynchronizeThemeTransparency(refreshControls: true);
+        return true;
     }
 
     private async Task ApplyThemeAsync(AppTheme theme)
@@ -495,7 +521,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             || Math.Abs(opacity - AppThemeManager.MaximumBoxOpacity) < 0.0001;
     }
 
-    private void SynchronizeThemeTransparency()
+    private void SynchronizeThemeTransparency(bool refreshControls = false)
     {
         _isSynchronizingThemeTransparency = true;
         try
@@ -506,6 +532,14 @@ public sealed partial class SettingsViewModel : ObservableObject
                 Math.Round((1 - AppThemeManager.GetBoxBorderOpacity(CurrentTheme)) * 100);
             IconFrameTransparencyPercent =
                 Math.Round((1 - AppThemeManager.GetIconFrameOpacity(CurrentTheme)) * 100);
+            if (refreshControls)
+            {
+                // Explicit resets also refresh controls when the source values
+                // already equal the defaults.
+                OnPropertyChanged(nameof(ThemeTransparencyPercent));
+                OnPropertyChanged(nameof(BoxBorderTransparencyPercent));
+                OnPropertyChanged(nameof(IconFrameTransparencyPercent));
+            }
         }
         finally
         {

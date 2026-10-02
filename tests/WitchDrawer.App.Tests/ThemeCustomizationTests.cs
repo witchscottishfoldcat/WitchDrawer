@@ -184,6 +184,65 @@ public sealed class ThemeCustomizationTests
     private static Color Parse(string hex) => (Color)ColorConverter.ConvertFromString(hex);
 
     [Theory]
+    [InlineData(AppTheme.Moe, nameof(SettingsViewModel.ThemeTransparencyPercent))]
+    [InlineData(AppTheme.Glass, nameof(SettingsViewModel.ThemeTransparencyPercent))]
+    [InlineData(AppTheme.Crystal, nameof(SettingsViewModel.ThemeTransparencyPercent))]
+    [InlineData(AppTheme.Moe, nameof(SettingsViewModel.BoxBorderTransparencyPercent))]
+    [InlineData(AppTheme.Glass, nameof(SettingsViewModel.BoxBorderTransparencyPercent))]
+    [InlineData(AppTheme.Crystal, nameof(SettingsViewModel.BoxBorderTransparencyPercent))]
+    [InlineData(AppTheme.Moe, nameof(SettingsViewModel.IconFrameTransparencyPercent))]
+    [InlineData(AppTheme.Glass, nameof(SettingsViewModel.IconFrameTransparencyPercent))]
+    [InlineData(AppTheme.Crystal, nameof(SettingsViewModel.IconFrameTransparencyPercent))]
+    public async Task SingleTransparencyReset_FlushesOnlyThatOverrideAndPreservesCustomStyle(
+        AppTheme theme, string field)
+    {
+        var previous = AppThemeManager.CurrentTheme;
+        AppThemeManager.ResetBoxOpacitiesForTests();
+        AppThemeManager.Apply(theme);
+        var store = new MemorySettings();
+        var model = Create(store);
+        var other = Enum.GetValues<AppTheme>().First(candidate => candidate != theme);
+        var otherKey = SettingsViewModel.BoxBorderOpacitySettingKeyPrefix + other;
+        store.Values[otherKey] = "0.55";
+        try
+        {
+            AppThemeManager.SetBoxBorderOpacity(other, 0.55);
+            model.ThemeTransparencyPercent = 37;
+            model.BoxBorderTransparencyPercent = 63;
+            model.IconFrameTransparencyPercent = 72;
+            model.BoxCornerRadius = 5;
+            model.ThemeColors.Single(color => color.Key == "Accent").Hex = "#AF52DE";
+
+            model.ResetThemeFieldCommand.Execute(field);
+            await model.FlushPendingThemeSettingsAsync();
+
+            Assert.Equal(field == nameof(SettingsViewModel.ThemeTransparencyPercent)
+                    ? AppThemeManager.GetDefaultBoxOpacity(theme) : 0.63,
+                AppThemeManager.GetBoxOpacity(theme), precision: 6);
+            var borderKey = SettingsViewModel.BoxBorderOpacitySettingKeyPrefix + theme;
+            var frameKey = SettingsViewModel.IconFrameOpacitySettingKeyPrefix + theme;
+            Assert.Equal(field == nameof(SettingsViewModel.BoxBorderTransparencyPercent) ? null : "0.37",
+                await store.GetSettingAsync(borderKey));
+            Assert.Equal(field == nameof(SettingsViewModel.IconFrameTransparencyPercent) ? null : "0.28",
+                await store.GetSettingAsync(frameKey));
+            if (field != nameof(SettingsViewModel.BoxBorderTransparencyPercent))
+                Assert.Equal(63, model.BoxBorderTransparencyPercent);
+            if (field != nameof(SettingsViewModel.IconFrameTransparencyPercent))
+                Assert.Equal(72, model.IconFrameTransparencyPercent);
+            Assert.Equal(5, model.BoxCornerRadius);
+            Assert.Equal("#AF52DE", model.ThemeColors.Single(color => color.Key == "Accent").Hex);
+            Assert.Equal(0.55, AppThemeManager.GetBoxBorderOpacity(other));
+            Assert.Equal("0.55", await store.GetSettingAsync(otherKey));
+        }
+        finally
+        {
+            await model.FlushPendingThemeSettingsAsync();
+            AppThemeManager.ResetBoxOpacitiesForTests();
+            AppThemeManager.Apply(previous);
+        }
+    }
+
+    [Theory]
     [InlineData(AppTheme.Moe)]
     [InlineData(AppTheme.Glass)]
     [InlineData(AppTheme.Crystal)]

@@ -1246,14 +1246,15 @@
                                           Grid.ColumnSpan="2"
                                           Margin="0,10,0,0">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="104" />
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="42" />
+                                            <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="桌面盒子透明度"
-                                                   VerticalAlignment="Center"
-                                                   FontSize="11.5"
-                                                   Foreground="{DynamicResource TextMutedBrush}" />
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="桌面盒子透明度" FontSize="11.5" Foreground="{DynamicResource TextMutedBrush}" />
+                                            <TextBlock Text="可调范围 0–90%" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" />
+                                        </StackPanel>
                                         <Slider Grid.Column="1"
                                                 Margin="12,0,10,0"
                                                 Minimum="0"
@@ -1261,6 +1262,8 @@
                                                 SmallChange="1"
                                                 LargeChange="10"
                                                 IsMoveToPointEnabled="True"
+                                                IsSnapToTickEnabled="True"
+                                                TickFrequency="1"
                                                 Style="{StaticResource ThemeOpacitySliderStyle}"
                                                 VerticalAlignment="Center"
                                                 Value="{Binding Settings.ThemeTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
@@ -1287,14 +1290,18 @@
                                                        FontWeight="SemiBold"
                                                        Foreground="{DynamicResource TextPrimaryBrush}" />
                                         </StackPanel>
+                                        <Button Grid.Column="3" Style="{StaticResource ThemeOpacityResetButtonStyle}"
+                                                Command="{Binding Settings.ResetThemeFieldCommand}" CommandParameter="ThemeTransparencyPercent"
+                                                AutomationProperties.Name="恢复桌面盒子透明度默认值" />
                                     </Grid>
                                     <Grid Grid.Row="2"
                                           Grid.ColumnSpan="2"
                                           Margin="0,9,0,0">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="104" />
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="42" />
+                                            <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Text="盒子边线透明度"
                                                    VerticalAlignment="Center"
@@ -1307,6 +1314,8 @@
                                                 SmallChange="1"
                                                 LargeChange="10"
                                                 IsMoveToPointEnabled="True"
+                                                IsSnapToTickEnabled="True"
+                                                TickFrequency="1"
                                                 Style="{StaticResource ThemeOpacitySliderStyle}"
                                                 VerticalAlignment="Center"
                                                 AutomationProperties.Name="盒子边线透明度"
@@ -1335,14 +1344,19 @@
                                                        FontWeight="SemiBold"
                                                        Foreground="{DynamicResource TextPrimaryBrush}" />
                                         </StackPanel>
+                                        <Button Grid.Column="3" Style="{StaticResource ThemeOpacityResetButtonStyle}"
+                                                Command="{Binding Settings.ResetThemeFieldCommand}" CommandParameter="BoxBorderTransparencyPercent"
+                                                ToolTip="恢复主题默认，随桌面盒子透明度变化"
+                                                AutomationProperties.Name="恢复盒子边线透明度默认值" />
                                     </Grid>
                                     <Grid Grid.Row="3"
                                           Grid.ColumnSpan="2"
                                           Margin="0,9,0,0">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="104" />
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="42" />
+                                            <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Text="图标背景框透明度"
                                                    VerticalAlignment="Center"
@@ -1355,6 +1369,8 @@
                                                 SmallChange="1"
                                                 LargeChange="10"
                                                 IsMoveToPointEnabled="True"
+                                                IsSnapToTickEnabled="True"
+                                                TickFrequency="1"
                                                 Style="{StaticResource ThemeOpacitySliderStyle}"
                                                 VerticalAlignment="Center"
                                                 AutomationProperties.Name="图标背景框透明度"
@@ -1383,6 +1399,10 @@
                                                        FontWeight="SemiBold"
                                                        Foreground="{DynamicResource TextPrimaryBrush}" />
                                         </StackPanel>
+                                        <Button Grid.Column="3" Style="{StaticResource ThemeOpacityResetButtonStyle}"
+                                                Command="{Binding Settings.ResetThemeFieldCommand}" CommandParameter="IconFrameTransparencyPercent"
+                                                ToolTip="恢复主题默认，随桌面盒子透明度变化"
+                                                AutomationProperties.Name="恢复图标背景框透明度默认值" />
                                     </Grid>
                                     <Grid Grid.Row="4"
                                           Grid.ColumnSpan="2"
@@ -1410,24 +1430,17 @@
                                                       Command="{Binding Settings.ToggleEditorOpacityFollowCommand}"
                                                       AutomationProperties.Name="编辑页跟随透明度" />
                                     </Grid>
-                                    <Grid Grid.Row="5" Grid.ColumnSpan="2" Margin="0,9,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Text="恢复当前主题的三项透明度默认值"
-                                                   VerticalAlignment="Center"
-                                                   FontSize="10.5"
-                                                   Foreground="{DynamicResource TextMutedBrush}" />
-                                        <Button Grid.Column="1"
-                                                Content="恢复默认"
-                                                Command="{Binding Settings.ResetThemeTransparencyCommand}"
-                                                Style="{StaticResource GhostButtonStyle}"
+                                    <views:ThemeCustomizationView Grid.Row="5" Grid.ColumnSpan="2" Margin="0,10,0,0" DataContext="{Binding Settings}" />
+                                    <DockPanel Grid.Row="6" Grid.ColumnSpan="2" Margin="0,10,0,0">
+                                        <Button DockPanel.Dock="Right" Content="恢复当前主题预设"
+                                                Command="{Binding Settings.ResetThemePresetCommand}"
+                                                Style="{StaticResource GhostButtonStyle}" Height="28" Padding="10,0"
                                                 Foreground="{DynamicResource AccentBrush}"
-                                                Height="26" Padding="10,0"
-                                                AutomationProperties.Name="恢复当前主题透明度默认值" />
-                                    </Grid>
-                                    <views:ThemeCustomizationView Grid.Row="6" Grid.ColumnSpan="2" Margin="0,10,0,0" DataContext="{Binding Settings}" />
+                                                ToolTip="恢复当前主题的透明度、颜色、圆角和悬停样式" />
+                                        <TextBlock Text="每套主题分别保存，恢复预设会重置透明度、颜色与圆角。"
+                                                   FontSize="10.5" TextWrapping="Wrap" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,10,0" />
+                                    </DockPanel>
                                 </Grid>
                                 </Border>
 
