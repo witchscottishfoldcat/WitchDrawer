@@ -13,8 +13,33 @@ namespace WitchDrawer.App.Views;
 /// </summary>
 public partial class DesktopBoxWindow
 {
+    internal event Action? DesktopLayerChanged;
+
+    private void NotifyDesktopLayerChanged()
+    {
+        if (_forceClose || Visibility != Visibility.Visible)
+        {
+            return;
+        }
+
+        try
+        {
+            DesktopLayerChanged?.Invoke();
+        }
+        catch (Exception exception)
+        {
+            ViewModel.Logger.Error(exception, "Failed to queue desktop layer repair.");
+        }
+    }
+
     private void SendToBottom()
     {
+        if (DesktopWindowLayer.IsEnabled)
+        {
+            NotifyDesktopLayerChanged();
+            return;
+        }
+
         if (!ShouldSendToBottom(_desktopIsForeground))
         {
             return;
@@ -32,6 +57,12 @@ public partial class DesktopBoxWindow
 
     public void QueueSendToBottom()
     {
+        if (DesktopWindowLayer.IsEnabled)
+        {
+            NotifyDesktopLayerChanged();
+            return;
+        }
+
         SendToBottom();
         Dispatcher.BeginInvoke(new Action(SendToBottom), DispatcherPriority.ApplicationIdle);
     }
@@ -94,11 +125,23 @@ public partial class DesktopBoxWindow
 
     public bool RefreshDesktopHost()
     {
+        if (DesktopWindowLayer.IsEnabled)
+        {
+            NotifyDesktopLayerChanged();
+            return IsNativeWindowAlive;
+        }
+
         return _nativeWindow?.TryAttachToDesktop() == true;
     }
 
     public void SetDesktopForeground(bool isForeground)
     {
+        if (DesktopWindowLayer.IsEnabled)
+        {
+            NotifyDesktopLayerChanged();
+            return;
+        }
+
         if (isForeground)
         {
             _nativeWindow?.RefreshDesktopHostForShowDesktop();
@@ -119,13 +162,29 @@ public partial class DesktopBoxWindow
     {
         if (DesktopToolWindow.IsMouseActivationMessage(message))
         {
-            // Detach before mouse input so Explorer cannot record this box as
-            // Progman's last active popup. Explicit MA_NOACTIVATE still delivers
-            // the click, but guarantees that menu/selection input never makes a
-            // desktop box the foreground window.
-            _nativeWindow?.SuspendDesktopOwnershipForMouseInput();
+            // Active window tracking can bypass WS_EX_NOACTIVATE. Always reject
+            // mouse activation while preserving input, including on Windows 11.
+            if (!DesktopWindowLayer.IsEnabled)
+            {
+                // Only the legacy path owns the box from Explorer; detach before
+                // mouse input so the shell cannot record it as its last active popup.
+                _nativeWindow?.SuspendDesktopOwnershipForMouseInput();
+            }
             handled = true;
             return DesktopToolWindow.GetMouseActivateWithoutActivationResult();
+        }
+
+        if (DesktopWindowLayer.IsEnabled)
+        {
+            if (DesktopToolWindow.IsMinimizeSystemCommand(message, wordParameter))
+            {
+                handled = true;
+            }
+            if (DesktopWindowLayer.IsLayerChangeMessage(message, wordParameter, longParameter))
+            {
+                NotifyDesktopLayerChanged();
+            }
+            return nint.Zero;
         }
 
         if (DesktopToolWindow.IsMouseInteractionCompletionMessage(message))
@@ -145,7 +204,7 @@ public partial class DesktopBoxWindow
 
     private void QueueRestoreDesktopOwnershipAfterMouseInput()
     {
-        if (_desktopOwnershipRestoreQueued)
+        if (DesktopWindowLayer.IsEnabled || _desktopOwnershipRestoreQueued)
         {
             return;
         }
@@ -174,6 +233,15 @@ public partial class DesktopBoxWindow
 
     private void OnWindowStateChanged(object? sender, EventArgs e)
     {
+        if (DesktopWindowLayer.IsEnabled)
+        {
+            if (WindowState == WindowState.Minimized)
+            {
+                NotifyDesktopLayerChanged();
+            }
+            return;
+        }
+
         if (_forceClose
             || WindowState != WindowState.Minimized
             || _restoreAfterMinimizeQueued)

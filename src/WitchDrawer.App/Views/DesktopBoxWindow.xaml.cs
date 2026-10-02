@@ -186,7 +186,14 @@ public partial class DesktopBoxWindow : Window
     {
         var handle = new WindowInteropHelper(this).Handle;
         _nativeWindow = new DesktopToolWindow(handle);
-        _nativeWindow.Configure();
+        if (DesktopWindowLayer.IsEnabled)
+        {
+            DesktopWindowLayer.Configure(handle);
+        }
+        else
+        {
+            _nativeWindow.Configure();
+        }
         _source = HwndSource.FromHwnd(handle);
         _source?.AddHook(WindowMessageHook);
         QueueSendToBottom();
