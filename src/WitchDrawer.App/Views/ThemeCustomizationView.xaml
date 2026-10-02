@@ -13,6 +13,11 @@
             <Setter Property="Margin" Value="8,0,0,0" />
             <Setter Property="FontSize" Value="11" />
         </Style>
+        <Style x:Key="AppearanceUnit" TargetType="TextBlock">
+            <Setter Property="Margin" Value="2,0,0,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="11" />
+        </Style>
         <Style x:Key="SwatchButton" TargetType="Button">
             <Setter Property="Width" Value="18" />
             <Setter Property="Height" Value="18" />
@@ -42,6 +47,7 @@
                     <ColumnDefinition Width="104" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="48" />
+                    <ColumnDefinition Width="18" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <StackPanel VerticalAlignment="Center">
@@ -50,13 +56,15 @@
                 </StackPanel>
                 <Slider Grid.Column="1" Margin="8,0,10,0" VerticalAlignment="Center" Minimum="0" Maximum="32" SmallChange="1" IsSnapToTickEnabled="True" TickFrequency="1" Style="{DynamicResource ThemeOpacitySliderStyle}" Value="{Binding BoxCornerRadius, Mode=TwoWay}" AutomationProperties.Name="盒子圆角" />
                 <TextBox Grid.Column="2" Style="{StaticResource AppearanceInput}" Text="{Binding BoxCornerRadius, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" AutomationProperties.Name="盒子圆角数值" KeyDown="OnInputKeyDown" />
-                <Button Grid.Column="3" Style="{StaticResource AppearanceReset}" Command="{Binding ResetThemeFieldCommand}" CommandParameter="BoxCornerRadius" AutomationProperties.Name="恢复盒子圆角" />
+                <TextBlock Grid.Column="3" Text="px" Style="{StaticResource AppearanceUnit}" ToolTip="逻辑像素，随系统缩放" />
+                <Button Grid.Column="4" Style="{StaticResource AppearanceReset}" Command="{Binding ResetThemeFieldCommand}" CommandParameter="BoxCornerRadius" AutomationProperties.Name="恢复盒子圆角" />
             </Grid>
             <Grid Margin="0,0,0,8">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="104" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="48" />
+                    <ColumnDefinition Width="18" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <StackPanel VerticalAlignment="Center">
@@ -65,13 +73,15 @@
                 </StackPanel>
                 <Slider Grid.Column="1" Margin="8,0,10,0" VerticalAlignment="Center" Minimum="0" Maximum="200" SmallChange="5" IsSnapToTickEnabled="True" TickFrequency="5" Style="{DynamicResource ThemeOpacitySliderStyle}" Value="{Binding IconCornerPercent, Mode=TwoWay}" AutomationProperties.Name="图标圆角比例" />
                 <TextBox Grid.Column="2" Style="{StaticResource AppearanceInput}" Text="{Binding IconCornerPercent, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" AutomationProperties.Name="图标圆角比例百分比" KeyDown="OnInputKeyDown" />
-                <Button Grid.Column="3" Style="{StaticResource AppearanceReset}" Command="{Binding ResetThemeFieldCommand}" CommandParameter="IconCornerScale" AutomationProperties.Name="恢复图标圆角" />
+                <TextBlock Grid.Column="3" Text="%" Style="{StaticResource AppearanceUnit}" />
+                <Button Grid.Column="4" Style="{StaticResource AppearanceReset}" Command="{Binding ResetThemeFieldCommand}" CommandParameter="IconCornerScale" AutomationProperties.Name="恢复图标圆角" />
             </Grid>
             <Grid Margin="0,0,0,12">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="104" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="48" />
+                    <ColumnDefinition Width="18" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <StackPanel VerticalAlignment="Center">
@@ -80,7 +90,8 @@
                 </StackPanel>
                 <Slider Grid.Column="1" Margin="8,0,10,0" VerticalAlignment="Center" Minimum="0" Maximum="100" SmallChange="1" IsSnapToTickEnabled="True" TickFrequency="1" Style="{DynamicResource ThemeOpacitySliderStyle}" Value="{Binding ItemHoverTransparencyPercent, Mode=TwoWay}" AutomationProperties.Name="文件项悬停透明度" />
                 <TextBox Grid.Column="2" Style="{StaticResource AppearanceInput}" Text="{Binding ItemHoverTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" AutomationProperties.Name="悬停透明度百分比" KeyDown="OnInputKeyDown" />
-                <Button Grid.Column="3" Style="{StaticResource AppearanceReset}" Command="{Binding ResetThemeFieldCommand}" CommandParameter="ItemHoverOpacity" AutomationProperties.Name="恢复悬停透明度" />
+                <TextBlock Grid.Column="3" Text="%" Style="{StaticResource AppearanceUnit}" />
+                <Button Grid.Column="4" Style="{StaticResource AppearanceReset}" Command="{Binding ResetThemeFieldCommand}" CommandParameter="ItemHoverOpacity" AutomationProperties.Name="恢复悬停透明度" />
             </Grid>
             <ItemsControl ItemsSource="{Binding ThemeColors}">
                 <ItemsControl.ItemTemplate>
