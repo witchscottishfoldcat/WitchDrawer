@@ -356,6 +356,7 @@ public sealed class WindowsUpdateInstallerTests
         var appExecutablePath = Path.Combine(appDirectory, executableName);
         var markerPath = Path.Combine(testRoot, "target-started.txt");
         var logPath = Path.Combine(testRoot, "updater.log");
+        var userDataPath = Path.Combine(appDirectory, "user-data.txt");
 
         Directory.CreateDirectory(payloadDirectory);
         Directory.CreateDirectory(appDirectory);
@@ -367,7 +368,8 @@ public sealed class WindowsUpdateInstallerTests
                 "@echo off\r\n>\"%WITCHDRAWER_TEST_MARKER%\" echo restored\r\nexit\r\n");
             await File.WriteAllTextAsync(
                 Path.Combine(payloadDirectory, executableName),
-                "@echo off\r\nexit /b 1\r\n");
+                "@echo off\r\n>\"%WITCHDRAWER_TEST_USER_DATA%\" echo changed-after-backup\r\nexit /b 1\r\n");
+            await File.WriteAllTextAsync(userDataPath, "original-user-data");
             await File.WriteAllTextAsync(updaterPath, WindowsUpdateInstaller.BuildUpdaterScript());
 
             var startInfo = WindowsUpdateInstaller.CreateUpdaterStartInfo(
@@ -381,6 +383,7 @@ public sealed class WindowsUpdateInstallerTests
                 appProcessId: 0,
                 appProcessStartTimeUtcTicks: 0);
             startInfo.Environment["WITCHDRAWER_TEST_MARKER"] = markerPath;
+            startInfo.Environment["WITCHDRAWER_TEST_USER_DATA"] = userDataPath;
 
             using var updaterProcess = Process.Start(startInfo);
             Assert.NotNull(updaterProcess);
@@ -390,6 +393,7 @@ public sealed class WindowsUpdateInstallerTests
             Assert.Contains("echo restored", await File.ReadAllTextAsync(appExecutablePath));
             await WaitForConditionAsync(() => File.Exists(markerPath), TimeSpan.FromSeconds(5));
             Assert.Equal("restored", (await File.ReadAllTextAsync(markerPath)).Trim());
+            Assert.Equal("changed-after-backup", (await File.ReadAllTextAsync(userDataPath)).Trim());
             Assert.True(Directory.Exists(Path.Combine(updateRoot, "rollback")));
         }
         finally

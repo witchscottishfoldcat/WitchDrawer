@@ -65,7 +65,26 @@ public sealed class DrawerItemViewModel : ObservableObject, IVirtualizingCanvasI
         _gridRow = Math.Max(0, model.GridRow ?? 0);
     }
 
-    public DrawerItem Model { get; }
+    public DrawerItem Model { get; private set; }
+
+    internal bool TryUpdateModel(DrawerItem model)
+    {
+        // Retain containers and icon demand for ordering/position changes. A different
+        // file path or presentation needs a new instance, including a fresh icon load.
+        if (Model.Id != model.Id || Model.BoxId != model.BoxId
+            || Model.DisplayName != model.DisplayName || Model.ItemKind != model.ItemKind
+            || Model.EffectivePath != model.EffectivePath)
+        {
+            return false;
+        }
+
+        if (Model != model)
+        {
+            Model = model;
+            OnPropertyChanged(nameof(Model));
+        }
+        return true;
+    }
 
     public Guid Id => Model.Id;
 

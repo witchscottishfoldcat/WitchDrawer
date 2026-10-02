@@ -27,13 +27,23 @@ public sealed class ApplicationRestartTests
             })!;
             var startInfo = ApplicationRestart.CreateStartInfo(executable, directory, original.Id, original.StartTime.ToUniversalTime().Ticks);
             startInfo.Environment["WITCHDRAWER_RESTART_TEST_MARKER"] = marker;
+            // Observe the target's lifetime as well as the helper's. The marker is
+            // written before cmd.exe releases the script and working directory.
+            startInfo.ArgumentList[^1] += " -WindowStyle Hidden -PassThru | ForEach-Object { $_.WaitForExit() }";
             using var helper = Process.Start(startInfo)!;
-            await Task.Delay(300);
-            Assert.False(File.Exists(marker));
-            await helper.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
-            Assert.Equal(0, helper.ExitCode);
-            for (var attempt = 0; attempt < 50 && !File.Exists(marker); attempt++) await Task.Delay(100);
-            Assert.True(File.Exists(marker));
+            try
+            {
+                await Task.Delay(300);
+                Assert.False(File.Exists(marker));
+                await helper.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
+                Assert.Equal(0, helper.ExitCode);
+                Assert.True(File.Exists(marker));
+            }
+            finally
+            {
+                await helper.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
+                await original.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
+            }
         }
         finally { Directory.Delete(root, recursive: true); }
     }

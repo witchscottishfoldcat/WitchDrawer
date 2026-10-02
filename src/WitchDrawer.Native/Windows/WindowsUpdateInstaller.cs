@@ -134,15 +134,22 @@ function Invoke-UpdateFiles($plan) {
         $payload = [IO.Path]::GetFullPath($plan.PayloadDirectory).TrimEnd('\')
         $rollback = [IO.Path]::GetFullPath($plan.RollbackDirectory).TrimEnd('\')
         if ($plan.Operation -eq 'Rollback') {
-            Get-ChildItem -LiteralPath $payload -Recurse -File | ForEach-Object {
+            Get-ChildItem -LiteralPath $payload -Recurse -File -Force | ForEach-Object {
                 $relative = $_.FullName.Substring($payload.Length).TrimStart('\')
                 $target = [IO.Path]::GetFullPath((Join-Path $app $relative))
                 if (-not $target.StartsWith($app + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'Invalid rollback target.' }
-                if (-not (Test-Path -LiteralPath (Join-Path $rollback $relative) -PathType Leaf) -and (Test-Path -LiteralPath $target -PathType Leaf)) {
+                $backup = [IO.Path]::GetFullPath((Join-Path $rollback $relative))
+                if (-not $backup.StartsWith($rollback + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'Invalid rollback source.' }
+                if (Test-Path -LiteralPath $backup -PathType Leaf) {
+                    # Restore only release files. The full backup can include user data
+                    # that changed after the updated application started.
+                    & "$env:SystemRoot\System32\robocopy.exe" ([IO.Path]::GetDirectoryName($backup)) ([IO.Path]::GetDirectoryName($target)) ([IO.Path]::GetFileName($backup)) /IS /IT /COPY:DAT /R:1 /W:1 /NFL /NDL /NP
+                    if ($LASTEXITCODE -ge 8) { throw "Rollback copy failed with exit code $LASTEXITCODE." }
+                } elseif (Test-Path -LiteralPath $target -PathType Leaf) {
                     Remove-Item -LiteralPath $target -Force -ErrorAction Stop
                 }
             }
-            $source = $rollback
+            exit 0
         } elseif ($plan.Operation -eq 'Apply') {
             $source = $payload
         } else { throw 'Invalid update operation.' }

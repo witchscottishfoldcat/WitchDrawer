@@ -8,6 +8,62 @@ namespace WitchDrawer.Core.Tests;
 public sealed class DataStorageMigrationServiceTests
 {
     [Fact]
+    public async Task MigrateAsync_PermanentLockPathError_FailsWithoutWaitingForCancellation()
+    {
+        var root = CreateTempDirectory();
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        try
+        {
+            var paths = new AppPaths(Path.Combine(root, "source"));
+            var repository = new DrawerRepository(paths.DatabasePath);
+            await new DrawerService(paths, repository).InitializeAsync();
+            var store = new StorageLocationStore(Path.Combine(root, "bootstrap", StorageLocationStore.ConfigFileName));
+            var migration = new DataStorageMigrationService(paths, repository, store);
+            // Valid directory component, but appending the lock suffix exceeds 255 characters.
+            var target = Path.Combine(root, new string('x', 245));
+            Directory.CreateDirectory(target);
+
+            await Assert.ThrowsAnyAsync<IOException>(() => migration.MigrateAsync(target, cancellation.Token));
+
+            Assert.False(cancellation.IsCancellationRequested);
+            Assert.Empty(Directory.EnumerateFileSystemEntries(target));
+            Assert.False(File.Exists(store.FilePath));
+            Assert.NotEmpty(await repository.GetBoxesAsync());
+        }
+        finally { DeleteDirectory(root); }
+    }
+
+    [Fact]
+    public async Task MigrateAsync_SharingConflict_WaitsForLockAndCompletesAfterRelease()
+    {
+        var root = CreateTempDirectory();
+        try
+        {
+            var paths = new AppPaths(Path.Combine(root, "source"));
+            var repository = new DrawerRepository(paths.DatabasePath);
+            await new DrawerService(paths, repository).InitializeAsync();
+            var store = new StorageLocationStore(Path.Combine(root, "bootstrap", StorageLocationStore.ConfigFileName));
+            var migration = new DataStorageMigrationService(paths, repository, store);
+            var target = Path.Combine(root, "target");
+            using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            Task<AppPaths> pending;
+            using (var heldLock = new FileStream(target + ".migration.lock", FileMode.OpenOrCreate,
+                       FileAccess.ReadWrite, FileShare.None))
+            {
+                pending = migration.MigrateAsync(target, cancellation.Token);
+                await Task.Delay(150);
+                Assert.False(pending.IsCompleted);
+                Assert.False(Directory.Exists(target));
+            }
+
+            var migrated = await pending;
+            Assert.True(File.Exists(migrated.DatabasePath));
+            Assert.Equal(target, store.LoadConfiguredDirectory());
+        }
+        finally { DeleteDirectory(root); }
+    }
+
+    [Fact]
     public async Task MigrateAsync_CopiesDataAndWritesBootstrapConfig()
     {
         var sourceRoot = CreateTempDirectory();

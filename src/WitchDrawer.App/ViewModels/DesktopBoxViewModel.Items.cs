@@ -62,7 +62,8 @@ public sealed partial class DesktopBoxViewModel
 
             foreach (var item in items)
             {
-                if (!existingById.TryGetValue(item.Id, out var itemViewModel))
+                if (!existingById.TryGetValue(item.Id, out var itemViewModel)
+                    || !itemViewModel.TryUpdateModel(item))
                 {
                     itemViewModel = new DrawerItemViewModel(
                         item,

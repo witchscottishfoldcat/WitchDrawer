@@ -12,6 +12,71 @@ public sealed class UpdateFileOperationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task Rollback_RestoresOnlyReleaseFilesAndPreservesChangedUserData(bool hiddenReleaseFile)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "WitchDrawer.RollbackTests", Guid.NewGuid().ToString("N"));
+        var app = Path.Combine(root, "O'Brien 中文 & app");
+        var payload = Path.Combine(root, "payload");
+        var rollback = Path.Combine(root, "rollback");
+        foreach (var directory in new[] { app, payload, rollback })
+        {
+            Directory.CreateDirectory(Path.Combine(directory, "nested"));
+        }
+        try
+        {
+            const string existingReleaseFile = "nested/core [library].dll";
+            const string introducedReleaseFile = "nested/introduced.dll";
+            const string userFile = "nested/user-data.txt";
+            await File.WriteAllTextAsync(Path.Combine(payload, existingReleaseFile), "new-release");
+            await File.WriteAllTextAsync(Path.Combine(app, existingReleaseFile), "new-release");
+            await File.WriteAllTextAsync(Path.Combine(rollback, existingReleaseFile), "old-release");
+            if (hiddenReleaseFile)
+            {
+                File.SetAttributes(Path.Combine(payload, existingReleaseFile), FileAttributes.Hidden);
+                File.SetAttributes(Path.Combine(app, existingReleaseFile), FileAttributes.Hidden);
+                File.SetAttributes(Path.Combine(rollback, existingReleaseFile), FileAttributes.Hidden);
+            }
+            await File.WriteAllTextAsync(Path.Combine(payload, introducedReleaseFile), "introduced");
+            await File.WriteAllTextAsync(Path.Combine(app, introducedReleaseFile), "introduced");
+            await File.WriteAllTextAsync(Path.Combine(rollback, userFile), "old-user-data");
+            await File.WriteAllTextAsync(Path.Combine(app, userFile), "changed-after-backup");
+            var newUserFile = Path.Combine(app, "new-user-data.txt");
+            await File.WriteAllTextAsync(newUserFile, "created-after-backup");
+            var removedUserFile = Path.Combine(rollback, "removed-user-data.txt");
+            await File.WriteAllTextAsync(removedUserFile, "deleted-after-backup");
+            var scriptPath = Path.Combine(root, "rollback.ps1");
+            await File.WriteAllTextAsync(scriptPath, WindowsUpdateInstaller.BuildUpdaterFileOperationScript());
+            var startInfo = new ProcessStartInfo("powershell.exe")
+            {
+                UseShellExecute = false, CreateNoWindow = true,
+                RedirectStandardOutput = true, RedirectStandardError = true
+            };
+            foreach (var argument in new[] { "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath })
+                startInfo.ArgumentList.Add(argument);
+            startInfo.Environment["WITCHDRAWER_APP_DIR"] = app;
+            startInfo.Environment["WITCHDRAWER_PAYLOAD"] = payload;
+            startInfo.Environment["WITCHDRAWER_ROLLBACK"] = rollback;
+            startInfo.Environment["WITCHDRAWER_FILE_OPERATION"] = "Rollback";
+            using var process = Process.Start(startInfo)!;
+            var stdout = process.StandardOutput.ReadToEndAsync();
+            var stderr = process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15));
+            var output = await stdout;
+            var errors = await stderr;
+
+            Assert.True(process.ExitCode < 8, $"Rollback failed: {process.ExitCode}: {output}: {errors}");
+            Assert.Equal("old-release", await File.ReadAllTextAsync(Path.Combine(app, existingReleaseFile)));
+            Assert.False(File.Exists(Path.Combine(app, introducedReleaseFile)));
+            Assert.Equal("changed-after-backup", await File.ReadAllTextAsync(Path.Combine(app, userFile)));
+            Assert.Equal("created-after-backup", await File.ReadAllTextAsync(newUserFile));
+            Assert.False(File.Exists(Path.Combine(app, "removed-user-data.txt")));
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task FileStep_WhenWriteProbeIsDenied_UsesElevationAndPreservesPathData(bool cancelElevation)
     {
         var root = Path.Combine(Path.GetTempPath(), "WitchDrawer.ElevationTests", Guid.NewGuid().ToString("N"));

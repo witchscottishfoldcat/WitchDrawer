@@ -178,8 +178,10 @@ public sealed class DataStorageMigrationService
                     bufferSize: 1,
                     options: FileOptions.DeleteOnClose | FileOptions.Asynchronous);
             }
-            catch (IOException)
+            catch (IOException exception) when ((exception.HResult & 0xFFFF) is 32 or 33)
             {
+                // Only sharing/lock violations can be resolved by waiting. Invalid
+                // names, missing parents and other permanent I/O failures must surface.
                 await Task.Delay(50, cancellationToken);
             }
         }
