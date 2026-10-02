@@ -62,9 +62,9 @@ public sealed class UpdateService
         {
             var response = await _httpClient.GetFromJsonAsync<GitHubReleaseResponse>(GitHubRepoApiUrl);
 
-            if (response is null || string.IsNullOrEmpty(response.TagName))
+            if (response is null || string.IsNullOrWhiteSpace(response.TagName))
             {
-                return new UpdateCheckResult();
+                throw new InvalidDataException("The update response does not contain a release version.");
             }
 
             var tagText = response.TagName;
@@ -75,8 +75,7 @@ public sealed class UpdateService
 
             if (!Version.TryParse(tagText, out var remoteVersion))
             {
-                _logger.Info($"Failed to parse remote version tag: {response.TagName}");
-                return new UpdateCheckResult();
+                throw new InvalidDataException($"The update release version is invalid: {response.TagName}");
             }
 
             var hasUpdate = IsNewerVersion(remoteVersion, currentVersion);
@@ -99,7 +98,7 @@ public sealed class UpdateService
         catch (Exception exception)
         {
             _logger.Error(exception, "Failed to check for updates.");
-            return new UpdateCheckResult();
+            throw;
         }
     }
 

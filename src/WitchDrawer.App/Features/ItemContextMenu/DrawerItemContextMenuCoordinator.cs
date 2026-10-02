@@ -36,23 +36,24 @@ internal sealed class DrawerItemContextMenuCoordinator(DesktopBoxViewModel host)
                 return;
             }
 
-            if (!pathState.Exists)
-            {
-                host.ShowFileMissingNotice(item);
-                return;
-            }
-
             if (!NativeCursor.TryGetPosition(out var x, out var y))
             {
                 return;
             }
 
-            var menu = new DrawerItemContextMenuWindow(
-                WindowsFileShellActions.CanRunAsAdministrator(path, pathState.IsDirectory),
+            var menu = CreateMenuForPath(
+                path,
+                pathState,
                 host.IsMappingBox,
                 host.IsPixelStyle,
                 x,
                 y);
+            if (menu is null)
+            {
+                host.ShowFileMissingNotice(item);
+                return;
+            }
+
             _activeMenu = menu;
             var action = await menu.ShowForSelectionAsync();
             if (ReferenceEquals(_activeMenu, menu))
@@ -104,6 +105,30 @@ internal sealed class DrawerItemContextMenuCoordinator(DesktopBoxViewModel host)
 
         var isDirectory = Directory.Exists(path);
         return (isDirectory || File.Exists(path), isDirectory);
+    }
+
+    internal static DrawerItemContextMenuWindow? CreateMenuForPath(
+        string path,
+        (bool Exists, bool IsDirectory) pathState,
+        bool isMappingBox,
+        bool isPixelStyle,
+        int screenX,
+        int screenY)
+    {
+        // A mapping reference can be removed even while its source is unavailable.
+        // Missing stored items must retain their restoration metadata instead.
+        if (!pathState.Exists && !isMappingBox)
+        {
+            return null;
+        }
+
+        return new DrawerItemContextMenuWindow(
+            pathState.Exists && WindowsFileShellActions.CanRunAsAdministrator(path, pathState.IsDirectory),
+            isMappingBox,
+            isPixelStyle,
+            screenX,
+            screenY,
+            pathState.Exists);
     }
 
     private async Task ExecuteAsync(

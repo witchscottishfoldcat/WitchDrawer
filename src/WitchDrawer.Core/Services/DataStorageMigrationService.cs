@@ -11,15 +11,26 @@ public sealed class DataStorageMigrationService
     private readonly AppPaths _paths;
     private readonly DrawerRepository _repository;
     private readonly StorageLocationStore _locationStore;
+    private readonly Action<string> _prepareTargetParent;
 
     public DataStorageMigrationService(
         AppPaths paths,
         DrawerRepository repository,
         StorageLocationStore locationStore)
+        : this(paths, repository, locationStore, directory => Directory.CreateDirectory(directory))
+    {
+    }
+
+    internal DataStorageMigrationService(
+        AppPaths paths,
+        DrawerRepository repository,
+        StorageLocationStore locationStore,
+        Action<string> prepareTargetParent)
     {
         _paths = paths;
         _repository = repository;
         _locationStore = locationStore;
+        _prepareTargetParent = prepareTargetParent;
     }
 
     /// <summary>
@@ -34,10 +45,18 @@ public sealed class DataStorageMigrationService
     /// 提升前失败可重试；提升后若引导配置未写完，下次启动根据迁移标记完成切换。
     /// 旧目录保留作为备份，由用户自行清理。
     /// </summary>
-    public async Task<AppPaths> MigrateAsync(
+    public Task<AppPaths> MigrateAsync(
         string targetRootDirectory,
         CancellationToken cancellationToken = default)
+        // Directory preparation, lock acquisition and writable-path probes can all block.
+        // Move the entire sequence off the calling WPF thread before touching the disk.
+        => Task.Run(() => MigrateCoreAsync(targetRootDirectory, cancellationToken), cancellationToken);
+
+    private async Task<AppPaths> MigrateCoreAsync(
+        string targetRootDirectory,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         ArgumentException.ThrowIfNullOrWhiteSpace(targetRootDirectory);
 
         var sourceRoot = Path.GetFullPath(_paths.RootDirectory);
@@ -55,7 +74,7 @@ public sealed class DataStorageMigrationService
 
         var targetParent = Path.GetDirectoryName(targetRoot)
             ?? throw new InvalidOperationException("目标文件夹的父目录不可用。");
-        Directory.CreateDirectory(targetParent);
+        _prepareTargetParent(targetParent);
         var lockPath = targetRoot + ".migration.lock";
         var tempRoot = targetRoot + $".tmp-migrating-{Guid.NewGuid():N}";
         var migrationId = Guid.NewGuid();
@@ -80,7 +99,7 @@ public sealed class DataStorageMigrationService
             tempPaths.EnsureCreatedAndWritable();
             DirectorySnapshot? boxesBeforeCopy = null;
 
-            await Task.Run(() => _repository.CopyConsistentDatabaseAsync(
+            await _repository.CopyConsistentDatabaseAsync(
                 tempPaths.DatabasePath,
                 () =>
                 {
@@ -127,7 +146,7 @@ public sealed class DataStorageMigrationService
                     }
                     return Task.CompletedTask;
                 },
-                cancellationToken, targetRoot), cancellationToken);
+                cancellationToken, targetRoot);
         }
         catch
         {

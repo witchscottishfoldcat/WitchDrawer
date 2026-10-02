@@ -156,7 +156,8 @@ public partial class App : Application
             var operations = new UiOperationState(logger);
             var settings = new SettingsViewModel(drawerService.Settings, logger,
                 new WindowsDesktopIntegration(), autoHideSettingsStore, operations);
-            var updates = new UpdateViewModel(updateService, logger, operations);
+            var updates = new UpdateViewModel(updateService, logger, operations,
+                ConfirmUpdateAsync, PerformShutdownAsync);
             var archive = new ArchiveViewModel(drawerService, todoService, logger, operations);
             var maintenance = new MaintenanceViewModel(paths, dataStorageMigrationService,
                 new DiagnosticLogExportService(paths), logger, operations);
@@ -257,26 +258,6 @@ public partial class App : Application
                     async () => await (await desktopReady.Task).RecoverDesktopHostsAsync(),
                     "RecoverDesktopHostsAsync",
                     logger);
-            mainViewModel.Updates.UpdateRequested += async (_, result) =>
-            {
-                var versionText = $"v{result.LatestVersion.Major}.{result.LatestVersion.Minor}.{result.LatestVersion.Build}";
-                var dialogResult = System.Windows.MessageBox.Show(
-                    $"发现新版本 {versionText}\n\n是否立即更新？\n更新将自动下载并重启应用。",
-                    "发现新版本",
-                    System.Windows.MessageBoxButton.OKCancel,
-                    System.Windows.MessageBoxImage.Question);
-
-                if (dialogResult == System.Windows.MessageBoxResult.OK)
-                {
-                    await mainViewModel.Updates.ExecuteUpdateAsync(result.DownloadUrl);
-                }
-            };
-
-            mainViewModel.Updates.UpdateConfirmed += async (_, _) =>
-            {
-                await PerformShutdownAsync();
-            };
-
             MainWindow = _mainWindow;
             if (silentStart)
             {
@@ -605,6 +586,17 @@ public partial class App : Application
         };
 
         _taskbarIcon.Show();
+    }
+
+    private static Task<bool> ConfirmUpdateAsync(UpdateCheckResult result)
+    {
+        var versionText = $"v{result.LatestVersion.Major}.{result.LatestVersion.Minor}.{result.LatestVersion.Build}";
+        var choice = MessageBox.Show(
+            $"发现新版本 {versionText}\n\n是否立即更新？\n更新将自动下载并重启应用。",
+            "发现新版本",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Question);
+        return Task.FromResult(choice == MessageBoxResult.OK);
     }
 
     private async Task PerformShutdownAsync()

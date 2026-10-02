@@ -66,6 +66,116 @@ public sealed class DataStorageMigrationServiceTests
     }
 
     [Fact]
+    public async Task MigrateAsync_BlockedDirectoryPreparation_DoesNotBlockCallingThread()
+    {
+        var root = CreateTempDirectory();
+        using var releasePreparation = new ManualResetEventSlim();
+        try
+        {
+            var paths = new AppPaths(Path.Combine(root, "source"));
+            var repository = new DrawerRepository(paths.DatabasePath);
+            await new DrawerService(paths, repository).InitializeAsync();
+            var store = new StorageLocationStore(Path.Combine(root, "bootstrap", StorageLocationStore.ConfigFileName));
+            var preparationStarted = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var migration = new DataStorageMigrationService(paths, repository, store, directory =>
+            {
+                preparationStarted.SetResult(Environment.CurrentManagedThreadId);
+                releasePreparation.Wait();
+                Directory.CreateDirectory(directory);
+            });
+            var target = Path.Combine(root, "target");
+            var returned = new TaskCompletionSource<Task<AppPaths>>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var caller = new Thread(() =>
+            {
+                try { returned.SetResult(migration.MigrateAsync(target)); }
+                catch (Exception exception) { returned.SetException(exception); }
+            }) { IsBackground = true };
+            caller.Start();
+
+            var releasedCaller = false;
+            var migrationPending = false;
+            var preparationThreadId = 0;
+            try
+            {
+                preparationThreadId = await preparationStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+                releasedCaller = await Task.WhenAny(returned.Task, Task.Delay(1000)) == returned.Task;
+                if (releasedCaller)
+                {
+                    migrationPending = !(await returned.Task).IsCompleted;
+                }
+            }
+            finally
+            {
+                releasePreparation.Set();
+            }
+
+            var migrated = await (await returned.Task.WaitAsync(TimeSpan.FromSeconds(10)))
+                .WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.True(releasedCaller, "Preparing the migration directory blocked its caller.");
+            Assert.True(migrationPending, "Migration must remain pending while directory preparation is blocked.");
+            Assert.NotEqual(caller.ManagedThreadId, preparationThreadId);
+            Assert.Equal(target, migrated.RootDirectory);
+            Assert.Equal(target, store.LoadConfiguredDirectory());
+        }
+        finally
+        {
+            releasePreparation.Set();
+            DeleteDirectory(root);
+        }
+    }
+
+    [Fact]
+    public async Task MigrateAsync_AlreadyCancelled_DoesNotPrepareDirectories()
+    {
+        var root = CreateTempDirectory();
+        try
+        {
+            var paths = new AppPaths(Path.Combine(root, "source"));
+            var repository = new DrawerRepository(paths.DatabasePath);
+            var store = new StorageLocationStore(Path.Combine(root, "bootstrap", StorageLocationStore.ConfigFileName));
+            var preparationCalled = false;
+            var migration = new DataStorageMigrationService(paths, repository, store, _ => preparationCalled = true);
+            var target = Path.Combine(root, "target");
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                migration.MigrateAsync(target, new CancellationToken(canceled: true)));
+
+            Assert.False(preparationCalled);
+            Assert.False(Directory.Exists(target));
+            Assert.False(File.Exists(store.FilePath));
+        }
+        finally
+        {
+            DeleteDirectory(root);
+        }
+    }
+
+    [Fact]
+    public async Task MigrateAsync_DirectoryPreparationFailure_PropagatesOriginalException()
+    {
+        var root = CreateTempDirectory();
+        try
+        {
+            var paths = new AppPaths(Path.Combine(root, "source"));
+            var repository = new DrawerRepository(paths.DatabasePath);
+            var store = new StorageLocationStore(Path.Combine(root, "bootstrap", StorageLocationStore.ConfigFileName));
+            var failure = new IOException("Directory preparation failed.");
+            var migration = new DataStorageMigrationService(paths, repository, store, _ => throw failure);
+            var target = Path.Combine(root, "target");
+
+            var exception = await Assert.ThrowsAsync<IOException>(() => migration.MigrateAsync(target));
+
+            Assert.Same(failure, exception);
+            Assert.False(Directory.Exists(target));
+            Assert.False(File.Exists(store.FilePath));
+        }
+        finally
+        {
+            DeleteDirectory(root);
+        }
+    }
+
+    [Fact]
     public async Task MigrateAsync_SourceNameMatchingLegacyTempSuffix_DoesNotDeleteSource()
     {
         var parent = CreateTempDirectory();

@@ -90,7 +90,8 @@
                               Opacity="0.28" />
         </Border.Effect>
         <StackPanel>
-            <Button Content="打开"
+            <Button x:Name="OpenButton"
+                    Content="打开"
                     AutomationProperties.Name="打开"
                     Style="{StaticResource ContextActionButtonStyle}"
                     Click="OnOpenClick">
@@ -121,7 +122,8 @@
                 </Button.Tag>
             </Button>
 
-            <Button Content="打开所在位置"
+            <Button x:Name="RevealButton"
+                    Content="打开所在位置"
                     AutomationProperties.Name="打开所在位置"
                     Style="{StaticResource ContextActionButtonStyle}"
                     Click="OnRevealClick">

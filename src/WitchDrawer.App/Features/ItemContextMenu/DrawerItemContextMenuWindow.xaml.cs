@@ -30,7 +30,8 @@ public partial class DrawerItemContextMenuWindow : Window
         bool isMappingBox,
         bool isPixelStyle,
         int screenX,
-        int screenY)
+        int screenY,
+        bool pathExists)
     {
         _screenX = screenX;
         _screenY = screenY;
@@ -42,8 +43,10 @@ public partial class DrawerItemContextMenuWindow : Window
             ? new FontFamily("Consolas, Microsoft YaHei UI")
             : new FontFamily("Segoe UI, Microsoft YaHei UI");
 
+        OpenButton.Visibility = pathExists ? Visibility.Visible : Visibility.Collapsed;
+        RevealButton.Visibility = pathExists ? Visibility.Visible : Visibility.Collapsed;
         RunAsAdministratorButton.Visibility =
-            showRunAsAdministrator ? Visibility.Visible : Visibility.Collapsed;
+            pathExists && showRunAsAdministrator ? Visibility.Visible : Visibility.Collapsed;
         RemoveButton.Content = isMappingBox ? "移除引用" : "移出收纳盒";
         System.Windows.Automation.AutomationProperties.SetName(
             RemoveButton,
