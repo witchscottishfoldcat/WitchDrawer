@@ -54,7 +54,7 @@ public sealed partial class MainViewModel
             }
 
             StatusText = $"{Boxes.Count} 个收纳盒已同步到桌面";
-            BoxesChanged?.Invoke(this, EventArgs.Empty);
+            BoxesChanged?.Invoke(this, new());
         });
     }
 
@@ -63,6 +63,9 @@ public sealed partial class MainViewModel
     /// </summary>
     public async Task RefreshContentAsync(BoxRefreshRequest request)
     {
+        // Presentation commands have already updated this window locally.
+        if (request.PresentationOnly) return;
+
         if (IsBusy)
         {
             // 忙时合流而非丢弃：记录一次待刷，忙完补刷；BoxIds 为 null 表示全量，
@@ -195,6 +198,7 @@ public sealed partial class MainViewModel
             Exception? importFailure = null;
             try
             {
+                using var batch = _drawerService.Changes.BeginBatch();
                 foreach (var path in pathsToImport)
                 {
                     var importedItem = await _drawerService.ImportPathAsync(selectedBox.Id, path);
@@ -276,7 +280,7 @@ public sealed partial class MainViewModel
             Boxes.Add(viewModel);
             await SelectBoxAsync(viewModel);
             StatusText = $"已创建 {name}，桌面收纳栏已生成";
-            BoxesChanged?.Invoke(this, EventArgs.Empty);
+            BoxesChanged?.Invoke(this, new(box.Id));
         });
     }
 
@@ -292,9 +296,11 @@ public sealed partial class MainViewModel
         {
             await _boxVisualStyleStore.SaveAsync(selectedBox.Id, option.Style);
             selectedBox.ApplyVisualStyle(option.Style);
-            await LoadItemsForSelectedBoxAsync(selectedBox);
+            foreach (var item in Items.Where(item => item.Model.BoxId == selectedBox.Id))
+                item.UpdateBoxPresentation(selectedBox.Name, option.Style == BoxVisualStyle.Pixel,
+                    GetIconPixelSize(option.Style == BoxVisualStyle.Pixel));
             StatusText = $"已将“{selectedBox.Name}”切换为{option.Name}";
-            BoxesChanged?.Invoke(this, EventArgs.Empty);
+            BoxesChanged?.Invoke(this, new(selectedBox.Id, presentationOnly: true));
         });
     }
 
@@ -395,7 +401,7 @@ public sealed partial class MainViewModel
                     : Boxes.FirstOrDefault(box => box.Id == result.BoxId) ?? Boxes.FirstOrDefault());
 
             StatusText = result.StatusMessage;
-            BoxesChanged?.Invoke(this, EventArgs.Empty);
+            BoxesChanged?.Invoke(this, new(selectedBox.Id));
         });
     }
 
@@ -410,26 +416,13 @@ public sealed partial class MainViewModel
         await RunBusyAsync(async () =>
         {
             await _drawerService.RenameBoxAsync(selectedBox.Id, newName);
-
-            var boxes = await _drawerService.GetBoxesAsync();
-            var presentedBoxes = await LoadBoxPresentationAsync(boxes);
-            Boxes.Clear();
-            foreach (var (box, visualStyle, isPositionLocked) in presentedBoxes)
-            {
-                var boxViewModel = new BoxViewModel(
-                    box,
-                    _drawerService.Settings,
-                    visualStyle,
-                    isPositionLocked,
-                    _logger);
-                await boxViewModel.InitializeSettingsAsync();
-                Boxes.Add(boxViewModel);
-            }
-
-            await SelectBoxAsync(Boxes.FirstOrDefault(b => b.Id == selectedBox.Id) ?? Boxes.FirstOrDefault());
+            selectedBox.ApplyName(newName.Trim());
+            foreach (var item in Items.Where(item => item.Model.BoxId == selectedBox.Id))
+                item.UpdateBoxPresentation(selectedBox.Name, item.IsPixelated,
+                    GetIconPixelSize(item.IsPixelated));
 
             StatusText = $"已重命名收纳盒为 {newName.Trim()}";
-            BoxesChanged?.Invoke(this, EventArgs.Empty);
+            BoxesChanged?.Invoke(this, new(selectedBox.Id, presentationOnly: true));
         });
     }
 

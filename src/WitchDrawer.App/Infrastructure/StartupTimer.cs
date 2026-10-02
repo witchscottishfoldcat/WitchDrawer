@@ -10,17 +10,18 @@ namespace WitchDrawer.App.Infrastructure;
 internal sealed class StartupTimer
 {
     private readonly IAppLogger _logger;
-    private readonly Stopwatch _stopwatch = Stopwatch.StartNew();
+    private readonly long _startTimestamp;
     private TimeSpan _lastMark;
 
-    public StartupTimer(IAppLogger logger)
+    public StartupTimer(IAppLogger logger, long? startTimestamp = null)
     {
         _logger = logger;
+        _startTimestamp = startTimestamp ?? Stopwatch.GetTimestamp();
     }
 
     public void Mark(string phase)
     {
-        var now = _stopwatch.Elapsed;
+        var now = Stopwatch.GetElapsedTime(_startTimestamp);
         _logger.Info(
             $"[startup] {phase}: +{(now - _lastMark).TotalMilliseconds:F0} ms "
             + $"(total {now.TotalMilliseconds:F0} ms)");

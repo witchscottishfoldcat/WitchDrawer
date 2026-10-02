@@ -7,6 +7,19 @@ namespace WitchDrawer.App.Tests;
 public sealed class BoxContentSyncCoordinatorTests
 {
     [Fact]
+    public void PresentationRequest_MergesWithCommittedContentWithoutLosingContentRefresh()
+    {
+        var boxId = Guid.NewGuid();
+        var presentation = new BoxRefreshRequest([boxId], PresentationOnly: true);
+        Assert.True(presentation.Merge(presentation).PresentationOnly);
+        var content = presentation.Merge(new([boxId]));
+        Assert.False(content.PresentationOnly);
+        Assert.Equal(new[] { boxId }, content.BoxIds);
+        Assert.False(presentation.Merge(BoxRefreshRequest.All).PresentationOnly);
+        Assert.Null(presentation.Merge(BoxRefreshRequest.All).BoxIds);
+    }
+
+    [Fact]
     public async Task RequestsBeforeDispatch_MergeDistinctBoxesIntoOneRefresh()
     {
         var queued = new Queue<Action>();

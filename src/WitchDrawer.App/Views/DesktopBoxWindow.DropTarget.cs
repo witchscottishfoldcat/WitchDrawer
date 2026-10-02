@@ -251,7 +251,7 @@ public partial class DesktopBoxWindow
     private int GetMappingListDropIndex(DragEventArgs e, Guid? movingItemId)
     {
         var sourceIndex = movingItemId is Guid itemId
-            ? ViewModel.Items.ToList().FindIndex(item => item.Id == itemId)
+            ? ViewModel.GetDropItemIndex(itemId)
             : -1;
         var source = e.OriginalSource as DependencyObject;
         var container = source is null
@@ -391,7 +391,7 @@ public partial class DesktopBoxWindow
         // Dropped items append after the last item (see GetDropSlot), so the preview
         // frame marks the exact cover cell the item will occupy -- the same
         // "frame == landing spot" contract the normal grid boxes have.
-        var insertIndex = ViewModel.Items.Count(item => movingItemId is null || item.Id != movingItemId.Value);
+        var insertIndex = ViewModel.GetDropItemCount(movingItemId);
         if (insertIndex >= ViewModel.DrawerCoverCapacity
             || DrawerCoverItems.ActualWidth <= 0
             || DrawerCoverItems.ActualHeight <= 0)

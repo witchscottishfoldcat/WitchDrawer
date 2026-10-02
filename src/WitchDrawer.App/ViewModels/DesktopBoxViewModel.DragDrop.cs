@@ -1,4 +1,6 @@
 using System.IO;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.Messaging;
 using WitchDrawer.App.Messages;
 using WitchDrawer.Core.Models;
@@ -8,6 +10,30 @@ namespace WitchDrawer.App.ViewModels;
 /// <summary>DesktopBoxViewModel 的拖放部分：文件导入/移动/导出、拖拽预览与画布尺寸。</summary>
 public sealed partial class DesktopBoxViewModel
 {
+    // OLE repeats DragOver in the same cell. Build occupancy/extents only when the
+    // collection or an item's actual slot changes, and reuse the resolved target.
+    // Item notifications also cover direct SetGridPosition calls before a layout
+    // version is published; collection notifications cover same-count replacements.
+    private readonly HashSet<(int Column, int Row)> _occupiedDropSlots = [];
+    private readonly HashSet<(int Column, int Row)> _movingItemDropSlots = [];
+    private readonly Dictionary<DrawerItemViewModel, int> _observedDropItems = [];
+    private readonly Dictionary<Guid, (int Index, int Count)> _dropItemIndices = [];
+    private bool _isDropCacheTracking;
+    private bool _dropGridCacheDirty = true;
+    private int _dropGridCacheVersion = -1;
+    private int _dropMaxColumn;
+    private int _dropMaxRow;
+    private bool _movingItemDropSlotsDirty = true;
+    private Guid? _cachedMovingItemId;
+    private int _movingItemDropMaxColumn;
+    private bool _hasDropSlotResult;
+    private (int Column, int Row) _dropSlotTarget;
+    private Guid? _dropSlotMovingItemId;
+    private BoxSizeModeState _dropSlotSizeMode = BoxSizeModeState.Adaptive;
+    private bool _dropSlotUsesFixedBounds;
+    private bool _dropSlotIsAvailable;
+    private (int Column, int Row) _dropSlotResult;
+
     public (int Column, int Row) GetGridSlot(
         double x,
         double y,
@@ -37,8 +63,9 @@ public sealed partial class DesktopBoxViewModel
                 return (_previewColumn, _previewRow);
             }
 
-            var maxCol = Items.Count == 0 ? 0 : Items.Max(item => item.GridColumn);
-            var maxRow = Items.Count == 0 ? 0 : Items.Max(item => item.GridRow);
+            EnsureDropGridCache();
+            var maxCol = _dropMaxColumn;
+            var maxRow = _dropMaxRow;
 
             var contentRight = (maxCol + 1) * LayoutSettings.ItemSlotWidth;
             var contentBottom = (maxRow + 1) * LayoutSettings.ItemSlotHeight;
@@ -150,13 +177,8 @@ public sealed partial class DesktopBoxViewModel
 
     public (int Column, int Row) GetAvailableDropSlot(int targetColumn, int targetRow, Guid? movingItemId = null)
     {
-        var targetSlot = NormalizeGridSlot(targetColumn, targetRow);
-        var occupiedSlots = Items
-            .Where(item => movingItemId is null || item.Id != movingItemId.Value)
-            .Select(item => (item.GridColumn, item.GridRow))
-            .ToHashSet();
-
-        return FindFirstFreeSlot(targetSlot.Column, targetSlot.Row, occupiedSlots);
+        TryGetCachedDropSlot(targetColumn, targetRow, movingItemId, useFixedBounds: false, out var slot);
+        return slot;
     }
 
     /// <summary>
@@ -169,8 +191,7 @@ public sealed partial class DesktopBoxViewModel
             return true;
         }
 
-        var occupied = Items.Count(item => movingItemId is null || item.Id != movingItemId.Value);
-        return occupied < FixedCapacity;
+        return GetDropItemCount(movingItemId) < FixedCapacity;
     }
 
     /// <summary>
@@ -183,18 +204,210 @@ public sealed partial class DesktopBoxViewModel
         Guid? movingItemId,
         out (int Column, int Row) slot)
     {
-        if (!IsFixedSize)
+        return TryGetCachedDropSlot(targetColumn, targetRow, movingItemId, IsFixedSize, out slot);
+    }
+
+    internal int GetDropItemCount(Guid? movingItemId)
+    {
+        EnsureDropGridCache();
+        return Items.Count - (movingItemId is Guid id && _dropItemIndices.TryGetValue(id, out var item)
+            ? item.Count
+            : 0);
+    }
+
+    internal int GetDropItemIndex(Guid itemId)
+    {
+        EnsureDropGridCache();
+        return _dropItemIndices.TryGetValue(itemId, out var item) ? item.Index : -1;
+    }
+
+    private bool TryGetCachedDropSlot(
+        int targetColumn,
+        int targetRow,
+        Guid? movingItemId,
+        bool useFixedBounds,
+        out (int Column, int Row) slot)
+    {
+        EnsureDropGridCache();
+        var target = (targetColumn, targetRow);
+        if (_hasDropSlotResult && _dropSlotTarget == target
+            && _dropSlotMovingItemId == movingItemId && _dropSlotSizeMode == _sizeMode
+            && _dropSlotUsesFixedBounds == useFixedBounds)
         {
-            slot = GetAvailableDropSlot(targetColumn, targetRow, movingItemId);
-            return true;
+            slot = _dropSlotResult;
+            return _dropSlotIsAvailable;
         }
 
-        var occupiedSlots = Items
-            .Where(item => movingItemId is null || item.Id != movingItemId.Value)
-            .Select(item => (item.GridColumn, item.GridRow))
-            .ToHashSet();
+        var occupiedSlots = _occupiedDropSlots;
+        var maxColumn = _dropMaxColumn;
+        if (movingItemId is Guid id)
+        {
+            if (_movingItemDropSlotsDirty || _cachedMovingItemId != id)
+            {
+                _movingItemDropSlots.Clear();
+                _movingItemDropMaxColumn = 0;
+                foreach (var item in Items)
+                {
+                    if (item.Id != id)
+                    {
+                        if (_movingItemDropSlots.Count == 0)
+                        {
+                            _movingItemDropMaxColumn = item.GridColumn;
+                        }
+                        else
+                        {
+                            _movingItemDropMaxColumn = Math.Max(_movingItemDropMaxColumn, item.GridColumn);
+                        }
 
-        return TryFindFreeSlotInFixedBounds(targetColumn, targetRow, occupiedSlots, out slot);
+                        _movingItemDropSlots.Add((item.GridColumn, item.GridRow));
+                    }
+                }
+
+                _cachedMovingItemId = id;
+                _movingItemDropSlotsDirty = false;
+            }
+
+            occupiedSlots = _movingItemDropSlots;
+            maxColumn = _movingItemDropMaxColumn;
+        }
+
+        bool available;
+        if (useFixedBounds)
+        {
+            available = TryFindFreeSlotInFixedBounds(targetColumn, targetRow, occupiedSlots, out slot);
+        }
+        else
+        {
+            var normalized = NormalizeGridSlot(targetColumn, targetRow);
+            slot = FindFirstFreeSlot(normalized.Column, normalized.Row, occupiedSlots, maxColumn);
+            available = true;
+        }
+
+        _dropSlotTarget = target;
+        _dropSlotMovingItemId = movingItemId;
+        _dropSlotSizeMode = _sizeMode;
+        _dropSlotUsesFixedBounds = useFixedBounds;
+        _dropSlotResult = slot;
+        _dropSlotIsAvailable = available;
+        _hasDropSlotResult = true;
+        return available;
+    }
+
+    private void EnsureDropGridCache()
+    {
+        if (!_isDropCacheTracking)
+        {
+            _isDropCacheTracking = true;
+            Items.CollectionChanged += OnDropItemsChanged;
+            foreach (var item in Items)
+            {
+                ObserveDropItem(item);
+            }
+        }
+
+        if (!_dropGridCacheDirty && _dropGridCacheVersion == GridLayoutVersion)
+        {
+            return;
+        }
+
+        _occupiedDropSlots.Clear();
+        _dropItemIndices.Clear();
+        _dropMaxColumn = 0;
+        _dropMaxRow = 0;
+        for (var index = 0; index < Items.Count; index++)
+        {
+            var item = Items[index];
+            _occupiedDropSlots.Add((item.GridColumn, item.GridRow));
+            _dropMaxColumn = index == 0 ? item.GridColumn : Math.Max(_dropMaxColumn, item.GridColumn);
+            _dropMaxRow = index == 0 ? item.GridRow : Math.Max(_dropMaxRow, item.GridRow);
+            _dropItemIndices[item.Id] = _dropItemIndices.TryGetValue(item.Id, out var prior)
+                ? (prior.Index, prior.Count + 1)
+                : (index, 1);
+        }
+
+        _dropGridCacheVersion = GridLayoutVersion;
+        _dropGridCacheDirty = false;
+        _movingItemDropSlotsDirty = true;
+        _hasDropSlotResult = false;
+    }
+
+    private void OnDropItemsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.Action == NotifyCollectionChangedAction.Reset)
+        {
+            foreach (var item in _observedDropItems.Keys)
+            {
+                item.PropertyChanged -= OnDropItemPositionChanged;
+            }
+
+            _observedDropItems.Clear();
+            foreach (var item in Items)
+            {
+                ObserveDropItem(item);
+            }
+        }
+        else if (e.Action != NotifyCollectionChangedAction.Move)
+        {
+            if (e.OldItems is not null)
+            {
+                foreach (DrawerItemViewModel item in e.OldItems)
+                {
+                    var count = _observedDropItems[item];
+                    if (count == 1)
+                    {
+                        item.PropertyChanged -= OnDropItemPositionChanged;
+                        _observedDropItems.Remove(item);
+                    }
+                    else
+                    {
+                        _observedDropItems[item] = count - 1;
+                    }
+                }
+            }
+
+            if (e.NewItems is not null)
+            {
+                foreach (DrawerItemViewModel item in e.NewItems)
+                {
+                    ObserveDropItem(item);
+                }
+            }
+        }
+
+        _dropGridCacheDirty = true;
+        if (Items.Count == 0)
+        {
+            // Hidden windows release their item models. Release the drag cache's
+            // backing arrays too, instead of retaining a former large box's size.
+            _observedDropItems.TrimExcess();
+            _occupiedDropSlots.Clear();
+            _occupiedDropSlots.TrimExcess();
+            _movingItemDropSlots.Clear();
+            _movingItemDropSlots.TrimExcess();
+            _dropItemIndices.Clear();
+            _dropItemIndices.TrimExcess();
+        }
+    }
+
+    private void ObserveDropItem(DrawerItemViewModel item)
+    {
+        if (_observedDropItems.TryGetValue(item, out var count))
+        {
+            _observedDropItems[item] = count + 1;
+        }
+        else
+        {
+            _observedDropItems.Add(item, 1);
+            item.PropertyChanged += OnDropItemPositionChanged;
+        }
+    }
+
+    private void OnDropItemPositionChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is null or "" or nameof(DrawerItemViewModel.GridColumn) or nameof(DrawerItemViewModel.GridRow))
+        {
+            _dropGridCacheDirty = true;
+        }
     }
 
     public Task ImportPathsAsync(IEnumerable<string> paths)
@@ -217,43 +430,46 @@ public sealed partial class DesktopBoxViewModel
             var reservedSlots = Items.Select(item => (item.GridColumn, item.GridRow)).ToHashSet();
             var nextColumn = startColumn ?? 0;
             var nextRow = startRow ?? 0;
-            foreach (var path in pathList)
+            using (_drawerService.Changes.BeginBatch())
             {
-                if (!IsFreeSort)
+                foreach (var path in pathList)
                 {
-                    // 排序模式：不写格位（显示位置由排序键决定），自由布局不受污染；
-                    // 固定盒容量硬约束仍然生效：装满即停止导入。
-                    if (IsFixedSize && Items.Count + importedIds.Count >= FixedCapacity)
+                    if (!IsFreeSort)
                     {
-                        break;
+                        // 排序模式：不写格位（显示位置由排序键决定），自由布局不受污染；
+                        // 固定盒容量硬约束仍然生效：装满即停止导入。
+                        if (IsFixedSize && Items.Count + importedIds.Count >= FixedCapacity)
+                        {
+                            break;
+                        }
+
+                        var sortedImport = await _drawerService.ImportPathAsync(BoxId, path);
+                        importedIds.Add(sortedImport.Id);
+                        await _shellChangeNotifier.NotifyItemImportedAsync(sortedImport, _logger);
+                        continue;
                     }
 
-                    var sortedImport = await _drawerService.ImportPathAsync(BoxId, path);
-                    importedIds.Add(sortedImport.Id);
-                    await _shellChangeNotifier.NotifyItemImportedAsync(sortedImport, _logger);
-                    continue;
-                }
-
-                (int Column, int Row) slot;
-                if (IsFixedSize)
-                {
-                    // 硬约束：固定模式装满即停止导入，剩余文件保持原样。
-                    if (!TryFindFreeSlotInFixedBounds(nextColumn, nextRow, reservedSlots, out slot))
+                    (int Column, int Row) slot;
+                    if (IsFixedSize)
                     {
-                        break;
+                        // 硬约束：固定模式装满即停止导入，剩余文件保持原样。
+                        if (!TryFindFreeSlotInFixedBounds(nextColumn, nextRow, reservedSlots, out slot))
+                        {
+                            break;
+                        }
                     }
-                }
-                else
-                {
-                    slot = FindFirstFreeSlot(nextColumn, nextRow, reservedSlots);
-                }
+                    else
+                    {
+                        slot = FindFirstFreeSlot(nextColumn, nextRow, reservedSlots);
+                    }
 
-                reservedSlots.Add(slot);
-                var importedItem = await _drawerService.ImportPathAsync(BoxId, path, slot.Column, slot.Row);
-                importedIds.Add(importedItem.Id);
-                await _shellChangeNotifier.NotifyItemImportedAsync(importedItem, _logger);
-                nextColumn = slot.Column + 1;
-                nextRow = slot.Row;
+                    reservedSlots.Add(slot);
+                    var importedItem = await _drawerService.ImportPathAsync(BoxId, path, slot.Column, slot.Row);
+                    importedIds.Add(importedItem.Id);
+                    await _shellChangeNotifier.NotifyItemImportedAsync(importedItem, _logger);
+                    nextColumn = slot.Column + 1;
+                    nextRow = slot.Row;
+                }
             }
 
             await LoadAsync();
@@ -437,12 +653,26 @@ public sealed partial class DesktopBoxViewModel
     {
         if (positionsChanged)
         {
+            _dropGridCacheDirty = true;
             GridLayoutVersion = unchecked(GridLayoutVersion + 1);
             OnPropertyChanged(nameof(GridLayoutVersion));
         }
 
-        var maxCol = Items.Count == 0 ? 0 : Items.Max(item => item.GridColumn);
-        var maxRow = Items.Count == 0 ? 0 : Items.Max(item => item.GridRow);
+        // Do not allocate occupancy/index caches for boxes that have never been
+        // dragged over. Once tracking starts, preview resizing reuses the cache.
+        int maxCol;
+        int maxRow;
+        if (_isDropCacheTracking)
+        {
+            EnsureDropGridCache();
+            maxCol = _dropMaxColumn;
+            maxRow = _dropMaxRow;
+        }
+        else
+        {
+            maxCol = Items.Count == 0 ? 0 : Items.Max(item => item.GridColumn);
+            maxRow = Items.Count == 0 ? 0 : Items.Max(item => item.GridRow);
+        }
 
         // 内容实际撑开的格子范围（不含拖拽预览），供固定尺寸下限校验使用。
         PublishGridExtentIfChanged(maxCol + 1, maxRow + 1);

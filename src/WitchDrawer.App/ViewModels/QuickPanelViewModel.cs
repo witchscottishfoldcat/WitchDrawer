@@ -130,8 +130,42 @@ public sealed class QuickPanelViewModel : ObservableObject, IBoxContentRefreshTa
     /// </summary>
     public async Task RefreshContentAsync(BoxRefreshRequest request)
     {
-        if (request.BoxIds is null) await RefreshAllAsync();
-        else foreach (var boxId in request.BoxIds) await RefreshBoxAsync(boxId);
+        if (request.PresentationOnly) await RefreshPresentationAsync(request);
+        else if (request.BoxIds is null) await RefreshAllAsync();
+        else await RefreshBoxesAsync(request.BoxIds);
+    }
+
+    private async Task RefreshPresentationAsync(BoxRefreshRequest request)
+    {
+        if (!_hasLoaded)
+        {
+            _refreshPendingDuringFirstLoad |= _firstLoadInProgress;
+            return;
+        }
+
+        await _refreshGate.WaitAsync();
+        try
+        {
+            var boxes = await _drawerService.GetBoxesAsync();
+            var presentations = new Dictionary<Guid, (string Name, bool Pixelated)>();
+            foreach (var box in boxes.Where(box => request.Affects(box.Id)))
+            {
+                var style = await _boxVisualStyleStore.LoadAsync(box);
+                presentations.Add(box.Id, (box.Name, style == BoxVisualStyle.Pixel));
+            }
+
+            foreach (var item in _allItems)
+                if (presentations.TryGetValue(item.Model.BoxId, out var presentation))
+                    item.UpdateBoxPresentation(presentation.Name, presentation.Pixelated,
+                        GetIconPixelSize(presentation.Pixelated));
+            ApplyFilter();
+        }
+        catch (Exception exception)
+        {
+            _logger.Error(exception, "Failed to refresh quick panel presentation.");
+            StatusText = exception.Message;
+        }
+        finally { _refreshGate.Release(); }
     }
 
     public async Task RefreshAllAsync()
@@ -198,7 +232,9 @@ public sealed class QuickPanelViewModel : ObservableObject, IBoxContentRefreshTa
         }
     }
 
-    public async Task RefreshBoxAsync(Guid boxId)
+    public Task RefreshBoxAsync(Guid boxId) => RefreshBoxesAsync([boxId]);
+
+    private async Task RefreshBoxesAsync(IReadOnlyList<Guid> boxIds)
     {
         if (!_hasLoaded)
         {
@@ -210,19 +246,30 @@ public sealed class QuickPanelViewModel : ObservableObject, IBoxContentRefreshTa
         try
         {
             var boxes = await _drawerService.GetBoxesAsync();
-            var box = boxes.FirstOrDefault(candidate => candidate.Id == boxId);
+            var affected = boxIds.ToHashSet();
+            var existingById = _allItems
+                .Where(item => affected.Contains(item.Model.BoxId))
+                .ToDictionary(item => item.Id);
             var retainedItems = _allItems
-                .Where(item => item.Model.BoxId != boxId)
+                .Where(item => !affected.Contains(item.Model.BoxId))
                 .ToList();
 
-            if (box is not null)
+            foreach (var box in boxes.Where(candidate => affected.Contains(candidate.Id)))
             {
                 var visualStyle = await _boxVisualStyleStore.LoadAsync(box);
-                var items = await _drawerService.GetItemsAsync(boxId);
-                retainedItems.AddRange(CreateItemViewModels(
-                    items,
-                    new Dictionary<Guid, Box> { [box.Id] = box },
-                    new Dictionary<Guid, BoxVisualStyle> { [box.Id] = visualStyle }));
+                var items = await _drawerService.GetItemsAsync(box.Id);
+                var isPixelated = visualStyle == BoxVisualStyle.Pixel;
+                var iconPixelSize = GetIconPixelSize(isPixelated);
+                foreach (var item in items)
+                {
+                    if (existingById.TryGetValue(item.Id, out var existing) && existing.Model == item)
+                    {
+                        existing.UpdateBoxPresentation(box.Name, isPixelated, iconPixelSize);
+                        retainedItems.Add(existing);
+                    }
+                    else retainedItems.Add(new DrawerItemViewModel(
+                        item, box.Name, isPixelated, iconPixelSize, _logger));
+                }
             }
 
             var boxOrder = boxes
@@ -236,7 +283,7 @@ public sealed class QuickPanelViewModel : ObservableObject, IBoxContentRefreshTa
         }
         catch (Exception exception)
         {
-            _logger.Error(exception, $"Failed to refresh quick panel box {boxId:D}.");
+            _logger.Error(exception, "Failed to refresh quick panel boxes.");
             StatusText = exception.Message;
         }
         finally

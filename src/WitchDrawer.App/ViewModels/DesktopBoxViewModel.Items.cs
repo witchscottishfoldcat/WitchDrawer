@@ -338,13 +338,17 @@ public sealed partial class DesktopBoxViewModel
 
     internal static IReadOnlyList<DrawerItemViewModel> SortDrawerItems(
         IReadOnlyList<DrawerItemViewModel> items,
-        DrawerItemSortMode sortMode)
+        DrawerItemSortMode sortMode,
+        Func<DrawerItemViewModel, DrawerItemSortMode, (long Size, DateTime ModifiedDateUtc)>? readMetadata = null)
     {
-        var entries = items.Select(CreateDrawerSortEntry).ToArray();
+        if (sortMode == DrawerItemSortMode.Free)
+        {
+            return items;
+        }
+
+        var entries = items.Select(item => CreateDrawerSortEntry(item, sortMode, readMetadata)).ToArray();
         IOrderedEnumerable<DrawerSortEntry> ordered = sortMode switch
         {
-            // 自由排序：保持原顺序（格位/导入序），排序键不参与。
-            DrawerItemSortMode.Free => entries.OrderBy(entry => 0),
             DrawerItemSortMode.Size => entries
                 .OrderBy(entry => entry.Size)
                 .ThenBy(entry => entry.Name, StringComparer.CurrentCultureIgnoreCase),
@@ -362,34 +366,33 @@ public sealed partial class DesktopBoxViewModel
         return ordered.Select(entry => entry.Item).ToArray();
     }
 
-    private static DrawerSortEntry CreateDrawerSortEntry(DrawerItemViewModel item)
+    private static DrawerSortEntry CreateDrawerSortEntry(
+        DrawerItemViewModel item,
+        DrawerItemSortMode sortMode,
+        Func<DrawerItemViewModel, DrawerItemSortMode, (long Size, DateTime ModifiedDateUtc)>? readMetadata)
     {
         var path = item.PathLabel;
         try
         {
-            if (item.Model.ItemKind == ItemKind.Directory)
-            {
-                return new DrawerSortEntry(
-                    item,
-                    item.DisplayName,
-                    "文件夹",
-                    -1,
-                    Directory.GetLastWriteTimeUtc(path));
-            }
-
-            var fileInfo = new FileInfo(path);
-            var itemType = Path.GetExtension(path);
+            var itemType = item.Model.ItemKind == ItemKind.Directory
+                ? "文件夹"
+                : Path.GetExtension(path);
             if (string.IsNullOrWhiteSpace(itemType))
             {
                 itemType = "文件";
             }
 
+            // 名称与类型只依赖模型及路径文本；慢盘/网络路径无需查询文件系统。
+            var metadata = sortMode is DrawerItemSortMode.Size or DrawerItemSortMode.ModifiedDate
+                ? (readMetadata ?? ReadDrawerSortMetadata)(item, sortMode)
+                : (Size: long.MaxValue, ModifiedDateUtc: DateTime.MinValue);
+
             return new DrawerSortEntry(
                 item,
                 item.DisplayName,
                 itemType,
-                fileInfo.Exists ? fileInfo.Length : long.MaxValue,
-                fileInfo.Exists ? fileInfo.LastWriteTimeUtc : DateTime.MinValue);
+                metadata.Size,
+                metadata.ModifiedDateUtc);
         }
         catch
         {
@@ -400,5 +403,27 @@ public sealed partial class DesktopBoxViewModel
                 long.MaxValue,
                 DateTime.MinValue);
         }
+    }
+
+    private static (long Size, DateTime ModifiedDateUtc) ReadDrawerSortMetadata(
+        DrawerItemViewModel item,
+        DrawerItemSortMode sortMode)
+    {
+        if (item.Model.ItemKind == ItemKind.Directory)
+        {
+            return (-1, sortMode == DrawerItemSortMode.ModifiedDate
+                ? Directory.GetLastWriteTimeUtc(item.PathLabel)
+                : DateTime.MinValue);
+        }
+
+        var fileInfo = new FileInfo(item.PathLabel);
+        if (!fileInfo.Exists)
+        {
+            return (long.MaxValue, DateTime.MinValue);
+        }
+
+        return sortMode == DrawerItemSortMode.Size
+            ? (fileInfo.Length, DateTime.MinValue)
+            : (long.MaxValue, fileInfo.LastWriteTimeUtc);
     }
 }

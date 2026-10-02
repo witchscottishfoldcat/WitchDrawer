@@ -117,7 +117,15 @@ public sealed partial class BoxViewModel : ObservableObject
 
     public DesktopBoxLayoutSettings LayoutSettings { get; }
     
-    public Box Model { get; }
+    public Box Model { get; private set; }
+
+    public void ApplyName(string name)
+    {
+        if (Model.Name == name) return;
+        Model = Model with { Name = name };
+        OnPropertyChanged(nameof(Model));
+        OnPropertyChanged(nameof(Name));
+    }
 
     public Guid Id => Model.Id;
 

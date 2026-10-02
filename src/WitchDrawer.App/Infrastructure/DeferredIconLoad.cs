@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Media;
 using WitchDrawer.App.ViewModels;
 
 namespace WitchDrawer.App.Infrastructure;
@@ -10,6 +11,12 @@ public static class DeferredIconLoad
         typeof(bool),
         typeof(DeferredIconLoad),
         new PropertyMetadata(false, OnIsEnabledChanged));
+
+    private static readonly DependencyProperty RequestStateProperty = DependencyProperty.RegisterAttached(
+        "RequestState",
+        typeof(RequestState),
+        typeof(DeferredIconLoad),
+        new PropertyMetadata(null));
 
     public static bool GetIsEnabled(DependencyObject element)
     {
@@ -32,33 +39,115 @@ public static class DeferredIconLoad
 
         if ((bool)eventArgs.NewValue)
         {
-            element.Loaded += OnElementLoaded;
-            element.DataContextChanged += OnElementDataContextChanged;
-            RequestIconIfVisible(element);
-            return;
+            var state = new RequestState(element);
+            element.SetValue(RequestStateProperty, state);
+            state.Attach();
+        }
+        else
+        {
+            (element.GetValue(RequestStateProperty) as RequestState)?.Dispose();
+            element.ClearValue(RequestStateProperty);
+        }
+    }
+
+    private sealed class RequestState(FrameworkElement element) : IDisposable
+    {
+        private FrameworkElement? _visibilityHost;
+        private DrawerItemViewModel? _item;
+        private IDisposable? _demand;
+
+        internal void Attach()
+        {
+            element.Loaded += OnLoaded;
+            element.Unloaded += OnUnloaded;
+            element.DataContextChanged += OnDataContextChanged;
+            AttachVisibilityHost();
+            RefreshDemand();
         }
 
-        element.Loaded -= OnElementLoaded;
-        element.DataContextChanged -= OnElementDataContextChanged;
-    }
-
-    private static void OnElementLoaded(object sender, RoutedEventArgs eventArgs)
-    {
-        RequestIconIfVisible((FrameworkElement)sender);
-    }
-
-    private static void OnElementDataContextChanged(
-        object sender,
-        DependencyPropertyChangedEventArgs eventArgs)
-    {
-        RequestIconIfVisible((FrameworkElement)sender);
-    }
-
-    private static void RequestIconIfVisible(FrameworkElement element)
-    {
-        if (element.IsLoaded && element.DataContext is DrawerItemViewModel item)
+        public void Dispose()
         {
-            item.EnsureIconLoaded();
+            element.Loaded -= OnLoaded;
+            element.Unloaded -= OnUnloaded;
+            element.DataContextChanged -= OnDataContextChanged;
+            DetachVisibilityHost();
+            ReleaseDemand();
+        }
+
+        private void OnLoaded(object sender, RoutedEventArgs args)
+        {
+            AttachVisibilityHost();
+            RefreshDemand();
+        }
+
+        private void OnUnloaded(object sender, RoutedEventArgs args)
+        {
+            DetachVisibilityHost();
+            ReleaseDemand();
+        }
+
+        private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs args)
+        {
+            RefreshDemand();
+        }
+
+        private void OnVisibilityChanged(object sender, DependencyPropertyChangedEventArgs args)
+        {
+            RefreshDemand();
+        }
+
+        private void AttachVisibilityHost()
+        {
+            if (!element.IsLoaded)
+            {
+                return;
+            }
+
+            // The image itself is Collapsed until its first icon arrives. Observe
+            // the containing grid so this placeholder cannot suppress initial demand.
+            var host = VisualTreeHelper.GetParent(element) as FrameworkElement ?? element;
+            if (ReferenceEquals(host, _visibilityHost))
+            {
+                return;
+            }
+
+            DetachVisibilityHost();
+            _visibilityHost = host;
+            host.IsVisibleChanged += OnVisibilityChanged;
+        }
+
+        private void DetachVisibilityHost()
+        {
+            if (_visibilityHost is not null)
+            {
+                _visibilityHost.IsVisibleChanged -= OnVisibilityChanged;
+                _visibilityHost = null;
+            }
+        }
+
+        private void RefreshDemand()
+        {
+            var item = element.IsLoaded && _visibilityHost?.IsVisible == true
+                ? element.DataContext as DrawerItemViewModel
+                : null;
+            if (ReferenceEquals(item, _item))
+            {
+                return;
+            }
+
+            ReleaseDemand();
+            if (item is not null)
+            {
+                _item = item;
+                _demand = item.AcquireIconDemand();
+            }
+        }
+
+        private void ReleaseDemand()
+        {
+            _demand?.Dispose();
+            _demand = null;
+            _item = null;
         }
     }
 }

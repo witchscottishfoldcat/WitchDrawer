@@ -13,6 +13,50 @@ namespace WitchDrawer.App.Tests;
 public sealed class QuickPanelIncrementalRefreshTests
 {
     [Fact]
+    public async Task PresentationRefresh_UpdatesOnlyAffectedModelsWithoutReloadingContent()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "WitchDrawer.PresentationTests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            var paths = new AppPaths(Path.Combine(root, "data"));
+            var drawer = new DrawerService(paths, new DrawerRepository(paths.DatabasePath));
+            await drawer.InitializeAsync();
+            var first = await drawer.CreateBoxAsync("Before", BoxType.Normal);
+            var second = await drawer.CreateBoxAsync("Other", BoxType.Normal);
+            var now = DateTimeOffset.UtcNow;
+            DrawerItem Make(Box box) => new(Guid.NewGuid(), box.Id, "synthetic.txt", ItemKind.File,
+                Path.Combine(root, box.Name, "synthetic.txt"), null, 0, now, now);
+            IReadOnlyList<DrawerItem> synthetic = new[] { Make(first), Make(second) };
+            var loads = 0;
+            var logger = new RecordingLogger();
+            var styles = new BoxVisualStyleStore(drawer, logger);
+            var panel = new QuickPanelViewModel(drawer, new NoOpFileLauncher(), logger, styles,
+                () => { loads++; return Task.FromResult(synthetic); });
+            await panel.EnsureLoadedAsync();
+            var originalFirst = panel.Items.Single(item => item.Model.BoxId == first.Id);
+            var originalOther = panel.Items.Single(item => item.Model.BoxId == second.Id);
+            var resets = 0;
+            panel.Items.CollectionChanged += (_, _) => resets++;
+
+            await drawer.RenameBoxAsync(first.Id, "After");
+            await styles.SaveAsync(first.Id, BoxVisualStyle.Pixel);
+            await panel.RefreshContentAsync(new([first.Id], PresentationOnly: true));
+
+            Assert.Equal(1, loads);
+            Assert.Equal(0, resets);
+            Assert.Same(originalFirst, panel.Items.Single(item => item.Model.BoxId == first.Id));
+            Assert.Equal("After", originalFirst.BoxName);
+            Assert.True(originalFirst.IsPixelated);
+            Assert.Same(originalOther, panel.Items.Single(item => item.Model.BoxId == second.Id));
+            Assert.Equal("Other", originalOther.BoxName);
+            Assert.False(originalOther.IsPixelated);
+            panel.SearchText = "After";
+            Assert.Same(originalFirst, Assert.Single(panel.Items));
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
     public async Task CrossBoxTransfer_RefreshesSourceAndTargetWithoutDuplicateQuickPanelItems()
     {
         var root = Path.Combine(Path.GetTempPath(), "WitchDrawer.TransferTests", Guid.NewGuid().ToString("N"));

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
 using System.Text;
@@ -85,12 +86,20 @@ public partial class App : Application
         _desktopReady = desktopReady;
         try
         {
-            // ForCurrentUser 会创建目录并校验可写性（SQLite WAL 需要同目录旁路文件）。
-            var paths = AppPaths.ForCurrentUser();
-
-            var logger = new FileAppLogger(paths.LogsDirectory);
+            var startupStarted = Stopwatch.GetTimestamp();
+            // 目录创建、可写性探测和旧日志清理可能访问慢盘，整体放在后台。
+            // 计时从访问数据路径前开始，包含 SQLite WAL 旁路文件所需的可写校验。
+            var (paths, logger) = await Task.Run(() =>
+            {
+                var paths = AppPaths.ForCurrentUser();
+                return (paths, new FileAppLogger(paths.LogsDirectory));
+            });
             _logger = logger;
-            var startupTimer = new StartupTimer(logger);
+            if (Volatile.Read(ref _shutdownStarted) != 0)
+            {
+                return;
+            }
+            var startupTimer = new StartupTimer(logger, startupStarted);
             using var uiStallMonitor = new UiThreadStallMonitor(logger);
             startupTimer.Mark("日志与数据路径就绪");
             var shortcutMigration = await Task.Run(() =>
@@ -166,7 +175,7 @@ public partial class App : Application
 
             // 这些事件处理器是 async void：刷新期间的异常（如 SQLite 写入失败）会直接逃出
             // 成为进程级未处理异常，必须就地捕获记录。
-            mainViewModel.BoxesChanged += async (_, _) =>
+            mainViewModel.BoxesChanged += async (_, change) =>
             {
                 if (!refreshCoordinator.ShouldRefreshNow())
                 {
@@ -180,7 +189,7 @@ public partial class App : Application
                 }
 
                 await GuardRefreshAsync(
-                    async () => await (await desktopReady.Task).RefreshAsync(),
+                    async () => await (await desktopReady.Task).RefreshAsync(affectedBoxId: change.BoxId),
                     "RefreshAsync",
                     logger);
             };
@@ -308,10 +317,12 @@ public partial class App : Application
             _contentSync = new BoxContentSyncCoordinator(changes,
                 [mainViewModel, quickPanelViewModel, desktopBoxManager],
                 action => Dispatcher.BeginInvoke(action), logger);
-            mainViewModel.BoxesChanged += (_, _) =>
+            mainViewModel.BoxesChanged += (_, change) =>
             {
-                if (desktopReady.Task.IsCompletedSuccessfully)
-                    _contentSync?.Request(BoxRefreshRequest.All);
+                // Skip the initial MainViewModel snapshot, but deliver later changes
+                // even while desktop windows are still being created.
+                if (refreshCoordinator.IsMainViewModelLoaded || change.BoxId is not null)
+                    _contentSync?.Request(change.RefreshRequest);
             };
             desktopBoxManager.DesktopBackgroundDoubleClicked += (_, _) =>
             {

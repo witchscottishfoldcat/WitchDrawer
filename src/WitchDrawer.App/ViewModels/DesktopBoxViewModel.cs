@@ -552,6 +552,8 @@ public sealed partial class DesktopBoxViewModel : ObservableObject
     {
         _box = box;
         _visualStyle = visualStyle;
+        foreach (var item in Items)
+            item.UpdateBoxPresentation(Name, IsPixelStyle, GetIconPixelSize(IsPixelStyle));
         OnPropertyChanged(nameof(Name));
         OnPropertyChanged(nameof(Type));
         OnPropertyChanged(nameof(VisualStyle));

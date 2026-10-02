@@ -119,7 +119,7 @@ public sealed partial class MainViewModel : ObservableObject, IBoxContentRefresh
         });
     }
 
-    public event EventHandler? BoxesChanged;
+    public event EventHandler<BoxesChangedEventArgs>? BoxesChanged;
 
     public ResettableObservableCollection<BoxViewModel> Boxes { get; } = [];
 

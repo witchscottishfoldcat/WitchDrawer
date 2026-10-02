@@ -3,14 +3,22 @@ using WitchDrawer.Core.Services;
 
 namespace WitchDrawer.App.Infrastructure;
 
-public sealed record BoxRefreshRequest(IReadOnlyList<Guid>? BoxIds)
+public sealed record BoxRefreshRequest(IReadOnlyList<Guid>? BoxIds, bool PresentationOnly = false)
 {
     public static BoxRefreshRequest All { get; } = new(BoxIds: null);
     public bool Affects(Guid boxId) => BoxIds is null || BoxIds.Contains(boxId);
 
     public BoxRefreshRequest Merge(BoxRefreshRequest other)
-        => BoxIds is null || other.BoxIds is null
-            ? All : new(BoxIds.Concat(other.BoxIds).Distinct().ToArray());
+        => new(BoxIds is null || other.BoxIds is null
+                ? null : BoxIds.Concat(other.BoxIds).Distinct().ToArray(),
+            PresentationOnly && other.PresentationOnly);
+}
+
+public sealed class BoxesChangedEventArgs(Guid? boxId = null, bool presentationOnly = false) : EventArgs
+{
+    public Guid? BoxId { get; } = boxId;
+    public BoxRefreshRequest RefreshRequest { get; } = new(
+        boxId is Guid id ? [id] : null, presentationOnly);
 }
 
 public interface IBoxContentRefreshTarget

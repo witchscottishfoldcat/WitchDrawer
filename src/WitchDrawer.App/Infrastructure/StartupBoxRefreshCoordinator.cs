@@ -11,6 +11,7 @@ internal sealed class StartupBoxRefreshCoordinator
     private bool _refreshPending;
 
     public bool HasPendingRefresh => _refreshPending;
+    public bool IsMainViewModelLoaded => _mainViewModelLoaded;
 
     public void MarkMainViewModelLoaded() => _mainViewModelLoaded = true;
 

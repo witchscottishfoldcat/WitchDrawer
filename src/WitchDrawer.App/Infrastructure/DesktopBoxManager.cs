@@ -133,14 +133,18 @@ public sealed partial class DesktopBoxManager : IBoxContentRefreshTarget
 
     internal void InvalidateRefresh() => Interlocked.Increment(ref _refreshVersion);
 
-    public async Task RefreshAsync(StartupSettingsSnapshot? startupSnapshot = null)
+    public async Task RefreshAsync(StartupSettingsSnapshot? startupSnapshot = null, Guid? affectedBoxId = null)
     {
         if (_closing)
         {
             return;
         }
 
-        var version = Interlocked.Increment(ref _refreshVersion);
+        // A later targeted update must not cancel another box's queued metadata update.
+        // Full refreshes still supersede earlier work because they cover every box.
+        var version = affectedBoxId is null
+            ? Interlocked.Increment(ref _refreshVersion)
+            : Volatile.Read(ref _refreshVersion);
         await _refreshGate.WaitAsync();
         try
         {
@@ -161,7 +165,8 @@ public sealed partial class DesktopBoxManager : IBoxContentRefreshTarget
             // 或落位时被工作区钳制过（分辨率/显示器变化）的窗口才可被挪动。
             _overlapResolutionBoxIds.Clear();
 
-            foreach (var removedId in _windows.Keys.Where(id => !boxIds.Contains(id)).ToArray())
+            foreach (var removedId in _windows.Keys.Where(id => !boxIds.Contains(id)
+                         && (affectedBoxId is null || id == affectedBoxId)).ToArray())
             {
                 var win = _windows[removedId];
                 win.LocationChanged -= OnWindowLocationChanged;
@@ -180,6 +185,7 @@ public sealed partial class DesktopBoxManager : IBoxContentRefreshTarget
                 }
 
                 var box = boxes[index];
+                if (affectedBoxId is not null && box.Id != affectedBoxId) continue;
                 var visualStyle = await _boxVisualStyleStore.LoadAsync(
                     box,
                     startupSnapshot: startupSnapshot);
@@ -308,6 +314,9 @@ public sealed partial class DesktopBoxManager : IBoxContentRefreshTarget
     /// </summary>
     public async Task RefreshContentAsync(BoxRefreshRequest request)
     {
+        // BoxesChanged separately synchronizes the affected window's metadata.
+        if (request.PresentationOnly) return;
+
         if (request.BoxIds is null) await RefreshItemsAsync();
         else foreach (var boxId in request.BoxIds) await RefreshItemsAsync(boxId);
     }
