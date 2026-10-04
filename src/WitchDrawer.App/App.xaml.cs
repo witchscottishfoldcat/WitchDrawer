@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
@@ -42,31 +43,6 @@ public partial class App : Application
 
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
-        if (ProcessElevation.RequiresUnelevatedRelaunch())
-        {
-            var executablePath = Environment.ProcessPath;
-            var nativeErrorCode = 0;
-            if (!string.IsNullOrWhiteSpace(executablePath)
-                && ProcessElevation.TryRelaunchCurrentProcessUnelevated(
-                    executablePath,
-                    e.Args,
-                    AppContext.BaseDirectory,
-                    out nativeErrorCode))
-            {
-                Shutdown(0);
-                return;
-            }
-
-            MessageBox.Show(
-                $"WitchDrawer 当前以管理员身份运行，Windows 会阻止桌面文件拖入盒子。\n\n"
-                + $"自动切换到普通权限失败（错误码 {nativeErrorCode}）。请退出后直接双击启动，不要选择“以管理员身份运行”。",
-                "WitchDrawer 无法接收桌面拖放",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
-            Shutdown(-1);
-            return;
-        }
-
         var silentStart = StartupLaunchPolicy.IsSilent(e.Args);
 
         _singleInstanceMutex = new Mutex(true, SingleInstanceMutexName, out var isFirstInstance);
@@ -89,10 +65,25 @@ public partial class App : Application
             var startupStarted = Stopwatch.GetTimestamp();
             // 目录创建、可写性探测和旧日志清理可能访问慢盘，整体放在后台。
             // 计时从访问数据路径前开始，包含 SQLite WAL 旁路文件所需的可写校验。
-            var (paths, logger) = await Task.Run(() =>
+            var (paths, logger, isElevated) = await Task.Run(() =>
             {
                 var paths = AppPaths.ForCurrentUser();
-                return (paths, new FileAppLogger(paths.LogsDirectory));
+                var logger = new FileAppLogger(paths.LogsDirectory);
+                var isElevated = false;
+                try
+                {
+                    isElevated = ProcessElevation.IsCurrentProcessElevated();
+                }
+                catch (Win32Exception exception)
+                {
+                    // Elevation is informational; a failed check must not block startup.
+                    logger.Error(exception, "Failed to inspect process elevation.");
+                }
+                if (isElevated)
+                {
+                    logger.Info("Running elevated. Windows restricts file drops from unelevated windows.");
+                }
+                return (paths, logger, isElevated);
             });
             _logger = logger;
             if (Volatile.Read(ref _shutdownStarted) != 0)
@@ -351,6 +342,10 @@ public partial class App : Application
             }
             desktopReady.TrySetResult(desktopBoxManager);
             startupTimer.Mark("桌面盒子全部就绪");
+            if (isElevated)
+            {
+                mainViewModel.ReportStatus("管理员权限运行：从普通权限窗口拖入文件受 Windows 限制。");
+            }
             if (drawerService.RecoveryWarnings.Count > 0)
             {
                 var details = string.Join(
