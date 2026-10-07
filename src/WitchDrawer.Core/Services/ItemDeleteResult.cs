@@ -8,6 +8,12 @@ public sealed record ItemDeleteResult(
     bool RestoredToOriginal,
     bool RestoredToDesktop)
 {
+    public bool RemovedMissingRecord => WasStoredItem && RestoredPath is null;
+
+    public static ItemDeleteResult MissingRecordRemoved(Guid itemId, string displayName)
+        => new(itemId, displayName, WasStoredItem: true, RestoredPath: null,
+            RestoredToOriginal: false, RestoredToDesktop: false);
+
     public static ItemDeleteResult ReferenceRemoved(Guid itemId, string displayName)
     {
         return new ItemDeleteResult(
@@ -26,6 +32,11 @@ public sealed record ItemDeleteResult(
             if (!WasStoredItem)
             {
                 return $"已移除引用 {DisplayName}";
+            }
+
+            if (RemovedMissingRecord)
+            {
+                return $"文件已不存在，已移除 {DisplayName} 的收纳记录";
             }
 
             if (RestoredToDesktop)

@@ -535,9 +535,11 @@ public sealed class DrawerServiceTests
         Assert.Equal(item.SourcePath, Assert.Single(storedItems).SourcePath);
 
         var deletion = await workspace.Service.DeleteBoxAsync(normalBox.Id);
-        Assert.False(deletion.BoxRemoved);
-        Assert.Equal(1, deletion.FailedCount);
-        Assert.NotNull(await workspace.Repository.GetItemAsync(item.Id));
+        Assert.True(deletion.BoxRemoved);
+        Assert.Equal(0, deletion.RestoredCount);
+        Assert.Equal(0, deletion.FailedCount);
+        Assert.Null(await workspace.Repository.GetItemAsync(item.Id));
+        Assert.Equal("hello", File.ReadAllText(exportedPath));
     }
 
     [Fact]
@@ -732,8 +734,8 @@ public sealed class DrawerServiceTests
         var keepItem = await workspace.Service.ImportPathAsync(normalBox.Id, keepSource);
         var failItem = await workspace.Service.ImportPathAsync(normalBox.Id, failSource);
 
-        // Remove the stored file so restore throws FileNotFoundException for this item.
-        File.Delete(failItem.StoredPath!);
+        // An existing file that cannot be moved is a real restore failure.
+        using var lockedFile = File.Open(failItem.StoredPath!, FileMode.Open, FileAccess.Read, FileShare.Read);
 
         var result = await workspace.Service.DeleteBoxAsync(normalBox.Id);
         var boxes = await workspace.Service.GetBoxesAsync();
@@ -749,6 +751,190 @@ public sealed class DrawerServiceTests
         Assert.False(File.Exists(keepItem.StoredPath));
         Assert.Single(remainingItems);
         Assert.Equal(failItem.Id, remainingItems[0].Id);
+    }
+
+    [Theory]
+    [InlineData(BoxType.Normal, false)]
+    [InlineData(BoxType.Normal, true)]
+    [InlineData(BoxType.Pixel, false)]
+    [InlineData(BoxType.Pixel, true)]
+    [InlineData(BoxType.Drawer, false)]
+    [InlineData(BoxType.Drawer, true)]
+    public async Task DeleteBoxAsync_RemovesMissingRecordsAndRestoresRemainingItems(BoxType type, bool directory)
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var box = await workspace.Service.CreateBoxAsync("missing-content", type);
+        var missingSource = directory
+            ? workspace.CreateSourceDirectory("missing-folder", "nested.txt", "missing")
+            : workspace.CreateSourceFile("missing-source", "missing.txt", "missing");
+        var missingItem = await workspace.Service.ImportPathAsync(box.Id, missingSource);
+        var keepSource = workspace.CreateSourceFile("keep-source", "keep.txt", "keep");
+        var keepItem = await workspace.Service.ImportPathAsync(box.Id, keepSource);
+        if (directory) Directory.Delete(missingItem.StoredPath!, recursive: true);
+        else File.Delete(missingItem.StoredPath!);
+
+        // Refresh and restart preserve recovery metadata until the user deletes the box.
+        var restarted = new DrawerService(workspace.Paths, workspace.Repository);
+        await restarted.InitializeAsync();
+        Assert.Equal(2, (await restarted.GetItemsAsync(box.Id)).Count);
+        var result = await restarted.DeleteBoxAsync(box.Id);
+
+        Assert.True(result.BoxRemoved);
+        Assert.Equal(1, result.RestoredCount);
+        Assert.Equal(1, result.MissingCount);
+        Assert.Equal(0, result.FailedCount);
+        Assert.Contains("已清理 1 项失效记录", result.StatusMessage);
+        Assert.Equal("keep", File.ReadAllText(keepSource));
+        Assert.False(File.Exists(keepItem.StoredPath));
+        Assert.False(File.Exists(missingSource) || Directory.Exists(missingSource));
+        Assert.Null(await workspace.Repository.GetBoxAsync(box.Id));
+        Assert.Empty(await workspace.Repository.GetItemsAsync(box.Id));
+        Assert.Empty(await workspace.Repository.GetPendingFileOperationsAsync());
+        Assert.False(Directory.Exists(box.StoragePath));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DeleteItemAsync_MissingStoredPathRemovesOnlyRecord(bool directory)
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var box = await workspace.GetBoxAsync(BoxType.Normal);
+        var source = directory
+            ? workspace.CreateSourceDirectory("missing-folder", "nested.txt", "original")
+            : workspace.CreateSourceFile("missing-source", "missing.txt", "original");
+        var item = await workspace.Service.ImportPathAsync(box.Id, source);
+        if (directory) Directory.Delete(item.StoredPath!, recursive: true);
+        else File.Delete(item.StoredPath!);
+        // A replacement at the original location must not be touched or treated as restored.
+        if (directory) Directory.CreateDirectory(source);
+        else File.WriteAllText(source, "replacement");
+        var changes = new List<IReadOnlyList<Guid>>();
+        workspace.Service.Changes.ContentChanged += (_, e) => changes.Add(e.BoxIds);
+
+        var result = await workspace.Service.DeleteItemAsync(item.Id);
+
+        Assert.True(result.WasStoredItem);
+        Assert.True(result.RemovedMissingRecord);
+        Assert.Null(result.RestoredPath);
+        Assert.False(result.RestoredToOriginal);
+        Assert.False(result.RestoredToDesktop);
+        Assert.Contains("已移除", result.StatusMessage);
+        Assert.Equal(new[] { box.Id }, Assert.Single(changes));
+        Assert.Null(await workspace.Repository.GetItemAsync(item.Id));
+        Assert.NotNull(await workspace.Repository.GetBoxAsync(box.Id));
+        Assert.Empty(await workspace.Repository.GetPendingFileOperationsAsync());
+        if (directory) Assert.True(Directory.Exists(source));
+        else Assert.Equal("replacement", File.ReadAllText(source));
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task DeleteMissingStoredPath_WhenStorageUnavailablePreservesRecords(bool entireRoot, bool deleteBox)
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var box = await workspace.GetBoxAsync(BoxType.Normal);
+        var source = workspace.CreateSourceFile("offline-source", "offline.txt", "payload");
+        var item = await workspace.Service.ImportPathAsync(box.Id, source);
+        var storage = entireRoot ? workspace.Paths.BoxesDirectory : box.StoragePath!;
+        var offline = storage + ".offline";
+        Directory.Move(storage, offline);
+        try
+        {
+            if (deleteBox)
+            {
+                var result = await workspace.Service.DeleteBoxAsync(box.Id);
+                Assert.False(result.BoxRemoved);
+                Assert.Equal(1, result.FailedCount);
+                Assert.Equal(0, result.MissingCount);
+            }
+            else
+            {
+                await Assert.ThrowsAnyAsync<IOException>(() => workspace.Service.DeleteItemAsync(item.Id));
+            }
+            Assert.NotNull(await workspace.Repository.GetItemAsync(item.Id));
+            Assert.NotNull(await workspace.Repository.GetBoxAsync(box.Id));
+            Assert.Empty(await workspace.Repository.GetPendingFileOperationsAsync());
+        }
+        finally
+        {
+            Directory.Move(offline, storage);
+        }
+
+        Assert.True((await workspace.Service.DeleteBoxAsync(box.Id)).BoxRemoved);
+        Assert.Equal("payload", File.ReadAllText(source));
+    }
+
+    [Fact]
+    public async Task DeleteMissingStoredPath_WithPendingRecoveryPreservesRecordAndJournal()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var box = await workspace.GetBoxAsync(BoxType.Normal);
+        var source = workspace.CreateSourceFile("pending-source", "pending.txt", "payload");
+        var item = await workspace.Service.ImportPathAsync(box.Id, source);
+        var operation = new PendingFileOperation(Guid.NewGuid(), PendingFileOperationKind.Remove,
+            item.Id, item.StoredPath!, source, false, null);
+        await workspace.Repository.AddPendingFileOperationAsync(operation);
+        var held = SafeFileOps.CreateHeldSourcePath(item.StoredPath!, operation.Id);
+        File.Move(item.StoredPath!, held);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => workspace.Service.DeleteItemAsync(item.Id));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => workspace.Service.DeleteBoxAsync(box.Id));
+
+        Assert.NotNull(await workspace.Repository.GetItemAsync(item.Id));
+        Assert.NotNull(await workspace.Repository.GetBoxAsync(box.Id));
+        Assert.Equal(operation.Id, Assert.Single(await workspace.Repository.GetPendingFileOperationsAsync()).Id);
+        Assert.Equal("payload", File.ReadAllText(held));
+    }
+
+    [Fact]
+    public async Task DeleteMissingStoredPath_OutsideStorageRootPreservesRecord()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var box = await workspace.GetBoxAsync(BoxType.Normal);
+        var source = workspace.CreateSourceFile("unsafe-source", "unsafe.txt", "payload");
+        var item = await workspace.Service.ImportPathAsync(box.Id, source);
+        var outsidePath = Path.Combine(workspace.Root, "unsafe-source", "nonexistent.txt");
+        await workspace.Repository.UpdateItemStoredPathAsync(item.Id, outsidePath);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => workspace.Service.DeleteItemAsync(item.Id));
+        var result = await workspace.Service.DeleteBoxAsync(box.Id);
+
+        Assert.False(result.BoxRemoved);
+        Assert.Equal(1, result.FailedCount);
+        Assert.Equal(0, result.MissingCount);
+        Assert.NotNull(await workspace.Repository.GetItemAsync(item.Id));
+        Assert.Equal("payload", File.ReadAllText(item.StoredPath!));
+        Assert.Empty(await workspace.Repository.GetPendingFileOperationsAsync());
+    }
+
+    [Fact]
+    public async Task DeleteBoxAsync_MissingCleanupPublishesChangeWhenAnotherRestoreFails()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var box = await workspace.GetBoxAsync(BoxType.Normal);
+        var missingItem = await workspace.Service.ImportPathAsync(box.Id,
+            workspace.CreateSourceFile("missing-source", "missing.txt", "missing"));
+        var lockedItem = await workspace.Service.ImportPathAsync(box.Id,
+            workspace.CreateSourceFile("locked-source", "locked.txt", "locked"));
+        File.Delete(missingItem.StoredPath!);
+        using var lockedFile = File.Open(lockedItem.StoredPath!, FileMode.Open, FileAccess.Read, FileShare.Read);
+        var changes = new List<IReadOnlyList<Guid>>();
+        workspace.Service.Changes.ContentChanged += (_, e) => changes.Add(e.BoxIds);
+
+        var result = await workspace.Service.DeleteBoxAsync(box.Id);
+
+        Assert.False(result.BoxRemoved);
+        Assert.Equal(0, result.RestoredCount);
+        Assert.Equal(1, result.MissingCount);
+        Assert.Equal(1, result.FailedCount);
+        Assert.Contains("locked.txt", result.StatusMessage);
+        Assert.Equal(new[] { box.Id }, Assert.Single(changes));
+        Assert.Equal(lockedItem.Id, Assert.Single(await workspace.Repository.GetItemsAsync(box.Id)).Id);
+        Assert.Empty(await workspace.Repository.GetPendingFileOperationsAsync());
     }
 
     [Fact]

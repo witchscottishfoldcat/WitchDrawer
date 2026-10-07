@@ -9,12 +9,14 @@ public sealed record BoxDeleteResult(
     bool BoxRemoved,
     int RestoredCount,
     int FailedCount,
-    IReadOnlyList<string> Failures)
+    IReadOnlyList<string> Failures,
+    int MissingCount = 0)
 {
     public string StatusMessage
     {
         get
         {
+            var missingText = MissingCount > 0 ? $"，已清理 {MissingCount} 项失效记录" : string.Empty;
             if (!BoxRemoved)
             {
                 // 带出首条失败明细（项目名 + 原因），用户反馈时可直接定位，
@@ -23,8 +25,8 @@ public sealed record BoxDeleteResult(
                     ? $"（{Failures[0]}）"
                     : string.Empty;
                 return FailedCount > 0
-                    ? $"删除未完成：{FailedCount} 项还原失败{detail}，收纳盒已保留"
-                    : $"删除未完成，收纳盒已保留";
+                    ? $"删除未完成：{FailedCount} 项还原失败{detail}，收纳盒已保留{missingText}"
+                    : $"删除未完成，收纳盒已保留{missingText}";
             }
 
             if (BoxType == BoxType.Mapping)
@@ -39,10 +41,10 @@ public sealed record BoxDeleteResult(
 
             if (RestoredCount <= 0)
             {
-                return $"已删除 {BoxName}";
+                return $"已删除 {BoxName}{missingText}";
             }
 
-            return $"已删除 {BoxName}，已还原 {RestoredCount} 项";
+            return $"已删除 {BoxName}，已还原 {RestoredCount} 项{missingText}";
         }
     }
 }

@@ -410,7 +410,7 @@ public sealed class DrawerService : ISettingsStore
         try
         {
             var result = await DeleteBoxCoreAsync(boxId, cancellationToken);
-            if (result.BoxRemoved || result.RestoredCount > 0) Changes.Publish(boxId);
+            if (result.BoxRemoved || result.RestoredCount > 0 || result.MissingCount > 0) Changes.Publish(boxId);
             return result;
         }
         finally
@@ -446,6 +446,7 @@ public sealed class DrawerService : ISettingsStore
         }
         var reservedTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var restoredCount = 0;
+        var missingCount = 0;
         var failures = new List<string>();
 
         foreach (var item in items)
@@ -459,8 +460,9 @@ public sealed class DrawerService : ISettingsStore
             try
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                await RestoreAndRemoveStoredItemAsync(item, reservedTargets, cancellationToken, fileOperationGateHeld: true);
-                restoredCount++;
+                var result = await RestoreAndRemoveStoredItemAsync(item, reservedTargets, cancellationToken, fileOperationGateHeld: true);
+                if (result.RemovedMissingRecord) missingCount++;
+                else restoredCount++;
             }
             catch (OperationCanceledException)
             {
@@ -481,7 +483,8 @@ public sealed class DrawerService : ISettingsStore
                 BoxRemoved: false,
                 RestoredCount: restoredCount,
                 FailedCount: failures.Count,
-                Failures: failures);
+                Failures: failures,
+                MissingCount: missingCount);
         }
 
         await _repository.RemoveBoxAsync(boxId, cancellationToken);
@@ -494,7 +497,8 @@ public sealed class DrawerService : ISettingsStore
             BoxRemoved: true,
             RestoredCount: restoredCount,
             FailedCount: 0,
-            Failures: Array.Empty<string>());
+            Failures: Array.Empty<string>(),
+            MissingCount: missingCount);
     }
 
     private async Task<ItemDeleteResult> RestoreAndRemoveStoredItemAsync(
@@ -503,18 +507,74 @@ public sealed class DrawerService : ISettingsStore
         CancellationToken cancellationToken,
         bool fileOperationGateHeld = false)
     {
-        var plan = CreateRestorePlan(item, reservedTargets);
-        var operation = new PendingFileOperation(
-            Guid.NewGuid(), PendingFileOperationKind.Remove, item.Id,
-            plan.SourcePath, plan.TargetPath, plan.IsDirectory, null);
-        var completed = await ExecuteJournaledOperationAsync(operation, cancellationToken, fileOperationGateHeld);
-        return new ItemDeleteResult(
-            item.Id,
-            item.DisplayName,
-            WasStoredItem: true,
-            RestoredPath: completed.TargetPath,
-            RestoredToOriginal: plan.RestoredToOriginal,
-            RestoredToDesktop: plan.RestoredToDesktop);
+        if (!fileOperationGateHeld)
+        {
+            await _fileOperationGate.WaitAsync(cancellationToken);
+        }
+        try
+        {
+            // Check and remove missing records under the same gate as file moves. A queued
+            // deletion must not erase a row that another operation has moved elsewhere.
+            var currentItem = await _repository.GetItemAsync(item.Id, cancellationToken);
+            if (currentItem is null || !string.Equals(currentItem.StoredPath, item.StoredPath,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("文件已被其他操作移动或移除，请刷新后重试。");
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            if (IsStoredPathConfirmedMissing(item.StoredPath!))
+            {
+                if (!await _repository.RemoveMissingItemUnlessPendingAsync(item.Id, item.StoredPath!, cancellationToken))
+                {
+                    throw new InvalidOperationException("文件包含待恢复的操作或记录已改变，请刷新后重试。");
+                }
+                return ItemDeleteResult.MissingRecordRemoved(item.Id, item.DisplayName);
+            }
+
+            var plan = CreateRestorePlan(item, reservedTargets);
+            var operation = new PendingFileOperation(
+                Guid.NewGuid(), PendingFileOperationKind.Remove, item.Id,
+                plan.SourcePath, plan.TargetPath, plan.IsDirectory, null);
+            var completed = await ExecuteJournaledOperationAsync(operation, cancellationToken, fileOperationGateHeld: true);
+            return new ItemDeleteResult(
+                item.Id,
+                item.DisplayName,
+                WasStoredItem: true,
+                RestoredPath: completed.TargetPath,
+                RestoredToOriginal: plan.RestoredToOriginal,
+                RestoredToDesktop: plan.RestoredToDesktop);
+        }
+        finally
+        {
+            if (!fileOperationGateHeld)
+            {
+                _fileOperationGate.Release();
+            }
+        }
+    }
+
+    private bool IsStoredPathConfirmedMissing(string storedPath)
+    {
+        var fullPath = Path.GetFullPath(storedPath);
+        PathSafety.EnsureChildPath(_paths.BoxesDirectory, fullPath);
+        try
+        {
+            File.GetAttributes(fullPath);
+            return false;
+        }
+        catch (FileNotFoundException)
+        {
+        }
+        catch (DirectoryNotFoundException)
+        {
+        }
+
+        // Exists also returns false for inaccessible paths. Require a readable parent
+        // directory and confirm the entry is absent; offline storage and access errors
+        // must preserve the original location and any pending recovery information.
+        var parent = Path.GetDirectoryName(fullPath)!;
+        return !Directory.EnumerateFileSystemEntries(parent).Any(entry =>
+            string.Equals(Path.GetFullPath(entry), fullPath, StringComparison.OrdinalIgnoreCase));
     }
 
     private RestorePlan CreateRestorePlan(DrawerItem item, HashSet<string>? reservedTargets)
