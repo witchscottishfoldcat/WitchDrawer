@@ -71,18 +71,26 @@ public sealed class MissingMappingItemContextMenuTests
         });
 
     [Fact]
-    public void MissingStoredItem_DoesNotOfferReferenceRemoval()
+    public Task MissingStoredItem_OffersSafeRecordCleanup() => RunOnStaAsync(() =>
     {
         var menu = DrawerItemContextMenuCoordinator.CreateMenuForPath(
             @"C:\unavailable\stored.exe", (Exists: false, IsDirectory: false),
             isMappingBox: false, isPixelStyle: false, 0, 0);
 
-        Assert.Null(menu);
-    }
+        try
+        {
+            AssertPathActionsAreHidden(menu);
+            Assert.Equal("清理失效记录", GetButton(menu, "RemoveButton").Content);
+            Assert.Equal(Visibility.Collapsed, GetButton(menu, "CopyButton").Visibility);
+            Assert.Equal(Visibility.Collapsed, GetButton(menu, "RenameButton").Visibility);
+        }
+        finally { menu.Close(); }
+        return Task.CompletedTask;
+    });
 
     [Theory]
     [InlineData(true, false, true, "移除引用")]
-    [InlineData(false, false, true, "移出收纳盒")]
+    [InlineData(false, false, true, "移出并还原文件")]
     [InlineData(true, true, false, "移除引用")]
     public Task ExistingPath_KeepsItsApplicableActions(
         bool isMappingBox,

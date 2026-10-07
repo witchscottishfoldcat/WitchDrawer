@@ -63,6 +63,10 @@
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="ItemRoot" Property="Opacity" Value="0.72" />
                             </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="ItemRoot" Property="Opacity" Value="0.42" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
@@ -137,6 +141,17 @@
                           StrokeLineJoin="Round" />
                 </Button.Tag>
             </Button>
+
+            <Button x:Name="ShortcutLocationButton" Content="打开快捷方式位置" AutomationProperties.Name="打开快捷方式位置"
+                    Style="{StaticResource ContextActionButtonStyle}" Click="OnShortcutLocationClick" />
+            <Button x:Name="CopyButton" Content="复制文件" AutomationProperties.Name="复制文件"
+                    Style="{StaticResource ContextActionButtonStyle}" Click="OnCopyClick" />
+            <Button x:Name="CopyPathButton" Content="复制文件路径" AutomationProperties.Name="复制文件路径"
+                    Style="{StaticResource ContextActionButtonStyle}" Click="OnCopyPathClick" />
+            <Button x:Name="PasteButton" Content="粘贴到此盒子" AutomationProperties.Name="粘贴到此盒子"
+                    Style="{StaticResource ContextActionButtonStyle}" Click="OnPasteClick" />
+            <Button x:Name="RenameButton" Content="重命名" AutomationProperties.Name="重命名"
+                    Style="{StaticResource ContextActionButtonStyle}" Click="OnRenameClick" />
 
             <Button x:Name="RemoveButton"
                     Content="移出收纳盒"

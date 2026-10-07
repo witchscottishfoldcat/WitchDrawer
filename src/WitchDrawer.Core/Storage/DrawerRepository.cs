@@ -937,7 +937,7 @@ public sealed class DrawerRepository
             INSERT INTO PendingFileOperations
                 (Id, Kind, ItemId, SourcePath, TargetPath, IsDirectory, ResultItemJson, IsCompensating)
             SELECT $id, $kind, $itemId, $sourcePath, $targetPath, $isDirectory, $resultItemJson, $isCompensating
-            WHERE ($kind = 1 OR EXISTS (SELECT 1 FROM Items WHERE Id = $itemId))
+            WHERE ($kind IN (1, 4) OR EXISTS (SELECT 1 FROM Items WHERE Id = $itemId))
               AND ($resultItemJson IS NULL OR EXISTS (
                   SELECT 1 FROM Boxes WHERE Id = json_extract($resultItemJson, '$.BoxId')
               ));
@@ -1026,6 +1026,7 @@ public sealed class DrawerRepository
         switch (operation.Kind)
         {
             case PendingFileOperationKind.Import:
+            case PendingFileOperationKind.Copy:
             {
                 var item = operation.ResultItem
                     ?? throw new InvalidOperationException("Missing import item.");
@@ -1044,6 +1045,7 @@ public sealed class DrawerRepository
                 break;
             }
             case PendingFileOperationKind.Move:
+            case PendingFileOperationKind.Rename:
             {
                 var item = operation.ResultItem
                     ?? throw new InvalidOperationException("Missing moved item.");

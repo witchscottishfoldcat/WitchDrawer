@@ -10,6 +10,58 @@ internal static class SafeFileOps
     private const int DirectoryMoveRetryCount = 20;
     private static readonly TimeSpan DirectoryMoveRetryDelay = TimeSpan.FromMilliseconds(50);
 
+    public static Task CopyAsync(string sourcePath, string destinationPath, bool isDirectory,
+        CancellationToken cancellationToken = default, Guid? operationId = null)
+        => Task.Run(() => Copy(sourcePath, destinationPath, isDirectory, cancellationToken, operationId), cancellationToken);
+
+    private static void Copy(string sourcePath, string destinationPath, bool isDirectory,
+        CancellationToken cancellationToken, Guid? operationId)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        sourcePath = Path.GetFullPath(sourcePath);
+        destinationPath = Path.GetFullPath(destinationPath);
+        ValidateEntryIsNotReparsePoint(sourcePath);
+        ValidateDestinationParent(Path.GetDirectoryName(destinationPath));
+        if (IsSameOrDescendant(destinationPath, sourcePath))
+            throw new InvalidOperationException("不能把文件或文件夹复制到自身内部。");
+        if (File.Exists(destinationPath) || Directory.Exists(destinationPath))
+            throw new IOException($"Destination already exists: {destinationPath}");
+
+        var stage = CreateStagingPath(destinationPath, operationId);
+        if (File.Exists(stage) || Directory.Exists(stage))
+            throw new IOException($"Copy staging path already exists: {stage}");
+        try
+        {
+            if (isDirectory)
+            {
+                var before = CaptureDirectorySnapshot(sourcePath, cancellationToken);
+                CopyDirectory(sourcePath, stage, cancellationToken);
+                var after = CaptureDirectorySnapshot(sourcePath, cancellationToken);
+                EnsureSourceUnchanged(before, after);
+                EnsureDirectoryCopyComplete(after, CaptureDirectorySnapshot(stage, cancellationToken));
+                cancellationToken.ThrowIfCancellationRequested();
+                Directory.Move(stage, destinationPath);
+            }
+            else
+            {
+                var before = CaptureFileSnapshot(sourcePath);
+                File.Copy(sourcePath, stage, overwrite: false);
+                EnsureFileUnchanged(before, CaptureFileSnapshot(sourcePath));
+                if (CaptureFileSnapshot(stage).Length != before.Length)
+                    throw new IOException("File copy verification failed.");
+                cancellationToken.ThrowIfCancellationRequested();
+                File.Move(stage, destinationPath);
+            }
+        }
+        catch
+        {
+            // Only the staging copy is ours to clean. Never consume the source or a
+            // final destination another process may have created during the copy.
+            TryDelete(stage, isDirectory);
+            throw;
+        }
+    }
+
     public static Task MoveAsync(
         string sourcePath,
         string destinationPath,

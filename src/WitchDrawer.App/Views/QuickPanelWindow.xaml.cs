@@ -96,6 +96,7 @@ public partial class QuickPanelWindow : Window
 
     private async void OnItemsMouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
+        if (e.ChangedButton != MouseButton.Left) return;
         if (e.OriginalSource is DependencyObject source)
         {
             var item = ItemsControl.ContainerFromElement((ItemsControl)sender, source) as FrameworkElement;

@@ -98,7 +98,7 @@ public partial class DesktopBoxWindow : Window
 
     public DesktopBoxWindow(DesktopBoxViewModel viewModel)
     {
-        _itemContextMenu = new DrawerItemContextMenuCoordinator(viewModel);
+        _itemContextMenu = new DrawerItemContextMenuCoordinator(viewModel, ownerVisible: () => IsVisible);
         DataContext = viewModel;
         InitializeComponent();
         _drawerPopupAnimation = new DrawerPopupAnimation(DrawerSecondaryPopupRoot, DrawerSecondaryPopupScale);
@@ -132,6 +132,7 @@ public partial class DesktopBoxWindow : Window
 
     protected override void OnClosing(CancelEventArgs e)
     {
+        _itemContextMenu.CloseActiveMenu();
         DrawerSecondaryPopup.IsOpen = false;
         _drawerPopupAnimation.Stop();
         CancelHoverRollUpTimers();

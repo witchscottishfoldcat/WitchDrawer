@@ -13,6 +13,11 @@ internal enum DrawerItemContextAction
     Open,
     RunAsAdministrator,
     Reveal,
+    RevealShortcutLocation,
+    Copy,
+    CopyPath,
+    Paste,
+    Rename,
     RemoveFromBox
 }
 
@@ -31,7 +36,11 @@ public partial class DrawerItemContextMenuWindow : Window
         bool isPixelStyle,
         int screenX,
         int screenY,
-        bool pathExists)
+        bool pathExists,
+        bool canPaste = false,
+        bool hasItem = true,
+        bool isShortcut = false,
+        bool isBusy = false)
     {
         _screenX = screenX;
         _screenY = screenY;
@@ -47,10 +56,22 @@ public partial class DrawerItemContextMenuWindow : Window
         RevealButton.Visibility = pathExists ? Visibility.Visible : Visibility.Collapsed;
         RunAsAdministratorButton.Visibility =
             pathExists && showRunAsAdministrator ? Visibility.Visible : Visibility.Collapsed;
-        RemoveButton.Content = isMappingBox ? "移除引用" : "移出收纳盒";
+        CopyButton.Visibility = pathExists && hasItem ? Visibility.Visible : Visibility.Collapsed;
+        CopyPathButton.Visibility = hasItem ? Visibility.Visible : Visibility.Collapsed;
+        RenameButton.Visibility = hasItem && (pathExists || isMappingBox) ? Visibility.Visible : Visibility.Collapsed;
+        RenameButton.Content = isMappingBox ? "重命名引用" : "重命名";
+        PasteButton.IsEnabled = canPaste && !isBusy;
+        RenameButton.IsEnabled = !isBusy;
+        RemoveButton.IsEnabled = !isBusy;
+        ShortcutLocationButton.Visibility = pathExists && isShortcut ? Visibility.Visible : Visibility.Collapsed;
+        RevealButton.Content = isShortcut ? "打开目标所在位置" : "打开所在位置";
+        System.Windows.Automation.AutomationProperties.SetName(RevealButton, RevealButton.Content.ToString());
+        System.Windows.Automation.AutomationProperties.SetName(RenameButton, RenameButton.Content.ToString());
+        RemoveButton.Visibility = hasItem ? Visibility.Visible : Visibility.Collapsed;
+        RemoveButton.Content = isMappingBox ? "移除引用" : pathExists ? "移出并还原文件" : "清理失效记录";
         System.Windows.Automation.AutomationProperties.SetName(
             RemoveButton,
-            isMappingBox ? "移除引用" : "移出收纳盒");
+            RemoveButton.Content.ToString());
 
         Loaded += OnLoaded;
         SourceInitialized += OnSourceInitialized;
@@ -175,6 +196,12 @@ public partial class DrawerItemContextMenuWindow : Window
 
     private void OnRevealClick(object sender, RoutedEventArgs e) =>
         SelectAndClose(DrawerItemContextAction.Reveal);
+
+    private void OnShortcutLocationClick(object sender, RoutedEventArgs e) => SelectAndClose(DrawerItemContextAction.RevealShortcutLocation);
+    private void OnCopyClick(object sender, RoutedEventArgs e) => SelectAndClose(DrawerItemContextAction.Copy);
+    private void OnCopyPathClick(object sender, RoutedEventArgs e) => SelectAndClose(DrawerItemContextAction.CopyPath);
+    private void OnPasteClick(object sender, RoutedEventArgs e) => SelectAndClose(DrawerItemContextAction.Paste);
+    private void OnRenameClick(object sender, RoutedEventArgs e) => SelectAndClose(DrawerItemContextAction.Rename);
 
     private void OnRemoveClick(object sender, RoutedEventArgs e) =>
         SelectAndClose(DrawerItemContextAction.RemoveFromBox);

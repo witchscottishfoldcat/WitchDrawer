@@ -27,7 +27,7 @@ public sealed partial class DesktopBoxManager
         var clickedHandle = GlobalMouseButtonMonitor.HitTestWindowHandle(screenX, screenY);
         foreach (var window in _windows.Values)
         {
-            if (ShouldClearSelectionOnOutsideClick(clickedHandle, window.NativeHandle))
+            if (ShouldClearSelectionOnOutsideClick(clickedHandle, window.NativeHandle) && !window.OwnsInputWindow(clickedHandle))
             {
                 window.ClearSelectionFromOutside();
             }

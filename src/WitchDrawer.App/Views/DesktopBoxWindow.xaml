@@ -18,6 +18,7 @@
         SnapsToDevicePixels="True"
         Focusable="True"
         PreviewMouseDown="OnWindowPreviewMouseDown"
+        MouseRightButtonUp="OnBoxMouseRightButtonUp"
         PreviewKeyDown="OnPreviewKeyDown"
         PreviewDrop="OnFilesDropped"
         Drop="OnFilesDropped"
@@ -981,6 +982,7 @@
                    Opened="OnDrawerSecondaryPopupOpened"
                    Closed="OnDrawerSecondaryPopupClosed">
                 <Border x:Name="DrawerSecondaryPopupRoot"
+                        MouseRightButtonUp="OnBoxMouseRightButtonUp"
                         Width="{Binding DrawerSecondaryPanelWidth}"
                         Height="{Binding DrawerSecondaryPanelHeight}"
                         PreviewMouseMove="OnDrawerIconMouseMove"

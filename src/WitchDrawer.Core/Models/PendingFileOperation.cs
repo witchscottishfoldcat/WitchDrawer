@@ -4,7 +4,9 @@ internal enum PendingFileOperationKind
 {
     Import = 1,
     Move = 2,
-    Remove = 3
+    Remove = 3,
+    Copy = 4,
+    Rename = 5
 }
 
 internal sealed record PendingFileOperation(

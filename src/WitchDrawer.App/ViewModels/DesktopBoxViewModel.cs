@@ -202,8 +202,8 @@ public sealed partial class DesktopBoxViewModel : ObservableObject
 
     public void ShowContextMenuFailure(DrawerItemViewModel item, Exception exception)
     {
-        _logger.Error(exception, $"Failed to show context menu for '{item.DisplayName}'.");
-        StatusText = $"菜单打开失败：{exception.Message}";
+        _logger.Error(exception, $"Failed to execute context action for '{item.DisplayName}'.");
+        StatusText = $"操作失败：{exception.Message}";
     }
 
     public void ReportItemContextAction(string message)

@@ -5,7 +5,7 @@
 <h1 align="center">WitchDrawer</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.4.2-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.4.3-blue" alt="Version" />
   <img src="https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-orange" alt="License" />
   <img src="https://img.shields.io/badge/docs%20%26%20assets-CC%20BY--NC--SA%204.0-lightgrey" alt="Docs & Assets License" />
   <img src="https://img.shields.io/badge/.NET-10.0-purple" alt=".NET" />
@@ -35,6 +35,7 @@ English: WitchDrawer is a lightweight Windows desktop file drawer built with nat
 - **文件名显示** — 网格视图可按收纳盒显示或隐藏文件名
 - **拖出支持** — 可以将项目从收纳盒中拖出作为文件放置
 - **跨盒拖放** — 支持在收纳盒之间拖放移动图标
+- **文件右键菜单** — 桌面盒内直接复制文件、粘贴、重命名和复制文件路径；快捷方式可直接定位目标，也可定位快捷方式本身
 - **快捷面板** — 按 `Ctrl+Alt+W` 跨所有收纳盒搜索并打开项目
 - **三套主题** — 清透雅致 / 暗黑曜石 / 全透水晶
 - **图标大小** — 超大 / 大 / 中 / 小 四档可调
@@ -58,6 +59,8 @@ English: WitchDrawer is a lightweight Windows desktop file drawer built with nat
 - **普通收纳盒**会把文件或文件夹实际移动到 WitchDrawer 的数据目录，适合由应用统一管理的临时文件。
 - **映射收纳盒**只保存源文件的绝对路径，不移动、复制或删除源文件，适合项目目录、工作目录以及经常被其他程序使用的文件。
 - 建议文件夹尽量使用映射收纳盒，避免移动大量文件或正在使用的文件；需要保留文件原位置时，请优先选择映射收纳盒。
+- 桌面盒内选中文件后，支持 `Ctrl+C` 复制文件、`Ctrl+Shift+C` 复制当前文件路径、`F2` 重命名；在盒内按 `Ctrl+V` 或右键空白处可粘贴资源管理器复制的文件。普通/像素盒粘贴创建副本，保留源文件；映射盒粘贴只加入引用，重命名只修改引用的显示名称。
+- 普通/像素盒重命名后，移出或删除盒子会以新名称还原文件；重名自动添加数字后缀。快捷方式右键“打开目标所在位置”会在资源管理器中选中实际目标，“打开快捷方式位置”可定位快捷方式文件本身。
 - 待办的“清单完成率”统计当前盒内所有未归档事项，不按日期筛选；归档会将已完成事项移出统计。单项删除撤销仅在应用运行期间有效，删除整个待办盒会同时删除归档历史且无法撤销。
 - Windows 10 暂时可能有部分功能不兼容，建议优先使用 Windows 11。
 

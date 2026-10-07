@@ -19,7 +19,7 @@ public sealed class DrawerItemContextMenuTests
         Assert.Equal("172", (string?)root.Attribute("Width"));
         Assert.Equal("False", (string?)root.Attribute("Topmost"));
         Assert.Equal("False", (string?)root.Attribute("ShowActivated"));
-        Assert.Equal(4, buttons.Length);
+        Assert.Equal(9, buttons.Length);
         Assert.Contains(
             actionStyle.Elements(PresentationNamespace + "Setter"),
             setter =>

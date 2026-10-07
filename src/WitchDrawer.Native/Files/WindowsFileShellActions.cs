@@ -39,7 +39,7 @@ public static class WindowsFileShellActions
 
         try
         {
-            Process.Start(new ProcessStartInfo
+            using var process = Process.Start(new ProcessStartInfo
             {
                 FileName = Path.GetFullPath(path),
                 UseShellExecute = true,
@@ -55,19 +55,44 @@ public static class WindowsFileShellActions
 
     public static void RevealInFileExplorer(string path)
     {
-        Process.Start(CreateRevealStartInfo(path));
+        using var process = Process.Start(CreateRevealStartInfo(path));
+    }
+
+    public static Task<bool> RunAsAdministratorAsync(string path, CancellationToken cancellationToken = default)
+        => StaShellWorker.RunAsync(() => TryRunAsAdministrator(path), cancellationToken);
+
+    public static Task RevealAsync(string path, CancellationToken cancellationToken = default)
+        => StaShellWorker.RunAsync(() =>
+        {
+            if (!File.Exists(path) && !Directory.Exists(path)) throw new FileNotFoundException("文件或文件夹已不存在。", path);
+            RevealInFileExplorer(path);
+            return true;
+        }, cancellationToken);
+
+    public static bool IsShortcut(string path) => path.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase)
+        || path.EndsWith(".url", StringComparison.OrdinalIgnoreCase);
+
+    public static Task<string> GetShortcutTargetAsync(string path, CancellationToken cancellationToken = default)
+        => StaShellWorker.RunAsync(() => ResolveShortcutTarget(path), cancellationToken);
+
+    internal static string ResolveShortcutTarget(string path)
+    {
+        var raw = ShellIconExtractor.TryGetShortcutTargetPath(path);
+        if (string.IsNullOrWhiteSpace(raw)) throw new IOException("快捷方式没有可访问的本地目标。");
+        if (Uri.TryCreate(raw, UriKind.Absolute, out var uri) && !uri.IsFile)
+            throw new IOException("此快捷方式指向网页或系统应用，没有本地文件位置。");
+        var target = Uri.TryCreate(raw, UriKind.Absolute, out uri) && uri.IsFile ? uri.LocalPath : raw;
+        target = Environment.ExpandEnvironmentVariables(target);
+        if (!Path.IsPathFullyQualified(target)) target = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path))!, target);
+        target = Path.GetFullPath(target);
+        if (!File.Exists(target) && !Directory.Exists(target)) throw new FileNotFoundException("快捷方式的目标已不存在。", target);
+        return target;
     }
 
     internal static ProcessStartInfo CreateRevealStartInfo(string path)
     {
         var fullPath = Path.GetFullPath(path);
-        return Directory.Exists(fullPath)
-            ? new ProcessStartInfo
-            {
-                FileName = fullPath,
-                UseShellExecute = true
-            }
-            : new ProcessStartInfo
+        return new ProcessStartInfo
             {
                 FileName = "explorer.exe",
                 Arguments = $"/select,\"{fullPath}\"",

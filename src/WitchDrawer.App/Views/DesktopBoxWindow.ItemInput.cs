@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using WitchDrawer.App.Features.DesktopItems;
+using WitchDrawer.App.Features.ItemContextMenu;
 using WitchDrawer.App.ViewModels;
 
 namespace WitchDrawer.App.Views;
@@ -43,7 +44,7 @@ public partial class DesktopBoxWindow
         // 与网格选中互斥：任何时刻全局只有一个选中项。
         IconList.SelectedItem = null;
         FileList.SelectedItem = null;
-        _keyboardDeleteTarget = null;
+        _keyboardDeleteTarget = selectedTile.Item;
     }
 
     private void OnDrawerSecondaryIconPreviewMouseLeftButtonDown(
@@ -89,6 +90,7 @@ public partial class DesktopBoxWindow
     /// </summary>
     internal void ClearSelectionFromOutside()
     {
+        _itemContextMenu.CancelPendingMenu();
         ClearItemSelection();
     }
 
@@ -116,6 +118,22 @@ public partial class DesktopBoxWindow
 
     private async void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (ViewModel.IsTodoBox) return;
+        var selectedItem = ActiveItemsList.SelectedItem as DrawerItemViewModel ?? _keyboardDeleteTarget;
+        var action = GetFileKeyboardAction(e.Key, Keyboard.Modifiers);
+        if (action is not null)
+        {
+            e.Handled = true;
+            if (action == DrawerItemContextAction.Paste || selectedItem is not null)
+                await _itemContextMenu.InvokeAsync(action.Value, selectedItem);
+            return;
+        }
+        if (e.Key is Key.Apps || (e.Key == Key.F10 && Keyboard.Modifiers == ModifierKeys.Shift))
+        {
+            e.Handled = true;
+            await ShowFileContextMenuAsync(selectedItem);
+            return;
+        }
         if (e.Key != Key.Delete)
         {
             return;
@@ -189,13 +207,17 @@ public partial class DesktopBoxWindow
     {
         if (!TryGetDrawerItem(e.OriginalSource, out var item))
         {
+            e.Handled = true;
+            ClearItemSelection();
+            ClearPendingIconDrag();
+            _ = ShowFileContextMenuAsync(null);
             return;
         }
 
         e.Handled = true;
         SelectItem(item.Id);
         ClearPendingIconDrag();
-        _ = _itemContextMenu.ShowAsync(item);
+        _ = ShowFileContextMenuAsync(item);
     }
 
     private void OnDrawerCoverIconMouseRightButtonUp(object sender, MouseButtonEventArgs e)
@@ -208,7 +230,7 @@ public partial class DesktopBoxWindow
         e.Handled = true;
         SelectCoverTile(tile);
         ClearPendingIconDrag();
-        _ = _itemContextMenu.ShowAsync(tile.Item);
+        _ = ShowFileContextMenuAsync(tile.Item);
     }
 
     private void OnDrawerSecondaryIconMouseRightButtonUp(object sender, MouseButtonEventArgs e)
@@ -219,9 +241,57 @@ public partial class DesktopBoxWindow
         }
 
         e.Handled = true;
+        ClearItemSelection();
+        _keyboardDeleteTarget = item;
         ClearPendingIconDrag();
-        _ = _itemContextMenu.ShowAsync(item);
+        _ = ShowFileContextMenuAsync(item);
     }
+
+    internal static DrawerItemContextAction? GetFileKeyboardAction(Key key, ModifierKeys modifiers) => (key, modifiers) switch
+    {
+        (Key.C, ModifierKeys.Control) => DrawerItemContextAction.Copy,
+        (Key.C, ModifierKeys.Control | ModifierKeys.Shift) => DrawerItemContextAction.CopyPath,
+        (Key.V, ModifierKeys.Control) => DrawerItemContextAction.Paste,
+        (Key.F2, ModifierKeys.None) => DrawerItemContextAction.Rename,
+        _ => null
+    };
+
+    private void OnBoxMouseRightButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (e.Handled || ViewModel.IsTodoBox) return;
+        if (e.OriginalSource is DependencyObject source && FindVisualAncestor<Button>(source) is not null) return;
+        e.Handled = true;
+        ClearItemSelection();
+        ClearPendingIconDrag();
+        _ = ShowFileContextMenuAsync(null);
+    }
+
+    private int _secondaryMenuRequests;
+
+    private async Task ShowFileContextMenuAsync(DrawerItemViewModel? item)
+    {
+        var popupOpen = DrawerSecondaryPopup.IsOpen;
+        // Release WPF Popup's mouse capture while the detached menu is shown.
+        // Otherwise the first click on the menu can be consumed closing the popup.
+        if (popupOpen)
+        {
+            _secondaryMenuRequests++;
+            DrawerSecondaryPopup.StaysOpen = true;
+        }
+        try
+        {
+            if (item is null) await _itemContextMenu.ShowBoxAsync();
+            else await _itemContextMenu.ShowAsync(item);
+        }
+        finally
+        {
+            if (popupOpen && --_secondaryMenuRequests == 0) DrawerSecondaryPopup.StaysOpen = false;
+        }
+    }
+
+    internal bool OwnsInputWindow(nint handle) => _itemContextMenu.OwnsWindowHandle(handle)
+        || (handle != nint.Zero && DrawerSecondaryPopup.IsOpen
+            && (PresentationSource.FromVisual(DrawerSecondaryPopupRoot) as System.Windows.Interop.HwndSource)?.Handle == handle);
 
     private bool TryGetDrawerItem(object? source, out DrawerItemViewModel drawerItem)
     {

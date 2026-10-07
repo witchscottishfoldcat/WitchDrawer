@@ -167,14 +167,15 @@ public sealed partial class DesktopBoxViewModel
 
     private async Task DeleteItemAsync(DrawerItemViewModel? item)
     {
-        if (item is null)
+        if (item is null || IsBusy)
         {
             return;
         }
 
         try
         {
-            var result = await _drawerService.DeleteItemAsync(item.Id);
+            IsBusy = true;
+            var result = await _drawerService.DeleteItemFromBoxAsync(BoxId, item.Id);
             await LoadAsync();
             StatusText = result.StatusMessage;
         }
@@ -183,6 +184,7 @@ public sealed partial class DesktopBoxViewModel
             _logger.Error(exception, "Failed to delete desktop box item.");
             StatusText = exception.Message;
         }
+        finally { IsBusy = false; }
     }
 
     /// <summary>

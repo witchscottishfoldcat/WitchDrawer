@@ -326,6 +326,8 @@ public static class ShellIconExtractor
             out nint bitmapHandle);
     }
 
+    internal static string? TryGetShortcutTargetPath(string path) => ShortcutDescriptor.TryLoad(path)?.TargetPath;
+
     private sealed record ShortcutDescriptor(string TargetPath, string IconLocation)
     {
         public static ShortcutDescriptor? TryLoad(string shortcutPath)

@@ -642,6 +642,7 @@ public partial class MainWindow : Window
 
     private async void OnItemsMouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
+        if (e.ChangedButton != MouseButton.Left) return;
         if (e.OriginalSource is DependencyObject source)
         {
             var item = ItemsControl.ContainerFromElement((ItemsControl)sender, source) as FrameworkElement;
@@ -802,6 +803,7 @@ public partial class MainWindow : Window
 
     private void OnBoxesMouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
+        if (e.ChangedButton != MouseButton.Left) return;
         // Double-clicking a sidebar entry reopens (shows + focuses) the
         // corresponding desktop box window — the only way back from the
         // window's close (X) -> Hide() behavior short of restarting the app.

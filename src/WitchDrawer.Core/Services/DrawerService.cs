@@ -5,7 +5,7 @@ using Microsoft.Data.Sqlite;
 
 namespace WitchDrawer.Core.Services;
 
-public sealed class DrawerService : ISettingsStore
+public sealed partial class DrawerService : ISettingsStore
 {
     private readonly AppPaths _paths;
     private readonly DrawerRepository _repository;
@@ -382,12 +382,27 @@ public sealed class DrawerService : ISettingsStore
     }
 
     public Task<ItemDeleteResult> DeleteItemAsync(Guid itemId, CancellationToken cancellationToken = default)
-        => Task.Run(() => DeleteItemCoreAsync(itemId, cancellationToken), cancellationToken);
+        => Task.Run(() => DeleteItemWithGateAsync(itemId, null, cancellationToken), cancellationToken);
 
-    private async Task<ItemDeleteResult> DeleteItemCoreAsync(Guid itemId, CancellationToken cancellationToken)
+    public Task<ItemDeleteResult> DeleteItemFromBoxAsync(Guid boxId, Guid itemId, CancellationToken cancellationToken = default)
+        => Task.Run(() => DeleteItemWithGateAsync(itemId, boxId, cancellationToken), cancellationToken);
+
+    private async Task<ItemDeleteResult> DeleteItemWithGateAsync(Guid itemId, Guid? expectedBoxId, CancellationToken cancellationToken)
+    {
+        await _fileOperationGate.WaitAsync(cancellationToken);
+        try
+        {
+            return await DeleteItemCoreAsync(itemId, expectedBoxId, cancellationToken);
+        }
+        finally { _fileOperationGate.Release(); }
+    }
+
+    private async Task<ItemDeleteResult> DeleteItemCoreAsync(Guid itemId, Guid? expectedBoxId, CancellationToken cancellationToken)
     {
         var item = await _repository.GetItemAsync(itemId, cancellationToken)
             ?? throw new InvalidOperationException("Item does not exist.");
+        if (expectedBoxId is Guid boxId && item.BoxId != boxId)
+            throw new InvalidOperationException("文件已移动到其他盒子，请刷新后重试。");
 
         if (string.IsNullOrWhiteSpace(item.StoredPath))
         {
@@ -396,7 +411,7 @@ public sealed class DrawerService : ISettingsStore
             return ItemDeleteResult.ReferenceRemoved(item.Id, item.DisplayName);
         }
 
-        var result = await RestoreAndRemoveStoredItemAsync(item, reservedTargets: null, cancellationToken);
+        var result = await RestoreAndRemoveStoredItemAsync(item, reservedTargets: null, cancellationToken, fileOperationGateHeld: true);
         Changes.Publish(item.BoxId);
         return result;
     }
@@ -1023,6 +1038,11 @@ public sealed class DrawerService : ISettingsStore
         PendingFileOperation operation,
         Exception cause)
     {
+        if (operation.Kind == PendingFileOperationKind.Copy)
+        {
+            _retryPendingRecoveryOnRead = true;
+            return new IOException($"复制记录尚未保存，下次读取或启动时会重试。请保留 {operation.TargetPath}", cause);
+        }
         // The file move already finished but the database commit failed. Best effort: put
         // the entry back at its original path so the user sees a clean failure. The journal
         // is only cleared after the restore succeeds, so a crash or a failed restore is
@@ -1121,6 +1141,16 @@ public sealed class DrawerService : ISettingsStore
         PendingFileOperation operation,
         CancellationToken cancellationToken)
     {
+        if (operation.Kind == PendingFileOperationKind.Copy)
+        {
+            await RecoverCopyAsync(operation, cancellationToken);
+            return;
+        }
+        if (operation.Kind == PendingFileOperationKind.Rename)
+        {
+            await RecoverRenameAsync(operation, cancellationToken);
+            return;
+        }
         var storedPath = operation.Kind == PendingFileOperationKind.Remove
             ? operation.SourcePath
             : operation.TargetPath;
