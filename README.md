@@ -1,199 +1,131 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/witchscottishfoldcat/WitchDrawer/main/src/WitchDrawer.App/Assets/app.png" alt="WitchDrawer Logo" width="128" height="128" />
+  <img src="src/WitchDrawer.App/Assets/app.png" alt="WitchDrawer" width="128" height="128" />
 </p>
 
 <h1 align="center">WitchDrawer</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.4.3-blue" alt="Version" />
-  <img src="https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-orange" alt="License" />
-  <img src="https://img.shields.io/badge/docs%20%26%20assets-CC%20BY--NC--SA%204.0-lightgrey" alt="Docs & Assets License" />
-  <img src="https://img.shields.io/badge/.NET-10.0-purple" alt=".NET" />
-  <img src="https://img.shields.io/badge/platform-Windows-blue" alt="Platform" />
+  <img src="https://img.shields.io/badge/version-1.4.3-blue" alt="版本 1.4.3" />
+  <img src="https://img.shields.io/badge/platform-Windows%20x64-blue" alt="Windows x64" />
+  <img src="https://img.shields.io/badge/.NET-10.0-purple" alt=".NET 10" />
 </p>
 
-WitchDrawer 是一款基于原生 WPF 构建的轻量级 Windows 桌面文件收纳工具。专为桌面美化和日常文件收纳设计：将常用文件拖入桌面小收纳盒，快速打开，让临时工作资料井然有序。
+<p align="center">
+  简体中文 · <a href="README.en.md">English</a> · <a href="https://github.com/witchscottishfoldcat/WitchDrawer/releases/latest">下载</a> · <a href="docs/releases/v1.4.3.md">更新记录</a>
+</p>
 
-English: WitchDrawer is a lightweight Windows desktop file drawer built with native WPF. It is designed for desktop beautification and daily file staging.
+WitchDrawer 是基于原生 WPF 的轻量级 Windows 桌面文件收纳工具。把常用文件放进桌面收纳盒，通过拖放和快捷搜索整理、打开文件。
 
-## 效果展示
+[![WitchDrawer 桌面效果展示](docs/images/witchdrawer-desktop-showcase.png)](https://www.bilibili.com/video/BV1zx3c6eEX8/)
 
-[![WitchDrawer 桌面收纳效果展示](docs/images/witchdrawer-desktop-showcase.png)](https://www.bilibili.com/video/BV1zx3c6eEX8/)
+[观看视频演示](https://www.bilibili.com/video/BV1zx3c6eEX8/)
 
-▶ [在哔哩哔哩观看 WitchDrawer 视频演示](https://www.bilibili.com/video/BV1zx3c6eEX8/)
+## 下载与运行
 
-## 功能特性
+推荐使用 **Windows 11 x64**；Windows 10 部分功能可能不兼容。
 
-- **普通收纳盒** — 将拖入的文件或文件夹移入 WitchDrawer 的应用数据存储目录
-- **映射收纳盒** — 仅存储绝对路径引用，源文件保留在原位
-- **待办收纳盒** — 支持添加、完成和归档；双击内容、按 F2 或点击编辑按钮修改事项，Enter 保存、Esc 取消；删除单项后可在 10 秒内撤销
-- **像素收纳盒** — 像素风格的收纳盒，为桌面增添趣味
-- **桌面浮动窗口** — 每个收纳盒显示为精美的浮动桌面窗口，支持自由拖放定位
-- **窗口位置记忆** — 自动记住每个收纳盒在桌面上的位置
-- **窗口卷起** — 可手动将普通和映射收纳盒收起到标题栏，并记住每个盒子的卷起状态
-- **系统图标** — 拖入的文件显示系统原生图标
-- **文件名显示** — 网格视图可按收纳盒显示或隐藏文件名
-- **拖出支持** — 可以将项目从收纳盒中拖出作为文件放置
-- **跨盒拖放** — 支持在收纳盒之间拖放移动图标
-- **文件右键菜单** — 桌面盒内直接复制文件、粘贴、重命名和复制文件路径；快捷方式可直接定位目标，也可定位快捷方式本身
-- **快捷面板** — 按 `Ctrl+Alt+W` 跨所有收纳盒搜索并打开项目
-- **三套主题** — 清透雅致 / 暗黑曜石 / 全透水晶
-- **图标大小** — 超大 / 大 / 中 / 小 四档可调
-- **可调透明度** — 可分别调节桌面盒子、盒子边线和图标背景框透明度
-- **自定义样式** — 在设置的“外观皮肤 → 自定义样式”中调整盒子圆角、图标圆角比例、背景色、文件项悬停颜色与透明度、选中色和强调色；每套主题独立保存，支持单项恢复与恢复原始预设
-- **开机自启动** — 可在设置中开启/关闭
-- **检查更新** — 自动检测 GitHub Releases 新版本
-- **诊断日志导出** — 可在“关于”页一键导出最近运行日志与基础环境信息，便于反馈问题；不包含数据库或用户文件内容
-- **原位还原删除** — 删除收纳项或收纳盒时，普通/像素盒文件恢复到原来的位置；原位置不可用则回退到桌面，重名自动加后缀；映射盒只删除引用
-- **窗口恢复** — 可从主页收纳盒菜单恢复单个窗口，或从系统托盘显示全部收纳盒
-- **桌面图标隐藏** — 可在设置中隐藏 Windows 桌面文件、文件夹和快捷方式；也可启用双击桌面空白区域快速切换，不移动或删除文件
-- **自动隐藏** — 开启后鼠标移开时，按设置的透明度隐藏收纳盒内的图标与文字，并可同步隐藏收纳盒标题与边框；悬停时可选择仅显示被悬停的收纳盒，或让全部收纳盒一起显示
-- **图标名称模式** — 悬停提示可在完整文件路径与精简文件名之间切换，快捷方式（`.lnk`）自动去掉扩展名
-- **系统托盘** — 最小化到系统托盘，不占用任务栏
-- **单实例运行** — 防止重复启动
+在 [GitHub Releases](https://github.com/witchscottishfoldcat/WitchDrawer/releases/latest) 下载：
 
-## 使用说明
+- **安装版**：运行 `WitchDrawer-Setup-vX.Y.Z-x64.exe`，按向导安装。
+- **便携版**：完整解压 `WitchDrawer-vX.Y.Z-win-x64.zip`，运行 `WitchDrawer.App.exe`。
 
-- 将文件或文件夹直接拖入收纳盒即可开始使用。
-- 支持管理员账号使用和“以管理员身份运行”。提权运行时，Windows 会限制从普通权限桌面或窗口拖入文件；需要桌面拖放时，请以普通权限启动。
-- **普通收纳盒**会把文件或文件夹实际移动到 WitchDrawer 的数据目录，适合由应用统一管理的临时文件。
-- **映射收纳盒**只保存源文件的绝对路径，不移动、复制或删除源文件，适合项目目录、工作目录以及经常被其他程序使用的文件。
-- 建议文件夹尽量使用映射收纳盒，避免移动大量文件或正在使用的文件；需要保留文件原位置时，请优先选择映射收纳盒。
-- 桌面盒内选中文件后，支持 `Ctrl+C` 复制文件、`Ctrl+Shift+C` 复制当前文件路径、`F2` 重命名；在盒内按 `Ctrl+V` 或右键空白处可粘贴资源管理器复制的文件。普通/像素盒粘贴创建副本，保留源文件；映射盒粘贴只加入引用，重命名只修改引用的显示名称。
-- 普通/像素盒重命名后，移出或删除盒子会以新名称还原文件；重名自动添加数字后缀。快捷方式右键“打开目标所在位置”会在资源管理器中选中实际目标，“打开快捷方式位置”可定位快捷方式文件本身。
-- 待办的“清单完成率”统计当前盒内所有未归档事项，不按日期筛选；归档会将已完成事项移出统计。单项删除撤销仅在应用运行期间有效，删除整个待办盒会同时删除归档历史且无法撤销。
-- Windows 10 暂时可能有部分功能不兼容，建议优先使用 Windows 11。
+两种版本均自包含，无需另装 .NET 运行时，并分别提供独立的 `.sha256` 校验文件。
 
-## 技术栈
+## 主要功能
 
-| 技术 | 说明 |
-|------|------|
-| .NET 10 | 运行时 |
-| WPF | 原生 Windows UI |
-| Win32 API | Shell 打开、全局快捷键、窗口层级 |
-| SQLite | 本地持久化（WAL 模式） |
-| CommunityToolkit.Mvvm | MVVM 框架 |
-| xUnit | 单元测试 |
+| 收纳盒 | 用途 |
+| --- | --- |
+| 普通收纳盒 | 管理实际存入应用数据目录的文件，支持普通与像素样式 |
+| 映射收纳盒 | 保存文件或文件夹的绝对路径引用，保留源文件位置 |
+| 抽屉收纳盒 | 与普通盒相同的文件存储方式，提供可展开的文件面板 |
+| 待办收纳盒 | 添加、编辑、完成和归档事项，支持完成率统计 |
 
-本项目有意避免使用 Electron、WebView 外壳和沉重的第三方 UI 框架。
+- **快捷面板**：跨盒搜索文件项，支持按名称、路径和盒名筛选。
+- **文件操作**：拖入、拖出、跨盒拖放；右键复制、粘贴、重命名、复制路径及定位快捷方式目标。
+- **外观设置**：三套主题，可调透明度、颜色、圆角与图标大小，支持自动隐藏。
+- **桌面管理**：记忆盒子位置；普通/映射盒可卷起；支持隐藏桌面图标及双击桌面空白处切换。
+- **日常运行**：系统托盘、开机自启动、更新检查与诊断日志导出。
 
-## 仓库结构
+## 开始使用
+
+1. 启动应用，在主页创建收纳盒。项目目录或需要保留原位置的文件，优先使用**映射收纳盒**。
+2. 将文件或文件夹拖入盒子，双击图标打开。
+3. 按 `Ctrl+Alt+W` 打开快捷面板，搜索并打开文件；快捷键可在设置中修改。
+
+桌面拖放请以普通权限启动；以管理员身份运行时，Windows 会限制从普通权限的资源管理器或桌面拖入文件。
+
+### 文件操作规则
+
+| 操作 | 普通盒（含像素样式）与抽屉盒 | 映射盒 |
+| --- | --- | --- |
+| 从资源管理器拖入 | **移动**文件或文件夹到数据目录 | 仅添加路径引用 |
+| 粘贴文件 | 创建副本，保留源文件 | 仅添加路径引用 |
+| 重命名 | 修改存储文件的名称，还原时使用新名称 | 仅修改引用的显示名称 |
+| 删除文件项或盒子 | 将存储文件还原到原目录；原目录不存在时回退到桌面 | 仅移除引用 |
+
+存储或还原文件时，重名自动添加 ` (1)`、` (2)` 等后缀。映射引用不会跟踪源文件在外部的移动；源路径失效时无法打开。
+
+待办单项删除可在 **10 秒内**撤销，仅在应用运行期间有效；删除整个待办盒会同时删除归档历史，无法撤销。完成率统计当前盒内全部未归档事项，不按日期筛选。
+
+### 常用快捷键
+
+以下文件快捷键在桌面文件盒中使用；复制、重命名和复制路径需要先选中文件项。
+
+| 快捷键 | 操作 |
+| --- | --- |
+| `Ctrl+C` / `Ctrl+V` | 复制 / 粘贴文件 |
+| `Ctrl+Shift+C` | 复制当前文件路径 |
+| `F2` | 重命名 |
+| `Delete` | 移除文件项，按上表执行还原或移除引用 |
+
+## 数据位置
+
+默认数据目录为 `%LocalAppData%\WitchDrawer\`，便携版也使用此目录：
 
 ```text
-WitchDrawer.sln
-src/
-  WitchDrawer.App/       WPF UI、窗口、视图模型、拖放、快捷键绑定
-  WitchDrawer.Core/      模型、SQLite 持久化、文件导入/删除规则、更新检查
-  WitchDrawer.Native/    Shell 打开、全局快捷键、系统托盘
-tests/
-  WitchDrawer.Core.Tests/
+witchdrawer.db     SQLite 数据库
+Boxes\{BoxId}\     普通盒（含像素样式）与抽屉盒的文件
+logs\             运行日志
 ```
 
-## 环境要求
+可在设置的“数据存储位置”中迁移目录，重启后生效，原目录保留为备份。环境变量 `WITCHDRAWER_DATA_DIR` 可覆盖数据目录，优先于设置。
 
-- Windows 10/11
-- .NET SDK `10.0.300` 或兼容的 .NET 10 SDK
+## 开发与构建
 
-> Windows 10 暂时可能有部分功能不兼容，建议优先使用 Windows 11。
-
-## 构建
+需要 Windows 和 .NET SDK `10.0.300` 或兼容的 .NET 10 SDK（见 [global.json](global.json)）。在仓库根目录执行：
 
 ```powershell
 dotnet build WitchDrawer.sln
-```
-
-也可以在仓库根目录执行快捷脚本：
-
-```powershell
-.\build.ps1
-```
-
-该脚本使用 `Release` 配置构建完整解决方案。
-
-### 发布 Windows x64 版本
-
-维护者可在安装 Inno Setup 6 后执行：
-
-```powershell
-.\tools\Publish-WitchDrawer.ps1
-```
-
-脚本会生成自包含便携 ZIP、`Setup.exe` 安装包及各自的 SHA-256 校验文件。发布前应确认 ZIP 解压后可以启动，并且 GitHub Release 同时上传 ZIP 和 `Setup.exe`；不要只把单个 exe 从发布目录手工压进 ZIP。
-
-## 本地开发
-
-```powershell
+dotnet test WitchDrawer.sln
 .\dev.ps1
 ```
 
-该脚本使用 `Debug` 配置构建并启动 WPF 应用。
+`dev.ps1` 使用 Debug 配置启动应用；`build.ps1` 使用 Release 配置构建解决方案。
 
-Debug 可执行文件位于：
+- `src/WitchDrawer.App`：WPF 窗口、MVVM、拖放与快捷键接线。
+- `src/WitchDrawer.Core`：模型、SQLite 持久化、搜索与文件安全操作。
+- `src/WitchDrawer.Native`：Win32 Shell、全局快捷键与桌面集成。
+- `tests/`：App、Core、Native 测试。
 
-```text
-src/WitchDrawer.App/bin/Debug/net10.0-windows/WitchDrawer.App.exe
-```
-
-## 测试
+打包需要 Inno Setup 6。版本以 [Directory.Build.props](Directory.Build.props) 为准：
 
 ```powershell
-dotnet test WitchDrawer.sln
+dotnet build WitchDrawer.sln --configuration Release
+dotnet test WitchDrawer.sln --configuration Release
+.\tools\Publish-WitchDrawer.ps1 -Version 1.4.3
 ```
 
-测试覆盖：默认收纳盒创建、普通/映射/像素盒导入、重复文件名后缀、跨盒移动、原位还原删除、更新 URL 校验等。
+脚本在 `publish/` 生成 Windows x64 自包含安装包、完整便携 ZIP 及各自的 SHA-256 文件；缺少 Inno Setup 编译器时会报错。发布前验证 ZIP 完整解压后可启动、校验文件与 `Get-FileHash` 一致，并上传全部四个文件。
 
-## 运行时数据
+## 反馈与支持
 
-```text
-%LocalAppData%\WitchDrawer\
-  witchdrawer.db          SQLite 数据库
-  Boxes\{BoxId}\          普通收纳盒的文件存储
-  logs\                   运行日志
-```
+遇到问题请提交 [Issue](https://github.com/witchscottishfoldcat/WitchDrawer/issues)，附应用版本、Windows 版本及复现步骤；可从“关于”页导出诊断日志，日志包不包含数据库或用户文件内容。
 
-## 赞助支持
+作者：**Thewitchcat** · [网站](https://www.witchcat.cn) · [邮箱](mailto:witchscottishfoldcat@gmail.com) · [赞助](https://www.witchcat.cn/zh/support)（备注 ID 可加入鸣谢名单）
 
-如果 WitchDrawer 对你有帮助，欢迎赞助支持项目的持续开发与维护：
+## 许可证
 
-- 赞助页面：[www.witchcat.cn/zh/support](https://www.witchcat.cn/zh/support)
-- 也可以在应用内打开 **关于 → 赞助作者**，点击「前往赞助页面」
-- 赞助时请备注你的 ID，可加入鸣谢名单
+- **代码、构建脚本与配置**：[PolyForm Noncommercial 1.0.0](LICENSE)。
+- **文档与媒体素材**（含 `docs/` 和 `src/WitchDrawer.App/Assets/`）：[CC BY-NC-SA 4.0](LICENSE-DOCS)。
 
-## 开源协议
-
-本项目采用**双许可**，两者均为**非商业许可**：**禁止任何商业用途**。源代码与文档/素材分别授权。
-
-### 源代码 —— PolyForm Noncommercial License 1.0.0
-
-`src/`、`tests/`、`tools/`、`installer/` 下的源代码、构建脚本与配置文件采用 **PolyForm Noncommercial License 1.0.0** 授权，完整条款见 [LICENSE](LICENSE)。
-
-**允许**（非商业目的）：
-
-- 个人使用：研究、实验、测试、个人学习、私人娱乐、爱好项目、宗教活动
-- 非商业组织使用：慈善组织、教育机构、公共研究机构、公共安全或卫生机构、环保组织、政府机构（不论资金来源）
-- 修改、创作新作品，以及分发副本（须随附许可条款与 `Required Notice:` 声明）
-
-**禁止**：
-
-- 任何商业用途
-
-**其他要点**：
-
-- 附带专利授权；若你书面主张本项目侵犯专利，则专利授权立即终止
-- 违规后收到书面通知起 32 天内完全纠正并采取补救措施，授权可继续；否则立即终止
-- 软件按「现状」提供，不附带任何担保
-
-### 文档与素材 —— CC BY-NC-SA 4.0
-
-`docs/` 下的文档与图片，以及 `src/WitchDrawer.App/Assets/` 下的图标、美术等媒体素材，采用 **CC BY-NC-SA 4.0** 授权，完整说明见 [LICENSE-DOCS](LICENSE-DOCS)。
-
-- **BY（署名）**：二次修改必须注明原作者 Thewitchcat
-- **NC（非商用）**：禁止商业使用
-- **SA（相同方式共享）**：衍生作品必须以相同协议开源
-
-## 作者
-
-- **Thewitchcat**
-- 邮箱：witchscottishfoldcat@gmail.com
-- 网站：[www.witchcat.cn](https://www.witchcat.cn)
-- GitHub：[witchscottishfoldcat/WitchDrawer](https://github.com/witchscottishfoldcat/WitchDrawer)
+两者均为非商业许可，具体权利与限制以许可证全文为准。
