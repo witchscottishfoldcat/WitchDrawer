@@ -1,3 +1,5 @@
+using WitchDrawer.App.Localization;
+using WitchDrawer.Core.Localization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
@@ -14,7 +16,7 @@ namespace WitchDrawer.App.ViewModels;
 /// 在自适应与固定 m×n 格之间切换。固定尺寸的下限是内容实际撑开的格子范围，
 /// 由桌面盒窗口通过 <see cref="BoxGridExtentChangedMessage"/> 实时上报。
 /// </summary>
-public sealed partial class BoxSizeSettingsViewModel : ObservableObject
+public sealed partial class BoxSizeSettingsViewModel : LocalizedObservableObject
 {
     private readonly ISettingsStore _settings;
     private Task _pendingLoads = Task.CompletedTask;
@@ -123,7 +125,7 @@ public sealed partial class BoxSizeSettingsViewModel : ObservableObject
         get
         {
             var (columns, rows) = SelectedExtent;
-            return $"当前内容占用 {columns} × {rows}，固定尺寸不能小于该范围";
+            return Strings.Format("ContentsOccupyCellsTheFixedSizeCannotBeSmaller", columns, rows);
         }
     }
 
@@ -131,8 +133,8 @@ public sealed partial class BoxSizeSettingsViewModel : ObservableObject
         !HasSelection
             ? string.Empty
             : IsFixedMode
-                ? $"固定 {FixedColumns} × {FixedRows} 格，达到容量后停止导入"
-                : "窗口随内容自动撑开";
+                ? Strings.Format("FixedAtCellsImportsStopWhenFull", FixedColumns, FixedRows)
+                : Strings.Get("WindowExpandsToFitItsContents");
 
     public bool CanDecreaseColumns =>
         IsFixedMode && FixedColumns > Math.Max(SelectedExtent.Columns, BoxSizeModeState.MinCells);

@@ -1,3 +1,4 @@
+using WitchDrawer.Core.Localization;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -43,20 +44,20 @@ public sealed class MaintenanceViewModel
         if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(AppPaths.DataDirectoryEnvironmentVariableName)))
         {
             throw new InvalidOperationException(
-                $"当前数据目录由 {AppPaths.DataDirectoryEnvironmentVariableName} 指定。请先移除该环境变量并重启，再迁移数据目录。");
+                Strings.Format("TheCurrentDataFolderIsSetByRemoveThis", AppPaths.DataDirectoryEnvironmentVariableName));
         }
         IsBusy = true;
-        StatusText = "正在迁移数据目录…";
+        StatusText = Strings.Get("MigratingDataFolder");
         try
         {
             var newPaths = await _dataStorageMigrationService.MigrateAsync(targetDirectory);
-            StatusText = "数据已迁移，重启后生效";
+            StatusText = Strings.Get("DataMigratedRestartToApply");
             _logger.Info($"Data directory migrated to {newPaths.RootDirectory}. Restart required.");
         }
         catch (Exception exception)
         {
             _logger.Error(exception, "Data directory migration failed.");
-            StatusText = "数据目录迁移失败";
+            StatusText = Strings.Get("DataFolderMigrationFailed");
             throw;
         }
         finally
@@ -71,25 +72,25 @@ public sealed class MaintenanceViewModel
         if (IsBusy)
         {
             LogInfoWithoutThrowing("Diagnostic log export skipped because another main operation is running.");
-            throw new InvalidOperationException("正在处理其他操作，请稍后再导出诊断日志。");
+            throw new InvalidOperationException(Strings.Get("AnotherOperationIsInProgressExportDiagnosticLogsLater"));
         }
 
         IsBusy = true;
-        StatusText = "正在导出诊断日志…";
+        StatusText = Strings.Get("ExportingDiagnosticLogs");
         LogInfoWithoutThrowing("Diagnostic log export started.");
         try
         {
             var result = await _diagnosticLogExportService.ExportAsync(
                 destinationPath,
                 $"v{UpdateViewModel.GetCurrentVersion().ToString(3)}");
-            StatusText = $"已导出 {result.LogFileCount} 个日志文件";
+            StatusText = Strings.Format("ExportedLogFiles", result.LogFileCount);
             LogInfoWithoutThrowing($"Diagnostic log export completed with {result.LogFileCount} log file(s).");
             return result;
         }
         catch (Exception exception)
         {
             LogErrorWithoutThrowing(exception, "Diagnostic log export failed.");
-            StatusText = "诊断日志导出失败";
+            StatusText = Strings.Get("DiagnosticLogExportFailed");
             throw;
         }
         finally

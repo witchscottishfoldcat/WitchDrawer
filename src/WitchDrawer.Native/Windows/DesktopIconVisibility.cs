@@ -1,3 +1,4 @@
+using WitchDrawer.Core.Localization;
 using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.Win32;
@@ -153,7 +154,7 @@ public static class DesktopIconVisibility
                 writeRegistry(hideTarget);
                 return hideTarget;
             }
-            throw new TimeoutException("Windows 尚未完成桌面图标切换，请等待资源管理器响应。");
+            throw new TimeoutException(Strings.Get("WindowsHasNotFinishedTogglingDesktopIconsWaitFor"));
         }
 
         // Only fall back when no command was queued at all.
@@ -201,7 +202,7 @@ public static class DesktopIconVisibility
         using var key = Registry.CurrentUser.CreateSubKey(
             ExplorerAdvancedRegistryPath,
             writable: true)
-            ?? throw new InvalidOperationException("无法打开 Windows 桌面图标设置。");
+            ?? throw new InvalidOperationException(Strings.Get("CannotOpenWindowsDesktopIconSettings"));
         key.SetValue(
             HideIconsValueName,
             hidden ? 1 : 0,

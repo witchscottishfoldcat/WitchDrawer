@@ -6,8 +6,8 @@ namespace WitchDrawer.App.Tests;
 public sealed class ThemeOpacityControlTemplateTests
 {
     [Theory]
-    [InlineData("BoxBorderTransparency", "盒子边线透明度")]
-    [InlineData("IconFrameTransparency", "图标背景框透明度")]
+    [InlineData("BoxBorderTransparency", "{loc:Text BoxBorderTransparency}")]
+    [InlineData("IconFrameTransparency", "{loc:Text IconBackgroundTransparency}")]
     public void AppearanceControls_HaveIndependentBindingsAndAllowFullTransparency(string prefix, string label)
     {
         var document = XDocument.Load(GetMainWindowXamlPath());
@@ -68,7 +68,7 @@ public sealed class ThemeOpacityControlTemplateTests
             "{Binding Settings.ToggleEditorOpacityFollowCommand}",
             (string?)toggle.Attribute("Command"));
         Assert.Equal(
-            "编辑页跟随透明度",
+            "{loc:Text EditorFollowsTransparency}",
             (string?)toggle.Attribute("AutomationProperties.Name"));
     }
 

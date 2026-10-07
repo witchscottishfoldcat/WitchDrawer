@@ -1,6 +1,7 @@
 <UserControl x:Class="WitchDrawer.App.Views.TodoBoxDetailView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="clr-namespace:WitchDrawer.App.Localization"
              xmlns:controls="clr-namespace:WitchDrawer.App.Controls"
              MinHeight="300"
              UseLayoutRounding="True"
@@ -168,7 +169,7 @@
                         Style="{StaticResource TodoCompletionButtonStyle}"
                         Margin="0,0,10,0"
                         VerticalAlignment="Center"
-                        ToolTip="切换完成状态" />
+                        ToolTip="{loc:Text ToggleCompletion}" />
 
                 <controls:TodoTitleEditor Grid.Column="1"
                                           SaveCommand="{Binding DataContext.SaveTodoCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
@@ -198,18 +199,18 @@
                 </Grid.ColumnDefinitions>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <Ellipse Width="6" Height="6" Fill="{DynamicResource AccentBrush}" Margin="0,0,8,0" />
-                    <TextBlock Text="待办清单"
+                    <TextBlock Text="{loc:Text TaskList}"
                                Foreground="{DynamicResource TextPrimaryBrush}"
                                FontSize="13"
                                FontWeight="SemiBold" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Foreground="{DynamicResource TextMutedBrush}" FontSize="11.5">
-                        <Run Text="待完成 " /><Run Text="{Binding RemainingCount, Mode=OneWay}" Foreground="{DynamicResource TextPrimaryBrush}" FontWeight="SemiBold" />
+                        <Run Text="{loc:Text Remaining2}" /><Run Text="{Binding RemainingCount, Mode=OneWay}" Foreground="{DynamicResource TextPrimaryBrush}" FontWeight="SemiBold" />
                     </TextBlock>
                     <TextBlock Text="·" Foreground="{DynamicResource TextMutedBrush}" Margin="8,0" />
                     <TextBlock Foreground="{DynamicResource TextMutedBrush}" FontSize="11.5">
-                        <Run Text="已完成 " /><Run Text="{Binding CompletedCount, Mode=OneWay}" Foreground="{DynamicResource TextPrimaryBrush}" FontWeight="SemiBold" />
+                        <Run Text="{loc:Text Completed2}" /><Run Text="{Binding CompletedCount, Mode=OneWay}" Foreground="{DynamicResource TextPrimaryBrush}" FontWeight="SemiBold" />
                     </TextBlock>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0"
                                 Visibility="{Binding IsEmpty, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
@@ -218,7 +219,7 @@
                                      Value="{Binding CompletionPercentage, Mode=OneWay}"
                                      Foreground="{DynamicResource AccentBrush}"
                                      Background="{DynamicResource PanelAltBrush}" BorderThickness="0"
-                                     ToolTip="清单完成进度" />
+                                     ToolTip="{loc:Text TaskCompletionProgress}" />
                         <TextBlock Text="{Binding CompletionPercentage, StringFormat={}{0}%}"
                                    FontSize="10.5" Foreground="{DynamicResource TextMutedBrush}" Margin="8,0,0,0" />
                     </StackPanel>
@@ -239,9 +240,9 @@
                              Background="{DynamicResource PanelAltBrush}"
                              BorderBrush="{DynamicResource BorderBrushSoft}"
                              BorderThickness="1" FontSize="12"
-                             ToolTip="输入任务，按 Enter 添加"
-                             AutomationProperties.Name="新待办内容" />
-                    <TextBlock Text="添加一件要做的事…" Margin="11,0,0,0"
+                             ToolTip="{loc:Text EnterATaskAndPressEnterToAdd2}"
+                             AutomationProperties.Name="{loc:Text NewTaskText}" />
+                    <TextBlock Text="{loc:Text AddSomethingToDo}" Margin="11,0,0,0"
                                Foreground="{DynamicResource TextMutedBrush}" FontSize="12"
                                VerticalAlignment="Center" IsHitTestVisible="False">
                         <TextBlock.Style>
@@ -259,10 +260,10 @@
                 <Button Grid.Column="1" Command="{Binding AddTodoCommand}"
                         IsDefault="True" Width="112" Height="34" Padding="12,0" FontSize="12"
                         Style="{StaticResource PrimaryButtonStyle}"
-                        AutomationProperties.Name="添加任务">
+                        AutomationProperties.Name="{loc:Text AddTask2}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="+" Margin="0,0,6,0" />
-                        <TextBlock Text="添加任务" />
+                        <TextBlock Text="{loc:Text AddTask2}" />
                     </StackPanel>
                 </Button>
             </Grid>
@@ -279,10 +280,10 @@
                                Foreground="{DynamicResource TextPrimaryBrush}" FontSize="13" FontWeight="SemiBold">
                         <TextBlock.Style>
                             <Style TargetType="{x:Type TextBlock}">
-                                <Setter Property="Text" Value="还没有待办事项" />
+                                <Setter Property="Text" Value="{loc:Text NoTasksYet2}" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsEmpty}" Value="False">
-                                        <Setter Property="Text" Value="所有事项已完成" />
+                                        <Setter Property="Text" Value="{loc:Text AllTasksCompleted}" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -292,10 +293,10 @@
                                Foreground="{DynamicResource TextMutedBrush}" FontSize="11.5">
                         <TextBlock.Style>
                             <Style TargetType="{x:Type TextBlock}">
-                                <Setter Property="Text" Value="在上方添加任务，按 Enter 即可开始" />
+                                <Setter Property="Text" Value="{loc:Text AddATaskAboveAndPressEnterToBegin}" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsEmpty}" Value="False">
-                                        <Setter Property="Text" Value="可以归档已完成的事项，或添加新的任务" />
+                                        <Setter Property="Text" Value="{loc:Text ArchiveCompletedTasksOrAddANewTask}" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -307,7 +308,7 @@
                          ItemTemplate="{StaticResource TodoDetailItemTemplate}"
                          ItemContainerStyle="{StaticResource TodoRowContainerStyle}"
                          Visibility="{Binding HasActiveTodos, Converter={StaticResource BooleanToVisibilityConverter}}"
-                         AutomationProperties.Name="待完成事项" />
+                         AutomationProperties.Name="{loc:Text IncompleteTasks}" />
             </Grid>
 
             <Border Grid.Row="3" Margin="0,10,0,0" Padding="0,8,0,0"
@@ -325,7 +326,7 @@
                         </Grid.ColumnDefinitions>
                         <ToggleButton x:Name="CompletedTodosToggle" IsChecked="False"
                                       HorizontalAlignment="Left" Style="{StaticResource TodoSectionToggleStyle}"
-                                      ToolTip="展开或收起已完成事项" AutomationProperties.Name="展开或收起已完成事项">
+                                      ToolTip="{loc:Text ExpandOrCollapseCompletedTasks}" AutomationProperties.Name="{loc:Text ExpandOrCollapseCompletedTasks}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons" FontSize="10" Margin="0,0,8,0" VerticalAlignment="Center">
                                     <TextBlock.Style>
@@ -340,11 +341,11 @@
                                     </TextBlock.Style>
                                 </TextBlock>
                                 <TextBlock>
-                                    <Run Text="已完成 " /><Run Text="{Binding CompletedCount, Mode=OneWay}" FontWeight="SemiBold" />
+                                    <Run Text="{loc:Text Completed2}" /><Run Text="{Binding CompletedCount, Mode=OneWay}" FontWeight="SemiBold" />
                                 </TextBlock>
                             </StackPanel>
                         </ToggleButton>
-                        <Button Grid.Column="1" Content="归档已完成" Command="{Binding ArchiveCompletedCommand}"
+                        <Button Grid.Column="1" Content="{loc:Text ArchiveCompleted}" Command="{Binding ArchiveCompletedCommand}"
                                 Width="112" Height="34" Padding="12,0" FontSize="12"
                                 Style="{StaticResource GhostButtonStyle}"
                                 Foreground="{DynamicResource TextMutedBrush}" />
@@ -355,7 +356,7 @@
                              ItemTemplate="{StaticResource TodoDetailItemTemplate}"
                              ItemContainerStyle="{StaticResource TodoRowContainerStyle}"
                              Visibility="{Binding IsChecked, ElementName=CompletedTodosToggle, Converter={StaticResource BooleanToVisibilityConverter}}"
-                             AutomationProperties.Name="已完成事项" />
+                             AutomationProperties.Name="{loc:Text CompletedTasks}" />
                 </Grid>
             </Border>
 
@@ -367,9 +368,9 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="已删除一项待办" Foreground="{DynamicResource TextPrimaryBrush}"
+                    <TextBlock Text="{loc:Text OneTaskDeleted}" Foreground="{DynamicResource TextPrimaryBrush}"
                                FontSize="11.5" VerticalAlignment="Center" />
-                    <Button Grid.Column="1" Content="撤销删除" Command="{Binding UndoDeleteCommand}"
+                    <Button Grid.Column="1" Content="{loc:Text UndoDeletion}" Command="{Binding UndoDeleteCommand}"
                             Width="112" Height="34" Padding="12,0" FontSize="12"
                             Style="{StaticResource GhostButtonStyle}" Foreground="{DynamicResource AccentBrush}" />
                 </Grid>

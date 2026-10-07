@@ -1,3 +1,4 @@
+using WitchDrawer.Core.Localization;
 using System.IO;
 using System.Windows;
 using WitchDrawer.Core.Services;
@@ -9,9 +10,9 @@ public partial class FileRenameWindow : Window
     internal FileRenameWindow(string name, bool isMappingBox, bool isDirectory = false)
     {
         InitializeComponent();
-        Title = isMappingBox ? "重命名引用" : isDirectory ? "重命名文件夹" : "重命名文件";
-        Description.Text = isMappingBox ? "只修改引用名称，源文件保持原样。"
-            : isDirectory ? "输入新的文件夹名称：" : "输入新名称（包含文件扩展名）：";
+        Title = isMappingBox ? Strings.Get("RenameReference") : isDirectory ? Strings.Get("RenameFolder") : Strings.Get("RenameFile");
+        Description.Text = isMappingBox ? Strings.Get("OnlyTheReferenceNameChangesTheSourceFileStays")
+            : isDirectory ? Strings.Get("EnterANewFolderName") : Strings.Get("EnterANewNameIncludingTheFileExtension");
         NameInput.Text = name;
         Loaded += (_, _) =>
         {

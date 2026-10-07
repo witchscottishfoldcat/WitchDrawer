@@ -1,3 +1,5 @@
+using WitchDrawer.App.Localization;
+using WitchDrawer.Core.Localization;
 using System.IO;
 using System.Threading;
 using System.Windows;
@@ -10,7 +12,7 @@ using WitchDrawer.Core.Models;
 
 namespace WitchDrawer.App.ViewModels;
 
-public sealed class DrawerItemViewModel : ObservableObject, IVirtualizingCanvasItem
+public sealed class DrawerItemViewModel : LocalizedObservableObject, IVirtualizingCanvasItem
 {
     private const int MaxIconLoadAttempts = 4;
 
@@ -101,7 +103,7 @@ public sealed class DrawerItemViewModel : ObservableObject, IVirtualizingCanvasI
         }
     }
 
-    public string KindLabel => Model.ItemKind == ItemKind.Directory ? "文件夹" : "文件";
+    public string KindLabel => Model.ItemKind == ItemKind.Directory ? Strings.Get("Folder") : Strings.Get("File");
 
     public string KindBadge => Model.ItemKind == ItemKind.Directory ? "DIR" : "FILE";
 

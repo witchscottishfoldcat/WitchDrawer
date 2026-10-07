@@ -58,7 +58,7 @@ public sealed class BoxActionMenuTemplateTests
             var status = Assert.Single(
                 document.Descendants(PresentationNamespace + "TextBlock"),
                 element => (string?)element.Attribute(XamlNamespace + "Name") == $"LayoutBackupSlot{slot}Status");
-            Assert.Equal("未记录", (string?)status.Attribute("Text"));
+            Assert.Equal("{loc:Text Empty}", (string?)status.Attribute("Text"));
         }
         Assert.Contains(
             recallPopup.Descendants(PresentationNamespace + "Button"),

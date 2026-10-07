@@ -1,3 +1,4 @@
+using WitchDrawer.Core.Localization;
 using WitchDrawer.Core.Models;
 
 namespace WitchDrawer.App.ViewModels;
@@ -9,20 +10,20 @@ public sealed partial class DesktopBoxViewModel
 
     internal async Task RenameFileItemAsync(DrawerItemViewModel item, string name)
     {
-        if (IsBusy) throw new InvalidOperationException("盒子正在处理文件，请稍后重试。");
+        if (IsBusy) throw new InvalidOperationException(Strings.Get("TheBoxIsProcessingFilesTryAgainLater"));
         IsBusy = true;
         try
         {
             var result = await _drawerService.RenameItemAsync(BoxId, item.Id, name);
             await LoadAsync();
-            StatusText = IsMappingBox ? $"已重命名引用：{result.DisplayName}" : $"已重命名：{result.DisplayName}";
+            StatusText = IsMappingBox ? Strings.Format("RenamedReference", result.DisplayName) : Strings.Format("Renamed", result.DisplayName);
         }
         finally { IsBusy = false; }
     }
 
     internal async Task PasteFilePathsAsync(string[] paths)
     {
-        if (IsBusy) throw new InvalidOperationException("盒子正在处理文件，请稍后重试。");
+        if (IsBusy) throw new InvalidOperationException(Strings.Get("TheBoxIsProcessingFilesTryAgainLater"));
         if (IsTodoBox || paths.Length == 0) return;
         IsBusy = true;
         var succeeded = 0;
@@ -44,10 +45,10 @@ public sealed partial class DesktopBoxViewModel
                 }
             }
             await LoadAsync();
-            var operation = IsMappingBox ? "加入引用" : "复制";
+            var operation = IsMappingBox ? Strings.Get("Referenced") : Strings.Get("Copy");
             StatusText = failures.Count == 0
-                ? $"已{operation} {succeeded} 项"
-                : $"已{operation} {succeeded} 项，{failures.Count} 项失败：{failures[0]}";
+                ? Strings.Format("Items2", operation, succeeded)
+                : Strings.Format("ItemsFailed", operation, succeeded, failures.Count, failures[0]);
         }
         finally { IsBusy = false; }
     }

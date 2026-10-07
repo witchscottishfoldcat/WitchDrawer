@@ -1,6 +1,7 @@
 <Window x:Class="WitchDrawer.App.Views.QuickPanelWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="clr-namespace:WitchDrawer.App.Localization"
         xmlns:infrastructure="clr-namespace:WitchDrawer.App.Infrastructure"
         Title="WitchDrawer Quick Panel"
         Icon="/Assets/app.png"
@@ -82,7 +83,7 @@
                                     <!-- 水印提示文本 -->
                                     <TextBlock x:Name="Watermark"
                                                Grid.Column="1"
-                                               Text="输入关键字搜索文件或收纳盒..."
+                                               Text="{loc:Text SearchFilesOrBoxes}"
                                                Foreground="{DynamicResource TextMutedBrush}"
                                                FontSize="15"
                                                FontWeight="Normal"

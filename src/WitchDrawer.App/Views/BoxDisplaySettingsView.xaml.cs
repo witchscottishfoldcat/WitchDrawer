@@ -1,3 +1,4 @@
+using WitchDrawer.Core.Localization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -8,12 +9,16 @@ namespace WitchDrawer.App.Views;
 
 public partial class BoxDisplaySettingsView : UserControl
 {
-    public sealed record Choice(object Value, string Label);
+    public sealed class Choice(object value, string labelKey) : WitchDrawer.App.Localization.LocalizedObservableObject
+    {
+        public object Value { get; } = value;
+        public string Label => Strings.Get(labelKey);
+    }
     public static IReadOnlyList<Choice> IconSizeChoices { get; } =
-        [new("3x3", "超大"), new("4x4", "大"), new("5x5", "中"), new("6x6", "小")];
-    public static IReadOnlyList<Choice> EnabledChoices { get; } = [new(false, "关闭"), new(true, "开启")];
-    public static IReadOnlyList<Choice> VisibilityChoices { get; } = [new(true, "显示"), new(false, "隐藏")];
-    public static IReadOnlyList<Choice> SizeModeChoices { get; } = [new(false, "自适应"), new(true, "固定格数")];
+        [new("3x3", "ExtraLarge"), new("4x4", "L"), new("5x5", "M"), new("6x6", "S")];
+    public static IReadOnlyList<Choice> EnabledChoices { get; } = [new(false, "Off"), new(true, "On")];
+    public static IReadOnlyList<Choice> VisibilityChoices { get; } = [new(true, "Show"), new(false, "Hide")];
+    public static IReadOnlyList<Choice> SizeModeChoices { get; } = [new(false, "AutoSize"), new(true, "FixedGrid")];
     internal IAppLogger? Logger { get; set; }
 
     public BoxDisplaySettingsView() => InitializeComponent();

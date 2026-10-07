@@ -1,3 +1,5 @@
+using WitchDrawer.App.Localization;
+using WitchDrawer.Core.Localization;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
@@ -15,8 +17,13 @@ using WitchDrawer.Core.Services;
 
 namespace WitchDrawer.App.ViewModels;
 
-public sealed partial class DesktopBoxViewModel : ObservableObject
+public sealed partial class DesktopBoxViewModel : LocalizedObservableObject
 {
+    protected override void OnLanguageChanged()
+    {
+        if (!IsBusy) StatusText = Strings.Get("DropFilesHere");
+    }
+
     // 弹窗 chrome 预留 = DesktopBoxWindow.xaml 中 DrawerSecondaryPopup 根 Border 的
     // BorderThickness (1px × 2) + 内部 ListBox 的 Margin (10px × 2) + ListBox 默认
     // (Aero2) 模板内 Border 的 Padding (1px × 2，该值硬编码在主题模板中，与
@@ -74,7 +81,7 @@ public sealed partial class DesktopBoxViewModel : ObservableObject
     private double? _dragPreviewHeightOverride;
     private int _previewColumn;
     private int _previewRow;
-    private string _statusText = "拖入文件";
+    private string _statusText = Strings.Get("DropFilesHere");
     private bool _isDragOver;
     private bool _isMappingListMode;
     private double _mappingListWidth;
@@ -197,13 +204,13 @@ public sealed partial class DesktopBoxViewModel : ObservableObject
     public void ShowFileMissingNotice(DrawerItemViewModel item)
     {
         _logger.Info($"Context menu skipped: source path for item '{item.DisplayName}' no longer exists.");
-        StatusText = $"文件不存在：{item.DisplayName}";
+        StatusText = Strings.Format("FileNotFound", item.DisplayName);
     }
 
     public void ShowContextMenuFailure(DrawerItemViewModel item, Exception exception)
     {
         _logger.Error(exception, $"Failed to execute context action for '{item.DisplayName}'.");
-        StatusText = $"操作失败：{exception.Message}";
+        StatusText = Strings.Format("OperationFailed", exception.Message);
     }
 
     public void ReportItemContextAction(string message)
@@ -413,23 +420,23 @@ public sealed partial class DesktopBoxViewModel : ObservableObject
 
     public string TypeLabel => _box.Type switch
     {
-        BoxType.Normal or BoxType.Pixel => "普通",
-        BoxType.Mapping => "映射",
-        BoxType.Todo => "待办",
-        BoxType.Drawer => "抽屉",
-        _ => "未知"
+        BoxType.Normal or BoxType.Pixel => Strings.Get("Normal"),
+        BoxType.Mapping => Strings.Get("Mapping"),
+        BoxType.Todo => Strings.Get("Tasks"),
+        BoxType.Drawer => Strings.Get("Drawer"),
+        _ => Strings.Get("Unknown")
     };
 
     public string Description => _box.Type switch
     {
-        BoxType.Normal or BoxType.Pixel => "移动收纳",
-        BoxType.Mapping => "路径映射",
-        BoxType.Todo => "桌面待办",
-        BoxType.Drawer => "点击展开",
+        BoxType.Normal or BoxType.Pixel => Strings.Get("MoveIntoBox"),
+        BoxType.Mapping => Strings.Get("PathReferences"),
+        BoxType.Todo => Strings.Get("DesktopTasks"),
+        BoxType.Drawer => Strings.Get("ClickToExpand"),
         _ => string.Empty
     };
 
-    public string ItemCountLabel => $"{(IsTodoBox ? TodoItems.Count : Items.Count)} 项";
+    public string ItemCountLabel => Strings.Format("Items", (IsTodoBox ? TodoItems.Count : Items.Count));
 
     public bool IsEmpty => Items.Count == 0;
 

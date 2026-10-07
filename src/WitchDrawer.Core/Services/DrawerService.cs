@@ -1,3 +1,4 @@
+using WitchDrawer.Core.Localization;
 using WitchDrawer.Core.Abstractions;
 using WitchDrawer.Core.Models;
 using WitchDrawer.Core.Storage;
@@ -402,7 +403,7 @@ public sealed partial class DrawerService : ISettingsStore
         var item = await _repository.GetItemAsync(itemId, cancellationToken)
             ?? throw new InvalidOperationException("Item does not exist.");
         if (expectedBoxId is Guid boxId && item.BoxId != boxId)
-            throw new InvalidOperationException("文件已移动到其他盒子，请刷新后重试。");
+            throw new InvalidOperationException(Strings.Get("TheFileMovedToAnotherBoxRefreshAndTry"));
 
         if (string.IsNullOrWhiteSpace(item.StoredPath))
         {
@@ -457,7 +458,7 @@ public sealed partial class DrawerService : ISettingsStore
         var pending = await _repository.GetPendingFileOperationsAsync(cancellationToken);
         if (pending.Any(operation => operation.ResultItem?.BoxId == boxId || itemIds.Contains(operation.ItemId)))
         {
-            throw new InvalidOperationException("盒子包含待恢复的文件操作，请完成恢复后再删除。");
+            throw new InvalidOperationException(Strings.Get("TheBoxHasPendingFileRecoveryOperationsCompleteRecovery"));
         }
         var reservedTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var restoredCount = 0;
@@ -534,14 +535,14 @@ public sealed partial class DrawerService : ISettingsStore
             if (currentItem is null || !string.Equals(currentItem.StoredPath, item.StoredPath,
                     StringComparison.OrdinalIgnoreCase))
             {
-                throw new InvalidOperationException("文件已被其他操作移动或移除，请刷新后重试。");
+                throw new InvalidOperationException(Strings.Get("TheFileWasMovedOrRemovedByAnotherOperation"));
             }
             cancellationToken.ThrowIfCancellationRequested();
             if (IsStoredPathConfirmedMissing(item.StoredPath!))
             {
                 if (!await _repository.RemoveMissingItemUnlessPendingAsync(item.Id, item.StoredPath!, cancellationToken))
                 {
-                    throw new InvalidOperationException("文件包含待恢复的操作或记录已改变，请刷新后重试。");
+                    throw new InvalidOperationException(Strings.Get("TheFileHasAPendingOperationOrItsRecord"));
                 }
                 return ItemDeleteResult.MissingRecordRemoved(item.Id, item.DisplayName);
             }
@@ -870,8 +871,8 @@ public sealed partial class DrawerService : ISettingsStore
             return;
         }
 
-        await CreateBoxAsync("普通收纳盒", BoxType.Normal, cancellationToken);
-        await CreateBoxAsync("映射收纳盒", BoxType.Mapping, cancellationToken);
+        await CreateBoxAsync(Strings.Get("NormalBox"), BoxType.Normal, cancellationToken);
+        await CreateBoxAsync(Strings.Get("MappingBox"), BoxType.Mapping, cancellationToken);
     }
 
     private void ValidateImportSource(string sourcePath)
@@ -899,7 +900,7 @@ public sealed partial class DrawerService : ISettingsStore
             || sourcePath.StartsWith(Path.Combine(_paths.RootDirectory, StorageLocationStore.ConfigFileName) + ".",
                 StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException("不能通过拖入搬移 WitchDrawer 数据文件或已收纳的文件；请使用盒间移动。");
+            throw new InvalidOperationException(Strings.Get("WitchDrawerDataFilesAndStoredFilesCannotBeImported"));
         }
     }
 
@@ -932,12 +933,12 @@ public sealed partial class DrawerService : ISettingsStore
                 PathSafety.GetFullExistingPath(operation.SourcePath);
                 if (Directory.Exists(operation.SourcePath) != operation.IsDirectory)
                 {
-                    throw new IOException("导入源的类型已改变，请刷新后重试。");
+                    throw new IOException(Strings.Get("TheImportSourceChangedTypeRefreshAndTryAgain"));
                 }
                 var boxId = operation.ResultItem!.BoxId;
                 if (await _repository.GetBoxAsync(boxId, cancellationToken) is null)
                 {
-                    throw new InvalidOperationException("收纳盒已被删除，请刷新后重试。");
+                    throw new InvalidOperationException(Strings.Get("TheBoxWasDeletedRefreshAndTryAgain"));
                 }
             }
             else
@@ -946,7 +947,7 @@ public sealed partial class DrawerService : ISettingsStore
                 if (currentItem is null || !string.Equals(currentItem.StoredPath, operation.SourcePath,
                     StringComparison.OrdinalIgnoreCase))
                 {
-                    throw new InvalidOperationException("文件已被其他操作移动或移除，请刷新后重试。");
+                    throw new InvalidOperationException(Strings.Get("TheFileWasMovedOrRemovedByAnotherOperation"));
                 }
             }
             var pending = await _repository.GetPendingFileOperationsAsync(cancellationToken);
@@ -1041,7 +1042,7 @@ public sealed partial class DrawerService : ISettingsStore
         if (operation.Kind == PendingFileOperationKind.Copy)
         {
             _retryPendingRecoveryOnRead = true;
-            return new IOException($"复制记录尚未保存，下次读取或启动时会重试。请保留 {operation.TargetPath}", cause);
+            return new IOException(Strings.Format("TheCopyRecordHasNotBeenSavedItWill", operation.TargetPath), cause);
         }
         // The file move already finished but the database commit failed. Best effort: put
         // the entry back at its original path so the user sees a clean failure. The journal
@@ -1062,13 +1063,13 @@ public sealed partial class DrawerService : ISettingsStore
                 _retryPendingRecoveryOnRead = true;
             }
 
-            return new IOException("记录保存失败，文件已放回原位，请重试。", cause);
+            return new IOException(Strings.Get("TheRecordCouldNotBeSavedTheFileWas"), cause);
         }
 
         _retryPendingRecoveryOnRead = true;
         return new IOException(
-            $"文件搬移记录尚未保存；下次读取或启动时会重试。请保留 {operation.TargetPath}"
-            + $" 及补偿暂存文件 {SafeFileOps.CreateHeldSourcePath(operation.TargetPath, operation.Id)}、"
+            Strings.Format("TheMoveRecordHasNotBeenSavedItWill", operation.TargetPath)
+            + Strings.Format("AndTheRecoveryStagingFile", SafeFileOps.CreateHeldSourcePath(operation.TargetPath, operation.Id))
             + SafeFileOps.CreateStagingPath(operation.SourcePath, operation.Id),
             cause);
     }
@@ -1170,7 +1171,7 @@ public sealed partial class DrawerService : ISettingsStore
             // source. Do not make the destination authoritative without inspection.
             if (PathExists(operation.TargetPath))
             {
-                throw new IOException($"暂存源文件仍在 {held}；目标文件也存在，需要人工核对。");
+                throw new IOException(Strings.Format("TheStagedSourceIsStillAtAndTheDestination", held));
             }
         }
 
@@ -1254,7 +1255,7 @@ public sealed partial class DrawerService : ISettingsStore
         {
             if (PathExists(operation.TargetPath) || PathExists(held))
             {
-                throw new IOException($"补偿副本需要人工核对：{operation.SourcePath}；{operation.TargetPath}；{held}");
+                throw new IOException(Strings.Format("RecoveryCopiesNeedManualReview", operation.SourcePath, operation.TargetPath, held));
             }
         }
         else
@@ -1263,7 +1264,7 @@ public sealed partial class DrawerService : ISettingsStore
             {
                 if (PathExists(operation.TargetPath))
                 {
-                    throw new IOException($"补偿副本需要人工核对：{operation.TargetPath}；{held}");
+                    throw new IOException(Strings.Format("RecoveryCopiesNeedManualReview2", operation.TargetPath, held));
                 }
                 // Before reverse promotion, the held copy is still complete. Restore it
                 // to the forward target, discard the partial reverse copy and retry.
@@ -1279,7 +1280,7 @@ public sealed partial class DrawerService : ISettingsStore
             }
             if (!PathExists(operation.TargetPath))
             {
-                throw new IOException($"补偿源不可用，请核对：{operation.TargetPath}；{held}；{stage}");
+                throw new IOException(Strings.Format("RecoverySourceUnavailableCheck", operation.TargetPath, held, stage));
             }
             SafeFileOps.DeleteRecoveryArtifact(stage, operation.IsDirectory);
             await SafeFileOps.MoveAsync(operation.TargetPath, operation.SourcePath,

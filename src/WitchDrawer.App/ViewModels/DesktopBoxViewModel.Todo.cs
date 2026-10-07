@@ -1,3 +1,4 @@
+using WitchDrawer.Core.Localization;
 using System.Globalization;
 using WitchDrawer.App.Infrastructure;
 using WitchDrawer.Core.Models;
@@ -19,7 +20,7 @@ public sealed partial class DesktopBoxViewModel
         var item = await _todoService.AddTodoAsync(BoxId, title);
         UpsertTodo(item);
         if (NewTodoTitle == title) NewTodoTitle = string.Empty;
-        return "已添加";
+        return Strings.Get("Added");
     });
 
     private Task ToggleTodoAsync(TodoItemViewModel? todo)
@@ -33,7 +34,7 @@ public sealed partial class DesktopBoxViewModel
         return RunTodoOperationAsync(async () =>
         {
             UpsertTodo(await _todoService.SetCompletedAsync(todo.Id, completed));
-            return completed ? "已完成" : "已恢复";
+            return completed ? Strings.Get("Completed") : Strings.Get("Restored");
         });
     }
 
@@ -47,7 +48,7 @@ public sealed partial class DesktopBoxViewModel
         return RunTodoOperationAsync(async () =>
         {
             var updated = await _todoService.UpdateTitleAsync(todo.Id, title, expected);
-            UpsertTodo(updated); todo.CancelEdit(); return "已保存待办";
+            UpsertTodo(updated); todo.CancelEdit(); return Strings.Get("TaskSaved");
         });
     }
 
@@ -60,7 +61,7 @@ public sealed partial class DesktopBoxViewModel
     {
         var archivedCount = await _todoService.ArchiveCompletedAsync(BoxId);
         ApplyTodoItems(await _todoService.GetTodosAsync(BoxId));
-        return archivedCount == 0 ? "没有可归档事项" : $"已归档 {archivedCount} 项";
+        return archivedCount == 0 ? Strings.Get("NoTasksToArchive") : Strings.Format("ArchivedItems", archivedCount);
     });
 
     private Task DeleteTodoAsync(TodoItemViewModel? todo)
@@ -74,7 +75,7 @@ public sealed partial class DesktopBoxViewModel
         {
             var undo = await _todoService.DeleteWithUndoAsync(todo.Id);
             TodoItems.Remove(todo); NotifyTodoState(); Undo.Offer(undo);
-            return "已删除，10 秒内可撤销";
+            return Strings.Get("DeletedUndoWithin10Seconds");
         });
     }
 
@@ -84,7 +85,7 @@ public sealed partial class DesktopBoxViewModel
         if (pending is null || pending.BoxId != BoxId) return Task.CompletedTask;
         return RunTodoOperationAsync(async () =>
         {
-            UpsertTodo(await _todoService.UndoDeleteAsync(pending.Token)); Undo.Clear(); return "已撤销删除";
+            UpsertTodo(await _todoService.UndoDeleteAsync(pending.Token)); Undo.Clear(); return Strings.Get("DeletionUndone");
         });
     }
 
@@ -119,7 +120,7 @@ public sealed partial class DesktopBoxViewModel
     {
         var todos = await _todoService.GetTodosAsync(BoxId);
         ApplyTodoItems(todos);
-        if (!IsBusy) StatusText = TodoItems.Count == 0 ? "添加待办" : "已同步";
+        if (!IsBusy) StatusText = TodoItems.Count == 0 ? Strings.Get("AddTask") : Strings.Get("Synced");
         OnPropertyChanged(nameof(ItemCountLabel));
         OnPropertyChanged(nameof(TodoRemainingCount));
         OnPropertyChanged(nameof(TodoCompletedCount));
@@ -204,7 +205,7 @@ public sealed partial class DesktopBoxViewModel
         catch (Exception exception)
         {
             _logger.Error(exception, "Failed to save todo panel size.");
-            StatusText = "尺寸保存失败";
+            StatusText = Strings.Get("CouldNotSaveSize");
             return false;
         }
     }

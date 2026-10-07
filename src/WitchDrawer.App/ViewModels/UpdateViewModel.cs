@@ -1,3 +1,5 @@
+using WitchDrawer.App.Localization;
+using WitchDrawer.Core.Localization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using WitchDrawer.App.Infrastructure;
@@ -6,8 +8,13 @@ using WitchDrawer.Core.Services;
 
 namespace WitchDrawer.App.ViewModels;
 
-public sealed class UpdateViewModel : ObservableObject
+public sealed class UpdateViewModel : LocalizedObservableObject
 {
+    protected override void OnLanguageChanged()
+    {
+        if (!IsCheckingUpdate) UpdateStatusText = string.Empty;
+    }
+
     private readonly UpdateService _updateService;
     private readonly IAppLogger _logger;
     private readonly UiOperationState _operations;
@@ -70,20 +77,20 @@ public sealed class UpdateViewModel : ObservableObject
         try
         {
             IsCheckingUpdate = true;
-            UpdateStatusText = "正在检查更新...";
+            UpdateStatusText = Strings.Get("CheckingForUpdates");
 
             var currentVersion = GetCurrentVersion();
             var result = await _updateService.CheckForUpdateAsync(currentVersion);
 
             if (!result.HasUpdate)
             {
-                UpdateStatusText = $"已是最新版本 v{currentVersion.Major}.{currentVersion.Minor}.{currentVersion.Build}";
+                UpdateStatusText = Strings.Format("UpToDateV", currentVersion.Major, currentVersion.Minor, currentVersion.Build);
                 StatusText = UpdateStatusText;
                 return;
             }
 
             var versionText = $"v{result.LatestVersion.Major}.{result.LatestVersion.Minor}.{result.LatestVersion.Build}";
-            UpdateStatusText = $"发现新版本 {versionText}";
+            UpdateStatusText = Strings.Format("VersionIsAvailable", versionText);
             StatusText = UpdateStatusText;
             if (_confirmUpdateAsync is not null && await _confirmUpdateAsync(result))
             {
@@ -93,7 +100,7 @@ public sealed class UpdateViewModel : ObservableObject
         catch (Exception exception)
         {
             _logger.Error(exception, "Update check failed.");
-            UpdateStatusText = "检查更新失败";
+            UpdateStatusText = Strings.Get("UpdateCheckFailed");
             StatusText = UpdateStatusText;
         }
         finally
@@ -109,11 +116,11 @@ public sealed class UpdateViewModel : ObservableObject
     {
         try
         {
-            UpdateStatusText = "正在下载更新...";
+            UpdateStatusText = Strings.Get("DownloadingUpdate");
 
             var progress = new Progress<int>(percent =>
             {
-                UpdateStatusText = $"正在下载更新... {percent}%";
+                UpdateStatusText = Strings.Format("DownloadingUpdate2", percent);
             });
 
             var success = await _updateService.DownloadAndApplyUpdateAsync(
@@ -124,21 +131,21 @@ public sealed class UpdateViewModel : ObservableObject
             if (success)
             {
                 _updateStarted = true;
-                UpdateStatusText = "更新下载完成，正在重启...";
+                UpdateStatusText = Strings.Get("UpdateDownloadedRestarting");
                 StatusText = UpdateStatusText;
                 if (_shutdownAfterUpdateAsync is not null)
                     await _shutdownAfterUpdateAsync();
             }
             else
             {
-                UpdateStatusText = "下载更新失败";
+                UpdateStatusText = Strings.Get("UpdateDownloadFailed");
                 StatusText = UpdateStatusText;
             }
         }
         catch (Exception exception)
         {
             _logger.Error(exception, "Update application failed.");
-            UpdateStatusText = _updateStarted ? "更新已准备就绪，请退出 WitchDrawer 以完成更新" : "下载更新失败";
+            UpdateStatusText = _updateStarted ? Strings.Get("UpdateReadyQuitWitchDrawerToFinishUpdating") : Strings.Get("UpdateDownloadFailed");
             StatusText = UpdateStatusText;
         }
     }

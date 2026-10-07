@@ -1,3 +1,4 @@
+using WitchDrawer.Core.Localization;
 using System.Windows;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.Input;
@@ -29,7 +30,7 @@ public sealed partial class SettingsViewModel
     public IRelayCommand<string> ResetThemeFieldCommand { get; private set; } = null!;
 
     private ThemeCustomization Customization => AppThemeManager.GetCustomization(CurrentTheme);
-    public string CustomizationLabel => Customization.IsEmpty ? "颜色与圆角跟随预设" : "已自定义颜色或样式";
+    public string CustomizationLabel => Customization.IsEmpty ? Strings.Get("ColorsAndCornersFollowThePreset") : Strings.Get("ColorsOrStylesCustomized");
     public double BoxCornerRadius
     {
         get => Customization.BoxCornerRadius ?? 18;
@@ -60,9 +61,9 @@ public sealed partial class SettingsViewModel
             if (normalized != ItemHoverTransparencyPercent) UpdateCustomization(settings => settings with { ItemHoverOpacity = 1 - normalized / 100 });
         }
     }
-    public string BoxCornerLabel => Customization.BoxCornerRadius is null ? "跟随各模式预设" : $"{BoxCornerRadius:0} px";
-    public string IconCornerLabel => Customization.IconCornerScale is null ? "跟随图标尺寸" : $"{IconCornerPercent:0}%";
-    public string HoverTransparencyLabel => Customization.ItemHoverOpacity is null ? "跟随主题" : $"{ItemHoverTransparencyPercent:0}%";
+    public string BoxCornerLabel => Customization.BoxCornerRadius is null ? Strings.Get("FollowEachModeSPreset") : $"{BoxCornerRadius:0} px";
+    public string IconCornerLabel => Customization.IconCornerScale is null ? Strings.Get("FollowIconSize") : $"{IconCornerPercent:0}%";
+    public string HoverTransparencyLabel => Customization.ItemHoverOpacity is null ? Strings.Get("FollowTheme") : $"{ItemHoverTransparencyPercent:0}%";
     public CornerRadius PreviewBoxRadius => _previewBoxRadius;
     public CornerRadius PreviewIconRadius => _previewIconRadius;
     public Brush PreviewSurfaceBrush => _previewSurfaceBrush;
@@ -78,7 +79,7 @@ public sealed partial class SettingsViewModel
         {
             UpdateCustomization(_ => ThemeCustomization.Empty);
             ResetThemeTransparency();
-            StatusText = $"已恢复 {ThemeLabel} 原始预设";
+            StatusText = Strings.Format("RestoredThePreset", ThemeLabel);
         });
         ResetThemeFieldCommand = new RelayCommand<string>(field =>
         {
@@ -93,11 +94,11 @@ public sealed partial class SettingsViewModel
         });
         ThemeColors = new[]
         {
-            new ThemeColorOptionViewModel("BoxBackground", "盒子背景", color => UpdateCustomization(s => s with { BoxBackground = color })),
-            new ThemeColorOptionViewModel("IconBackground", "图标背景框", color => UpdateCustomization(s => s with { IconBackground = color })),
-            new ThemeColorOptionViewModel("ItemHover", "文件项悬停", color => UpdateCustomization(s => s with { ItemHover = color })),
-            new ThemeColorOptionViewModel("ItemSelected", "文件项选中", color => UpdateCustomization(s => s with { ItemSelected = color })),
-            new ThemeColorOptionViewModel("Accent", "强调色", color => UpdateCustomization(s => s with { Accent = color }))
+            new ThemeColorOptionViewModel("BoxBackground", "BoxBackground", color => UpdateCustomization(s => s with { BoxBackground = color })),
+            new ThemeColorOptionViewModel("IconBackground", "IconBackground", color => UpdateCustomization(s => s with { IconBackground = color })),
+            new ThemeColorOptionViewModel("ItemHover", "ItemHover", color => UpdateCustomization(s => s with { ItemHover = color })),
+            new ThemeColorOptionViewModel("ItemSelected", "ItemSelection", color => UpdateCustomization(s => s with { ItemSelected = color })),
+            new ThemeColorOptionViewModel("Accent", "AccentColor", color => UpdateCustomization(s => s with { Accent = color }))
         };
         RefreshCustomization();
     }

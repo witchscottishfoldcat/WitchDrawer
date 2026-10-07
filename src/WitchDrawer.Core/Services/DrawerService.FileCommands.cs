@@ -1,3 +1,4 @@
+using WitchDrawer.Core.Localization;
 using WitchDrawer.Core.Models;
 
 namespace WitchDrawer.Core.Services;
@@ -8,9 +9,9 @@ public sealed partial class DrawerService
         => Task.Run(async () =>
         {
             var item = await _repository.GetItemAsync(itemId, cancellationToken)
-                ?? throw new InvalidOperationException("文件已移除，请刷新后重试。");
+                ?? throw new InvalidOperationException(Strings.Get("TheFileWasRemovedRefreshAndTryAgain"));
             if (item.BoxId != boxId)
-                throw new InvalidOperationException("文件已移动到其他盒子，请刷新后重试。");
+                throw new InvalidOperationException(Strings.Get("TheFileMovedToAnotherBoxRefreshAndTry"));
             return item;
         }, cancellationToken);
 
@@ -23,9 +24,9 @@ public sealed partial class DrawerService
         try
         {
             var box = await _repository.GetBoxAsync(boxId, cancellationToken)
-                ?? throw new InvalidOperationException("盒子已删除。");
+                ?? throw new InvalidOperationException(Strings.Get("TheBoxWasDeleted"));
             if (box.Type is BoxType.Mapping or BoxType.Todo)
-                throw new InvalidOperationException("只能复制文件到普通收纳盒。");
+                throw new InvalidOperationException(Strings.Get("FilesCanOnlyBeCopiedIntoNormalBoxes"));
             var fullSource = PathSafety.GetFullExistingPath(sourcePath);
             var originalPath = fullSource;
             var isDirectory = Directory.Exists(fullSource);
@@ -36,9 +37,9 @@ public sealed partial class DrawerService
                 var sourceItem = items.FirstOrDefault(item => item.StoredPath is not null
                     && (string.Equals(item.StoredPath, fullSource, StringComparison.OrdinalIgnoreCase)
                         || (item.ItemKind == ItemKind.Directory && IsSameOrDescendant(fullSource, item.StoredPath))))
-                    ?? throw new InvalidOperationException("不能复制收纳盒目录或内部恢复文件。");
+                    ?? throw new InvalidOperationException(Strings.Get("BoxFoldersAndInternalRecoveryFilesCannotBeCopied"));
                 if (string.IsNullOrWhiteSpace(sourceItem.SourcePath))
-                    throw new InvalidOperationException("来源位置不可用，无法安全记录复制文件的还原位置。");
+                    throw new InvalidOperationException(Strings.Get("TheSourceLocationIsUnavailableTheOriginalLocationCannot"));
                 originalPath = string.Equals(sourceItem.StoredPath, fullSource, StringComparison.OrdinalIgnoreCase)
                     ? sourceItem.SourcePath
                     : Path.Combine(sourceItem.SourcePath, Path.GetRelativePath(sourceItem.StoredPath!, fullSource));
@@ -52,7 +53,7 @@ public sealed partial class DrawerService
                 || IsSameOrDescendant(operation.SourcePath, fullSource)
                 || IsSameOrDescendant(fullSource, operation.TargetPath)
                 || IsSameOrDescendant(operation.TargetPath, fullSource)))
-                throw new InvalidOperationException("源文件有待恢复的操作，请完成恢复后再复制。");
+                throw new InvalidOperationException(Strings.Get("TheSourceFileHasAPendingRecoveryOperationComplete"));
 
             var storage = box.StoragePath ?? Path.Combine(_paths.BoxesDirectory, box.Id.ToString("N"));
             PathSafety.EnsureChildPath(_paths.BoxesDirectory, storage);
@@ -92,12 +93,12 @@ public sealed partial class DrawerService
     {
         if (string.IsNullOrWhiteSpace(name) || name is "." or ".." || name.Length > 255
             || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || name.EndsWith('.') || name.EndsWith(' '))
-            throw new ArgumentException("名称不能为空，也不能包含非法字符或以空格、句点结尾。");
+            throw new ArgumentException(Strings.Get("TheNameCannotBeEmptyContainInvalidCharactersOr"));
         var stem = name.Split('.')[0];
         if (new[] { "CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$" }.Contains(stem, StringComparer.OrdinalIgnoreCase)
             || (stem.Length == 4 && (stem.StartsWith("COM", StringComparison.OrdinalIgnoreCase)
                 || stem.StartsWith("LPT", StringComparison.OrdinalIgnoreCase)) && stem[3] is >= '1' and <= '9'))
-            throw new ArgumentException("不能使用 Windows 保留名称。");
+            throw new ArgumentException(Strings.Get("WindowsReservedNamesCannotBeUsed"));
     }
 
     private async Task<DrawerItem> RenameItemCoreAsync(Guid boxId, Guid itemId, string newName, CancellationToken cancellationToken)
@@ -110,7 +111,7 @@ public sealed partial class DrawerService
             if (item.DisplayName == newName) return item;
             var pending = await _repository.GetPendingFileOperationsAsync(cancellationToken);
             if (pending.Any(operation => operation.ItemId == itemId))
-                throw new InvalidOperationException("文件有待恢复的操作，请完成恢复后再重命名。");
+                throw new InvalidOperationException(Strings.Get("TheFileHasAPendingRecoveryOperationCompleteRecovery"));
             if (item.StoredPath is null)
             {
                 await _repository.MoveItemToBoxAsync(item, boxId, newName, item.SourcePath, null,
@@ -163,11 +164,11 @@ public sealed partial class DrawerService
         PathSafety.EnsureChildPath(_paths.BoxesDirectory, operation.TargetPath);
         var stage = SafeFileOps.CreateStagingPath(operation.TargetPath, operation.Id);
         if (PathExists(stage) && PathExists(operation.TargetPath))
-            throw new IOException("复制暂存文件与目标同时存在，请保留两者并核对。");
+            throw new IOException(Strings.Get("BothTheStagedCopyAndTheDestinationExistKeep"));
         if (await _repository.GetItemAsync(operation.ItemId, cancellationToken) is { } current)
         {
             if (!string.Equals(current.StoredPath, operation.TargetPath, StringComparison.OrdinalIgnoreCase))
-                throw new IOException("复制记录与目标位置不一致，请保留文件并核对。");
+                throw new IOException(Strings.Get("TheCopyRecordDoesNotMatchTheDestinationKeep"));
             await _repository.RemovePendingFileOperationAsync(operation.Id, cancellationToken);
             return;
         }
@@ -178,7 +179,7 @@ public sealed partial class DrawerService
         }
         // A staging copy was never promoted and may be incomplete. Preserve it if
         // the original has also disappeared; otherwise the untouched source wins.
-        if (!PathExists(operation.SourcePath)) throw new IOException("复制源不可用，请保留复制暂存文件并核对。");
+        if (!PathExists(operation.SourcePath)) throw new IOException(Strings.Get("TheCopySourceIsUnavailableKeepTheStagedCopy"));
         SafeFileOps.DeleteRecoveryArtifact(stage, operation.IsDirectory);
         await _repository.RemovePendingFileOperationAsync(operation.Id, cancellationToken);
     }
@@ -201,7 +202,7 @@ public sealed partial class DrawerService
         }
         if (PathExists(stage))
         {
-            if (PathExists(operation.TargetPath)) throw new IOException("重命名源位置已被重新占用，请保留暂存文件并核对。");
+            if (PathExists(operation.TargetPath)) throw new IOException(Strings.Get("TheOriginalRenameLocationIsOccupiedAgainKeepThe"));
             await SafeFileOps.MoveAsync(stage, operation.TargetPath, operation.IsDirectory, cancellationToken);
             await _repository.CompletePendingFileOperationAsync(operation, CancellationToken.None);
             return;

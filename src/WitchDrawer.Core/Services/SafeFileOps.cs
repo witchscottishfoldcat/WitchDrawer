@@ -1,3 +1,4 @@
+using WitchDrawer.Core.Localization;
 namespace WitchDrawer.Core.Services;
 
 /// <summary>
@@ -23,7 +24,7 @@ internal static class SafeFileOps
         ValidateEntryIsNotReparsePoint(sourcePath);
         ValidateDestinationParent(Path.GetDirectoryName(destinationPath));
         if (IsSameOrDescendant(destinationPath, sourcePath))
-            throw new InvalidOperationException("不能把文件或文件夹复制到自身内部。");
+            throw new InvalidOperationException(Strings.Get("AFileOrFolderCannotBeCopiedIntoItself"));
         if (File.Exists(destinationPath) || Directory.Exists(destinationPath))
             throw new IOException($"Destination already exists: {destinationPath}");
 

@@ -1,3 +1,5 @@
+using WitchDrawer.App.Localization;
+using WitchDrawer.Core.Localization;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -5,8 +7,13 @@ using WitchDrawer.Core.Models;
 
 namespace WitchDrawer.App.ViewModels;
 
-public sealed class ThemeColorOptionViewModel : ObservableObject
+public sealed class ThemeColorOptionViewModel : LocalizedObservableObject
 {
+    protected override void OnLanguageChanged()
+    {
+        if (Error.Length > 0) Error = Strings.Get("EnterASixDigitHEXColorSuchAs0071E3");
+    }
+
     private readonly Action<string?> _apply;
     private string _hex = "#FFFFFF";
     private string _error = "";
@@ -14,17 +21,18 @@ public sealed class ThemeColorOptionViewModel : ObservableObject
     private bool _isCustom;
     private Brush _previewBrush = Brushes.White;
 
-    public ThemeColorOptionViewModel(string key, string label, Action<string?> apply)
+    public ThemeColorOptionViewModel(string key, string labelKey, Action<string?> apply)
     {
         Key = key;
-        Label = label;
+        _labelKey = labelKey;
         _apply = apply;
         ResetCommand = new RelayCommand(() => { Error = ""; _apply(null); });
         ChooseColorCommand = new RelayCommand<string>(value => { if (value is not null) Hex = value; });
     }
 
     public string Key { get; }
-    public string Label { get; }
+    private readonly string _labelKey;
+    public string Label => Strings.Get(_labelKey);
     public static IReadOnlyList<string> Swatches { get; } =
         ["#FFFFFF", "#2C2C2E", "#0071E3", "#34C759", "#FF9500", "#AF52DE"];
     public IRelayCommand ResetCommand { get; }
@@ -39,7 +47,7 @@ public sealed class ThemeColorOptionViewModel : ObservableObject
             if (_isRefreshing) { SetProperty(ref _hex, value); return; }
             if (ThemeCustomization.NormalizeColor(value) is not { } normalized)
             {
-                Error = "请输入六位 HEX 颜色，如 #0071E3";
+                Error = Strings.Get("EnterASixDigitHEXColorSuchAs0071E3");
                 OnPropertyChanged();
                 return;
             }

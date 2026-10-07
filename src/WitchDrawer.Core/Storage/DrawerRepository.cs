@@ -1,3 +1,4 @@
+using WitchDrawer.Core.Localization;
 using Microsoft.Data.Sqlite;
 using WitchDrawer.Core.Models;
 using System.Text.Json;
@@ -25,7 +26,7 @@ public sealed class DrawerRepository
         var databaseDirectory = Path.GetDirectoryName(_databasePath);
         if (string.IsNullOrWhiteSpace(databaseDirectory))
         {
-            throw new InvalidOperationException("数据库路径无效: " + _databasePath);
+            throw new InvalidOperationException(Strings.Get("InvalidDatabasePath") + _databasePath);
         }
 
         try
@@ -178,7 +179,7 @@ public sealed class DrawerRepository
         state.CommandText = "SELECT COUNT(*) FROM StorageMigrationState;";
         if (Convert.ToInt32(await state.ExecuteScalarAsync(cancellationToken)) != 0)
         {
-            throw new InvalidOperationException("数据已迁移，请重启后再操作。");
+            throw new InvalidOperationException(Strings.Get("DataHasMigratedRestartBeforeContinuing"));
         }
         var versionBeforeCopy = await ReadDataVersionAsync(lockConnection, cancellationToken);
 
@@ -194,14 +195,14 @@ public sealed class DrawerRepository
             transactionStarted = true;
             if (await ReadDataVersionAsync(lockConnection, cancellationToken) != versionBeforeCopy)
             {
-                throw new InvalidOperationException("迁移期间数据发生变化，请重试。");
+                throw new InvalidOperationException(Strings.Get("DataChangedDuringMigrationTryAgain"));
             }
 
             var pendingCommand = lockConnection.CreateCommand();
             pendingCommand.CommandText = "SELECT COUNT(*) FROM PendingFileOperations;";
             if (Convert.ToInt32(await pendingCommand.ExecuteScalarAsync(cancellationToken)) != 0)
             {
-                throw new InvalidOperationException("文件搬移尚未完成，请稍后重试数据目录迁移。");
+                throw new InvalidOperationException(Strings.Get("FileMovesAreIncompleteTryMigratingTheDataFolder"));
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -921,7 +922,7 @@ public sealed class DrawerRepository
         command.Parameters.AddWithValue("$updatedAt", ToDb(updatedAt));
         if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
         {
-            throw new InvalidOperationException("事项已被修改或删除，请取消编辑后重试。");
+            throw new InvalidOperationException(Strings.Get("TheTaskWasChangedOrDeletedCancelEditingAnd"));
         }
     }
 
@@ -1187,7 +1188,7 @@ public sealed class DrawerRepository
     {
         if (_migrationWriteLockHeld && !allowMigrationLock)
         {
-            throw new InvalidOperationException("数据目录迁移正在完成，请稍后重试此操作。");
+            throw new InvalidOperationException(Strings.Get("DataMigrationIsFinishingTryThisOperationLater"));
         }
 
         var builder = new SqliteConnectionStringBuilder
@@ -1208,17 +1209,17 @@ public sealed class DrawerRepository
     private InvalidOperationException CreateDatabaseAccessException(string databaseDirectory, Exception exception)
     {
         return new InvalidOperationException(
-            "无法打开或写入 SQLite 数据库。"
+            Strings.Get("CannotOpenOrWriteToTheSQLiteDatabase")
             + Environment.NewLine
-            + "数据库: "
+            + Strings.Get("Database")
             + _databasePath
             + Environment.NewLine
-            + "目录: "
+            + Strings.Get("Folder2")
             + databaseDirectory
             + Environment.NewLine
-            + "请确认该目录可写，或设置环境变量 "
+            + Strings.Get("MakeSureThisFolderIsWritableOrSetThe")
             + AppPaths.DataDirectoryEnvironmentVariableName
-            + " 指向可写路径。",
+            + Strings.Get("ToAWritablePath"),
             exception);
     }
 

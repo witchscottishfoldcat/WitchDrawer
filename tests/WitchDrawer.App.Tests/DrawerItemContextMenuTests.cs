@@ -16,7 +16,7 @@ public sealed class DrawerItemContextMenuTests
             root.Descendants(PresentationNamespace + "Style"),
             element => (string?)element.Attribute(XamlNamespace + "Key") == "ContextActionButtonStyle");
 
-        Assert.Equal("172", (string?)root.Attribute("Width"));
+        Assert.Equal("232", (string?)root.Attribute("Width"));
         Assert.Equal("False", (string?)root.Attribute("Topmost"));
         Assert.Equal("False", (string?)root.Attribute("ShowActivated"));
         Assert.Equal(9, buttons.Length);

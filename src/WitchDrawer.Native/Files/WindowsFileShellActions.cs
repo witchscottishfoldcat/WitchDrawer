@@ -1,3 +1,4 @@
+using WitchDrawer.Core.Localization;
 using System.ComponentModel;
 using System.Diagnostics;
 
@@ -34,7 +35,7 @@ public static class WindowsFileShellActions
     {
         if (!CanRunAsAdministrator(path, isDirectory: false))
         {
-            throw new InvalidOperationException("该项目不支持管理员启动。");
+            throw new InvalidOperationException(Strings.Get("ThisItemCannotBeLaunchedAsAdministrator"));
         }
 
         try
@@ -64,7 +65,7 @@ public static class WindowsFileShellActions
     public static Task RevealAsync(string path, CancellationToken cancellationToken = default)
         => StaShellWorker.RunAsync(() =>
         {
-            if (!File.Exists(path) && !Directory.Exists(path)) throw new FileNotFoundException("文件或文件夹已不存在。", path);
+            if (!File.Exists(path) && !Directory.Exists(path)) throw new FileNotFoundException(Strings.Get("TheFileOrFolderNoLongerExists"), path);
             RevealInFileExplorer(path);
             return true;
         }, cancellationToken);
@@ -78,14 +79,14 @@ public static class WindowsFileShellActions
     internal static string ResolveShortcutTarget(string path)
     {
         var raw = ShellIconExtractor.TryGetShortcutTargetPath(path);
-        if (string.IsNullOrWhiteSpace(raw)) throw new IOException("快捷方式没有可访问的本地目标。");
+        if (string.IsNullOrWhiteSpace(raw)) throw new IOException(Strings.Get("TheShortcutHasNoAccessibleLocalTarget"));
         if (Uri.TryCreate(raw, UriKind.Absolute, out var uri) && !uri.IsFile)
-            throw new IOException("此快捷方式指向网页或系统应用，没有本地文件位置。");
+            throw new IOException(Strings.Get("ThisShortcutPointsToAWebsiteOrSystemApp"));
         var target = Uri.TryCreate(raw, UriKind.Absolute, out uri) && uri.IsFile ? uri.LocalPath : raw;
         target = Environment.ExpandEnvironmentVariables(target);
         if (!Path.IsPathFullyQualified(target)) target = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path))!, target);
         target = Path.GetFullPath(target);
-        if (!File.Exists(target) && !Directory.Exists(target)) throw new FileNotFoundException("快捷方式的目标已不存在。", target);
+        if (!File.Exists(target) && !Directory.Exists(target)) throw new FileNotFoundException(Strings.Get("TheShortcutTargetNoLongerExists"), target);
         return target;
     }
 

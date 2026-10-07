@@ -1,3 +1,5 @@
+using WitchDrawer.App.Localization;
+using WitchDrawer.Core.Localization;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -13,7 +15,7 @@ using WitchDrawer.Core.Services;
 
 namespace WitchDrawer.App.ViewModels;
 
-public sealed partial class SettingsViewModel : ObservableObject
+public sealed partial class SettingsViewModel : LocalizedObservableObject
 {
     private const string ThemeSettingKey = "Theme";
     internal const string ThemeBoxOpacitySettingKeyPrefix = "ThemeBoxOpacity.";
@@ -24,7 +26,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     internal const string EditorFollowsBoxOpacitySettingKey = "EditorFollowsBoxOpacity";
     internal const string DesktopDoubleClickSettingKey = "DesktopDoubleClickToggle";
     internal const string IconToolTipCompactSettingKey = "IconToolTipCompact";
-    private string _themeLabel = "清透雅致";
+    private string _themeLabel = Strings.Get("Light");
     private AppTheme _currentTheme;
     private double _themeTransparencyPercent = (1 - AppThemeManager.DefaultBoxOpacity) * 100;
     private double _boxBorderTransparencyPercent;
@@ -67,6 +69,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         ApplyCrystalThemeCommand = new AsyncRelayCommand(() => ApplyThemeAsync(AppTheme.Crystal));
         ResetThemeTransparencyCommand = new RelayCommand(ResetThemeTransparency);
         InitializeCustomization();
+        InitializeLanguage();
         ToggleLaunchOnStartupCommand = new AsyncRelayCommand(ToggleLaunchOnStartupAsync);
         ToggleDesktopIconsCommand = new AsyncRelayCommand(ToggleDesktopIconsAsync);
         ToggleDesktopDoubleClickCommand = new AsyncRelayCommand(ToggleDesktopDoubleClickAsync);
@@ -81,6 +84,9 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public async Task LoadAsync(StartupSettingsSnapshot? startupSnapshot = null)
     {
+        LocalizationProvider.Instance.Apply(AppLanguage.Resolve(
+            await ReadSettingAsync(AppLanguage.SettingKey, startupSnapshot), CultureInfo.CurrentUICulture));
+
         // 必须在首次启动标记写入前判断是否为旧安装，才能让新用户使用二段透明度，
         // 同时让升级用户保留旧主题原本的视觉效果。
         await RestoreThemeBoxOpacitiesAsync(startupSnapshot);
@@ -411,7 +417,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             AppThemeManager.Apply(theme);
             SetCurrentTheme(theme);
             await _settings.SetSettingAsync(ThemeSettingKey, theme.ToString());
-            StatusText = $"已切换到 {ThemeLabel} 风格";
+            StatusText = Strings.Format("SwitchedToTheTheme", ThemeLabel);
         }
         catch (Exception exception)
         {
@@ -431,9 +437,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     {
         ThemeLabel = CurrentTheme switch
         {
-            AppTheme.Glass => "暗黑曜石",
-            AppTheme.Crystal => "全透水晶",
-            _ => "清透雅致"
+            AppTheme.Glass => Strings.Get("Obsidian"),
+            AppTheme.Crystal => Strings.Get("Crystal"),
+            _ => Strings.Get("Light")
         };
     }
 
@@ -491,8 +497,8 @@ public sealed partial class SettingsViewModel : ObservableObject
                 enabled.ToString());
             EditorFollowsBoxOpacity = enabled;
             StatusText = enabled
-                ? "编辑页已跟随桌面盒子透明度"
-                : "编辑页已保持标准透明度";
+                ? Strings.Get("EditorNowFollowsDesktopBoxOpacity")
+                : Strings.Get("EditorNowUsesStandardOpacity");
         }
         catch (Exception exception)
         {
@@ -648,7 +654,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             var newState = !LaunchOnStartup;
             await _desktop.SetStartupEnabledAsync(newState);
             LaunchOnStartup = newState;
-            StatusText = newState ? "已开启开机自启动" : "已关闭开机自启动";
+            StatusText = newState ? Strings.Get("LaunchAtStartupEnabled") : Strings.Get("LaunchAtStartupDisabled");
         }
         catch (Exception exception)
         {
@@ -665,7 +671,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             // 不依赖本缓存的旧值（外部从桌面菜单改过状态时缓存会失步）。
             var hidden = await _desktop.ToggleDesktopIconsAsync();
             AreDesktopIconsHidden = hidden;
-            StatusText = hidden ? "已隐藏 Windows 桌面图标" : "已显示 Windows 桌面图标";
+            StatusText = hidden ? Strings.Get("WindowsDesktopIconsHidden") : Strings.Get("WindowsDesktopIconsShown");
         }
         catch (Exception exception)
         {
@@ -683,7 +689,7 @@ public sealed partial class SettingsViewModel : ObservableObject
                 DesktopDoubleClickSettingKey,
                 enabled.ToString());
             IsDesktopDoubleClickEnabled = enabled;
-            StatusText = enabled ? "已开启桌面双击切换图标" : "已关闭桌面双击切换图标";
+            StatusText = enabled ? Strings.Get("DesktopDoubleClickToggleEnabled") : Strings.Get("DesktopDoubleClickToggleDisabled");
         }
         catch (Exception exception)
         {
@@ -704,8 +710,8 @@ public sealed partial class SettingsViewModel : ObservableObject
             IconToolTipCompact = compact;
             PublishIconToolTipMode();
             StatusText = compact
-                ? "图标名称已设为精简显示"
-                : "图标名称已设为完整显示";
+                ? Strings.Get("IconTooltipsNowShowFileNames")
+                : Strings.Get("IconTooltipsNowShowFullPaths");
         }
         catch (Exception exception)
         {
@@ -729,7 +735,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             AutoHideEnabled = enabled;
             PublishAutoHideSettings();
             await SaveAutoHideSettingsAsync();
-            StatusText = enabled ? "已开启自动隐藏" : "已关闭自动隐藏";
+            StatusText = enabled ? Strings.Get("AutoHideEnabled") : Strings.Get("AutoHideDisabled");
         }
         catch (Exception exception)
         {
@@ -747,8 +753,8 @@ public sealed partial class SettingsViewModel : ObservableObject
             PublishAutoHideSettings();
             await SaveAutoHideSettingsAsync();
             StatusText = scope == AutoHideRevealScope.AllBoxes
-                ? "悬停任一收纳盒将全部显示"
-                : "悬停某个收纳盒仅其内容显示";
+                ? Strings.Get("HoverOverAnyBoxToRevealAllBoxes")
+                : Strings.Get("HoverOverABoxToRevealOnlyItsContents");
         }
         catch (Exception exception)
         {

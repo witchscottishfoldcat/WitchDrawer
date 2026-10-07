@@ -1,8 +1,9 @@
+using WitchDrawer.Core.Localization;
 using WitchDrawer.Core.Models;
 
 namespace WitchDrawer.App.ViewModels;
 
-public sealed class ArchivedTodoItemViewModel
+public sealed class ArchivedTodoItemViewModel : WitchDrawer.App.Localization.LocalizedObservableObject
 {
     public ArchivedTodoItemViewModel(TodoItem model, string boxName)
     {
@@ -23,7 +24,7 @@ public sealed class ArchivedTodoItemViewModel
         get
         {
             var time = (Model.ArchivedAt ?? Model.UpdatedAt).ToLocalTime();
-            return $"归档于 {time:yyyy-MM-dd HH:mm}";
+            return Strings.Format("ArchivedOn", time);
         }
     }
 }

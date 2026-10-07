@@ -1,9 +1,11 @@
+using WitchDrawer.App.Localization;
+using WitchDrawer.Core.Localization;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace WitchDrawer.App.ViewModels;
 
-public sealed partial class DesktopBoxLayoutSettings : ObservableObject
+public sealed partial class DesktopBoxLayoutSettings : LocalizedObservableObject
 {
     public const string DefaultPreset = "6x6";
     public const string DefaultDrawerPreset = "4x4";
@@ -156,10 +158,10 @@ public sealed partial class DesktopBoxLayoutSettings : ObservableObject
 
     public string CurrentSizeLabel => _currentPreset switch
     {
-        "3x3" => "超",
-        "4x4" => "大",
-        "5x5" => "中",
-        _ => "小"
+        "3x3" => Strings.Get("XL"),
+        "4x4" => Strings.Get("L"),
+        "5x5" => Strings.Get("M"),
+        _ => Strings.Get("S")
     };
 
     public bool IsExtraLargePreset => _currentPreset == "3x3";

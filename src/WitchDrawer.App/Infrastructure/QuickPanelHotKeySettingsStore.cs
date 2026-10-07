@@ -1,3 +1,4 @@
+using WitchDrawer.Core.Localization;
 using WitchDrawer.Core.Abstractions;
 
 namespace WitchDrawer.App.Infrastructure;
@@ -23,7 +24,7 @@ internal sealed class QuickPanelHotKeySettingsStore(ISettingsStore settings)
         ArgumentNullException.ThrowIfNull(hotKey);
         if (!hotKey.IsValid)
         {
-            throw new ArgumentException("快捷键组合无效。", nameof(hotKey));
+            throw new ArgumentException(Strings.Get("InvalidShortcutCombination"), nameof(hotKey));
         }
 
         return settings.SetSettingAsync(SettingKey, hotKey.Serialize(), cancellationToken);

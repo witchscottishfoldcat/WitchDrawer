@@ -1,6 +1,7 @@
-﻿<Window x:Class="WitchDrawer.App.MainWindow"
+<Window x:Class="WitchDrawer.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="clr-namespace:WitchDrawer.App.Localization"
         xmlns:views="clr-namespace:WitchDrawer.App.Views"
         xmlns:controls="clr-namespace:WitchDrawer.App.Controls"
         xmlns:viewModels="clr-namespace:WitchDrawer.App.ViewModels"
@@ -106,7 +107,7 @@
                             Focusable="False"
                             Style="{StaticResource GhostButtonStyle}"
                             Click="OnMinimizeClicked"
-                            ToolTip="最小化">
+                            ToolTip="{loc:Text Minimize}">
                         <Path Data="M 1,5 L 11,5"
                               Stroke="{DynamicResource TextMutedBrush}"
                               StrokeThickness="1.4"
@@ -119,7 +120,7 @@
                             Padding="0"
                             Focusable="False"
                             Click="OnCloseClicked"
-                            ToolTip="关闭">
+                            ToolTip="{loc:Text Close}">
                         <Button.Style>
                             <Style TargetType="{x:Type Button}" BasedOn="{StaticResource GhostButtonStyle}">
                                 <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
@@ -170,12 +171,12 @@
                         <Grid Grid.Row="0"
                               Height="32"
                               Margin="10,0,10,7"
-                              AutomationProperties.Name="收纳盒列表">
+                              AutomationProperties.Name="{loc:Text BoxList}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="收纳盒"
+                            <TextBlock TextWrapping="Wrap" Text="{loc:Text Boxes}"
                                        FontSize="11"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextMutedBrush}"
@@ -382,11 +383,11 @@
                             <Button x:Name="BtnCreateBox"
                                     Style="{StaticResource PrimaryButtonStyle}"
                                     Click="OnCreateBoxClicked"
-                                    AutomationProperties.Name="新建"
+                                    AutomationProperties.Name="{loc:Text New}"
                                     MinHeight="40">
                                 <StackPanel Orientation="Horizontal">
                                     <Path Data="M 0,4 L 8,4 M 4,0 L 4,8" Stroke="White" StrokeThickness="1.5" Width="8" Height="8" VerticalAlignment="Center" Margin="0,0,8,0" SnapsToDevicePixels="True" />
-                                    <TextBlock Text="新建" VerticalAlignment="Center" FontSize="12.5" />
+                                    <TextBlock TextWrapping="Wrap" Text="{loc:Text New}" VerticalAlignment="Center" FontSize="12.5" />
                                 </StackPanel>
                             </Button>
 
@@ -408,14 +409,14 @@
                                         <DropShadowEffect BlurRadius="16" ShadowDepth="4" Opacity="0.12" Direction="270" />
                                     </Border.Effect>
                                     <StackPanel MinWidth="224">
-                                        <Button Content="普通收纳盒"
+                                        <Button Content="{loc:Text NormalBox}"
                                                 Click="OnCreateNormalBoxClicked"
                                                 Style="{StaticResource GhostButtonStyle}"
                                                 Margin="0,0,0,4"
                                                 Padding="12,10" />
-                                        <Button Content="映射收纳盒" Click="OnCreateMappingBoxClicked" Style="{StaticResource GhostButtonStyle}" Margin="0,0,0,4" Padding="12,10" />
-                                        <Button Content="抽屉收纳盒" Click="OnCreateDrawerBoxClicked" Style="{StaticResource GhostButtonStyle}" Margin="0,0,0,4" Padding="12,10" />
-                                        <Button Content="待办收纳盒" Click="OnCreateTodoBoxClicked" Style="{StaticResource GhostButtonStyle}" Padding="12,10" />
+                                        <Button Content="{loc:Text MappingBox}" Click="OnCreateMappingBoxClicked" Style="{StaticResource GhostButtonStyle}" Margin="0,0,0,4" Padding="12,10" />
+                                        <Button Content="{loc:Text DrawerBox2}" Click="OnCreateDrawerBoxClicked" Style="{StaticResource GhostButtonStyle}" Margin="0,0,0,4" Padding="12,10" />
+                                        <Button Content="{loc:Text TaskBox}" Click="OnCreateTodoBoxClicked" Style="{StaticResource GhostButtonStyle}" Padding="12,10" />
                                     </StackPanel>
                                 </Border>
                             </Popup>
@@ -428,8 +429,8 @@
                             <UniformGrid Columns="3">
                                 <Button Command="{Binding ShowArchiveCommand}"
                                         Style="{StaticResource NavArchiveButtonStyle}"
-                                        AutomationProperties.Name="归档">
-                                    <StackPanel Orientation="Horizontal">
+                                        AutomationProperties.Name="{loc:Text Archive}">
+                                    <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
                                         <Path Data="M 2,5 L 17,5 L 17,17 L 2,17 Z M 1,2 L 18,2 L 18,6 L 1,6 Z M 7,9 L 12,9"
                                               Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
                                               StrokeThickness="1.4"
@@ -437,18 +438,18 @@
                                               Height="14"
                                               Stretch="Uniform"
                                               VerticalAlignment="Center"
-                                              Margin="0,0,5,0" />
-                                        <TextBlock Text="归档"
+                                              Margin="0,0,0,2" />
+                                        <TextBlock TextWrapping="Wrap" Text="{loc:Text Archive}"
                                                    FontSize="11.5"
                                                    FontWeight="{Binding FontWeight, RelativeSource={RelativeSource AncestorType=Button}}"
-                                                   VerticalAlignment="Center" />
+                                                   VerticalAlignment="Center" HorizontalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
 
                                 <Button Command="{Binding ShowSettingsCommand}"
                                         Style="{StaticResource NavSettingsButtonStyle}"
-                                        AutomationProperties.Name="设置">
-                                    <StackPanel Orientation="Horizontal">
+                                        AutomationProperties.Name="{loc:Text Settings}">
+                                    <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
                                         <Path Data="M 9.5,2 L 11,2.5 L 11.8,5 L 14.2,5.8 L 16.5,4.7 L 17.5,6 L 16,8.2 L 16,10.8 L 17.5,13 L 16.5,14.3 L 14.2,13.2 L 11.8,14 L 11,16.5 L 9.5,17 L 8,16.5 L 7.2,14 L 4.8,13.2 L 2.5,14.3 L 1.5,13 L 3,10.8 L 3,8.2 L 1.5,6 L 2.5,4.7 L 4.8,5.8 L 7.2,5 L 8,2.5 Z M 7,9.5 A 2.5,2.5 0 1 0 12,9.5 A 2.5,2.5 0 1 0 7,9.5"
                                               Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
                                               StrokeThickness="1.25"
@@ -456,30 +457,30 @@
                                               Height="14"
                                               Stretch="Uniform"
                                               VerticalAlignment="Center"
-                                              Margin="0,0,5,0" />
-                                        <TextBlock Text="设置"
+                                              Margin="0,0,0,2" />
+                                        <TextBlock TextWrapping="Wrap" Text="{loc:Text Settings}"
                                                    FontSize="11.5"
                                                    FontWeight="{Binding FontWeight, RelativeSource={RelativeSource AncestorType=Button}}"
-                                                   VerticalAlignment="Center" />
+                                                   VerticalAlignment="Center" HorizontalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
 
                                 <Button Command="{Binding ShowAboutCommand}"
                                         Style="{StaticResource NavAboutButtonStyle}"
-                                        AutomationProperties.Name="关于">
-                                    <StackPanel Orientation="Horizontal">
+                                        AutomationProperties.Name="{loc:Text About}">
+                                    <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
                                         <TextBlock Text="&#xE946;"
                                                    Width="15"
-                                                   Margin="0,0,5,0"
+                                                   Margin="0,0,0,2"
                                                    FontFamily="Segoe Fluent Icons"
                                                    FontSize="14"
                                                    Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
                                                    TextAlignment="Center"
-                                                   VerticalAlignment="Center" />
-                                        <TextBlock Text="关于"
+                                                   VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                        <TextBlock TextWrapping="Wrap" Text="{loc:Text About}"
                                                    FontSize="11.5"
                                                    FontWeight="{Binding FontWeight, RelativeSource={RelativeSource AncestorType=Button}}"
-                                                   VerticalAlignment="Center" />
+                                                   VerticalAlignment="Center" HorizontalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
                             </UniformGrid>
@@ -516,10 +517,10 @@
                         <Grid x:Name="SelectedBoxToolbar" Grid.Row="0" Margin="0,0,0,18">
                             <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                             <StackPanel Margin="0,0,16,0" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding SelectedBox.Name, TargetNullValue=选择一个收纳盒}"
+                                <TextBlock TextWrapping="Wrap" Text="{loc:Text SelectABox, Value={Binding SelectedBox.Name}, Fallback=True}"
                                            TextTrimming="CharacterEllipsis" FontSize="24" FontWeight="SemiBold"
                                            Foreground="{DynamicResource TextPrimaryBrush}" />
-                                <TextBlock Text="{Binding SelectedBox.Description, TargetNullValue=选择左侧的收纳盒开始整理}"
+                                <TextBlock TextWrapping="Wrap" Text="{loc:Text SelectABoxOnTheLeftToStartOrganizing, Value={Binding SelectedBox.Description}, Fallback=True}"
                                            Foreground="{DynamicResource TextMutedBrush}" FontSize="11" Margin="0,5,0,0" />
                             </StackPanel>
                             <StackPanel x:Name="BoxToolbarButtons" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
@@ -530,9 +531,9 @@
                                 </StackPanel.Style>
                                 <Grid Margin="0,0,8,0" Visibility="{Binding SelectedBox.SupportsSorting, Converter={StaticResource BooleanToVisibilityConverter}}">
                                     <Button x:Name="DrawerSortMenuButton" Style="{StaticResource BoxToolbarButtonStyle}" Click="OnOpenDrawerSortMenu"
-                                            ToolTip="选择排序方式" AutomationProperties.Name="排序方式">
+                                            ToolTip="{loc:Text ChooseSortOrder}" AutomationProperties.Name="{loc:Text SortOrder}">
                                         <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="{Binding SelectedBox.DrawerSortModeLabel, StringFormat=排序 · {0}}" VerticalAlignment="Center" />
+                                            <TextBlock TextWrapping="Wrap" Text="{loc:Text Sort, Value={Binding SelectedBox.DrawerSortModeLabel}}" VerticalAlignment="Center" />
                                             <TextBlock Text="&#xE70D;" FontFamily="Segoe Fluent Icons" FontSize="8" Margin="8,0,0,0" VerticalAlignment="Center" />
                                         </StackPanel>
                                     </Button>
@@ -571,7 +572,7 @@
                                                                    FontFamily="Segoe Fluent Icons"
                                                                    Foreground="{DynamicResource AccentBrush}"
                                                                    Visibility="{Binding SelectedBox.IsFreeSort, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                                        <TextBlock Grid.Column="1" Text="自由" />
+                                                        <TextBlock TextWrapping="Wrap" Grid.Column="1" Text="{loc:Text Free}" />
                                                     </Grid>
                                                 </Button>
                                                 <Button Command="{Binding SelectedBox.ApplyDrawerSortModeCommand}"
@@ -588,7 +589,7 @@
                                                                    FontFamily="Segoe Fluent Icons"
                                                                    Foreground="{DynamicResource AccentBrush}"
                                                                    Visibility="{Binding SelectedBox.IsDrawerSortByName, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                                        <TextBlock Grid.Column="1" Text="名称" />
+                                                        <TextBlock TextWrapping="Wrap" Grid.Column="1" Text="{loc:Text Name}" />
                                                     </Grid>
                                                 </Button>
                                                 <Button Command="{Binding SelectedBox.ApplyDrawerSortModeCommand}"
@@ -605,7 +606,7 @@
                                                                    FontFamily="Segoe Fluent Icons"
                                                                    Foreground="{DynamicResource AccentBrush}"
                                                                    Visibility="{Binding SelectedBox.IsDrawerSortBySize, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                                        <TextBlock Grid.Column="1" Text="大小" />
+                                                        <TextBlock TextWrapping="Wrap" Grid.Column="1" Text="{loc:Text Size}" />
                                                     </Grid>
                                                 </Button>
                                                 <Button Command="{Binding SelectedBox.ApplyDrawerSortModeCommand}"
@@ -622,7 +623,7 @@
                                                                    FontFamily="Segoe Fluent Icons"
                                                                    Foreground="{DynamicResource AccentBrush}"
                                                                    Visibility="{Binding SelectedBox.IsDrawerSortByItemType, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                                        <TextBlock Grid.Column="1" Text="项目类型" />
+                                                        <TextBlock TextWrapping="Wrap" Grid.Column="1" Text="{loc:Text Type}" />
                                                     </Grid>
                                                 </Button>
                                                 <Button Command="{Binding SelectedBox.ApplyDrawerSortModeCommand}"
@@ -639,7 +640,7 @@
                                                                    FontFamily="Segoe Fluent Icons"
                                                                    Foreground="{DynamicResource AccentBrush}"
                                                                    Visibility="{Binding SelectedBox.IsDrawerSortByModifiedDate, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                                        <TextBlock Grid.Column="1" Text="修改日期" />
+                                                        <TextBlock TextWrapping="Wrap" Grid.Column="1" Text="{loc:Text DateModified}" />
                                                     </Grid>
                                                 </Button>
                                             </StackPanel>
@@ -648,9 +649,9 @@
                                 </Grid>
                                 <Grid Margin="0,0,8,0" Visibility="{Binding IsSelectedTodoBox, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
                                     <Button x:Name="BoxDisplaySettingsButton" Style="{StaticResource BoxToolbarButtonStyle}" Click="OnOpenBoxDisplaySettings"
-                                            AutomationProperties.Name="显示设置" ToolTip="图标、悬停、标题与盒子尺寸">
+                                            AutomationProperties.Name="{loc:Text DisplaySettings}" ToolTip="{loc:Text IconsHoverTitlesAndBoxSize}">
                                         <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="显示设置" VerticalAlignment="Center" />
+                                            <TextBlock TextWrapping="Wrap" Text="{loc:Text DisplaySettings}" VerticalAlignment="Center" />
                                             <TextBlock Text="&#xE70D;" FontFamily="Segoe Fluent Icons" FontSize="8" Margin="8,0,0,0" VerticalAlignment="Center" />
                                         </StackPanel>
                                     </Button>
@@ -664,9 +665,9 @@
                                 </Grid>
                                 <Grid>
                                     <Button x:Name="BtnMoreBoxActions" Style="{StaticResource BoxToolbarButtonStyle}" Click="OnOpenBoxActionsMenu"
-                                            ToolTip="重命名、桌面位置与删除" AutomationProperties.Name="更多收纳盒操作">
+                                            ToolTip="{loc:Text RenameDesktopPositionAndDelete}" AutomationProperties.Name="{loc:Text MoreBoxActions}">
                                         <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="更多" VerticalAlignment="Center" />
+                                            <TextBlock TextWrapping="Wrap" Text="{loc:Text More}" VerticalAlignment="Center" />
                                             <TextBlock Text="&#xE70D;" FontFamily="Segoe Fluent Icons" FontSize="8" Margin="8,0,0,0" VerticalAlignment="Center" />
                                         </StackPanel>
                                     </Button>
@@ -691,11 +692,11 @@
                                                                       Direction="270" />
                                                 </Border.Effect>
                                                 <StackPanel>
-                                                    <Button Content="重命名" Click="OnRenameBoxClicked" Style="{StaticResource BoxMenuItemButtonStyle}"
-                                                            AutomationProperties.Name="重命名当前收纳盒" />
+                                                    <Button Content="{loc:Text Rename}" Click="OnRenameBoxClicked" Style="{StaticResource BoxMenuItemButtonStyle}"
+                                                            AutomationProperties.Name="{loc:Text RenameThisBox}" />
                                                     <Button Click="OnShowDesktopBoxClicked"
                                                             Style="{StaticResource BoxMenuItemButtonStyle}"
-                                                            AutomationProperties.Name="显示桌面收纳盒"
+                                                            AutomationProperties.Name="{loc:Text ShowDesktopBox}"
                                                             Padding="10,0"
                                                             HorizontalContentAlignment="Left">
                                                         <StackPanel Orientation="Horizontal">
@@ -704,7 +705,7 @@
                                                                        FontFamily="Segoe Fluent Icons"
                                                                        FontSize="13"
                                                                        Foreground="{DynamicResource TextMutedBrush}" />
-                                                            <TextBlock Text="显示桌面收纳盒"
+                                                            <TextBlock TextWrapping="Wrap" Text="{loc:Text ShowDesktopBox}"
                                                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                                                        FontSize="12" />
                                                         </StackPanel>
@@ -728,7 +729,7 @@
                                                     </Button>
                                                     <Button Click="OnRecallBoxClicked"
                                                             Style="{StaticResource BoxMenuItemButtonStyle}"
-                                                            AutomationProperties.Name="将盒子召回屏幕中心"
+                                                            AutomationProperties.Name="{loc:Text MoveTheBoxToTheScreenCenter}"
                                                             Padding="10,0"
                                                             HorizontalContentAlignment="Left">
                                                         <StackPanel Orientation="Horizontal">
@@ -737,7 +738,7 @@
                                                                        FontFamily="Segoe Fluent Icons"
                                                                        FontSize="13"
                                                                        Foreground="{DynamicResource TextMutedBrush}" />
-                                                            <TextBlock Text="召回屏幕中心"
+                                                            <TextBlock TextWrapping="Wrap" Text="{loc:Text MoveToScreenCenter}"
                                                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                                                        FontSize="12" />
                                                         </StackPanel>
@@ -748,7 +749,7 @@
                                                     <Button Click="OnDeleteBoxClicked"
                                                             Style="{StaticResource BoxMenuItemButtonStyle}"
                                                             Foreground="{DynamicResource DangerBrush}"
-                                                            AutomationProperties.Name="删除收纳盒"
+                                                            AutomationProperties.Name="{loc:Text DeleteBox}"
                                                             Padding="10,0"
                                                             HorizontalContentAlignment="Left">
                                                         <StackPanel Orientation="Horizontal">
@@ -756,7 +757,7 @@
                                                                        Width="20"
                                                                        FontFamily="Segoe Fluent Icons"
                                                                        FontSize="13" />
-                                                            <TextBlock Text="删除收纳盒"
+                                                            <TextBlock TextWrapping="Wrap" Text="{loc:Text DeleteBox}"
                                                                        FontSize="12" />
                                                         </StackPanel>
                                                     </Button>
@@ -794,7 +795,7 @@
                                                              Padding="8,0"
                                                              KeyDown="OnRenameBoxKeyDown"
                                                              PreviewKeyDown="OnRenameBoxPreviewKeyDown" />
-                                                    <Button Content="确认"
+                                                    <Button Content="{loc:Text Confirm}"
                                                             Click="OnConfirmRenameBoxClicked"
                                                             Style="{StaticResource PrimaryButtonStyle}"
                                                             Margin="8,0,0,0"
@@ -823,7 +824,7 @@
                                                                       Direction="270" />
                                                 </Border.Effect>
                                                 <StackPanel MinWidth="210">
-                                                    <TextBlock Text="删除这个收纳盒？"
+                                                    <TextBlock TextWrapping="Wrap" Text="{loc:Text DeleteThisBox}"
                                                                FontWeight="SemiBold"
                                                                FontSize="13"
                                                                Foreground="{DynamicResource TextPrimaryBrush}"
@@ -835,12 +836,12 @@
                                                                TextWrapping="Wrap" />
                                                     <StackPanel Orientation="Horizontal"
                                                                 HorizontalAlignment="Right">
-                                                        <Button Content="取消"
+                                                        <Button Content="{loc:Text Cancel}"
                                                                 Click="OnCancelDeleteBoxClicked"
                                                                 Style="{StaticResource GhostButtonStyle}"
                                                                 Margin="0,0,6,0"
                                                                 Padding="12,5" />
-                                                        <Button Content="删除"
+                                                        <Button Content="{loc:Text Delete}"
                                                                 Click="OnConfirmDeleteBoxClicked"
                                                                 Style="{StaticResource DangerButtonStyle}"
                                                                 Padding="14,5" />
@@ -873,23 +874,23 @@
                                                                FontSize="13"
                                                                Foreground="{DynamicResource TextPrimaryBrush}"
                                                                Margin="0,0,0,6">
-                                                        <Run Text="将“" />
+                                                        <Run Text="{loc:Text Move}" />
                                                         <Run Text="{Binding SelectedBox.Name, Mode=OneWay}" />
-                                                        <Run Text="”召回屏幕中心？" />
+                                                        <Run Text="{loc:Text ToTheScreenCenter}" />
                                                     </TextBlock>
-                                                    <TextBlock Text="盒子将显示在主屏工作区中心，并立即记录新位置。"
+                                                    <TextBlock Text="{loc:Text TheBoxWillAppearAtTheCenterOfThe}"
                                                                FontSize="11.5"
                                                                Foreground="{DynamicResource TextMutedBrush}"
                                                                Margin="0,0,0,14"
                                                                TextWrapping="Wrap" />
                                                     <StackPanel Orientation="Horizontal"
                                                                 HorizontalAlignment="Right">
-                                                        <Button Content="取消"
+                                                        <Button Content="{loc:Text Cancel}"
                                                                 Click="OnCancelRecallBoxClicked"
                                                                 Style="{StaticResource GhostButtonStyle}"
                                                                 Margin="0,0,6,0"
                                                                 Padding="12,5" />
-                                                        <Button Content="召回"
+                                                        <Button Content="{loc:Text Move2}"
                                                                 Click="OnConfirmRecallBoxClicked"
                                                                 Style="{StaticResource PrimaryButtonStyle}"
                                                                 Padding="14,5" />
@@ -936,11 +937,11 @@
                                                     Background="{DynamicResource AccentBrush}"
                                                     Margin="1,0,8,0"
                                                     VerticalAlignment="Center" />
-                                            <TextBlock Text="文件"
+                                            <TextBlock TextWrapping="Wrap" Text="{loc:Text File}"
                                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                                        FontSize="13.5"
                                                        FontWeight="SemiBold" />
-                                            <TextBlock Text="  ·  双击打开，按 Delete 移除"
+                                            <TextBlock TextWrapping="Wrap" Text="{loc:Text DoubleClickToOpenDeleteToRemove}"
                                                        Foreground="{DynamicResource TextMutedBrush}"
                                                        FontSize="11"
                                                        VerticalAlignment="Center" />
@@ -949,7 +950,7 @@
                                                 Background="{DynamicResource PanelAltBrush}"
                                                 CornerRadius="8"
                                                 Padding="8,3">
-                                            <TextBlock Text="{Binding Items.Count, StringFormat={}{0} 项}"
+                                            <TextBlock TextWrapping="Wrap" Text="{loc:Text Items4, Value={Binding Items.Count}}"
                                                        FontSize="11"
                                                        FontWeight="SemiBold"
                                                        Foreground="{DynamicResource TextMutedBrush}" />
@@ -962,12 +963,12 @@
                                             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,0,0,16">
                                                 <Path Data="M 5,12 L 20,4 L 35,12 L 35,28 L 20,36 L 5,28 Z M 5,12 L 20,20 L 35,12 M 20,20 L 20,36" 
                                                       Stroke="{DynamicResource BorderBrushSoft}" StrokeThickness="2" Width="48" Height="40" Stretch="Uniform" HorizontalAlignment="Center" Margin="0,0,0,16" />
-                                                <TextBlock Text="收纳盒内无文件"
+                                                <TextBlock TextWrapping="Wrap" Text="{loc:Text ThisBoxIsEmpty}"
                                                            Foreground="{DynamicResource TextPrimaryBrush}"
                                                            FontSize="14.5"
                                                            FontWeight="SemiBold"
                                                            HorizontalAlignment="Center" />
-                                                <TextBlock Text="把文件拖到这里即可整理到当前收纳盒"
+                                                <TextBlock TextWrapping="Wrap" Text="{loc:Text DropFilesHereToOrganizeThemIntoThisBox}"
                                                            Foreground="{DynamicResource TextMutedBrush}"
                                                            FontSize="11.5"
                                                            Margin="0,5,0,0"
@@ -1078,7 +1079,7 @@
                                                                        FontSize="13"
                                                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                                                        TextTrimming="CharacterEllipsis" />
-                                                            <TextBlock Text="{Binding Model.SourcePath, TargetNullValue=路径不可用}"
+                                                            <TextBlock TextWrapping="Wrap" Text="{loc:Text PathUnavailable, Value={Binding Model.SourcePath}, Fallback=True}"
                                                                        FontSize="11"
                                                                        Margin="0,1,0,0"
                                                                        Foreground="{DynamicResource TextMutedBrush}"
@@ -1113,7 +1114,7 @@
                                                                     Margin="0,0,3,0"
                                                                     Foreground="{DynamicResource AccentBrush}"
                                                                     Style="{StaticResource GhostButtonStyle}"
-                                                                    ToolTip="打开"
+                                                                    ToolTip="{loc:Text Open}"
                                                                     Command="{Binding DataContext.OpenItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                                     CommandParameter="{Binding}">
                                                                 <Path Data="M 7,2 L 15,2 L 15,10 M 15,2 L 7,10 M 12,7 L 12,15 L 2,15 L 2,5 L 10,5"
@@ -1128,7 +1129,7 @@
                                                                     Padding="0"
                                                                     Foreground="{DynamicResource TextMutedBrush}"
                                                                     Style="{StaticResource GhostButtonStyle}"
-                                                                    ToolTip="从收纳盒移除"
+                                                                    ToolTip="{loc:Text RemoveFromBox}"
                                                                     Command="{Binding DataContext.DeleteItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                                     CommandParameter="{Binding}">
                                                                 <Path Data="M 2,4 L 14,4 M 5,4 L 5,2 L 11,2 L 11,4 M 4,4 L 4.8,15 L 11.2,15 L 12,4 M 7,7 L 7,12 M 9,7 L 9,12"
@@ -1151,7 +1152,7 @@
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="&#xE896;" FontFamily="Segoe Fluent Icons" FontSize="12" Margin="0,0,8,0"
                                                Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
-                                    <TextBlock Text="将文件拖到列表中整理" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" />
+                                    <TextBlock TextWrapping="Wrap" Text="{loc:Text DropFilesIntoTheListToOrganizeThem}" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" />
                                 </StackPanel>
                             </Border>
                          </Grid>
@@ -1175,12 +1176,12 @@
                         </Grid.RowDefinitions>
 
                         <StackPanel Grid.Row="0" Margin="0,0,0,7">
-                            <TextBlock Text="设置"
+                            <TextBlock TextWrapping="Wrap" Text="{loc:Text Settings}"
                                        Foreground="{DynamicResource TextMutedBrush}"
                                        FontSize="11"
                                        FontWeight="SemiBold"
                                        />
-                            <TextBlock Text="系统设置"
+                            <TextBlock TextWrapping="Wrap" Text="{loc:Text SystemSettings}"
                                        Margin="0,2,0,0"
                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                        FontSize="24"
@@ -1198,6 +1199,36 @@
                             <StackPanel Margin="0,0,4,0"
                                         HorizontalAlignment="Stretch"
                                         VerticalAlignment="Top">
+                                <Border Background="{DynamicResource PanelBrush}"
+                                        BorderBrush="{DynamicResource BorderBrushSoft}"
+                                        BorderThickness="1" CornerRadius="12"
+                                        Padding="10" Margin="0,0,0,6">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                                            <TextBlock TextWrapping="Wrap" Text="{loc:Text LanguageTitle}" FontSize="13" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                                            <TextBlock Text="{loc:Text LanguageDescription}" Margin="0,2,0,0"
+                                                       TextWrapping="Wrap" FontSize="11.5"
+                                                       Foreground="{DynamicResource TextMutedBrush}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <RadioButton Content="English" GroupName="ApplicationLanguage"
+                                                         IsChecked="{Binding Settings.IsEnglish, Mode=OneWay}"
+                                                         Command="{Binding Settings.ChangeLanguageCommand}" CommandParameter="en"
+                                                         AutomationProperties.Name="English" Margin="0,0,12,0"
+                                                         Foreground="{DynamicResource TextPrimaryBrush}" />
+                                            <RadioButton Content="简体中文" GroupName="ApplicationLanguage"
+                                                         IsChecked="{Binding Settings.IsSimplifiedChinese, Mode=OneWay}"
+                                                         Command="{Binding Settings.ChangeLanguageCommand}" CommandParameter="zh-CN"
+                                                         AutomationProperties.Name="简体中文"
+                                                         Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
                                 <!-- Theme Settings Card -->
                                 <Border Background="{DynamicResource PanelBrush}"
                                     BorderBrush="{DynamicResource BorderBrushSoft}"
@@ -1220,25 +1251,25 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel VerticalAlignment="Center">
-                                        <TextBlock Text="外观皮肤"
+                                        <TextBlock TextWrapping="Wrap" Text="{loc:Text Appearance}"
                                                    FontWeight="SemiBold"
                                                    FontSize="13"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <TextBlock Text="{Binding Settings.ThemeLabel, StringFormat=当前风格：{0}}"
+                                        <TextBlock TextWrapping="Wrap" Text="{loc:Text CurrentTheme, Value={Binding Settings.ThemeLabel}}"
                                                    Margin="0,2,0,0"
                                                    FontSize="11.5"
                                                    Foreground="{DynamicResource TextMutedBrush}" />
                                     </StackPanel>
                                     <UniformGrid Grid.Column="1" Columns="3" VerticalAlignment="Center">
-                                        <Button Content="清透雅致"
+                                        <Button Content="{loc:Text Light}"
                                                 Command="{Binding Settings.ApplyMoeThemeCommand}"
                                                 Style="{StaticResource MoeThemeChoiceButtonStyle}"
                                                 Margin="0,0,6,0" />
-                                        <Button Content="暗黑曜石"
+                                        <Button Content="{loc:Text Obsidian}"
                                                 Command="{Binding Settings.ApplyGlassThemeCommand}"
                                                 Style="{StaticResource GlassThemeChoiceButtonStyle}"
                                                 Margin="0,0,6,0" />
-                                        <Button Content="全透水晶"
+                                        <Button Content="{loc:Text Crystal}"
                                                 Command="{Binding Settings.ApplyCrystalThemeCommand}"
                                                 Style="{StaticResource CrystalThemeChoiceButtonStyle}" />
                                     </UniformGrid>
@@ -1252,8 +1283,8 @@
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <StackPanel VerticalAlignment="Center">
-                                            <TextBlock Text="桌面盒子透明度" FontSize="11.5" Foreground="{DynamicResource TextMutedBrush}" />
-                                            <TextBlock Text="可调范围 0–90%" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" />
+                                            <TextBlock TextWrapping="Wrap" Text="{loc:Text DesktopBoxTransparency}" FontSize="11.5" Foreground="{DynamicResource TextMutedBrush}" />
+                                            <TextBlock TextWrapping="Wrap" Text="{loc:Text Range090}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" />
                                         </StackPanel>
                                         <Slider Grid.Column="1"
                                                 Margin="12,0,10,0"
@@ -1292,7 +1323,7 @@
                                         </StackPanel>
                                         <Button Grid.Column="3" Style="{StaticResource ThemeOpacityResetButtonStyle}"
                                                 Command="{Binding Settings.ResetThemeFieldCommand}" CommandParameter="ThemeTransparencyPercent"
-                                                AutomationProperties.Name="恢复桌面盒子透明度默认值" />
+                                                AutomationProperties.Name="{loc:Text ResetDesktopBoxTransparency}" />
                                     </Grid>
                                     <Grid Grid.Row="2"
                                           Grid.ColumnSpan="2"
@@ -1303,7 +1334,7 @@
                                             <ColumnDefinition Width="42" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="盒子边线透明度"
+                                        <TextBlock TextWrapping="Wrap" Text="{loc:Text BoxBorderTransparency}"
                                                    VerticalAlignment="Center"
                                                    FontSize="11.5"
                                                    Foreground="{DynamicResource TextMutedBrush}" />
@@ -1318,7 +1349,7 @@
                                                 TickFrequency="1"
                                                 Style="{StaticResource ThemeOpacitySliderStyle}"
                                                 VerticalAlignment="Center"
-                                                AutomationProperties.Name="盒子边线透明度"
+                                                AutomationProperties.Name="{loc:Text BoxBorderTransparency}"
                                                 Value="{Binding Settings.BoxBorderTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                         <StackPanel Grid.Column="2"
                                                     Orientation="Horizontal"
@@ -1335,7 +1366,7 @@
                                                      FontWeight="SemiBold"
                                                      KeyDown="OnThemeTransparencyInputKeyDown"
                                                      LostFocus="OnThemeTransparencyInputLostFocus"
-                                                     AutomationProperties.Name="盒子边线透明度百分比"
+                                                     AutomationProperties.Name="{loc:Text BoxBorderTransparencyPercentage}"
                                                      Text="{Binding Settings.BoxBorderTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" />
                                             <TextBlock Text="%"
                                                        Margin="2,0,0,0"
@@ -1346,8 +1377,8 @@
                                         </StackPanel>
                                         <Button Grid.Column="3" Style="{StaticResource ThemeOpacityResetButtonStyle}"
                                                 Command="{Binding Settings.ResetThemeFieldCommand}" CommandParameter="BoxBorderTransparencyPercent"
-                                                ToolTip="恢复主题默认，随桌面盒子透明度变化"
-                                                AutomationProperties.Name="恢复盒子边线透明度默认值" />
+                                                ToolTip="{loc:Text RestoreTheThemeDefaultFollowsDesktopBoxTransparency}"
+                                                AutomationProperties.Name="{loc:Text ResetBoxBorderTransparency}" />
                                     </Grid>
                                     <Grid Grid.Row="3"
                                           Grid.ColumnSpan="2"
@@ -1358,7 +1389,7 @@
                                             <ColumnDefinition Width="42" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="图标背景框透明度"
+                                        <TextBlock TextWrapping="Wrap" Text="{loc:Text IconBackgroundTransparency}"
                                                    VerticalAlignment="Center"
                                                    FontSize="11.5"
                                                    Foreground="{DynamicResource TextMutedBrush}" />
@@ -1373,7 +1404,7 @@
                                                 TickFrequency="1"
                                                 Style="{StaticResource ThemeOpacitySliderStyle}"
                                                 VerticalAlignment="Center"
-                                                AutomationProperties.Name="图标背景框透明度"
+                                                AutomationProperties.Name="{loc:Text IconBackgroundTransparency}"
                                                 Value="{Binding Settings.IconFrameTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                         <StackPanel Grid.Column="2"
                                                     Orientation="Horizontal"
@@ -1390,7 +1421,7 @@
                                                      FontWeight="SemiBold"
                                                      KeyDown="OnThemeTransparencyInputKeyDown"
                                                      LostFocus="OnThemeTransparencyInputLostFocus"
-                                                     AutomationProperties.Name="图标背景框透明度百分比"
+                                                     AutomationProperties.Name="{loc:Text IconBackgroundTransparencyPercentage}"
                                                      Text="{Binding Settings.IconFrameTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" />
                                             <TextBlock Text="%"
                                                        Margin="2,0,0,0"
@@ -1401,8 +1432,8 @@
                                         </StackPanel>
                                         <Button Grid.Column="3" Style="{StaticResource ThemeOpacityResetButtonStyle}"
                                                 Command="{Binding Settings.ResetThemeFieldCommand}" CommandParameter="IconFrameTransparencyPercent"
-                                                ToolTip="恢复主题默认，随桌面盒子透明度变化"
-                                                AutomationProperties.Name="恢复图标背景框透明度默认值" />
+                                                ToolTip="{loc:Text RestoreTheThemeDefaultFollowsDesktopBoxTransparency}"
+                                                AutomationProperties.Name="{loc:Text ResetIconBackgroundTransparency}" />
                                     </Grid>
                                     <Grid Grid.Row="4"
                                           Grid.ColumnSpan="2"
@@ -1412,11 +1443,11 @@
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <StackPanel VerticalAlignment="Center">
-                                            <TextBlock Text="编辑页跟随透明度"
+                                            <TextBlock TextWrapping="Wrap" Text="{loc:Text EditorFollowsTransparency}"
                                                        FontSize="11.5"
                                                        FontWeight="SemiBold"
                                                        Foreground="{DynamicResource TextPrimaryBrush}" />
-                                            <TextBlock Text="开启后，编辑窗口背景随桌面盒子透明度同步变化"
+                                            <TextBlock TextWrapping="Wrap" Text="{loc:Text KeepTheEditorBackgroundInSyncWithDesktopBox}"
                                                        Margin="0,2,12,0"
                                                        FontSize="10.5"
                                                        Foreground="{DynamicResource TextMutedBrush}" />
@@ -1428,16 +1459,16 @@
                                                       Style="{StaticResource SettingsToggleButtonStyle}"
                                                       IsChecked="{Binding Settings.EditorFollowsBoxOpacity, Mode=OneWay}"
                                                       Command="{Binding Settings.ToggleEditorOpacityFollowCommand}"
-                                                      AutomationProperties.Name="编辑页跟随透明度" />
+                                                      AutomationProperties.Name="{loc:Text EditorFollowsTransparency}" />
                                     </Grid>
                                     <views:ThemeCustomizationView Grid.Row="5" Grid.ColumnSpan="2" Margin="0,10,0,0" DataContext="{Binding Settings}" />
                                     <DockPanel Grid.Row="6" Grid.ColumnSpan="2" Margin="0,10,0,0">
-                                        <Button DockPanel.Dock="Right" Content="恢复当前主题预设"
+                                        <Button DockPanel.Dock="Right" Content="{loc:Text RestoreCurrentThemePreset}"
                                                 Command="{Binding Settings.ResetThemePresetCommand}"
                                                 Style="{StaticResource GhostButtonStyle}" Height="28" Padding="10,0"
                                                 Foreground="{DynamicResource AccentBrush}"
-                                                ToolTip="恢复当前主题的透明度、颜色、圆角和悬停样式" />
-                                        <TextBlock Text="每套主题分别保存，恢复预设会重置透明度、颜色与圆角。"
+                                                ToolTip="{loc:Text ResetTransparencyColorsCornersAndHoverStyleForThis}" />
+                                        <TextBlock Text="{loc:Text EachThemeIsSavedSeparatelyRestoringAPresetResets}"
                                                    FontSize="10.5" TextWrapping="Wrap" VerticalAlignment="Center"
                                                    Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,10,0" />
                                     </DockPanel>
@@ -1458,11 +1489,11 @@
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel VerticalAlignment="Center">
-                                                    <TextBlock Text="自动隐藏"
+                                                    <TextBlock TextWrapping="Wrap" Text="{loc:Text AutoHide}"
                                                                FontSize="13"
                                                                FontWeight="SemiBold"
                                                                Foreground="{DynamicResource TextPrimaryBrush}" />
-                                                    <TextBlock Text="开启后，鼠标不悬停时收纳盒内的图标与文字按下方透明度隐藏"
+                                                    <TextBlock TextWrapping="Wrap" Text="{loc:Text HideBoxIconsAndTextAtTheTransparencyBelow}"
                                                                Margin="0,2,12,0"
                                                                FontSize="11.5"
                                                                Foreground="{DynamicResource TextMutedBrush}" />
@@ -1473,7 +1504,7 @@
                                                               Style="{StaticResource SettingsToggleButtonStyle}"
                                                               IsChecked="{Binding Settings.AutoHideEnabled, Mode=OneWay}"
                                                               Command="{Binding Settings.ToggleAutoHideEnabledCommand}"
-                                                              AutomationProperties.Name="自动隐藏" />
+                                                              AutomationProperties.Name="{loc:Text AutoHide}" />
                                             </Grid>
                                             <Grid Margin="0,10,0,0">
                                                 <Grid.ColumnDefinitions>
@@ -1481,7 +1512,7 @@
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="42" />
                                                 </Grid.ColumnDefinitions>
-                                                <TextBlock Text="隐藏透明度"
+                                                <TextBlock TextWrapping="Wrap" Text="{loc:Text HiddenTransparency}"
                                                            VerticalAlignment="Center"
                                                            FontSize="11.5"
                                                            Foreground="{DynamicResource TextMutedBrush}" />
@@ -1520,27 +1551,27 @@
                                                 </StackPanel>
                                             </Grid>
                                             <StackPanel Margin="0,12,0,0">
-                                                <TextBlock Text="同时参与透明"
+                                                <TextBlock TextWrapping="Wrap" Text="{loc:Text AlsoFade}"
                                                            FontSize="11.5"
                                                            FontWeight="SemiBold"
                                                            Foreground="{DynamicResource TextPrimaryBrush}" />
                                                 <UniformGrid Columns="3" Margin="0,8,0,0">
-                                                    <CheckBox Content="收纳盒"
+                                                    <CheckBox Content="{loc:Text Boxes}"
                                                               VerticalAlignment="Center"
                                                               Style="{StaticResource SettingsCheckBoxStyle}"
                                                               IsChecked="{Binding Settings.AutoHideFadeWholeBox, Mode=TwoWay}" />
-                                                    <CheckBox Content="收纳盒标题"
+                                                    <CheckBox Content="{loc:Text BoxTitle}"
                                                               VerticalAlignment="Center"
                                                               Style="{StaticResource SettingsCheckBoxStyle}"
                                                               IsChecked="{Binding Settings.AutoHideFadeTitle, Mode=TwoWay}" />
-                                                    <CheckBox Content="收纳盒边框"
+                                                    <CheckBox Content="{loc:Text BoxBorder}"
                                                               VerticalAlignment="Center"
                                                               Style="{StaticResource SettingsCheckBoxStyle}"
                                                               IsChecked="{Binding Settings.AutoHideFadeBorder, Mode=TwoWay}" />
                                                 </UniformGrid>
                                             </StackPanel>
                                             <StackPanel Margin="0,10,0,0">
-                                                <TextBlock Text="悬停取消隐藏范围"
+                                                <TextBlock TextWrapping="Wrap" Text="{loc:Text RevealOnHover}"
                                                            FontSize="11.5"
                                                            FontWeight="SemiBold"
                                                            Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -1551,11 +1582,11 @@
                                                         BorderThickness="1"
                                                         CornerRadius="10">
                                                     <UniformGrid Columns="2">
-                                                        <Button Content="仅被悬停的收纳盒"
+                                                        <Button Content="{loc:Text HoveredBoxOnly}"
                                                                 Margin="0,0,4,0"
                                                                 Style="{StaticResource AutoHideScopeHoveredButtonStyle}"
                                                                 Command="{Binding Settings.ApplyAutoHideScopeHoveredOnlyCommand}" />
-                                                        <Button Content="全部收纳盒"
+                                                        <Button Content="{loc:Text AllBoxes}"
                                                                 Style="{StaticResource AutoHideScopeAllButtonStyle}"
                                                                 Command="{Binding Settings.ApplyAutoHideScopeAllCommand}" />
                                                     </UniformGrid>
@@ -1577,11 +1608,11 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel VerticalAlignment="Center">
-                                        <TextBlock Text="图标名称"
+                                        <TextBlock TextWrapping="Wrap" Text="{loc:Text IconTooltips}"
                                                    FontSize="13"
                                                    FontWeight="SemiBold"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <TextBlock Text="鼠标悬停图标时显示的名称：完整显示文件路径，精简显示仅文件名（快捷方式自动去掉 .lnk）"
+                                        <TextBlock Text="{loc:Text ShowFullPathsOrFileNamesWhenHoveringOver}"
                                                    Margin="0,2,12,0"
                                                    FontSize="11.5"
                                                    TextWrapping="Wrap"
@@ -1593,7 +1624,7 @@
                                                   Style="{StaticResource SettingsToggleButtonStyle}"
                                                   IsChecked="{Binding Settings.IconToolTipCompact, Mode=OneWay}"
                                                   Command="{Binding Settings.ToggleIconToolTipCompactCommand}"
-                                                  AutomationProperties.Name="图标名称精简显示" />
+                                                  AutomationProperties.Name="{loc:Text ShowFileNamesOnly}" />
                                 </Grid>
                                 </Border>
 
@@ -1610,11 +1641,11 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel>
-                                        <TextBlock Text="快速呼出面板"
+                                        <TextBlock TextWrapping="Wrap" Text="{loc:Text QuickPanelShortcut}"
                                                    FontWeight="SemiBold"
                                                    FontSize="13"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <TextBlock Text="在全局按下快捷键以极速搜索与唤出 WitchDrawer"
+                                        <TextBlock TextWrapping="Wrap" Text="{loc:Text PressTheGlobalShortcutToSearchAndOpenWitchDrawer}"
                                                    Margin="0,2,0,0"
                                                    FontSize="11.5"
                                                    Foreground="{DynamicResource TextMutedBrush}" />
@@ -1635,7 +1666,7 @@
                                                 Click="OnQuickPanelHotKeyButtonClick"
                                                 PreviewKeyDown="OnQuickPanelHotKeyPreviewKeyDown"
                                                 LostKeyboardFocus="OnQuickPanelHotKeyLostKeyboardFocus"
-                                                ToolTip="点击后按下新的快捷键组合" />
+                                                ToolTip="{loc:Text ClickThenPressANewShortcutCombination}" />
                                         <TextBlock x:Name="QuickPanelHotKeyStatusText"
                                                    Margin="0,4,0,0"
                                                    MaxWidth="210"
@@ -1655,11 +1686,11 @@
                                         Padding="10"
                                         Margin="0,0,0,6">
                                     <StackPanel>
-                                        <TextBlock Text="桌面盒子布局"
+                                        <TextBlock TextWrapping="Wrap" Text="{loc:Text DesktopBoxLayout}"
                                                    FontWeight="SemiBold"
                                                    FontSize="13"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <TextBlock Text="使用三个独立槽位备份当前所有盒子的位置，并可随时选择恢复"
+                                        <TextBlock Text="{loc:Text SaveAllBoxPositionsInThreeSeparateSlotsAnd}"
                                                    Margin="0,2,0,7"
                                                    FontSize="11.5"
                                                    TextWrapping="Wrap"
@@ -1677,12 +1708,12 @@
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                    <TextBlock Text="备份槽位 1"
+                                                    <TextBlock TextWrapping="Wrap" Text="{loc:Text BackupSlot1}"
                                                                VerticalAlignment="Center"
                                                                FontSize="12"
                                                                Foreground="{DynamicResource TextPrimaryBrush}" />
-                                                    <TextBlock x:Name="LayoutBackupSlot1Status"
-                                                               Text="未记录"
+                                                    <TextBlock TextWrapping="Wrap" x:Name="LayoutBackupSlot1Status"
+                                                               Text="{loc:Text Empty}"
                                                                Margin="8,0,0,0"
                                                                VerticalAlignment="Center"
                                                                FontSize="10.5"
@@ -1690,29 +1721,29 @@
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="1" Orientation="Horizontal">
                                                     <Button x:Name="LayoutBackupSlot1RecordButton"
-                                                            Content="记录"
+                                                            Content="{loc:Text Save}"
                                                             Tag="1"
                                                             Click="OnRecordLayoutBackupClicked"
-                                                            AutomationProperties.Name="记录整体布局到备份槽位 1"
+                                                            AutomationProperties.Name="{loc:Text SaveLayoutToBackupSlot1}"
                                                             Style="{StaticResource GhostButtonStyle}"
                                                             Height="26"
                                                             Padding="11,0"
                                                             Margin="0,0,5,0" />
                                                     <Button x:Name="LayoutBackupSlot1RestoreButton"
-                                                            Content="恢复"
+                                                            Content="{loc:Text Restore}"
                                                             Tag="1"
                                                             Click="OnRestoreLayoutBackupClicked"
-                                                            AutomationProperties.Name="恢复备份槽位 1 的整体布局"
+                                                            AutomationProperties.Name="{loc:Text RestoreLayoutFromBackupSlot1}"
                                                             Style="{StaticResource PrimaryButtonStyle}"
                                                             Visibility="Collapsed"
                                                             Height="26"
                                                             Padding="11,0"
                                                             Margin="0,0,5,0" />
                                                     <Button x:Name="LayoutBackupSlot1DeleteButton"
-                                                            Content="删除"
+                                                            Content="{loc:Text Delete}"
                                                             Tag="1"
                                                             Click="OnDeleteLayoutBackupClicked"
-                                                            AutomationProperties.Name="删除备份槽位 1 的整体布局"
+                                                            AutomationProperties.Name="{loc:Text DeleteLayoutInBackupSlot1}"
                                                             Style="{StaticResource DangerButtonStyle}"
                                                             Visibility="Collapsed"
                                                             Height="26"
@@ -1733,12 +1764,12 @@
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                    <TextBlock Text="备份槽位 2"
+                                                    <TextBlock TextWrapping="Wrap" Text="{loc:Text BackupSlot2}"
                                                                VerticalAlignment="Center"
                                                                FontSize="12"
                                                                Foreground="{DynamicResource TextPrimaryBrush}" />
-                                                    <TextBlock x:Name="LayoutBackupSlot2Status"
-                                                               Text="未记录"
+                                                    <TextBlock TextWrapping="Wrap" x:Name="LayoutBackupSlot2Status"
+                                                               Text="{loc:Text Empty}"
                                                                Margin="8,0,0,0"
                                                                VerticalAlignment="Center"
                                                                FontSize="10.5"
@@ -1746,29 +1777,29 @@
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="1" Orientation="Horizontal">
                                                     <Button x:Name="LayoutBackupSlot2RecordButton"
-                                                            Content="记录"
+                                                            Content="{loc:Text Save}"
                                                             Tag="2"
                                                             Click="OnRecordLayoutBackupClicked"
-                                                            AutomationProperties.Name="记录整体布局到备份槽位 2"
+                                                            AutomationProperties.Name="{loc:Text SaveLayoutToBackupSlot2}"
                                                             Style="{StaticResource GhostButtonStyle}"
                                                             Height="26"
                                                             Padding="11,0"
                                                             Margin="0,0,5,0" />
                                                     <Button x:Name="LayoutBackupSlot2RestoreButton"
-                                                            Content="恢复"
+                                                            Content="{loc:Text Restore}"
                                                             Tag="2"
                                                             Click="OnRestoreLayoutBackupClicked"
-                                                            AutomationProperties.Name="恢复备份槽位 2 的整体布局"
+                                                            AutomationProperties.Name="{loc:Text RestoreLayoutFromBackupSlot2}"
                                                             Style="{StaticResource PrimaryButtonStyle}"
                                                             Visibility="Collapsed"
                                                             Height="26"
                                                             Padding="11,0"
                                                             Margin="0,0,5,0" />
                                                     <Button x:Name="LayoutBackupSlot2DeleteButton"
-                                                            Content="删除"
+                                                            Content="{loc:Text Delete}"
                                                             Tag="2"
                                                             Click="OnDeleteLayoutBackupClicked"
-                                                            AutomationProperties.Name="删除备份槽位 2 的整体布局"
+                                                            AutomationProperties.Name="{loc:Text DeleteLayoutInBackupSlot2}"
                                                             Style="{StaticResource DangerButtonStyle}"
                                                             Visibility="Collapsed"
                                                             Height="26"
@@ -1788,12 +1819,12 @@
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                    <TextBlock Text="备份槽位 3"
+                                                    <TextBlock TextWrapping="Wrap" Text="{loc:Text BackupSlot3}"
                                                                VerticalAlignment="Center"
                                                                FontSize="12"
                                                                Foreground="{DynamicResource TextPrimaryBrush}" />
-                                                    <TextBlock x:Name="LayoutBackupSlot3Status"
-                                                               Text="未记录"
+                                                    <TextBlock TextWrapping="Wrap" x:Name="LayoutBackupSlot3Status"
+                                                               Text="{loc:Text Empty}"
                                                                Margin="8,0,0,0"
                                                                VerticalAlignment="Center"
                                                                FontSize="10.5"
@@ -1801,29 +1832,29 @@
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="1" Orientation="Horizontal">
                                                     <Button x:Name="LayoutBackupSlot3RecordButton"
-                                                            Content="记录"
+                                                            Content="{loc:Text Save}"
                                                             Tag="3"
                                                             Click="OnRecordLayoutBackupClicked"
-                                                            AutomationProperties.Name="记录整体布局到备份槽位 3"
+                                                            AutomationProperties.Name="{loc:Text SaveLayoutToBackupSlot3}"
                                                             Style="{StaticResource GhostButtonStyle}"
                                                             Height="26"
                                                             Padding="11,0"
                                                             Margin="0,0,5,0" />
                                                     <Button x:Name="LayoutBackupSlot3RestoreButton"
-                                                            Content="恢复"
+                                                            Content="{loc:Text Restore}"
                                                             Tag="3"
                                                             Click="OnRestoreLayoutBackupClicked"
-                                                            AutomationProperties.Name="恢复备份槽位 3 的整体布局"
+                                                            AutomationProperties.Name="{loc:Text RestoreLayoutFromBackupSlot3}"
                                                             Style="{StaticResource PrimaryButtonStyle}"
                                                             Visibility="Collapsed"
                                                             Height="26"
                                                             Padding="11,0"
                                                             Margin="0,0,5,0" />
                                                     <Button x:Name="LayoutBackupSlot3DeleteButton"
-                                                            Content="删除"
+                                                            Content="{loc:Text Delete}"
                                                             Tag="3"
                                                             Click="OnDeleteLayoutBackupClicked"
-                                                            AutomationProperties.Name="删除备份槽位 3 的整体布局"
+                                                            AutomationProperties.Name="{loc:Text DeleteLayoutInBackupSlot3}"
                                                             Style="{StaticResource DangerButtonStyle}"
                                                             Visibility="Collapsed"
                                                             Height="26"
@@ -1847,7 +1878,7 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel>
-                                        <TextBlock Text="检查更新"
+                                        <TextBlock TextWrapping="Wrap" Text="{loc:Text CheckForUpdates}"
                                                    FontWeight="SemiBold"
                                                    FontSize="13"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -1862,7 +1893,7 @@
                                                    Visibility="{Binding Updates.UpdateStatusText, Converter={StaticResource NonEmptyToVisibilityConverter}}" />
                                     </StackPanel>
                                     <Button Grid.Column="1"
-                                            Content="检查更新"
+                                            Content="{loc:Text CheckForUpdates}"
                                              Command="{Binding Updates.CheckForUpdateCommand}"
                                              Style="{StaticResource PrimaryButtonStyle}"
                                              Height="28"
@@ -1884,7 +1915,7 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel>
-                                        <TextBlock Text="数据存储位置"
+                                        <TextBlock TextWrapping="Wrap" Text="{loc:Text DataStorage}"
                                                    FontWeight="SemiBold"
                                                    FontSize="13"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -1893,14 +1924,14 @@
                                                    FontSize="11.5"
                                                    TextWrapping="Wrap"
                                                    Foreground="{DynamicResource TextMutedBrush}" />
-                                        <TextBlock Text="迁移会把数据库与盒内文件复制到新文件夹，重启后生效；原目录会保留作为备份。"
+                                        <TextBlock Text="{loc:Text CopyTheDatabaseAndBoxFilesToANew}"
                                                    Margin="0,2,0,0"
                                                    FontSize="10.5"
                                                    TextWrapping="Wrap"
                                                    Foreground="{DynamicResource TextMutedBrush}" />
                                     </StackPanel>
                                     <Button Grid.Column="1"
-                                            Content="更改位置…"
+                                            Content="{loc:Text ChangeLocation}"
                                             Click="OnChangeDataDirectoryClick"
                                             Margin="12,0,0,0"
                                             Height="28"
@@ -1922,11 +1953,11 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel>
-                                        <TextBlock Text="开机自启动"
+                                        <TextBlock TextWrapping="Wrap" Text="{loc:Text LaunchAtStartup}"
                                                    FontWeight="SemiBold"
                                                    FontSize="13"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <TextBlock Text="系统启动时自动运行 WitchDrawer"
+                                        <TextBlock TextWrapping="Wrap" Text="{loc:Text RunWitchDrawerWhenWindowsStarts}"
                                                    Margin="0,2,0,0"
                                                    FontSize="11.5"
                                                    Foreground="{DynamicResource TextMutedBrush}" />
@@ -1937,7 +1968,7 @@
                                                   Style="{StaticResource SettingsToggleButtonStyle}"
                                                   IsChecked="{Binding Settings.LaunchOnStartup, Mode=OneWay}"
                                                   Command="{Binding Settings.ToggleLaunchOnStartupCommand}"
-                                                  AutomationProperties.Name="开机自启动" />
+                                                  AutomationProperties.Name="{loc:Text LaunchAtStartup}" />
                                 </Grid>
                                 </Border>
 
@@ -1954,11 +1985,11 @@
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <StackPanel>
-                                            <TextBlock Text="隐藏桌面图标"
+                                            <TextBlock TextWrapping="Wrap" Text="{loc:Text HideDesktopIcons}"
                                                        FontWeight="SemiBold"
                                                        FontSize="13"
                                                        Foreground="{DynamicResource TextPrimaryBrush}" />
-                                            <TextBlock Text="隐藏 Windows 桌面上的文件、文件夹、快捷方式和系统图标，不会删除文件"
+                                            <TextBlock Text="{loc:Text HideWindowsDesktopFilesFoldersShortcutsAndSystemIcons}"
                                                        Margin="0,2,12,0"
                                                        FontSize="11.5"
                                                        TextWrapping="Wrap"
@@ -1970,7 +2001,7 @@
                                                       Style="{StaticResource SettingsToggleButtonStyle}"
                                                       IsChecked="{Binding Settings.AreDesktopIconsHidden, Mode=OneWay}"
                                                       Command="{Binding Settings.ToggleDesktopIconsCommand}"
-                                                      AutomationProperties.Name="隐藏桌面图标" />
+                                                      AutomationProperties.Name="{loc:Text HideDesktopIcons}" />
                                     </Grid>
                                 </Border>
 
@@ -1987,11 +2018,11 @@
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <StackPanel>
-                                            <TextBlock Text="双击桌面切换图标"
+                                            <TextBlock TextWrapping="Wrap" Text="{loc:Text DoubleClickDesktopToToggleIcons}"
                                                        FontWeight="SemiBold"
                                                        FontSize="13"
                                                        Foreground="{DynamicResource TextPrimaryBrush}" />
-                                            <TextBlock Text="双击桌面空白区域，快速隐藏或显示 Windows 桌面图标"
+                                            <TextBlock Text="{loc:Text DoubleClickAnEmptyDesktopAreaToHideOr}"
                                                        Margin="0,2,12,0"
                                                        FontSize="11.5"
                                                        TextWrapping="Wrap"
@@ -2003,7 +2034,7 @@
                                                       Style="{StaticResource SettingsToggleButtonStyle}"
                                                       IsChecked="{Binding Settings.IsDesktopDoubleClickEnabled, Mode=OneWay}"
                                                       Command="{Binding Settings.ToggleDesktopDoubleClickCommand}"
-                                                      AutomationProperties.Name="双击桌面切换图标" />
+                                                      AutomationProperties.Name="{loc:Text DoubleClickDesktopToToggleIcons}" />
                                     </Grid>
                                 </Border>
 
@@ -2014,11 +2045,11 @@
                                     CornerRadius="12"
                                     Padding="10">
                                 <StackPanel>
-                                    <TextBlock Text="桌面微件特性"
+                                    <TextBlock TextWrapping="Wrap" Text="{loc:Text DesktopWidgets}"
                                                FontWeight="SemiBold"
                                                FontSize="13"
                                                Foreground="{DynamicResource TextPrimaryBrush}" />
-                                    <TextBlock Text="WitchDrawer 桌面收纳栏专为极简桌面开发。仅呈现智能分类图标与轻量投放区，所有多余的标题栏、管理和刷新功能已统一收归本控制台进行操作，以保持您桌面清爽洁净。"
+                                    <TextBlock Text="{loc:Text WitchDrawerKeepsYourDesktopSimpleWithFileIconsAnd}"
                                                Margin="0,2,0,0"
                                                FontSize="11.5"
                                                LineHeight="15"

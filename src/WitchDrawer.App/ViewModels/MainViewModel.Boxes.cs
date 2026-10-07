@@ -1,3 +1,4 @@
+using WitchDrawer.Core.Localization;
 using System.Threading;
 using CommunityToolkit.Mvvm.Messaging;
 using WitchDrawer.App.Infrastructure;
@@ -53,7 +54,7 @@ public sealed partial class MainViewModel
                 }
             }
 
-            StatusText = $"{Boxes.Count} 个收纳盒已同步到桌面";
+            StatusText = Strings.Format("SyncedBoxesToTheDesktop", Boxes.Count);
             BoxesChanged?.Invoke(this, new());
         });
     }
@@ -141,7 +142,7 @@ public sealed partial class MainViewModel
         {
             await _drawerService.ReorderBoxesAsync(reorderedIds);
             SelectedBox = draggedBox;
-            StatusText = $"已调整“{draggedBox.Name}”的排列位置";
+            StatusText = Strings.Format("Reordered", draggedBox.Name);
         }
         catch (Exception exception)
         {
@@ -152,7 +153,7 @@ public sealed partial class MainViewModel
             }
 
             _logger.Error(exception, "Failed to reorder boxes.");
-            StatusText = "收纳盒排序保存失败，已恢复原顺序";
+            StatusText = Strings.Get("CouldNotSaveBoxOrderRestoredThePreviousOrder");
         }
     }
 
@@ -161,13 +162,13 @@ public sealed partial class MainViewModel
         var selectedBox = SelectedBox;
         if (selectedBox is null)
         {
-            StatusText = "请先选择一个收纳盒";
+            StatusText = Strings.Get("SelectABoxFirst");
             return;
         }
 
         if (selectedBox.IsTodoBox)
         {
-            StatusText = "待办收纳盒请使用任务输入框添加事项";
+            StatusText = Strings.Get("UseTheTaskInputFieldToAddTasksTo");
             return;
         }
 
@@ -214,12 +215,12 @@ public sealed partial class MainViewModel
 
             await LoadItemsForSelectedBoxAsync(selectedBox);
             StatusText = importFailure is not null
-                ? $"已导入 {imported} 项，其余未导入：{importFailure.Message}"
+                ? Strings.Format("ImportedItemsRemainingFilesWereNotImported", imported, importFailure.Message)
                 : skippedForCapacity > 0
                 ? imported > 0
-                    ? $"已导入 {imported} 项到 {selectedBox.Name}，盒子已满（{skippedForCapacity} 项未导入）"
-                    : $"{selectedBox.Name} 已满，无法导入"
-                : $"已导入 {imported} 项到 {selectedBox.Name}";
+                    ? Strings.Format("ImportedItemsIntoBoxIsFullItemsNotImported", imported, selectedBox.Name, skippedForCapacity)
+                    : Strings.Format("IsFullCannotImportFiles", selectedBox.Name)
+                : Strings.Format("ImportedItemsInto", imported, selectedBox.Name);
         });
     }
 
@@ -238,12 +239,12 @@ public sealed partial class MainViewModel
         {
             var prefix = type switch
             {
-                BoxType.Normal => "普通收纳盒",
-                BoxType.Mapping => "映射收纳盒",
-                BoxType.Pixel => "像素收纳盒",
-                BoxType.Todo => "待办收纳盒",
-                BoxType.Drawer => "抽屉盒",
-                _ => "收纳盒"
+                BoxType.Normal => Strings.Get("NormalBox"),
+                BoxType.Mapping => Strings.Get("MappingBox"),
+                BoxType.Pixel => Strings.Get("PixelBox"),
+                BoxType.Todo => Strings.Get("TaskBox"),
+                BoxType.Drawer => Strings.Get("DrawerBox"),
+                _ => Strings.Get("Boxes")
             };
             var matchingBoxCount = type == BoxType.Normal
                 ? Boxes.Count(box => box.Type is BoxType.Normal or BoxType.Pixel)
@@ -279,7 +280,7 @@ public sealed partial class MainViewModel
             await viewModel.InitializeSettingsAsync();
             Boxes.Add(viewModel);
             await SelectBoxAsync(viewModel);
-            StatusText = $"已创建 {name}，桌面收纳栏已生成";
+            StatusText = Strings.Format("CreatedAndItsDesktopBox", name);
             BoxesChanged?.Invoke(this, new(box.Id));
         });
     }
@@ -299,7 +300,7 @@ public sealed partial class MainViewModel
             foreach (var item in Items.Where(item => item.Model.BoxId == selectedBox.Id))
                 item.UpdateBoxPresentation(selectedBox.Name, option.Style == BoxVisualStyle.Pixel,
                     GetIconPixelSize(option.Style == BoxVisualStyle.Pixel));
-            StatusText = $"已将“{selectedBox.Name}”切换为{option.Name}";
+            StatusText = Strings.Format("ChangedTo", selectedBox.Name, option.Name);
             BoxesChanged?.Invoke(this, new(selectedBox.Id, presentationOnly: true));
         });
     }
@@ -324,8 +325,8 @@ public sealed partial class MainViewModel
                     selectedBox.Id,
                     isPositionLocked));
             StatusText = isPositionLocked
-                ? $"已锁定“{selectedBox.Name}”的桌面位置"
-                : $"已解锁“{selectedBox.Name}”的桌面位置";
+                ? Strings.Format("LockedTheDesktopPositionOf", selectedBox.Name)
+                : Strings.Format("UnlockedTheDesktopPositionOf", selectedBox.Name);
         });
     }
 
@@ -421,7 +422,7 @@ public sealed partial class MainViewModel
                 item.UpdateBoxPresentation(selectedBox.Name, item.IsPixelated,
                     GetIconPixelSize(item.IsPixelated));
 
-            StatusText = $"已重命名收纳盒为 {newName.Trim()}";
+            StatusText = Strings.Format("RenamedBoxTo", newName.Trim());
             BoxesChanged?.Invoke(this, new(selectedBox.Id, presentationOnly: true));
         });
     }
@@ -551,7 +552,7 @@ public sealed partial class MainViewModel
         await RunBusyAsync(async () =>
         {
             await _drawerService.OpenItemAsync(item.Id, _launcher);
-            StatusText = $"已打开 {item.DisplayName}";
+            StatusText = Strings.Format("Opened", item.DisplayName);
         });
     }
 

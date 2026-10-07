@@ -1,4 +1,5 @@
-﻿using System.ComponentModel;
+using WitchDrawer.Core.Localization;
+using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -71,7 +72,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         AboutPageView.Logger = _logger;
         BoxDisplaySettings.Logger = _logger;
-        UpdateHotKeyUi("点击按钮可修改");
+        UpdateHotKeyUi(Strings.Get("ClickToChange"));
         Loaded += OnLoaded;
         DpiChanged += OnDpiChanged;
         AppThemeManager.ThemeChanged += OnThemeChanged;
@@ -212,6 +213,12 @@ public partial class MainWindow : Window
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (string.IsNullOrEmpty(e.PropertyName))
+        {
+            UpdateHotKeyUi(Strings.Get("ClickToChange"));
+            for (var slot = 1; slot <= 3; slot++)
+                SetLayoutBackupSlotState(slot, _recordedLayoutBackupSlots.Contains(slot));
+        }
         if (e.PropertyName == nameof(SettingsViewModel.EditorFollowsBoxOpacity))
         {
             QueueEditorOpacityRefresh();
@@ -266,7 +273,7 @@ public partial class MainWindow : Window
         {
             _hotKey.Register(_quickPanelHotKey.RegistrationModifiers, _quickPanelHotKey.VirtualKey);
             _isHotKeyRegistered = true;
-            UpdateHotKeyUi("已启用，点击按钮可修改");
+            UpdateHotKeyUi(Strings.Get("EnabledClickToChange"));
         }
         catch (Exception exception)
         {
@@ -284,8 +291,8 @@ public partial class MainWindow : Window
         }
 
         _isCapturingHotKey = true;
-        QuickPanelHotKeyButton.Content = "请按新快捷键…";
-        QuickPanelHotKeyStatusText.Text = "需包含 Ctrl、Alt 或 Win；Esc 取消";
+        QuickPanelHotKeyButton.Content = Strings.Get("PressANewShortcut");
+        QuickPanelHotKeyStatusText.Text = Strings.Get("IncludeCtrlAltOrWinEscToCancel");
         QuickPanelHotKeyButton.Focus();
         Keyboard.Focus(QuickPanelHotKeyButton);
     }
@@ -295,7 +302,7 @@ public partial class MainWindow : Window
         var viewModel = ViewModel;
         var dialog = new Microsoft.Win32.OpenFolderDialog
         {
-            Title = "选择新的数据存储文件夹（请使用空文件夹）"
+            Title = Strings.Get("ChooseANewDataFolderUseAnEmptyFolder")
         };
         if (dialog.ShowDialog(this) != true)
         {
@@ -310,8 +317,8 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                "所选文件夹就是当前数据目录，无需迁移。",
-                "数据存储位置",
+                Strings.Get("TheSelectedFolderIsAlreadyTheCurrentDataFolder"),
+                Strings.Get("DataStorage"),
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
             return;
@@ -319,8 +326,8 @@ public partial class MainWindow : Window
 
         var confirm = MessageBox.Show(
             this,
-            $"将把数据从\n{viewModel.Maintenance.CurrentDataDirectory}\n\n迁移到\n{targetDirectory}\n\n迁移完成后需要重启应用才会使用新目录，是否继续？",
-            "迁移数据存储位置",
+            Strings.Format("CopyDataFromNNNtoNNNRestart", viewModel.Maintenance.CurrentDataDirectory, targetDirectory),
+            Strings.Get("MoveDataStorage"),
             MessageBoxButton.OKCancel,
             MessageBoxImage.Question);
         if (confirm != MessageBoxResult.OK)
@@ -337,8 +344,8 @@ public partial class MainWindow : Window
             _logger.Error(exception, "Data directory migration failed.");
             MessageBox.Show(
                 this,
-                "数据迁移失败：\n" + exception.Message,
-                "数据存储位置",
+                Strings.Get("DataMigrationFailedN") + exception.Message,
+                Strings.Get("DataStorage"),
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
             return;
@@ -346,8 +353,8 @@ public partial class MainWindow : Window
 
         MessageBox.Show(
             this,
-            "数据已迁移完成，点击确定后重启 WitchDrawer 以使用新目录。\n旧目录已停止写入，并保留作为备份。",
-            "迁移完成",
+            Strings.Get("DataMigrationIsCompleteClickOKToRestartWitchDrawer"),
+            Strings.Get("MigrationComplete"),
             MessageBoxButton.OK,
             MessageBoxImage.Question);
 
@@ -373,20 +380,20 @@ public partial class MainWindow : Window
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
         if (key == Key.Escape)
         {
-            CancelHotKeyCapture("已取消修改");
+            CancelHotKeyCapture(Strings.Get("ChangeCanceled"));
             return;
         }
 
         if (IsModifierKey(key))
         {
-            QuickPanelHotKeyStatusText.Text = "继续按下一个非修饰键";
+            QuickPanelHotKeyStatusText.Text = Strings.Get("PressANonModifierKey");
             return;
         }
 
         var modifiers = GetHotKeyModifiers(Keyboard.Modifiers);
         if ((modifiers & (HotKeyModifiers.Control | HotKeyModifiers.Alt | HotKeyModifiers.Win)) == 0)
         {
-            QuickPanelHotKeyStatusText.Text = "请至少按住 Ctrl、Alt 或 Win";
+            QuickPanelHotKeyStatusText.Text = Strings.Get("HoldAtLeastCtrlAltOrWin");
             return;
         }
 
@@ -394,7 +401,7 @@ public partial class MainWindow : Window
         var candidate = new QuickPanelHotKey(modifiers, virtualKey);
         if (!candidate.IsValid)
         {
-            QuickPanelHotKeyStatusText.Text = "这个按键不能用作全局快捷键";
+            QuickPanelHotKeyStatusText.Text = Strings.Get("ThisKeyCannotBeUsedForAGlobalShortcut");
             return;
         }
 
@@ -416,7 +423,7 @@ public partial class MainWindow : Window
     {
         if (_isCapturingHotKey)
         {
-            CancelHotKeyCapture("已取消修改");
+            CancelHotKeyCapture(Strings.Get("ChangeCanceled"));
         }
     }
 
@@ -424,13 +431,13 @@ public partial class MainWindow : Window
     {
         if (_hotKey is null)
         {
-            UpdateHotKeyUi("快捷键组件尚未初始化");
+            UpdateHotKeyUi(Strings.Get("TheShortcutServiceIsNotReady"));
             return;
         }
 
         if (candidate == _quickPanelHotKey && _isHotKeyRegistered)
         {
-            UpdateHotKeyUi("快捷键未更改");
+            UpdateHotKeyUi(Strings.Get("ShortcutUnchanged"));
             return;
         }
 
@@ -453,13 +460,13 @@ public partial class MainWindow : Window
         {
             await _hotKeySettings.SaveAsync(candidate);
             _quickPanelHotKey = candidate;
-            UpdateHotKeyUi("已保存并立即生效");
+            UpdateHotKeyUi(Strings.Get("SavedAndApplied"));
         }
         catch (Exception exception)
         {
             _logger.Error(exception, "Failed to save quick panel hotkey.");
             RestorePreviousHotKey(previous, previousWasRegistered);
-            UpdateHotKeyUi("保存失败，已恢复原快捷键");
+            UpdateHotKeyUi(Strings.Get("CouldNotSaveRestoredThePreviousShortcut"));
         }
     }
 
@@ -543,8 +550,8 @@ public partial class MainWindow : Window
     private static string GetHotKeyErrorText(Exception exception)
     {
         return exception is Win32Exception { NativeErrorCode: 1409 }
-            ? "快捷键已被其他程序占用，请换一个组合"
-            : "快捷键注册失败，请换一个组合重试";
+            ? Strings.Get("ThisShortcutIsUsedByAnotherAppChooseAnother")
+            : Strings.Get("CouldNotRegisterTheShortcutTryAnotherCombination");
     }
 
     private void OnShellHeaderMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -943,8 +950,8 @@ public partial class MainWindow : Window
         {
             var result = System.Windows.MessageBox.Show(
                 this,
-                $"备份槽位 {slot} 已有记录。\n\n是否确认覆盖原有整体布局备份？",
-                "确认覆盖布局备份",
+                Strings.Format("BackupSlotAlreadyContainsALayoutNNOverwriteIt", slot),
+                Strings.Get("OverwriteLayoutBackup"),
                 MessageBoxButton.OKCancel,
                 MessageBoxImage.Warning);
             if (result != MessageBoxResult.OK)
@@ -970,8 +977,8 @@ public partial class MainWindow : Window
 
         var result = System.Windows.MessageBox.Show(
             this,
-            $"是否恢复备份槽位 {slot}？\n\n当前仍存在的盒子将移动到备份中记录的位置。",
-            "恢复整体布局",
+            Strings.Format("RestoreBackupSlotNNExistingBoxesWillMoveTo", slot),
+            Strings.Get("RestoreLayout"),
             MessageBoxButton.OKCancel,
             MessageBoxImage.Question);
         if (result == MessageBoxResult.OK)
@@ -990,8 +997,8 @@ public partial class MainWindow : Window
 
         var result = System.Windows.MessageBox.Show(
             this,
-            $"是否删除备份槽位 {slot}？\n\n删除后无法恢复该槽位中记录的整体布局。",
-            "删除布局备份",
+            Strings.Format("DeleteBackupSlotNNTheSavedLayoutInThis", slot),
+            Strings.Get("DeleteLayoutBackup"),
             MessageBoxButton.OKCancel,
             MessageBoxImage.Warning);
         if (result == MessageBoxResult.OK)
@@ -1031,14 +1038,14 @@ public partial class MainWindow : Window
         System.Windows.Automation.AutomationProperties.SetName(
             controls.Item2,
             hasBackup
-                ? $"覆盖备份槽位 {slot} 的整体布局"
-                : $"记录整体布局到备份槽位 {slot}");
+                ? Strings.Format("OverwriteTheLayoutInBackupSlot", slot)
+                : Strings.Format("SaveTheCurrentLayoutToBackupSlot", slot));
     }
 
     internal static LayoutBackupSlotPresentation GetLayoutBackupSlotPresentation(bool hasBackup) =>
         hasBackup
-            ? new LayoutBackupSlotPresentation("已记录", "覆盖", true, true)
-            : new LayoutBackupSlotPresentation("未记录", "记录", false, false);
+            ? new LayoutBackupSlotPresentation(Strings.Get("Saved"), Strings.Get("Overwrite"), true, true)
+            : new LayoutBackupSlotPresentation(Strings.Get("Empty"), Strings.Get("Save"), false, false);
 
     private static bool TryGetLayoutBackupSlot(object sender, out int slot)
     {

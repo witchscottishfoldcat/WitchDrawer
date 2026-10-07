@@ -1,3 +1,4 @@
+using WitchDrawer.Core.Localization;
 using System.IO;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -475,9 +476,9 @@ public sealed partial class DesktopBoxViewModel
             await LoadAsync();
             StatusText = importedIds.Count < pathList.Length
                 ? importedIds.Count > 0
-                    ? $"已收纳 {importedIds.Count} 项，盒子已满"
-                    : "盒子已满，无法收纳"
-                : $"已收纳 {importedIds.Count} 项";
+                    ? Strings.Format("AddedItemsBoxIsFull", importedIds.Count)
+                    : Strings.Get("BoxIsFullCannotAddFiles")
+                : Strings.Format("AddedItems", importedIds.Count);
             return importedIds;
         }
         catch (Exception exception)
@@ -494,7 +495,7 @@ public sealed partial class DesktopBoxViewModel
                     _logger.Error(refreshException, "Failed to refresh partially imported files.");
                 }
             }
-            StatusText = $"已收纳 {importedIds.Count} 项，其余未导入：{exception.Message}";
+            StatusText = Strings.Format("AddedItemsRemainingFilesWereNotImported", importedIds.Count, exception.Message);
             return importedIds;
         }
         finally
@@ -540,7 +541,7 @@ public sealed partial class DesktopBoxViewModel
                         // 硬约束：目标盒已满时拒绝跨盒移入。
                         if (!TryFindFreeSlotInFixedBounds(targetColumn, targetRow, occupiedSlots, out targetSlot))
                         {
-                            StatusText = "目标收纳盒已满";
+                            StatusText = Strings.Get("TheDestinationBoxIsFull");
                             return false;
                         }
                     }
@@ -555,7 +556,7 @@ public sealed partial class DesktopBoxViewModel
                     // 排序模式：固定盒容量校验后直接移入，不写格位。
                     if (IsFixedSize && !HasFreeSlotForDrop())
                     {
-                        StatusText = "目标收纳盒已满";
+                        StatusText = Strings.Get("TheDestinationBoxIsFull");
                         return false;
                     }
 
@@ -606,7 +607,7 @@ public sealed partial class DesktopBoxViewModel
                 exportedPath,
                 item.Model.ItemKind == ItemKind.Directory));
             await LoadAsync();
-            StatusText = $"已移到桌面：{Path.GetFileName(exportedPath)}";
+            StatusText = Strings.Format("MovedToDesktop", Path.GetFileName(exportedPath));
             return true;
         }
         catch (Exception exception)

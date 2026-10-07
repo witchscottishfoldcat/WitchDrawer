@@ -1,0 +1,1682 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="SavedBoxesToLayoutBackupSlot" xml:space="preserve">
+    <value>已将 {0} 个盒子记录到布局备份槽位 {1}</value>
+  </data>
+  <data name="LayoutBackupSlotIsEmptyOrUnavailable" xml:space="preserve">
+    <value>布局备份槽位 {0} 为空或不可用</value>
+  </data>
+  <data name="SkippedDeletedBoxes" xml:space="preserve">
+    <value>，另有 {0} 个已删除盒子被跳过</value>
+  </data>
+  <data name="RestoredBoxesFromLayoutBackupSlot" xml:space="preserve">
+    <value>已从布局备份槽位 {0} 恢复 {1} 个盒子{2}</value>
+  </data>
+  <data name="DeletedLayoutBackupSlot" xml:space="preserve">
+    <value>已删除布局备份槽位 {0}</value>
+  </data>
+  <data name="LayoutBackupSlotIsAlreadyEmpty" xml:space="preserve">
+    <value>布局备份槽位 {0} 已经为空</value>
+  </data>
+  <data name="MovedTheBoxToTheCenterOfTheMain" xml:space="preserve">
+    <value>已将盒子召回主屏中心</value>
+  </data>
+  <data name="RunningAsAdministratorWindowsRestrictsFileDropsFromWindows" xml:space="preserve">
+    <value>管理员权限运行：从普通权限窗口拖入文件受 Windows 限制。</value>
+  </data>
+  <data name="SomeFileMovesNeedManualReviewOtherBoxesRemain" xml:space="preserve">
+    <value>部分文件搬移需要人工核对；其他盒子仍可使用。</value>
+  </data>
+  <data name="SomeFileMovesCouldNotBeRecoveredAutomaticallyAll" xml:space="preserve">
+    <value>部分文件搬移未能自动恢复，相关文件均已保留。请核对以下路径：</value>
+  </data>
+  <data name="WitchDrawerFileRecovery" xml:space="preserve">
+    <value>WitchDrawer 文件恢复提示</value>
+  </data>
+  <data name="HideMainWindow" xml:space="preserve">
+    <value>隐藏主窗口</value>
+  </data>
+  <data name="ShowMainWindow" xml:space="preserve">
+    <value>显示主窗口</value>
+  </data>
+  <data name="ShowAllBoxes" xml:space="preserve">
+    <value>显示全部收纳盒</value>
+  </data>
+  <data name="QuitWitchDrawer" xml:space="preserve">
+    <value>退出 WitchDrawer</value>
+  </data>
+  <data name="VersionIsAvailableNNUpdateNowNTheUpdateWill" xml:space="preserve">
+    <value>发现新版本 {0}
+
+是否立即更新？
+更新将自动下载并重启应用。</value>
+  </data>
+  <data name="UpdateAvailable" xml:space="preserve">
+    <value>发现新版本</value>
+  </data>
+  <data name="ClickToChange" xml:space="preserve">
+    <value>点击按钮可修改</value>
+  </data>
+  <data name="EnabledClickToChange" xml:space="preserve">
+    <value>已启用，点击按钮可修改</value>
+  </data>
+  <data name="PressANewShortcut" xml:space="preserve">
+    <value>请按新快捷键…</value>
+  </data>
+  <data name="IncludeCtrlAltOrWinEscToCancel" xml:space="preserve">
+    <value>需包含 Ctrl、Alt 或 Win；Esc 取消</value>
+  </data>
+  <data name="ChooseANewDataFolderUseAnEmptyFolder" xml:space="preserve">
+    <value>选择新的数据存储文件夹（请使用空文件夹）</value>
+  </data>
+  <data name="TheSelectedFolderIsAlreadyTheCurrentDataFolder" xml:space="preserve">
+    <value>所选文件夹就是当前数据目录，无需迁移。</value>
+  </data>
+  <data name="DataStorage" xml:space="preserve">
+    <value>数据存储位置</value>
+  </data>
+  <data name="CopyDataFromNNNtoNNNRestart" xml:space="preserve">
+    <value>将把数据从
+{0}
+
+迁移到
+{1}
+
+迁移完成后需要重启应用才会使用新目录，是否继续？</value>
+  </data>
+  <data name="MoveDataStorage" xml:space="preserve">
+    <value>迁移数据存储位置</value>
+  </data>
+  <data name="DataMigrationFailedN" xml:space="preserve">
+    <value>数据迁移失败：
+</value>
+  </data>
+  <data name="DataMigrationIsCompleteClickOKToRestartWitchDrawer" xml:space="preserve">
+    <value>数据已迁移完成，点击确定后重启 WitchDrawer 以使用新目录。
+旧目录已停止写入，并保留作为备份。</value>
+  </data>
+  <data name="MigrationComplete" xml:space="preserve">
+    <value>迁移完成</value>
+  </data>
+  <data name="ChangeCanceled" xml:space="preserve">
+    <value>已取消修改</value>
+  </data>
+  <data name="PressANonModifierKey" xml:space="preserve">
+    <value>继续按下一个非修饰键</value>
+  </data>
+  <data name="HoldAtLeastCtrlAltOrWin" xml:space="preserve">
+    <value>请至少按住 Ctrl、Alt 或 Win</value>
+  </data>
+  <data name="ThisKeyCannotBeUsedForAGlobalShortcut" xml:space="preserve">
+    <value>这个按键不能用作全局快捷键</value>
+  </data>
+  <data name="TheShortcutServiceIsNotReady" xml:space="preserve">
+    <value>快捷键组件尚未初始化</value>
+  </data>
+  <data name="ShortcutUnchanged" xml:space="preserve">
+    <value>快捷键未更改</value>
+  </data>
+  <data name="SavedAndApplied" xml:space="preserve">
+    <value>已保存并立即生效</value>
+  </data>
+  <data name="CouldNotSaveRestoredThePreviousShortcut" xml:space="preserve">
+    <value>保存失败，已恢复原快捷键</value>
+  </data>
+  <data name="ThisShortcutIsUsedByAnotherAppChooseAnother" xml:space="preserve">
+    <value>快捷键已被其他程序占用，请换一个组合</value>
+  </data>
+  <data name="CouldNotRegisterTheShortcutTryAnotherCombination" xml:space="preserve">
+    <value>快捷键注册失败，请换一个组合重试</value>
+  </data>
+  <data name="BackupSlotAlreadyContainsALayoutNNOverwriteIt" xml:space="preserve">
+    <value>备份槽位 {0} 已有记录。
+
+是否确认覆盖原有整体布局备份？</value>
+  </data>
+  <data name="OverwriteLayoutBackup" xml:space="preserve">
+    <value>确认覆盖布局备份</value>
+  </data>
+  <data name="RestoreBackupSlotNNExistingBoxesWillMoveTo" xml:space="preserve">
+    <value>是否恢复备份槽位 {0}？
+
+当前仍存在的盒子将移动到备份中记录的位置。</value>
+  </data>
+  <data name="RestoreLayout" xml:space="preserve">
+    <value>恢复整体布局</value>
+  </data>
+  <data name="DeleteBackupSlotNNTheSavedLayoutInThis" xml:space="preserve">
+    <value>是否删除备份槽位 {0}？
+
+删除后无法恢复该槽位中记录的整体布局。</value>
+  </data>
+  <data name="DeleteLayoutBackup" xml:space="preserve">
+    <value>删除布局备份</value>
+  </data>
+  <data name="OverwriteTheLayoutInBackupSlot" xml:space="preserve">
+    <value>覆盖备份槽位 {0} 的整体布局</value>
+  </data>
+  <data name="SaveTheCurrentLayoutToBackupSlot" xml:space="preserve">
+    <value>记录整体布局到备份槽位 {0}</value>
+  </data>
+  <data name="Saved" xml:space="preserve">
+    <value>已记录</value>
+  </data>
+  <data name="Overwrite" xml:space="preserve">
+    <value>覆盖</value>
+  </data>
+  <data name="Empty" xml:space="preserve">
+    <value>未记录</value>
+  </data>
+  <data name="Save" xml:space="preserve">
+    <value>记录</value>
+  </data>
+  <data name="CannotResolveLocalApplicationDataSetTheEnvironmentVariable" xml:space="preserve">
+    <value>无法解析 LocalApplicationData。请设置环境变量 </value>
+  </data>
+  <data name="ToAWritableFolder" xml:space="preserve">
+    <value> 指向可写目录。</value>
+  </data>
+  <data name="TheWitchDrawerDataFolderIsNotWritableSQLiteCannot" xml:space="preserve">
+    <value>WitchDrawer 数据目录不可写，SQLite 无法创建数据库旁路文件（-wal/-shm）。</value>
+  </data>
+  <data name="DataFolder" xml:space="preserve">
+    <value>数据目录: </value>
+  </data>
+  <data name="CheckFolderPermissionsOrSetTheEnvironmentVariable" xml:space="preserve">
+    <value>请检查目录权限，或设置环境变量 </value>
+  </data>
+  <data name="InvalidShortcutCombination" xml:space="preserve">
+    <value>快捷键组合无效。</value>
+  </data>
+  <data name="Ready" xml:space="preserve">
+    <value>准备就绪</value>
+  </data>
+  <data name="ArchivedOn" xml:space="preserve">
+    <value>归档于 {0:yyyy-MM-dd HH:mm}</value>
+  </data>
+  <data name="RestoredTo" xml:space="preserve">
+    <value>已将“{0}”恢复到 {1}</value>
+  </data>
+  <data name="DeletedArchivedTaskUndoWithin10Seconds" xml:space="preserve">
+    <value>已删除归档事项“{0}”，10 秒内可撤销</value>
+  </data>
+  <data name="UndidArchivedTaskDeletion" xml:space="preserve">
+    <value>已撤销删除归档事项</value>
+  </data>
+  <data name="TaskBox" xml:space="preserve">
+    <value>待办收纳盒</value>
+  </data>
+  <data name="ContentsOccupyCellsTheFixedSizeCannotBeSmaller" xml:space="preserve">
+    <value>当前内容占用 {0} × {1}，固定尺寸不能小于该范围</value>
+  </data>
+  <data name="FixedAtCellsImportsStopWhenFull" xml:space="preserve">
+    <value>固定 {0} × {1} 格，达到容量后停止导入</value>
+  </data>
+  <data name="WindowExpandsToFitItsContents" xml:space="preserve">
+    <value>窗口随内容自动撑开</value>
+  </data>
+  <data name="HideTheDesktopBoxTitle" xml:space="preserve">
+    <value>隐藏桌面收纳盒名称</value>
+  </data>
+  <data name="ShowTheDesktopBoxTitle" xml:space="preserve">
+    <value>显示桌面收纳盒名称</value>
+  </data>
+  <data name="HideTitle" xml:space="preserve">
+    <value>隐藏名称</value>
+  </data>
+  <data name="ShowTitle" xml:space="preserve">
+    <value>显示名称</value>
+  </data>
+  <data name="HideFileNames" xml:space="preserve">
+    <value>隐藏文件名</value>
+  </data>
+  <data name="ShowFileNames" xml:space="preserve">
+    <value>显示文件名</value>
+  </data>
+  <data name="On" xml:space="preserve">
+    <value>已开启</value>
+  </data>
+  <data name="Off" xml:space="preserve">
+    <value>已关闭</value>
+  </data>
+  <data name="DisableExpandingOnTitleHover" xml:space="preserve">
+    <value>关闭鼠标悬停标题自动展开</value>
+  </data>
+  <data name="EnableExpandingOnTitleHover" xml:space="preserve">
+    <value>开启鼠标悬停标题自动展开</value>
+  </data>
+  <data name="Free" xml:space="preserve">
+    <value>自由</value>
+  </data>
+  <data name="Size" xml:space="preserve">
+    <value>大小</value>
+  </data>
+  <data name="Type" xml:space="preserve">
+    <value>项目类型</value>
+  </data>
+  <data name="DateModified" xml:space="preserve">
+    <value>修改日期</value>
+  </data>
+  <data name="Name" xml:space="preserve">
+    <value>名称</value>
+  </data>
+  <data name="UnlockDesktopPosition" xml:space="preserve">
+    <value>解锁桌面位置</value>
+  </data>
+  <data name="LockDesktopPosition" xml:space="preserve">
+    <value>锁定桌面位置</value>
+  </data>
+  <data name="UnlockThisBoxSDesktopPosition" xml:space="preserve">
+    <value>解锁当前收纳盒桌面位置</value>
+  </data>
+  <data name="LockThisBoxSDesktopPosition" xml:space="preserve">
+    <value>锁定当前收纳盒桌面位置</value>
+  </data>
+  <data name="Normal" xml:space="preserve">
+    <value>普通</value>
+  </data>
+  <data name="Mapping" xml:space="preserve">
+    <value>映射</value>
+  </data>
+  <data name="Tasks" xml:space="preserve">
+    <value>待办</value>
+  </data>
+  <data name="Drawer" xml:space="preserve">
+    <value>抽屉</value>
+  </data>
+  <data name="Unknown" xml:space="preserve">
+    <value>未知</value>
+  </data>
+  <data name="FilesMoveIntoTheBoxWhenDropped" xml:space="preserve">
+    <value>拖入后移动到收纳盒</value>
+  </data>
+  <data name="StoresPathReferencesOnly" xml:space="preserve">
+    <value>只保存路径引用</value>
+  </data>
+  <data name="SeparateDesktopTaskList" xml:space="preserve">
+    <value>独立桌面待办清单</value>
+  </data>
+  <data name="ExpandableDrawer" xml:space="preserve">
+    <value>安卓式展开抽屉</value>
+  </data>
+  <data name="TasksAreStoredInTheLocalDatabase" xml:space="preserve">
+    <value>待办事项保存在本地数据库</value>
+  </data>
+  <data name="SourceFilesStayInTheirOriginalLocations" xml:space="preserve">
+    <value>源文件保留在原位置</value>
+  </data>
+  <data name="AllTasksInThisBoxIncludingArchivedHistoryWill" xml:space="preserve">
+    <value>该待办盒中的所有事项（包括归档历史）将一并删除，此操作无法撤销。</value>
+  </data>
+  <data name="OnlyReferencesWillBeRemovedSourceFilesWillStay" xml:space="preserve">
+    <value>只会移除映射引用，源文件不会被移动或删除。</value>
+  </data>
+  <data name="FilesInThisBoxWillReturnToTheirOriginal" xml:space="preserve">
+    <value>收纳盒内的文件将恢复到原来的位置；如有重名会自动加后缀。</value>
+  </data>
+  <data name="ModernIcons" xml:space="preserve">
+    <value>现代图标</value>
+  </data>
+  <data name="CleanRoundedIconsForEverydayUse" xml:space="preserve">
+    <value>清晰圆润，适合日常桌面</value>
+  </data>
+  <data name="PixelIcons" xml:space="preserve">
+    <value>像素图标</value>
+  </data>
+  <data name="RetroPixelEdgesAndDottedDetails" xml:space="preserve">
+    <value>复古像素边缘与点阵细节</value>
+  </data>
+  <data name="XL" xml:space="preserve">
+    <value>超</value>
+  </data>
+  <data name="L" xml:space="preserve">
+    <value>大</value>
+  </data>
+  <data name="M" xml:space="preserve">
+    <value>中</value>
+  </data>
+  <data name="S" xml:space="preserve">
+    <value>小</value>
+  </data>
+  <data name="DropFilesHere" xml:space="preserve">
+    <value>拖入文件</value>
+  </data>
+  <data name="FileNotFound" xml:space="preserve">
+    <value>文件不存在：{0}</value>
+  </data>
+  <data name="OperationFailed" xml:space="preserve">
+    <value>操作失败：{0}</value>
+  </data>
+  <data name="MoveIntoBox" xml:space="preserve">
+    <value>移动收纳</value>
+  </data>
+  <data name="PathReferences" xml:space="preserve">
+    <value>路径映射</value>
+  </data>
+  <data name="DesktopTasks" xml:space="preserve">
+    <value>桌面待办</value>
+  </data>
+  <data name="ClickToExpand" xml:space="preserve">
+    <value>点击展开</value>
+  </data>
+  <data name="Items" xml:space="preserve">
+    <value>{0} 项</value>
+  </data>
+  <data name="AddedItemsBoxIsFull" xml:space="preserve">
+    <value>已收纳 {0} 项，盒子已满</value>
+  </data>
+  <data name="BoxIsFullCannotAddFiles" xml:space="preserve">
+    <value>盒子已满，无法收纳</value>
+  </data>
+  <data name="AddedItems" xml:space="preserve">
+    <value>已收纳 {0} 项</value>
+  </data>
+  <data name="AddedItemsRemainingFilesWereNotImported" xml:space="preserve">
+    <value>已收纳 {0} 项，其余未导入：{1}</value>
+  </data>
+  <data name="TheDestinationBoxIsFull" xml:space="preserve">
+    <value>目标收纳盒已满</value>
+  </data>
+  <data name="MovedToDesktop" xml:space="preserve">
+    <value>已移到桌面：{0}</value>
+  </data>
+  <data name="TheBoxIsProcessingFilesTryAgainLater" xml:space="preserve">
+    <value>盒子正在处理文件，请稍后重试。</value>
+  </data>
+  <data name="RenamedReference" xml:space="preserve">
+    <value>已重命名引用：{0}</value>
+  </data>
+  <data name="Renamed" xml:space="preserve">
+    <value>已重命名：{0}</value>
+  </data>
+  <data name="Referenced" xml:space="preserve">
+    <value>加入引用</value>
+  </data>
+  <data name="Copy" xml:space="preserve">
+    <value>复制</value>
+  </data>
+  <data name="Items2" xml:space="preserve">
+    <value>已{0} {1} 项</value>
+  </data>
+  <data name="ItemsFailed" xml:space="preserve">
+    <value>已{0} {1} 项，{2} 项失败：{3}</value>
+  </data>
+  <data name="Synced" xml:space="preserve">
+    <value>已同步</value>
+  </data>
+  <data name="Opened" xml:space="preserve">
+    <value>已打开 {0}</value>
+  </data>
+  <data name="Folder" xml:space="preserve">
+    <value>文件夹</value>
+  </data>
+  <data name="File" xml:space="preserve">
+    <value>文件</value>
+  </data>
+  <data name="Added" xml:space="preserve">
+    <value>已添加</value>
+  </data>
+  <data name="Completed" xml:space="preserve">
+    <value>已完成</value>
+  </data>
+  <data name="Restored" xml:space="preserve">
+    <value>已恢复</value>
+  </data>
+  <data name="TaskSaved" xml:space="preserve">
+    <value>已保存待办</value>
+  </data>
+  <data name="NoTasksToArchive" xml:space="preserve">
+    <value>没有可归档事项</value>
+  </data>
+  <data name="ArchivedItems" xml:space="preserve">
+    <value>已归档 {0} 项</value>
+  </data>
+  <data name="DeletedUndoWithin10Seconds" xml:space="preserve">
+    <value>已删除，10 秒内可撤销</value>
+  </data>
+  <data name="DeletionUndone" xml:space="preserve">
+    <value>已撤销删除</value>
+  </data>
+  <data name="AddTask" xml:space="preserve">
+    <value>添加待办</value>
+  </data>
+  <data name="CouldNotSaveSize" xml:space="preserve">
+    <value>尺寸保存失败</value>
+  </data>
+  <data name="TheCurrentDataFolderIsSetByRemoveThis" xml:space="preserve">
+    <value>当前数据目录由 {0} 指定。请先移除该环境变量并重启，再迁移数据目录。</value>
+  </data>
+  <data name="MigratingDataFolder" xml:space="preserve">
+    <value>正在迁移数据目录…</value>
+  </data>
+  <data name="DataMigratedRestartToApply" xml:space="preserve">
+    <value>数据已迁移，重启后生效</value>
+  </data>
+  <data name="DataFolderMigrationFailed" xml:space="preserve">
+    <value>数据目录迁移失败</value>
+  </data>
+  <data name="AnotherOperationIsInProgressExportDiagnosticLogsLater" xml:space="preserve">
+    <value>正在处理其他操作，请稍后再导出诊断日志。</value>
+  </data>
+  <data name="ExportingDiagnosticLogs" xml:space="preserve">
+    <value>正在导出诊断日志…</value>
+  </data>
+  <data name="ExportedLogFiles" xml:space="preserve">
+    <value>已导出 {0} 个日志文件</value>
+  </data>
+  <data name="DiagnosticLogExportFailed" xml:space="preserve">
+    <value>诊断日志导出失败</value>
+  </data>
+  <data name="SyncedBoxesToTheDesktop" xml:space="preserve">
+    <value>{0} 个收纳盒已同步到桌面</value>
+  </data>
+  <data name="Reordered" xml:space="preserve">
+    <value>已调整“{0}”的排列位置</value>
+  </data>
+  <data name="CouldNotSaveBoxOrderRestoredThePreviousOrder" xml:space="preserve">
+    <value>收纳盒排序保存失败，已恢复原顺序</value>
+  </data>
+  <data name="SelectABoxFirst" xml:space="preserve">
+    <value>请先选择一个收纳盒</value>
+  </data>
+  <data name="UseTheTaskInputFieldToAddTasksTo" xml:space="preserve">
+    <value>待办收纳盒请使用任务输入框添加事项</value>
+  </data>
+  <data name="ImportedItemsRemainingFilesWereNotImported" xml:space="preserve">
+    <value>已导入 {0} 项，其余未导入：{1}</value>
+  </data>
+  <data name="ImportedItemsIntoBoxIsFullItemsNotImported" xml:space="preserve">
+    <value>已导入 {0} 项到 {1}，盒子已满（{2} 项未导入）</value>
+  </data>
+  <data name="IsFullCannotImportFiles" xml:space="preserve">
+    <value>{0} 已满，无法导入</value>
+  </data>
+  <data name="ImportedItemsInto" xml:space="preserve">
+    <value>已导入 {0} 项到 {1}</value>
+  </data>
+  <data name="NormalBox" xml:space="preserve">
+    <value>普通收纳盒</value>
+  </data>
+  <data name="MappingBox" xml:space="preserve">
+    <value>映射收纳盒</value>
+  </data>
+  <data name="PixelBox" xml:space="preserve">
+    <value>像素收纳盒</value>
+  </data>
+  <data name="DrawerBox" xml:space="preserve">
+    <value>抽屉盒</value>
+  </data>
+  <data name="Boxes" xml:space="preserve">
+    <value>收纳盒</value>
+  </data>
+  <data name="CreatedAndItsDesktopBox" xml:space="preserve">
+    <value>已创建 {0}，桌面收纳栏已生成</value>
+  </data>
+  <data name="ChangedTo" xml:space="preserve">
+    <value>已将“{0}”切换为{1}</value>
+  </data>
+  <data name="LockedTheDesktopPositionOf" xml:space="preserve">
+    <value>已锁定“{0}”的桌面位置</value>
+  </data>
+  <data name="UnlockedTheDesktopPositionOf" xml:space="preserve">
+    <value>已解锁“{0}”的桌面位置</value>
+  </data>
+  <data name="RenamedBoxTo" xml:space="preserve">
+    <value>已重命名收纳盒为 {0}</value>
+  </data>
+  <data name="QuickPanel" xml:space="preserve">
+    <value>快速面板</value>
+  </data>
+  <data name="Items3" xml:space="preserve">
+    <value>{0} / {1} 项</value>
+  </data>
+  <data name="Light" xml:space="preserve">
+    <value>清透雅致</value>
+  </data>
+  <data name="SwitchedToTheTheme" xml:space="preserve">
+    <value>已切换到 {0} 风格</value>
+  </data>
+  <data name="Obsidian" xml:space="preserve">
+    <value>暗黑曜石</value>
+  </data>
+  <data name="Crystal" xml:space="preserve">
+    <value>全透水晶</value>
+  </data>
+  <data name="EditorNowFollowsDesktopBoxOpacity" xml:space="preserve">
+    <value>编辑页已跟随桌面盒子透明度</value>
+  </data>
+  <data name="EditorNowUsesStandardOpacity" xml:space="preserve">
+    <value>编辑页已保持标准透明度</value>
+  </data>
+  <data name="LaunchAtStartupEnabled" xml:space="preserve">
+    <value>已开启开机自启动</value>
+  </data>
+  <data name="LaunchAtStartupDisabled" xml:space="preserve">
+    <value>已关闭开机自启动</value>
+  </data>
+  <data name="WindowsDesktopIconsHidden" xml:space="preserve">
+    <value>已隐藏 Windows 桌面图标</value>
+  </data>
+  <data name="WindowsDesktopIconsShown" xml:space="preserve">
+    <value>已显示 Windows 桌面图标</value>
+  </data>
+  <data name="DesktopDoubleClickToggleEnabled" xml:space="preserve">
+    <value>已开启桌面双击切换图标</value>
+  </data>
+  <data name="DesktopDoubleClickToggleDisabled" xml:space="preserve">
+    <value>已关闭桌面双击切换图标</value>
+  </data>
+  <data name="IconTooltipsNowShowFileNames" xml:space="preserve">
+    <value>图标名称已设为精简显示</value>
+  </data>
+  <data name="IconTooltipsNowShowFullPaths" xml:space="preserve">
+    <value>图标名称已设为完整显示</value>
+  </data>
+  <data name="AutoHideEnabled" xml:space="preserve">
+    <value>已开启自动隐藏</value>
+  </data>
+  <data name="AutoHideDisabled" xml:space="preserve">
+    <value>已关闭自动隐藏</value>
+  </data>
+  <data name="HoverOverAnyBoxToRevealAllBoxes" xml:space="preserve">
+    <value>悬停任一收纳盒将全部显示</value>
+  </data>
+  <data name="HoverOverABoxToRevealOnlyItsContents" xml:space="preserve">
+    <value>悬停某个收纳盒仅其内容显示</value>
+  </data>
+  <data name="ColorsAndCornersFollowThePreset" xml:space="preserve">
+    <value>颜色与圆角跟随预设</value>
+  </data>
+  <data name="ColorsOrStylesCustomized" xml:space="preserve">
+    <value>已自定义颜色或样式</value>
+  </data>
+  <data name="FollowEachModeSPreset" xml:space="preserve">
+    <value>跟随各模式预设</value>
+  </data>
+  <data name="FollowIconSize" xml:space="preserve">
+    <value>跟随图标尺寸</value>
+  </data>
+  <data name="FollowTheme" xml:space="preserve">
+    <value>跟随主题</value>
+  </data>
+  <data name="RestoredThePreset" xml:space="preserve">
+    <value>已恢复 {0} 原始预设</value>
+  </data>
+  <data name="BoxBackground" xml:space="preserve">
+    <value>盒子背景</value>
+  </data>
+  <data name="IconBackground" xml:space="preserve">
+    <value>图标背景框</value>
+  </data>
+  <data name="ItemHover" xml:space="preserve">
+    <value>文件项悬停</value>
+  </data>
+  <data name="ItemSelection" xml:space="preserve">
+    <value>文件项选中</value>
+  </data>
+  <data name="AccentColor" xml:space="preserve">
+    <value>强调色</value>
+  </data>
+  <data name="EnterASixDigitHEXColorSuchAs0071E3" xml:space="preserve">
+    <value>请输入六位 HEX 颜色，如 #0071E3</value>
+  </data>
+  <data name="StartWithOneSmallTask" xml:space="preserve">
+    <value>从一件小事开始</value>
+  </data>
+  <data name="SelectATaskBox" xml:space="preserve">
+    <value>选择一个待办收纳盒</value>
+  </data>
+  <data name="TasksRemaining" xml:space="preserve">
+    <value>{0} 项待完成</value>
+  </data>
+  <data name="TaskAdded" xml:space="preserve">
+    <value>已添加待办</value>
+  </data>
+  <data name="TaskCompletedWellDone" xml:space="preserve">
+    <value>完成一项，做得不错</value>
+  </data>
+  <data name="TaskMarkedIncomplete" xml:space="preserve">
+    <value>已恢复为待完成</value>
+  </data>
+  <data name="TaskDeletedUndoWithin10Seconds" xml:space="preserve">
+    <value>已删除待办，10 秒内可撤销</value>
+  </data>
+  <data name="NoCompletedTasksToArchive" xml:space="preserve">
+    <value>没有可归档的事项</value>
+  </data>
+  <data name="CompletedOn" xml:space="preserve">
+    <value>完成于</value>
+  </data>
+  <data name="CreatedOn" xml:space="preserve">
+    <value>创建于</value>
+  </data>
+  <data name="CheckingForUpdates" xml:space="preserve">
+    <value>正在检查更新...</value>
+  </data>
+  <data name="UpToDateV" xml:space="preserve">
+    <value>已是最新版本 v{0}.{1}.{2}</value>
+  </data>
+  <data name="VersionIsAvailable" xml:space="preserve">
+    <value>发现新版本 {0}</value>
+  </data>
+  <data name="UpdateCanceled" xml:space="preserve">
+    <value>更新已取消</value>
+  </data>
+  <data name="UpdateCheckFailed" xml:space="preserve">
+    <value>检查更新失败</value>
+  </data>
+  <data name="DownloadingUpdate" xml:space="preserve">
+    <value>正在下载更新...</value>
+  </data>
+  <data name="DownloadingUpdate2" xml:space="preserve">
+    <value>正在下载更新... {0}%</value>
+  </data>
+  <data name="UpdateDownloadedRestarting" xml:space="preserve">
+    <value>更新下载完成，正在重启...</value>
+  </data>
+  <data name="UpdateDownloadFailed" xml:space="preserve">
+    <value>下载更新失败</value>
+  </data>
+  <data name="UpdateReadyQuitWitchDrawerToFinishUpdating" xml:space="preserve">
+    <value>更新已准备就绪，请退出 WitchDrawer 以完成更新</value>
+  </data>
+  <data name="TheDiagnosticPackageIncludesOnlyRecentLogsAndBasic" xml:space="preserve">
+    <value>诊断包只包含最近的运行日志和基础环境信息，不包含数据库或用户文件内容。
+
+日志中可能包含文件名和完整路径，发送前请按需检查。是否继续？</value>
+  </data>
+  <data name="ExportDiagnosticLogs" xml:space="preserve">
+    <value>导出诊断日志</value>
+  </data>
+  <data name="SaveWitchDrawerDiagnosticLogs" xml:space="preserve">
+    <value>保存 WitchDrawer 诊断日志</value>
+  </data>
+  <data name="ZIPArchiveZipZip" xml:space="preserve">
+    <value>ZIP 压缩包 (*.zip)|*.zip</value>
+  </data>
+  <data name="DiagnosticLogsExportedNNLogFilesNSavedTo" xml:space="preserve">
+    <value>诊断日志已导出。
+
+包含日志：{0} 个
+保存位置：{1}</value>
+  </data>
+  <data name="ExportComplete" xml:space="preserve">
+    <value>导出完成</value>
+  </data>
+  <data name="DiagnosticLogExportFailedN" xml:space="preserve">
+    <value>诊断日志导出失败：
+</value>
+  </data>
+  <data name="ExportFailed" xml:space="preserve">
+    <value>导出失败</value>
+  </data>
+  <data name="ExtraLarge" xml:space="preserve">
+    <value>超大</value>
+  </data>
+  <data name="Close" xml:space="preserve">
+    <value>关闭</value>
+  </data>
+  <data name="Enable" xml:space="preserve">
+    <value>开启</value>
+  </data>
+  <data name="Show" xml:space="preserve">
+    <value>显示</value>
+  </data>
+  <data name="Hide" xml:space="preserve">
+    <value>隐藏</value>
+  </data>
+  <data name="AutoSize" xml:space="preserve">
+    <value>自适应</value>
+  </data>
+  <data name="FixedGrid" xml:space="preserve">
+    <value>固定格数</value>
+  </data>
+  <data name="RemovedMissingEntries" xml:space="preserve">
+    <value>，已清理 {0} 项失效记录</value>
+  </data>
+  <data name="Message" xml:space="preserve">
+    <value>（{0}）</value>
+  </data>
+  <data name="DeletionIncompleteItemsCouldNotBeRestoredTheBox" xml:space="preserve">
+    <value>删除未完成：{0} 项还原失败{1}，收纳盒已保留{2}</value>
+  </data>
+  <data name="DeletionIncompleteTheBoxWasKept" xml:space="preserve">
+    <value>删除未完成，收纳盒已保留{0}</value>
+  </data>
+  <data name="DeletedReferencesRemoved" xml:space="preserve">
+    <value>已删除 {0}，引用已移除</value>
+  </data>
+  <data name="DeletedTasksCleared" xml:space="preserve">
+    <value>已删除 {0}，待办事项已清除</value>
+  </data>
+  <data name="Deleted" xml:space="preserve">
+    <value>已删除 {0}{1}</value>
+  </data>
+  <data name="DeletedRestoredItems" xml:space="preserve">
+    <value>已删除 {0}，已还原 {1} 项{2}</value>
+  </data>
+  <data name="TheDestinationIsAlreadyTheCurrentDataFolderNo" xml:space="preserve">
+    <value>目标文件夹与当前数据目录相同，无需迁移。</value>
+  </data>
+  <data name="TheDestinationCannotBeInsideTheCurrentDataFolder" xml:space="preserve">
+    <value>目标文件夹不能位于当前数据目录内部。</value>
+  </data>
+  <data name="TheDestinationSParentFolderIsUnavailable" xml:space="preserve">
+    <value>目标文件夹的父目录不可用。</value>
+  </data>
+  <data name="TheDestinationIsNotEmptyChooseAnEmptyFolder" xml:space="preserve">
+    <value>目标文件夹不为空。为避免覆盖已有数据，请选择一个空文件夹。</value>
+  </data>
+  <data name="TheMigrationFileSnapshotIsUnavailable" xml:space="preserve">
+    <value>迁移文件快照不可用。</value>
+  </data>
+  <data name="MigrationFailedTheDatabaseCouldNotBeCopiedTo" xml:space="preserve">
+    <value>迁移失败：数据库文件未能复制到目标文件夹。</value>
+  </data>
+  <data name="MigrationDoesNotSupportLinksOrOtherReparsePoints" xml:space="preserve">
+    <value>迁移不支持链接或其他 reparse point: {0}</value>
+  </data>
+  <data name="BoxFilesChangedDuringMigrationTheDestinationWasNot" xml:space="preserve">
+    <value>收纳盒文件在迁移期间发生变化，目标目录未启用。请重试。</value>
+  </data>
+  <data name="TheFileMovedToAnotherBoxRefreshAndTry" xml:space="preserve">
+    <value>文件已移动到其他盒子，请刷新后重试。</value>
+  </data>
+  <data name="TheBoxHasPendingFileRecoveryOperationsCompleteRecovery" xml:space="preserve">
+    <value>盒子包含待恢复的文件操作，请完成恢复后再删除。</value>
+  </data>
+  <data name="TheFileWasMovedOrRemovedByAnotherOperation" xml:space="preserve">
+    <value>文件已被其他操作移动或移除，请刷新后重试。</value>
+  </data>
+  <data name="TheFileHasAPendingOperationOrItsRecord" xml:space="preserve">
+    <value>文件包含待恢复的操作或记录已改变，请刷新后重试。</value>
+  </data>
+  <data name="WitchDrawerDataFilesAndStoredFilesCannotBeImported" xml:space="preserve">
+    <value>不能通过拖入搬移 WitchDrawer 数据文件或已收纳的文件；请使用盒间移动。</value>
+  </data>
+  <data name="TheImportSourceChangedTypeRefreshAndTryAgain" xml:space="preserve">
+    <value>导入源的类型已改变，请刷新后重试。</value>
+  </data>
+  <data name="TheBoxWasDeletedRefreshAndTryAgain" xml:space="preserve">
+    <value>收纳盒已被删除，请刷新后重试。</value>
+  </data>
+  <data name="TheCopyRecordHasNotBeenSavedItWill" xml:space="preserve">
+    <value>复制记录尚未保存，下次读取或启动时会重试。请保留 {0}</value>
+  </data>
+  <data name="TheRecordCouldNotBeSavedTheFileWas" xml:space="preserve">
+    <value>记录保存失败，文件已放回原位，请重试。</value>
+  </data>
+  <data name="TheMoveRecordHasNotBeenSavedItWill" xml:space="preserve">
+    <value>文件搬移记录尚未保存；下次读取或启动时会重试。请保留 {0}</value>
+  </data>
+  <data name="AndTheRecoveryStagingFile" xml:space="preserve">
+    <value> 及补偿暂存文件 {0}、</value>
+  </data>
+  <data name="TheStagedSourceIsStillAtAndTheDestination" xml:space="preserve">
+    <value>暂存源文件仍在 {0}；目标文件也存在，需要人工核对。</value>
+  </data>
+  <data name="RecoveryCopiesNeedManualReview" xml:space="preserve">
+    <value>补偿副本需要人工核对：{0}；{1}；{2}</value>
+  </data>
+  <data name="RecoveryCopiesNeedManualReview2" xml:space="preserve">
+    <value>补偿副本需要人工核对：{0}；{1}</value>
+  </data>
+  <data name="RecoverySourceUnavailableCheck" xml:space="preserve">
+    <value>补偿源不可用，请核对：{0}；{1}；{2}</value>
+  </data>
+  <data name="TheFileWasRemovedRefreshAndTryAgain" xml:space="preserve">
+    <value>文件已移除，请刷新后重试。</value>
+  </data>
+  <data name="TheBoxWasDeleted" xml:space="preserve">
+    <value>盒子已删除。</value>
+  </data>
+  <data name="FilesCanOnlyBeCopiedIntoNormalBoxes" xml:space="preserve">
+    <value>只能复制文件到普通收纳盒。</value>
+  </data>
+  <data name="BoxFoldersAndInternalRecoveryFilesCannotBeCopied" xml:space="preserve">
+    <value>不能复制收纳盒目录或内部恢复文件。</value>
+  </data>
+  <data name="TheSourceLocationIsUnavailableTheOriginalLocationCannot" xml:space="preserve">
+    <value>来源位置不可用，无法安全记录复制文件的还原位置。</value>
+  </data>
+  <data name="TheSourceFileHasAPendingRecoveryOperationComplete" xml:space="preserve">
+    <value>源文件有待恢复的操作，请完成恢复后再复制。</value>
+  </data>
+  <data name="TheNameCannotBeEmptyContainInvalidCharactersOr" xml:space="preserve">
+    <value>名称不能为空，也不能包含非法字符或以空格、句点结尾。</value>
+  </data>
+  <data name="WindowsReservedNamesCannotBeUsed" xml:space="preserve">
+    <value>不能使用 Windows 保留名称。</value>
+  </data>
+  <data name="TheFileHasAPendingRecoveryOperationCompleteRecovery" xml:space="preserve">
+    <value>文件有待恢复的操作，请完成恢复后再重命名。</value>
+  </data>
+  <data name="BothTheStagedCopyAndTheDestinationExistKeep" xml:space="preserve">
+    <value>复制暂存文件与目标同时存在，请保留两者并核对。</value>
+  </data>
+  <data name="TheCopyRecordDoesNotMatchTheDestinationKeep" xml:space="preserve">
+    <value>复制记录与目标位置不一致，请保留文件并核对。</value>
+  </data>
+  <data name="TheCopySourceIsUnavailableKeepTheStagedCopy" xml:space="preserve">
+    <value>复制源不可用，请保留复制暂存文件并核对。</value>
+  </data>
+  <data name="TheOriginalRenameLocationIsOccupiedAgainKeepThe" xml:space="preserve">
+    <value>重命名源位置已被重新占用，请保留暂存文件并核对。</value>
+  </data>
+  <data name="RemovedReference" xml:space="preserve">
+    <value>已移除引用 {0}</value>
+  </data>
+  <data name="TheFileNoLongerExistsRemovedItsBoxEntry" xml:space="preserve">
+    <value>文件已不存在，已移除 {0} 的收纳记录</value>
+  </data>
+  <data name="RestoredToTheDesktopOriginalLocationUnavailable" xml:space="preserve">
+    <value>已还原 {0} 到桌面（原位置不可用）</value>
+  </data>
+  <data name="RestoredToItsOriginalLocation" xml:space="preserve">
+    <value>已还原 {0} 到原位置</value>
+  </data>
+  <data name="AFileOrFolderCannotBeCopiedIntoItself" xml:space="preserve">
+    <value>不能把文件或文件夹复制到自身内部。</value>
+  </data>
+  <data name="UndoExpiredOrAlreadyCompleted" xml:space="preserve">
+    <value>撤销已过期或已完成。</value>
+  </data>
+  <data name="TheTaskBoxDoesNotExistOrWasDeleted" xml:space="preserve">
+    <value>待办盒不存在或已被删除。</value>
+  </data>
+  <data name="OnlyTasksInTaskBoxesCanBeEdited" xml:space="preserve">
+    <value>只能操作待办盒中的事项。</value>
+  </data>
+  <data name="TheTaskDoesNotExistOrWasDeleted" xml:space="preserve">
+    <value>待办事项不存在或已被删除。</value>
+  </data>
+  <data name="TaskTextCannotBeEmpty" xml:space="preserve">
+    <value>待办内容不能为空。</value>
+  </data>
+  <data name="TaskTextCannotExceedCharacters" xml:space="preserve">
+    <value>待办内容不能超过 {0} 个字符。</value>
+  </data>
+  <data name="InvalidDatabasePath" xml:space="preserve">
+    <value>数据库路径无效: </value>
+  </data>
+  <data name="DataHasMigratedRestartBeforeContinuing" xml:space="preserve">
+    <value>数据已迁移，请重启后再操作。</value>
+  </data>
+  <data name="DataChangedDuringMigrationTryAgain" xml:space="preserve">
+    <value>迁移期间数据发生变化，请重试。</value>
+  </data>
+  <data name="FileMovesAreIncompleteTryMigratingTheDataFolder" xml:space="preserve">
+    <value>文件搬移尚未完成，请稍后重试数据目录迁移。</value>
+  </data>
+  <data name="TheTaskWasChangedOrDeletedCancelEditingAnd" xml:space="preserve">
+    <value>事项已被修改或删除，请取消编辑后重试。</value>
+  </data>
+  <data name="DataMigrationIsFinishingTryThisOperationLater" xml:space="preserve">
+    <value>数据目录迁移正在完成，请稍后重试此操作。</value>
+  </data>
+  <data name="CannotOpenOrWriteToTheSQLiteDatabase" xml:space="preserve">
+    <value>无法打开或写入 SQLite 数据库。</value>
+  </data>
+  <data name="Database" xml:space="preserve">
+    <value>数据库: </value>
+  </data>
+  <data name="Folder2" xml:space="preserve">
+    <value>目录: </value>
+  </data>
+  <data name="MakeSureThisFolderIsWritableOrSetThe" xml:space="preserve">
+    <value>请确认该目录可写，或设置环境变量 </value>
+  </data>
+  <data name="ToAWritablePath" xml:space="preserve">
+    <value> 指向可写路径。</value>
+  </data>
+  <data name="CannotResolveLocalApplicationDataToReadTheDataFolderConfiguration" xml:space="preserve">
+    <value>无法解析 LocalApplicationData，无法读取数据目录引导配置。</value>
+  </data>
+  <data name="TheMigrationConfigurationFolderIsUnavailable" xml:space="preserve">
+    <value>迁移引导目录不可用。</value>
+  </data>
+  <data name="ThisItemCannotBeLaunchedAsAdministrator" xml:space="preserve">
+    <value>该项目不支持管理员启动。</value>
+  </data>
+  <data name="TheFileOrFolderNoLongerExists" xml:space="preserve">
+    <value>文件或文件夹已不存在。</value>
+  </data>
+  <data name="TheShortcutHasNoAccessibleLocalTarget" xml:space="preserve">
+    <value>快捷方式没有可访问的本地目标。</value>
+  </data>
+  <data name="ThisShortcutPointsToAWebsiteOrSystemApp" xml:space="preserve">
+    <value>此快捷方式指向网页或系统应用，没有本地文件位置。</value>
+  </data>
+  <data name="TheShortcutTargetNoLongerExists" xml:space="preserve">
+    <value>快捷方式的目标已不存在。</value>
+  </data>
+  <data name="WindowsHasNotFinishedTogglingDesktopIconsWaitFor" xml:space="preserve">
+    <value>Windows 尚未完成桌面图标切换，请等待资源管理器响应。</value>
+  </data>
+  <data name="CannotOpenWindowsDesktopIconSettings" xml:space="preserve">
+    <value>无法打开 Windows 桌面图标设置。</value>
+  </data>
+  <data name="ThereAreNoFilesToPasteFromTheClipboard" xml:space="preserve">
+    <value>剪贴板没有可粘贴的文件。</value>
+  </data>
+  <data name="TheFileHasNoAvailablePath" xml:space="preserve">
+    <value>文件没有可用路径。</value>
+  </data>
+  <data name="LaunchedAsAdministrator" xml:space="preserve">
+    <value>已以管理员身份启动 {0}</value>
+  </data>
+  <data name="AdministratorLaunchCanceled" xml:space="preserve">
+    <value>已取消管理员启动</value>
+  </data>
+  <data name="Located" xml:space="preserve">
+    <value>已定位 {0}</value>
+  </data>
+  <data name="LocatedShortcut" xml:space="preserve">
+    <value>已定位快捷方式：{0}</value>
+  </data>
+  <data name="TheFileIsInaccessibleAndCannotBeCopied" xml:space="preserve">
+    <value>文件不可访问，无法复制。</value>
+  </data>
+  <data name="Copied" xml:space="preserve">
+    <value>已复制 {0}</value>
+  </data>
+  <data name="FilePathCopied" xml:space="preserve">
+    <value>已复制文件路径</value>
+  </data>
+  <data name="RenameReference" xml:space="preserve">
+    <value>重命名引用</value>
+  </data>
+  <data name="Rename" xml:space="preserve">
+    <value>重命名</value>
+  </data>
+  <data name="OpenTargetLocation" xml:space="preserve">
+    <value>打开目标所在位置</value>
+  </data>
+  <data name="OpenFileLocation" xml:space="preserve">
+    <value>打开所在位置</value>
+  </data>
+  <data name="RemoveReference" xml:space="preserve">
+    <value>移除引用</value>
+  </data>
+  <data name="MoveOutAndRestoreFile" xml:space="preserve">
+    <value>移出并还原文件</value>
+  </data>
+  <data name="RemoveMissingEntry" xml:space="preserve">
+    <value>清理失效记录</value>
+  </data>
+  <data name="RenameFolder" xml:space="preserve">
+    <value>重命名文件夹</value>
+  </data>
+  <data name="RenameFile" xml:space="preserve">
+    <value>重命名文件</value>
+  </data>
+  <data name="OnlyTheReferenceNameChangesTheSourceFileStays" xml:space="preserve">
+    <value>只修改引用名称，源文件保持原样。</value>
+  </data>
+  <data name="EnterANewFolderName" xml:space="preserve">
+    <value>输入新的文件夹名称：</value>
+  </data>
+  <data name="EnterANewNameIncludingTheFileExtension" xml:space="preserve">
+    <value>输入新名称（包含文件扩展名）：</value>
+  </data>
+  <data name="Minimize" xml:space="preserve">
+    <value>最小化</value>
+  </data>
+  <data name="BoxList" xml:space="preserve">
+    <value>收纳盒列表</value>
+  </data>
+  <data name="New" xml:space="preserve">
+    <value>新建</value>
+  </data>
+  <data name="DrawerBox2" xml:space="preserve">
+    <value>抽屉收纳盒</value>
+  </data>
+  <data name="Archive" xml:space="preserve">
+    <value>归档</value>
+  </data>
+  <data name="Settings" xml:space="preserve">
+    <value>设置</value>
+  </data>
+  <data name="About" xml:space="preserve">
+    <value>关于</value>
+  </data>
+  <data name="SelectABox" xml:space="preserve">
+    <value>选择一个收纳盒</value>
+  </data>
+  <data name="SelectABoxOnTheLeftToStartOrganizing" xml:space="preserve">
+    <value>选择左侧的收纳盒开始整理</value>
+  </data>
+  <data name="ChooseSortOrder" xml:space="preserve">
+    <value>选择排序方式</value>
+  </data>
+  <data name="SortOrder" xml:space="preserve">
+    <value>排序方式</value>
+  </data>
+  <data name="Sort" xml:space="preserve">
+    <value>排序 · {0}</value>
+  </data>
+  <data name="DisplaySettings" xml:space="preserve">
+    <value>显示设置</value>
+  </data>
+  <data name="IconsHoverTitlesAndBoxSize" xml:space="preserve">
+    <value>图标、悬停、标题与盒子尺寸</value>
+  </data>
+  <data name="RenameDesktopPositionAndDelete" xml:space="preserve">
+    <value>重命名、桌面位置与删除</value>
+  </data>
+  <data name="MoreBoxActions" xml:space="preserve">
+    <value>更多收纳盒操作</value>
+  </data>
+  <data name="More" xml:space="preserve">
+    <value>更多</value>
+  </data>
+  <data name="RenameThisBox" xml:space="preserve">
+    <value>重命名当前收纳盒</value>
+  </data>
+  <data name="ShowDesktopBox" xml:space="preserve">
+    <value>显示桌面收纳盒</value>
+  </data>
+  <data name="MoveTheBoxToTheScreenCenter" xml:space="preserve">
+    <value>将盒子召回屏幕中心</value>
+  </data>
+  <data name="MoveToScreenCenter" xml:space="preserve">
+    <value>召回屏幕中心</value>
+  </data>
+  <data name="DeleteBox" xml:space="preserve">
+    <value>删除收纳盒</value>
+  </data>
+  <data name="Confirm" xml:space="preserve">
+    <value>确认</value>
+  </data>
+  <data name="DeleteThisBox" xml:space="preserve">
+    <value>删除这个收纳盒？</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>取消</value>
+  </data>
+  <data name="Delete" xml:space="preserve">
+    <value>删除</value>
+  </data>
+  <data name="Move" xml:space="preserve">
+    <value>将“</value>
+  </data>
+  <data name="ToTheScreenCenter" xml:space="preserve">
+    <value>”召回屏幕中心？</value>
+  </data>
+  <data name="TheBoxWillAppearAtTheCenterOfThe" xml:space="preserve">
+    <value>盒子将显示在主屏工作区中心，并立即记录新位置。</value>
+  </data>
+  <data name="Move2" xml:space="preserve">
+    <value>召回</value>
+  </data>
+  <data name="DoubleClickToOpenDeleteToRemove" xml:space="preserve">
+    <value>  ·  双击打开，按 Delete 移除</value>
+  </data>
+  <data name="Items4" xml:space="preserve">
+    <value>{0} 项</value>
+  </data>
+  <data name="ThisBoxIsEmpty" xml:space="preserve">
+    <value>收纳盒内无文件</value>
+  </data>
+  <data name="DropFilesHereToOrganizeThemIntoThisBox" xml:space="preserve">
+    <value>把文件拖到这里即可整理到当前收纳盒</value>
+  </data>
+  <data name="PathUnavailable" xml:space="preserve">
+    <value>路径不可用</value>
+  </data>
+  <data name="Open" xml:space="preserve">
+    <value>打开</value>
+  </data>
+  <data name="RemoveFromBox" xml:space="preserve">
+    <value>从收纳盒移除</value>
+  </data>
+  <data name="DropFilesIntoTheListToOrganizeThem" xml:space="preserve">
+    <value>将文件拖到列表中整理</value>
+  </data>
+  <data name="SystemSettings" xml:space="preserve">
+    <value>系统设置</value>
+  </data>
+  <data name="Appearance" xml:space="preserve">
+    <value>外观皮肤</value>
+  </data>
+  <data name="CurrentTheme" xml:space="preserve">
+    <value>当前风格：{0}</value>
+  </data>
+  <data name="DesktopBoxTransparency" xml:space="preserve">
+    <value>桌面盒子透明度</value>
+  </data>
+  <data name="Range090" xml:space="preserve">
+    <value>可调范围 0–90%</value>
+  </data>
+  <data name="ResetDesktopBoxTransparency" xml:space="preserve">
+    <value>恢复桌面盒子透明度默认值</value>
+  </data>
+  <data name="BoxBorderTransparency" xml:space="preserve">
+    <value>盒子边线透明度</value>
+  </data>
+  <data name="BoxBorderTransparencyPercentage" xml:space="preserve">
+    <value>盒子边线透明度百分比</value>
+  </data>
+  <data name="RestoreTheThemeDefaultFollowsDesktopBoxTransparency" xml:space="preserve">
+    <value>恢复主题默认，随桌面盒子透明度变化</value>
+  </data>
+  <data name="ResetBoxBorderTransparency" xml:space="preserve">
+    <value>恢复盒子边线透明度默认值</value>
+  </data>
+  <data name="IconBackgroundTransparency" xml:space="preserve">
+    <value>图标背景框透明度</value>
+  </data>
+  <data name="IconBackgroundTransparencyPercentage" xml:space="preserve">
+    <value>图标背景框透明度百分比</value>
+  </data>
+  <data name="ResetIconBackgroundTransparency" xml:space="preserve">
+    <value>恢复图标背景框透明度默认值</value>
+  </data>
+  <data name="EditorFollowsTransparency" xml:space="preserve">
+    <value>编辑页跟随透明度</value>
+  </data>
+  <data name="KeepTheEditorBackgroundInSyncWithDesktopBox" xml:space="preserve">
+    <value>开启后，编辑窗口背景随桌面盒子透明度同步变化</value>
+  </data>
+  <data name="RestoreCurrentThemePreset" xml:space="preserve">
+    <value>恢复当前主题预设</value>
+  </data>
+  <data name="ResetTransparencyColorsCornersAndHoverStyleForThis" xml:space="preserve">
+    <value>恢复当前主题的透明度、颜色、圆角和悬停样式</value>
+  </data>
+  <data name="EachThemeIsSavedSeparatelyRestoringAPresetResets" xml:space="preserve">
+    <value>每套主题分别保存，恢复预设会重置透明度、颜色与圆角。</value>
+  </data>
+  <data name="AutoHide" xml:space="preserve">
+    <value>自动隐藏</value>
+  </data>
+  <data name="HideBoxIconsAndTextAtTheTransparencyBelow" xml:space="preserve">
+    <value>开启后，鼠标不悬停时收纳盒内的图标与文字按下方透明度隐藏</value>
+  </data>
+  <data name="HiddenTransparency" xml:space="preserve">
+    <value>隐藏透明度</value>
+  </data>
+  <data name="AlsoFade" xml:space="preserve">
+    <value>同时参与透明</value>
+  </data>
+  <data name="BoxTitle" xml:space="preserve">
+    <value>收纳盒标题</value>
+  </data>
+  <data name="BoxBorder" xml:space="preserve">
+    <value>收纳盒边框</value>
+  </data>
+  <data name="RevealOnHover" xml:space="preserve">
+    <value>悬停取消隐藏范围</value>
+  </data>
+  <data name="HoveredBoxOnly" xml:space="preserve">
+    <value>仅被悬停的收纳盒</value>
+  </data>
+  <data name="AllBoxes" xml:space="preserve">
+    <value>全部收纳盒</value>
+  </data>
+  <data name="IconTooltips" xml:space="preserve">
+    <value>图标名称</value>
+  </data>
+  <data name="ShowFullPathsOrFileNamesWhenHoveringOver" xml:space="preserve">
+    <value>鼠标悬停图标时显示的名称：完整显示文件路径，精简显示仅文件名（快捷方式自动去掉 .lnk）</value>
+  </data>
+  <data name="ShowFileNamesOnly" xml:space="preserve">
+    <value>图标名称精简显示</value>
+  </data>
+  <data name="QuickPanelShortcut" xml:space="preserve">
+    <value>快速呼出面板</value>
+  </data>
+  <data name="PressTheGlobalShortcutToSearchAndOpenWitchDrawer" xml:space="preserve">
+    <value>在全局按下快捷键以极速搜索与唤出 WitchDrawer</value>
+  </data>
+  <data name="ClickThenPressANewShortcutCombination" xml:space="preserve">
+    <value>点击后按下新的快捷键组合</value>
+  </data>
+  <data name="DesktopBoxLayout" xml:space="preserve">
+    <value>桌面盒子布局</value>
+  </data>
+  <data name="SaveAllBoxPositionsInThreeSeparateSlotsAnd" xml:space="preserve">
+    <value>使用三个独立槽位备份当前所有盒子的位置，并可随时选择恢复</value>
+  </data>
+  <data name="BackupSlot1" xml:space="preserve">
+    <value>备份槽位 1</value>
+  </data>
+  <data name="SaveLayoutToBackupSlot1" xml:space="preserve">
+    <value>记录整体布局到备份槽位 1</value>
+  </data>
+  <data name="Restore" xml:space="preserve">
+    <value>恢复</value>
+  </data>
+  <data name="RestoreLayoutFromBackupSlot1" xml:space="preserve">
+    <value>恢复备份槽位 1 的整体布局</value>
+  </data>
+  <data name="DeleteLayoutInBackupSlot1" xml:space="preserve">
+    <value>删除备份槽位 1 的整体布局</value>
+  </data>
+  <data name="BackupSlot2" xml:space="preserve">
+    <value>备份槽位 2</value>
+  </data>
+  <data name="SaveLayoutToBackupSlot2" xml:space="preserve">
+    <value>记录整体布局到备份槽位 2</value>
+  </data>
+  <data name="RestoreLayoutFromBackupSlot2" xml:space="preserve">
+    <value>恢复备份槽位 2 的整体布局</value>
+  </data>
+  <data name="DeleteLayoutInBackupSlot2" xml:space="preserve">
+    <value>删除备份槽位 2 的整体布局</value>
+  </data>
+  <data name="BackupSlot3" xml:space="preserve">
+    <value>备份槽位 3</value>
+  </data>
+  <data name="SaveLayoutToBackupSlot3" xml:space="preserve">
+    <value>记录整体布局到备份槽位 3</value>
+  </data>
+  <data name="RestoreLayoutFromBackupSlot3" xml:space="preserve">
+    <value>恢复备份槽位 3 的整体布局</value>
+  </data>
+  <data name="DeleteLayoutInBackupSlot3" xml:space="preserve">
+    <value>删除备份槽位 3 的整体布局</value>
+  </data>
+  <data name="CheckForUpdates" xml:space="preserve">
+    <value>检查更新</value>
+  </data>
+  <data name="CopyTheDatabaseAndBoxFilesToANew" xml:space="preserve">
+    <value>迁移会把数据库与盒内文件复制到新文件夹，重启后生效；原目录会保留作为备份。</value>
+  </data>
+  <data name="ChangeLocation" xml:space="preserve">
+    <value>更改位置…</value>
+  </data>
+  <data name="LaunchAtStartup" xml:space="preserve">
+    <value>开机自启动</value>
+  </data>
+  <data name="RunWitchDrawerWhenWindowsStarts" xml:space="preserve">
+    <value>系统启动时自动运行 WitchDrawer</value>
+  </data>
+  <data name="HideDesktopIcons" xml:space="preserve">
+    <value>隐藏桌面图标</value>
+  </data>
+  <data name="HideWindowsDesktopFilesFoldersShortcutsAndSystemIcons" xml:space="preserve">
+    <value>隐藏 Windows 桌面上的文件、文件夹、快捷方式和系统图标，不会删除文件</value>
+  </data>
+  <data name="DoubleClickDesktopToToggleIcons" xml:space="preserve">
+    <value>双击桌面切换图标</value>
+  </data>
+  <data name="DoubleClickAnEmptyDesktopAreaToHideOr" xml:space="preserve">
+    <value>双击桌面空白区域，快速隐藏或显示 Windows 桌面图标</value>
+  </data>
+  <data name="DesktopWidgets" xml:space="preserve">
+    <value>桌面微件特性</value>
+  </data>
+  <data name="WitchDrawerKeepsYourDesktopSimpleWithFileIconsAnd" xml:space="preserve">
+    <value>WitchDrawer 桌面收纳栏专为极简桌面开发。仅呈现智能分类图标与轻量投放区，所有多余的标题栏、管理和刷新功能已统一收归本控制台进行操作，以保持您桌面清爽洁净。</value>
+  </data>
+  <data name="EnterToSaveEscToCancel" xml:space="preserve">
+    <value>Enter 保存，Esc 取消</value>
+  </data>
+  <data name="TaskText" xml:space="preserve">
+    <value>待办内容</value>
+  </data>
+  <data name="SaveEnter" xml:space="preserve">
+    <value>保存（Enter）</value>
+  </data>
+  <data name="SaveTask" xml:space="preserve">
+    <value>保存待办</value>
+  </data>
+  <data name="CancelEsc" xml:space="preserve">
+    <value>取消（Esc）</value>
+  </data>
+  <data name="CancelEditing" xml:space="preserve">
+    <value>取消编辑</value>
+  </data>
+  <data name="EditTaskF2" xml:space="preserve">
+    <value>编辑待办（F2）</value>
+  </data>
+  <data name="EditTask" xml:space="preserve">
+    <value>编辑待办</value>
+  </data>
+  <data name="DeleteTask" xml:space="preserve">
+    <value>删除待办</value>
+  </data>
+  <data name="AppInformation" xml:space="preserve">
+    <value>应用信息</value>
+  </data>
+  <data name="ALightweightWindowsDesktopFileOrganizer" xml:space="preserve">
+    <value>轻量级 Windows 桌面文件收纳工具</value>
+  </data>
+  <data name="GettingStarted" xml:space="preserve">
+    <value>使用说明</value>
+  </data>
+  <data name="DropAFileOrFolderIntoABoxTo" xml:space="preserve">
+    <value>将文件或文件夹直接拖入收纳盒即可开始使用。</value>
+  </data>
+  <data name="NormalBoxesMoveFilesAndFoldersIntoWitchDrawerS" xml:space="preserve">
+    <value>普通收纳盒：会把文件或文件夹实际移动到 WitchDrawer 的数据目录，适合由应用统一管理的临时文件。</value>
+  </data>
+  <data name="MappingBoxesStoreOriginalPathsAndLeaveSourceFiles" xml:space="preserve">
+    <value>映射收纳盒：只保存原路径，不移动、复制或删除源文件，适合项目目录、工作目录以及经常被其他程序使用的文件。</value>
+  </data>
+  <data name="TipUseMappingBoxesForFoldersToAvoidMoving" xml:space="preserve">
+    <value>建议：文件夹请尽量使用“映射收纳盒”，避免移动大量文件或正在使用的文件；需要保留原位置时，请优先选择映射收纳盒。</value>
+  </data>
+  <data name="CompatibilitySomeFeaturesMayNotWorkOnWindows10" xml:space="preserve">
+    <value>兼容性提示：Windows 10 暂时可能有部分功能不兼容，建议优先使用 Windows 11。</value>
+  </data>
+  <data name="DiagnosticsAndFeedback" xml:space="preserve">
+    <value>诊断与反馈</value>
+  </data>
+  <data name="IfSomethingGoesWrongExportRecentLogsToShare" xml:space="preserve">
+    <value>遇到异常时，可导出最近日志发送给开发者。</value>
+  </data>
+  <data name="ExcludesTheDatabaseAndUserFilesLogsMayInclude" xml:space="preserve">
+    <value>不包含数据库和用户文件；日志可能含文件名与完整路径。</value>
+  </data>
+  <data name="ExportWitchDrawerDiagnosticLogs" xml:space="preserve">
+    <value>导出 WitchDrawer 诊断日志</value>
+  </data>
+  <data name="SponsorTheAuthor" xml:space="preserve">
+    <value>赞助作者</value>
+  </data>
+  <data name="SupportOngoingDevelopmentAndMaintenanceOfWitchDrawer" xml:space="preserve">
+    <value>支持 WitchDrawer 的持续开发与维护</value>
+  </data>
+  <data name="IncludeYourIDWhenSponsoringToBeAddedTo" xml:space="preserve">
+    <value>赞助时请备注你的 ID，可加入鸣谢名单。</value>
+  </data>
+  <data name="VisitSponsorshipPage" xml:space="preserve">
+    <value>前往赞助页面</value>
+  </data>
+  <data name="OpenTheAuthorSSponsorshipPageInYourBrowser" xml:space="preserve">
+    <value>在浏览器中打开赞助作者页面</value>
+  </data>
+  <data name="Developer" xml:space="preserve">
+    <value>开发者</value>
+  </data>
+  <data name="Author" xml:space="preserve">
+    <value>作者</value>
+  </data>
+  <data name="Email" xml:space="preserve">
+    <value>邮箱</value>
+  </data>
+  <data name="Website" xml:space="preserve">
+    <value>网站</value>
+  </data>
+  <data name="License" xml:space="preserve">
+    <value>开源协议</value>
+  </data>
+  <data name="DocumentationInDocsAndIconsAndArtworkInAssets" xml:space="preserve">
+    <value>docs/ 文档与 Assets/ 图标、美术素材采用 CC BY-NC-SA 4.0 授权</value>
+  </data>
+  <data name="DocsAndAssetsCCBYNCSA40" xml:space="preserve">
+    <value>文档与素材 CC BY-NC-SA 4.0</value>
+  </data>
+  <data name="ProjectRepository" xml:space="preserve">
+    <value>项目仓库</value>
+  </data>
+  <data name="OpenInBrowser" xml:space="preserve">
+    <value>在浏览器中打开</value>
+  </data>
+  <data name="TaskHistory" xml:space="preserve">
+    <value>待办历史</value>
+  </data>
+  <data name="CompletedTasksArchivedFromDesktopTaskBoxesAreSaved" xml:space="preserve">
+    <value>从桌面待办盒归档的已完成事项会保存在这里</value>
+  </data>
+  <data name="UndoDeletion" xml:space="preserve">
+    <value>撤销删除</value>
+  </data>
+  <data name="UndoWithin10SecondsOfDeletion" xml:space="preserve">
+    <value>删除后 10 秒内可撤销</value>
+  </data>
+  <data name="NoArchivedTasksYet" xml:space="preserve">
+    <value>还没有归档事项</value>
+  </data>
+  <data name="CompleteTasksInADesktopTaskBoxThenClick" xml:space="preserve">
+    <value>在桌面待办盒中完成事项后，点击“归档”</value>
+  </data>
+  <data name="IconStyle" xml:space="preserve">
+    <value>图标风格</value>
+  </data>
+  <data name="IconSize" xml:space="preserve">
+    <value>图标大小</value>
+  </data>
+  <data name="ExpandOnHover" xml:space="preserve">
+    <value>悬停展开</value>
+  </data>
+  <data name="BoxTitle2" xml:space="preserve">
+    <value>盒子标题</value>
+  </data>
+  <data name="FileNames" xml:space="preserve">
+    <value>文件名称</value>
+  </data>
+  <data name="BoxSize" xml:space="preserve">
+    <value>盒子尺寸</value>
+  </data>
+  <data name="Columns" xml:space="preserve">
+    <value>列</value>
+  </data>
+  <data name="DecreaseColumns" xml:space="preserve">
+    <value>减少列数</value>
+  </data>
+  <data name="IncreaseColumns" xml:space="preserve">
+    <value>增加列数</value>
+  </data>
+  <data name="Rows" xml:space="preserve">
+    <value>行</value>
+  </data>
+  <data name="DecreaseRows" xml:space="preserve">
+    <value>减少行数</value>
+  </data>
+  <data name="IncreaseRows" xml:space="preserve">
+    <value>增加行数</value>
+  </data>
+  <data name="ChangesApplyToDesktopBoxesImmediately" xml:space="preserve">
+    <value>更改会立即应用到桌面收纳盒</value>
+  </data>
+  <data name="ConsolasCourierNewMicrosoftYaHei" xml:space="preserve">
+    <value>Consolas, Courier New, 微软雅黑</value>
+  </data>
+  <data name="GridView" xml:space="preserve">
+    <value>网格视图</value>
+  </data>
+  <data name="ListView" xml:space="preserve">
+    <value>列表视图</value>
+  </data>
+  <data name="CloseDrawer" xml:space="preserve">
+    <value>收起抽屉</value>
+  </data>
+  <data name="RollUp" xml:space="preserve">
+    <value>卷起</value>
+  </data>
+  <data name="Expand" xml:space="preserve">
+    <value>展开</value>
+  </data>
+  <data name="HideBox" xml:space="preserve">
+    <value>隐藏收纳盒</value>
+  </data>
+  <data name="TaskList" xml:space="preserve">
+    <value>待办清单</value>
+  </data>
+  <data name="MoveAllCompletedTasksToTheArchive" xml:space="preserve">
+    <value>将所有已完成待办移入主页归档</value>
+  </data>
+  <data name="Remaining" xml:space="preserve">
+    <value>剩余 {0}</value>
+  </data>
+  <data name="EnterATaskAndPressEnterToAdd" xml:space="preserve">
+    <value>输入待办内容，按 Enter 添加</value>
+  </data>
+  <data name="AddATask" xml:space="preserve">
+    <value>添加待办...</value>
+  </data>
+  <data name="NoTasksYet" xml:space="preserve">
+    <value>暂无待办</value>
+  </data>
+  <data name="ToggleCompletion" xml:space="preserve">
+    <value>切换完成状态</value>
+  </data>
+  <data name="Undo" xml:space="preserve">
+    <value>撤销</value>
+  </data>
+  <data name="OpenDrawer" xml:space="preserve">
+    <value>展开抽屉</value>
+  </data>
+  <data name="DropFilesHere2" xml:space="preserve">
+    <value>拖入文件至此</value>
+  </data>
+  <data name="SearchFilesOrBoxes" xml:space="preserve">
+    <value>输入关键字搜索文件或收纳盒...</value>
+  </data>
+  <data name="Default" xml:space="preserve">
+    <value>默认</value>
+  </data>
+  <data name="CustomStyle" xml:space="preserve">
+    <value>自定义样式</value>
+  </data>
+  <data name="BoxCornerRadius" xml:space="preserve">
+    <value>盒子圆角</value>
+  </data>
+  <data name="BoxCornerRadiusValue" xml:space="preserve">
+    <value>盒子圆角数值</value>
+  </data>
+  <data name="LogicalPixelsFollowsSystemScaling" xml:space="preserve">
+    <value>逻辑像素，随系统缩放</value>
+  </data>
+  <data name="ResetBoxCorners" xml:space="preserve">
+    <value>恢复盒子圆角</value>
+  </data>
+  <data name="IconCornerScale" xml:space="preserve">
+    <value>图标圆角比例</value>
+  </data>
+  <data name="IconCornerScalePercentage" xml:space="preserve">
+    <value>图标圆角比例百分比</value>
+  </data>
+  <data name="ResetIconCorners" xml:space="preserve">
+    <value>恢复图标圆角</value>
+  </data>
+  <data name="HoverTransparency" xml:space="preserve">
+    <value>悬停透明度</value>
+  </data>
+  <data name="ItemHoverTransparency" xml:space="preserve">
+    <value>文件项悬停透明度</value>
+  </data>
+  <data name="HoverTransparencyPercentage" xml:space="preserve">
+    <value>悬停透明度百分比</value>
+  </data>
+  <data name="ResetHoverTransparency" xml:space="preserve">
+    <value>恢复悬停透明度</value>
+  </data>
+  <data name="Reset" xml:space="preserve">
+    <value>恢复{0}</value>
+  </data>
+  <data name="EnterASixDigitHEXColorIconCornerScale" xml:space="preserve">
+    <value>输入六位 HEX 颜色。图标圆角 100% 使用原有比例，0% 为直角。</value>
+  </data>
+  <data name="Preview" xml:space="preserve">
+    <value>效果预览</value>
+  </data>
+  <data name="Hover" xml:space="preserve">
+    <value>悬停</value>
+  </data>
+  <data name="Selected" xml:space="preserve">
+    <value>选中</value>
+  </data>
+  <data name="Remaining2" xml:space="preserve">
+    <value>待完成 </value>
+  </data>
+  <data name="Completed2" xml:space="preserve">
+    <value>已完成 </value>
+  </data>
+  <data name="TaskCompletionProgress" xml:space="preserve">
+    <value>清单完成进度</value>
+  </data>
+  <data name="EnterATaskAndPressEnterToAdd2" xml:space="preserve">
+    <value>输入任务，按 Enter 添加</value>
+  </data>
+  <data name="NewTaskText" xml:space="preserve">
+    <value>新待办内容</value>
+  </data>
+  <data name="AddSomethingToDo" xml:space="preserve">
+    <value>添加一件要做的事…</value>
+  </data>
+  <data name="AddTask2" xml:space="preserve">
+    <value>添加任务</value>
+  </data>
+  <data name="NoTasksYet2" xml:space="preserve">
+    <value>还没有待办事项</value>
+  </data>
+  <data name="AllTasksCompleted" xml:space="preserve">
+    <value>所有事项已完成</value>
+  </data>
+  <data name="AddATaskAboveAndPressEnterToBegin" xml:space="preserve">
+    <value>在上方添加任务，按 Enter 即可开始</value>
+  </data>
+  <data name="ArchiveCompletedTasksOrAddANewTask" xml:space="preserve">
+    <value>可以归档已完成的事项，或添加新的任务</value>
+  </data>
+  <data name="IncompleteTasks" xml:space="preserve">
+    <value>待完成事项</value>
+  </data>
+  <data name="ExpandOrCollapseCompletedTasks" xml:space="preserve">
+    <value>展开或收起已完成事项</value>
+  </data>
+  <data name="ArchiveCompleted" xml:space="preserve">
+    <value>归档已完成</value>
+  </data>
+  <data name="CompletedTasks" xml:space="preserve">
+    <value>已完成事项</value>
+  </data>
+  <data name="OneTaskDeleted" xml:space="preserve">
+    <value>已删除一项待办</value>
+  </data>
+  <data name="ItemMenu" xml:space="preserve">
+    <value>项目菜单</value>
+  </data>
+  <data name="RunAsAdministrator" xml:space="preserve">
+    <value>以管理员身份启动</value>
+  </data>
+  <data name="OpenShortcutLocation" xml:space="preserve">
+    <value>打开快捷方式位置</value>
+  </data>
+  <data name="CopyFile" xml:space="preserve">
+    <value>复制文件</value>
+  </data>
+  <data name="CopyFilePath" xml:space="preserve">
+    <value>复制文件路径</value>
+  </data>
+  <data name="PasteIntoThisBox" xml:space="preserve">
+    <value>粘贴到此盒子</value>
+  </data>
+  <data name="MoveOutOfBox" xml:space="preserve">
+    <value>移出收纳盒</value>
+  </data>
+  <data name="NewName" xml:space="preserve">
+    <value>新名称</value>
+  </data>
+  <data name="OK" xml:space="preserve">
+    <value>确定</value>
+  </data>
+  <data name="LanguageTitle" xml:space="preserve">
+    <value>语言</value>
+  </data>
+  <data name="LanguageDescription" xml:space="preserve">
+    <value>切换后立即生效，下次启动自动使用所选语言。</value>
+  </data>
+  <data name="LanguageChanged" xml:space="preserve">
+    <value>已切换语言</value>
+  </data>
+  <data name="LanguageSaveFailed" xml:space="preserve">
+    <value>语言设置保存失败</value>
+  </data>
+</root>

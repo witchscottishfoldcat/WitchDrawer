@@ -1,3 +1,5 @@
+using WitchDrawer.App.Localization;
+using WitchDrawer.Core.Localization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using WitchDrawer.App.Infrastructure;
@@ -8,7 +10,7 @@ using WitchDrawer.Core.Services;
 
 namespace WitchDrawer.App.ViewModels;
 
-public sealed class QuickPanelViewModel : ObservableObject, IBoxContentRefreshTarget
+public sealed class QuickPanelViewModel : LocalizedObservableObject, IBoxContentRefreshTarget
 {
     private const double ItemIconSizeDip = 30;
 
@@ -25,7 +27,7 @@ public sealed class QuickPanelViewModel : ObservableObject, IBoxContentRefreshTa
     private string _searchText = string.Empty;
     private double _iconDpiScaleX = 1;
     private double _iconDpiScaleY = 1;
-    private string _statusText = "快速面板";
+    private string _statusText = Strings.Get("QuickPanel");
 
     public QuickPanelViewModel(
         DrawerService drawerService,
@@ -72,6 +74,10 @@ public sealed class QuickPanelViewModel : ObservableObject, IBoxContentRefreshTa
         get => _statusText;
         private set => SetProperty(ref _statusText, value);
     }
+
+    protected override void OnLanguageChanged() => StatusText = _hasLoaded
+        ? Strings.Format("Items3", Items.Count, _allItems.Count)
+        : Strings.Get("QuickPanel");
 
     public void UpdateIconDisplayMetrics(double dpiScaleX, double dpiScaleY)
     {
@@ -317,7 +323,7 @@ public sealed class QuickPanelViewModel : ObservableObject, IBoxContentRefreshTa
         try
         {
             await _drawerService.OpenItemAsync(item.Id, _launcher);
-            StatusText = $"已打开 {item.DisplayName}";
+            StatusText = Strings.Format("Opened", item.DisplayName);
         }
         catch (Exception exception)
         {
@@ -337,7 +343,7 @@ public sealed class QuickPanelViewModel : ObservableObject, IBoxContentRefreshTa
                 || item.BoxName.Contains(query, StringComparison.OrdinalIgnoreCase));
 
         Items.ReplaceAll(filtered.Take(300));
-        StatusText = $"{Items.Count} / {_allItems.Count} 项";
+        StatusText = Strings.Format("Items3", Items.Count, _allItems.Count);
     }
 
     private List<DrawerItemViewModel> CreateItemViewModels(

@@ -1,3 +1,4 @@
+using WitchDrawer.Core.Localization;
 namespace WitchDrawer.App.ViewModels;
 
 public static class BoxVisualStyleCatalog
@@ -6,13 +7,13 @@ public static class BoxVisualStyleCatalog
     [
         new(
             BoxVisualStyle.Modern,
-            "现代图标",
-            "清晰圆润，适合日常桌面",
+            "ModernIcons",
+            "CleanRoundedIconsForEverydayUse",
             "\uE8B7"),
         new(
             BoxVisualStyle.Pixel,
-            "像素图标",
-            "复古像素边缘与点阵细节",
+            "PixelIcons",
+            "RetroPixelEdgesAndDottedDetails",
             "\uE7C4")
     ];
 

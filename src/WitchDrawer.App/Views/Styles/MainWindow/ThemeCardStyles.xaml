@@ -1,5 +1,6 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="clr-namespace:WitchDrawer.App.Localization">
     <!-- Theme / transparency control styles, lifted verbatim from MainWindow's
          local resource scopes. ThemeOpacitySliderStyle references the track and
          thumb styles via StaticResource, so they must stay declared first. -->
@@ -91,7 +92,7 @@
         </Setter>
     </Style>
     <Style x:Key="ThemeOpacityResetButtonStyle" TargetType="Button" BasedOn="{StaticResource GhostButtonStyle}">
-        <Setter Property="Content" Value="默认" />
+        <Setter Property="Content" Value="{loc:Text Default}" />
         <Setter Property="Height" Value="26" />
         <Setter Property="Padding" Value="7,0" />
         <Setter Property="Margin" Value="8,0,0,0" />

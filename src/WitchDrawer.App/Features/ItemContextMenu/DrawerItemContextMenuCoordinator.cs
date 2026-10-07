@@ -1,3 +1,4 @@
+using WitchDrawer.Core.Localization;
 using System.IO;
 using System.Collections.Specialized;
 using WitchDrawer.App.ViewModels;
@@ -129,7 +130,7 @@ internal sealed class DrawerItemContextMenuCoordinator : IDisposable
         else
         {
             _host.Logger.Error(exception, "Failed to execute box context action.");
-            _host.ReportItemContextAction($"操作失败：{exception.Message}");
+            _host.ReportItemContextAction(Strings.Format("OperationFailed", exception.Message));
         }
     }
     internal async Task ExecuteAsync(DrawerItemContextAction action, DrawerItemViewModel? item)
@@ -138,13 +139,13 @@ internal sealed class DrawerItemContextMenuCoordinator : IDisposable
         if (action == DrawerItemContextAction.Paste)
         {
             var paths = _clipboard.ReadPaths();
-            if (paths.Length == 0) { _host.ReportItemContextAction("剪贴板没有可粘贴的文件。"); return; }
+            if (paths.Length == 0) { _host.ReportItemContextAction(Strings.Get("ThereAreNoFilesToPasteFromTheClipboard")); return; }
             await _host.PasteFilePathsAsync(paths);
             return;
         }
         if (item is null) return;
         var current = await _host.GetCurrentFileItemAsync(item);
-        var path = current.EffectivePath ?? throw new InvalidOperationException("文件没有可用路径。");
+        var path = current.EffectivePath ?? throw new InvalidOperationException(Strings.Get("TheFileHasNoAvailablePath"));
         switch (action)
         {
             case DrawerItemContextAction.Open:
@@ -152,25 +153,25 @@ internal sealed class DrawerItemContextMenuCoordinator : IDisposable
                 break;
             case DrawerItemContextAction.RunAsAdministrator:
                 _host.ReportItemContextAction(await WindowsFileShellActions.RunAsAdministratorAsync(path)
-                    ? $"已以管理员身份启动 {current.DisplayName}" : "已取消管理员启动");
+                    ? Strings.Format("LaunchedAsAdministrator", current.DisplayName) : Strings.Get("AdministratorLaunchCanceled"));
                 break;
             case DrawerItemContextAction.Reveal:
                 if (WindowsFileShellActions.IsShortcut(path)) path = await WindowsFileShellActions.GetShortcutTargetAsync(path);
                 await WindowsFileShellActions.RevealAsync(path);
-                _host.ReportItemContextAction($"已定位 {current.DisplayName}");
+                _host.ReportItemContextAction(Strings.Format("Located", current.DisplayName));
                 break;
             case DrawerItemContextAction.RevealShortcutLocation:
                 await WindowsFileShellActions.RevealAsync(path);
-                _host.ReportItemContextAction($"已定位快捷方式：{current.DisplayName}");
+                _host.ReportItemContextAction(Strings.Format("LocatedShortcut", current.DisplayName));
                 break;
             case DrawerItemContextAction.Copy:
-                if (!(await _inspect(path)).Exists) throw new FileNotFoundException("文件不可访问，无法复制。", path);
+                if (!(await _inspect(path)).Exists) throw new FileNotFoundException(Strings.Get("TheFileIsInaccessibleAndCannotBeCopied"), path);
                 _clipboard.CopyFile(path);
-                _host.ReportItemContextAction($"已复制 {current.DisplayName}");
+                _host.ReportItemContextAction(Strings.Format("Copied", current.DisplayName));
                 break;
             case DrawerItemContextAction.CopyPath:
                 _clipboard.CopyPath(path);
-                _host.ReportItemContextAction("已复制文件路径");
+                _host.ReportItemContextAction(Strings.Get("FilePathCopied"));
                 break;
             case DrawerItemContextAction.Rename:
                 if (_host.IsBusy) return;

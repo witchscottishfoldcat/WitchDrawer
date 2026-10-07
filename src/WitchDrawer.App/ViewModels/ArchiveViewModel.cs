@@ -1,3 +1,4 @@
+using WitchDrawer.Core.Localization;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -53,7 +54,7 @@ public sealed class ArchiveViewModel
         {
             await _todoService.RestoreArchivedAsync(todo.Id);
             await LoadAsync();
-            StatusText = $"已将“{todo.Title}”恢复到 {todo.BoxName}";
+            StatusText = Strings.Format("RestoredTo", todo.Title, todo.BoxName);
         });
     }
 
@@ -69,7 +70,7 @@ public sealed class ArchiveViewModel
             var undo = await _todoService.DeleteWithUndoAsync(todo.Id);
             ArchivedTodos.Remove(todo);
             ArchiveUndo.Offer(undo);
-            StatusText = $"已删除归档事项“{todo.Title}”，10 秒内可撤销";
+            StatusText = Strings.Format("DeletedArchivedTaskUndoWithin10Seconds", todo.Title);
         });
     }
 
@@ -82,7 +83,7 @@ public sealed class ArchiveViewModel
             await _todoService.UndoDeleteAsync(pending.Token);
             ArchiveUndo.Clear();
             await LoadAsync();
-            StatusText = "已撤销删除归档事项";
+            StatusText = Strings.Get("UndidArchivedTaskDeletion");
         });
     }
 
@@ -97,7 +98,7 @@ public sealed class ArchiveViewModel
             ArchivedTodos.Clear();
             foreach (var todo in archivedTodos)
             {
-                var boxName = boxNames.GetValueOrDefault(todo.BoxId, "待办收纳盒");
+                var boxName = boxNames.GetValueOrDefault(todo.BoxId, Strings.Get("TaskBox"));
                 ArchivedTodos.Add(new ArchivedTodoItemViewModel(todo, boxName));
             }
         }

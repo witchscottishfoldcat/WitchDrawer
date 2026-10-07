@@ -1,0 +1,1682 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="SavedBoxesToLayoutBackupSlot" xml:space="preserve">
+    <value>Saved {0} boxes to layout backup slot {1}</value>
+  </data>
+  <data name="LayoutBackupSlotIsEmptyOrUnavailable" xml:space="preserve">
+    <value>Layout backup slot {0} is empty or unavailable</value>
+  </data>
+  <data name="SkippedDeletedBoxes" xml:space="preserve">
+    <value>, skipped {0} deleted boxes</value>
+  </data>
+  <data name="RestoredBoxesFromLayoutBackupSlot" xml:space="preserve">
+    <value>Restored {1} boxes from layout backup slot {0}{2}</value>
+  </data>
+  <data name="DeletedLayoutBackupSlot" xml:space="preserve">
+    <value>Deleted layout backup slot {0}</value>
+  </data>
+  <data name="LayoutBackupSlotIsAlreadyEmpty" xml:space="preserve">
+    <value>Layout backup slot {0} is already empty</value>
+  </data>
+  <data name="MovedTheBoxToTheCenterOfTheMain" xml:space="preserve">
+    <value>Moved the box to the center of the main screen</value>
+  </data>
+  <data name="RunningAsAdministratorWindowsRestrictsFileDropsFromWindows" xml:space="preserve">
+    <value>Running as administrator: Windows restricts file drops from windows running with standard permissions.</value>
+  </data>
+  <data name="SomeFileMovesNeedManualReviewOtherBoxesRemain" xml:space="preserve">
+    <value>Some file moves need manual review; other boxes remain available.</value>
+  </data>
+  <data name="SomeFileMovesCouldNotBeRecoveredAutomaticallyAll" xml:space="preserve">
+    <value>Some file moves could not be recovered automatically. All affected files have been kept. Check these paths:</value>
+  </data>
+  <data name="WitchDrawerFileRecovery" xml:space="preserve">
+    <value>WitchDrawer file recovery</value>
+  </data>
+  <data name="HideMainWindow" xml:space="preserve">
+    <value>Hide main window</value>
+  </data>
+  <data name="ShowMainWindow" xml:space="preserve">
+    <value>Show main window</value>
+  </data>
+  <data name="ShowAllBoxes" xml:space="preserve">
+    <value>Show all boxes</value>
+  </data>
+  <data name="QuitWitchDrawer" xml:space="preserve">
+    <value>Quit WitchDrawer</value>
+  </data>
+  <data name="VersionIsAvailableNNUpdateNowNTheUpdateWill" xml:space="preserve">
+    <value>Version {0} is available.
+
+Update now?
+The update will download automatically and restart the app.</value>
+  </data>
+  <data name="UpdateAvailable" xml:space="preserve">
+    <value>Update available</value>
+  </data>
+  <data name="ClickToChange" xml:space="preserve">
+    <value>Click to change</value>
+  </data>
+  <data name="EnabledClickToChange" xml:space="preserve">
+    <value>Enabled; click to change</value>
+  </data>
+  <data name="PressANewShortcut" xml:space="preserve">
+    <value>Press a new shortcut…</value>
+  </data>
+  <data name="IncludeCtrlAltOrWinEscToCancel" xml:space="preserve">
+    <value>Include Ctrl, Alt or Win; Esc to cancel</value>
+  </data>
+  <data name="ChooseANewDataFolderUseAnEmptyFolder" xml:space="preserve">
+    <value>Choose a new data folder (use an empty folder)</value>
+  </data>
+  <data name="TheSelectedFolderIsAlreadyTheCurrentDataFolder" xml:space="preserve">
+    <value>The selected folder is already the current data folder.</value>
+  </data>
+  <data name="DataStorage" xml:space="preserve">
+    <value>Data storage</value>
+  </data>
+  <data name="CopyDataFromNNNtoNNNRestart" xml:space="preserve">
+    <value>Copy data from
+{0}
+
+to
+{1}
+
+Restart the app after migration to use the new folder. Continue?</value>
+  </data>
+  <data name="MoveDataStorage" xml:space="preserve">
+    <value>Move data storage</value>
+  </data>
+  <data name="DataMigrationFailedN" xml:space="preserve">
+    <value>Data migration failed:
+</value>
+  </data>
+  <data name="DataMigrationIsCompleteClickOKToRestartWitchDrawer" xml:space="preserve">
+    <value>Data migration is complete. Click OK to restart WitchDrawer and use the new folder.
+The old folder is no longer writable and is kept as a backup.</value>
+  </data>
+  <data name="MigrationComplete" xml:space="preserve">
+    <value>Migration complete</value>
+  </data>
+  <data name="ChangeCanceled" xml:space="preserve">
+    <value>Change canceled</value>
+  </data>
+  <data name="PressANonModifierKey" xml:space="preserve">
+    <value>Press a non-modifier key</value>
+  </data>
+  <data name="HoldAtLeastCtrlAltOrWin" xml:space="preserve">
+    <value>Hold at least Ctrl, Alt or Win</value>
+  </data>
+  <data name="ThisKeyCannotBeUsedForAGlobalShortcut" xml:space="preserve">
+    <value>This key cannot be used for a global shortcut</value>
+  </data>
+  <data name="TheShortcutServiceIsNotReady" xml:space="preserve">
+    <value>The shortcut service is not ready</value>
+  </data>
+  <data name="ShortcutUnchanged" xml:space="preserve">
+    <value>Shortcut unchanged</value>
+  </data>
+  <data name="SavedAndApplied" xml:space="preserve">
+    <value>Saved and applied</value>
+  </data>
+  <data name="CouldNotSaveRestoredThePreviousShortcut" xml:space="preserve">
+    <value>Could not save; restored the previous shortcut</value>
+  </data>
+  <data name="ThisShortcutIsUsedByAnotherAppChooseAnother" xml:space="preserve">
+    <value>This shortcut is used by another app. Choose another combination.</value>
+  </data>
+  <data name="CouldNotRegisterTheShortcutTryAnotherCombination" xml:space="preserve">
+    <value>Could not register the shortcut. Try another combination.</value>
+  </data>
+  <data name="BackupSlotAlreadyContainsALayoutNNOverwriteIt" xml:space="preserve">
+    <value>Backup slot {0} already contains a layout.
+
+Overwrite it with the current layout?</value>
+  </data>
+  <data name="OverwriteLayoutBackup" xml:space="preserve">
+    <value>Overwrite layout backup</value>
+  </data>
+  <data name="RestoreBackupSlotNNExistingBoxesWillMoveTo" xml:space="preserve">
+    <value>Restore backup slot {0}?
+
+Existing boxes will move to their saved positions.</value>
+  </data>
+  <data name="RestoreLayout" xml:space="preserve">
+    <value>Restore layout</value>
+  </data>
+  <data name="DeleteBackupSlotNNTheSavedLayoutInThis" xml:space="preserve">
+    <value>Delete backup slot {0}?
+
+The saved layout in this slot cannot be recovered.</value>
+  </data>
+  <data name="DeleteLayoutBackup" xml:space="preserve">
+    <value>Delete layout backup</value>
+  </data>
+  <data name="OverwriteTheLayoutInBackupSlot" xml:space="preserve">
+    <value>Overwrite the layout in backup slot {0}</value>
+  </data>
+  <data name="SaveTheCurrentLayoutToBackupSlot" xml:space="preserve">
+    <value>Save the current layout to backup slot {0}</value>
+  </data>
+  <data name="Saved" xml:space="preserve">
+    <value>Saved</value>
+  </data>
+  <data name="Overwrite" xml:space="preserve">
+    <value>Overwrite</value>
+  </data>
+  <data name="Empty" xml:space="preserve">
+    <value>Empty</value>
+  </data>
+  <data name="Save" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="CannotResolveLocalApplicationDataSetTheEnvironmentVariable" xml:space="preserve">
+    <value>Cannot resolve LocalApplicationData. Set the environment variable </value>
+  </data>
+  <data name="ToAWritableFolder" xml:space="preserve">
+    <value> to a writable folder.</value>
+  </data>
+  <data name="TheWitchDrawerDataFolderIsNotWritableSQLiteCannot" xml:space="preserve">
+    <value>The WitchDrawer data folder is not writable. SQLite cannot create its sidecar files (-wal/-shm).</value>
+  </data>
+  <data name="DataFolder" xml:space="preserve">
+    <value>Data folder: </value>
+  </data>
+  <data name="CheckFolderPermissionsOrSetTheEnvironmentVariable" xml:space="preserve">
+    <value>Check folder permissions, or set the environment variable </value>
+  </data>
+  <data name="InvalidShortcutCombination" xml:space="preserve">
+    <value>Invalid shortcut combination.</value>
+  </data>
+  <data name="Ready" xml:space="preserve">
+    <value>Ready</value>
+  </data>
+  <data name="ArchivedOn" xml:space="preserve">
+    <value>Archived on {0:yyyy-MM-dd HH:mm}</value>
+  </data>
+  <data name="RestoredTo" xml:space="preserve">
+    <value>Restored “{0}” to {1}</value>
+  </data>
+  <data name="DeletedArchivedTaskUndoWithin10Seconds" xml:space="preserve">
+    <value>Deleted archived task “{0}”; undo within 10 seconds</value>
+  </data>
+  <data name="UndidArchivedTaskDeletion" xml:space="preserve">
+    <value>Undid archived task deletion</value>
+  </data>
+  <data name="TaskBox" xml:space="preserve">
+    <value>Task box</value>
+  </data>
+  <data name="ContentsOccupyCellsTheFixedSizeCannotBeSmaller" xml:space="preserve">
+    <value>Contents occupy {0} × {1} cells. The fixed size cannot be smaller.</value>
+  </data>
+  <data name="FixedAtCellsImportsStopWhenFull" xml:space="preserve">
+    <value>Fixed at {0} × {1} cells; imports stop when full</value>
+  </data>
+  <data name="WindowExpandsToFitItsContents" xml:space="preserve">
+    <value>Window expands to fit its contents</value>
+  </data>
+  <data name="HideTheDesktopBoxTitle" xml:space="preserve">
+    <value>Hide the desktop box title</value>
+  </data>
+  <data name="ShowTheDesktopBoxTitle" xml:space="preserve">
+    <value>Show the desktop box title</value>
+  </data>
+  <data name="HideTitle" xml:space="preserve">
+    <value>Hide title</value>
+  </data>
+  <data name="ShowTitle" xml:space="preserve">
+    <value>Show title</value>
+  </data>
+  <data name="HideFileNames" xml:space="preserve">
+    <value>Hide file names</value>
+  </data>
+  <data name="ShowFileNames" xml:space="preserve">
+    <value>Show file names</value>
+  </data>
+  <data name="On" xml:space="preserve">
+    <value>On</value>
+  </data>
+  <data name="Off" xml:space="preserve">
+    <value>Off</value>
+  </data>
+  <data name="DisableExpandingOnTitleHover" xml:space="preserve">
+    <value>Disable expanding on title hover</value>
+  </data>
+  <data name="EnableExpandingOnTitleHover" xml:space="preserve">
+    <value>Enable expanding on title hover</value>
+  </data>
+  <data name="Free" xml:space="preserve">
+    <value>Free</value>
+  </data>
+  <data name="Size" xml:space="preserve">
+    <value>Size</value>
+  </data>
+  <data name="Type" xml:space="preserve">
+    <value>Type</value>
+  </data>
+  <data name="DateModified" xml:space="preserve">
+    <value>Date modified</value>
+  </data>
+  <data name="Name" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="UnlockDesktopPosition" xml:space="preserve">
+    <value>Unlock desktop position</value>
+  </data>
+  <data name="LockDesktopPosition" xml:space="preserve">
+    <value>Lock desktop position</value>
+  </data>
+  <data name="UnlockThisBoxSDesktopPosition" xml:space="preserve">
+    <value>Unlock this box's desktop position</value>
+  </data>
+  <data name="LockThisBoxSDesktopPosition" xml:space="preserve">
+    <value>Lock this box's desktop position</value>
+  </data>
+  <data name="Normal" xml:space="preserve">
+    <value>Normal</value>
+  </data>
+  <data name="Mapping" xml:space="preserve">
+    <value>Mapping</value>
+  </data>
+  <data name="Tasks" xml:space="preserve">
+    <value>Tasks</value>
+  </data>
+  <data name="Drawer" xml:space="preserve">
+    <value>Drawer</value>
+  </data>
+  <data name="Unknown" xml:space="preserve">
+    <value>Unknown</value>
+  </data>
+  <data name="FilesMoveIntoTheBoxWhenDropped" xml:space="preserve">
+    <value>Files move into the box when dropped</value>
+  </data>
+  <data name="StoresPathReferencesOnly" xml:space="preserve">
+    <value>Stores path references only</value>
+  </data>
+  <data name="SeparateDesktopTaskList" xml:space="preserve">
+    <value>Separate desktop task list</value>
+  </data>
+  <data name="ExpandableDrawer" xml:space="preserve">
+    <value>Expandable drawer</value>
+  </data>
+  <data name="TasksAreStoredInTheLocalDatabase" xml:space="preserve">
+    <value>Tasks are stored in the local database</value>
+  </data>
+  <data name="SourceFilesStayInTheirOriginalLocations" xml:space="preserve">
+    <value>Source files stay in their original locations</value>
+  </data>
+  <data name="AllTasksInThisBoxIncludingArchivedHistoryWill" xml:space="preserve">
+    <value>All tasks in this box, including archived history, will be deleted. This cannot be undone.</value>
+  </data>
+  <data name="OnlyReferencesWillBeRemovedSourceFilesWillStay" xml:space="preserve">
+    <value>Only references will be removed. Source files will stay in place.</value>
+  </data>
+  <data name="FilesInThisBoxWillReturnToTheirOriginal" xml:space="preserve">
+    <value>Files in this box will return to their original locations. Name conflicts receive a numbered suffix.</value>
+  </data>
+  <data name="ModernIcons" xml:space="preserve">
+    <value>Modern icons</value>
+  </data>
+  <data name="CleanRoundedIconsForEverydayUse" xml:space="preserve">
+    <value>Clean, rounded icons for everyday use</value>
+  </data>
+  <data name="PixelIcons" xml:space="preserve">
+    <value>Pixel icons</value>
+  </data>
+  <data name="RetroPixelEdgesAndDottedDetails" xml:space="preserve">
+    <value>Retro pixel edges and dotted details</value>
+  </data>
+  <data name="XL" xml:space="preserve">
+    <value>XL</value>
+  </data>
+  <data name="L" xml:space="preserve">
+    <value>L</value>
+  </data>
+  <data name="M" xml:space="preserve">
+    <value>M</value>
+  </data>
+  <data name="S" xml:space="preserve">
+    <value>S</value>
+  </data>
+  <data name="DropFilesHere" xml:space="preserve">
+    <value>Drop files here</value>
+  </data>
+  <data name="FileNotFound" xml:space="preserve">
+    <value>File not found: {0}</value>
+  </data>
+  <data name="OperationFailed" xml:space="preserve">
+    <value>Operation failed: {0}</value>
+  </data>
+  <data name="MoveIntoBox" xml:space="preserve">
+    <value>Move into box</value>
+  </data>
+  <data name="PathReferences" xml:space="preserve">
+    <value>Path references</value>
+  </data>
+  <data name="DesktopTasks" xml:space="preserve">
+    <value>Desktop tasks</value>
+  </data>
+  <data name="ClickToExpand" xml:space="preserve">
+    <value>Click to expand</value>
+  </data>
+  <data name="Items" xml:space="preserve">
+    <value>{0} items</value>
+  </data>
+  <data name="AddedItemsBoxIsFull" xml:space="preserve">
+    <value>Added {0} items; box is full</value>
+  </data>
+  <data name="BoxIsFullCannotAddFiles" xml:space="preserve">
+    <value>Box is full; cannot add files</value>
+  </data>
+  <data name="AddedItems" xml:space="preserve">
+    <value>Added {0} items</value>
+  </data>
+  <data name="AddedItemsRemainingFilesWereNotImported" xml:space="preserve">
+    <value>Added {0} items; remaining files were not imported: {1}</value>
+  </data>
+  <data name="TheDestinationBoxIsFull" xml:space="preserve">
+    <value>The destination box is full</value>
+  </data>
+  <data name="MovedToDesktop" xml:space="preserve">
+    <value>Moved to desktop: {0}</value>
+  </data>
+  <data name="TheBoxIsProcessingFilesTryAgainLater" xml:space="preserve">
+    <value>The box is processing files. Try again later.</value>
+  </data>
+  <data name="RenamedReference" xml:space="preserve">
+    <value>Renamed reference: {0}</value>
+  </data>
+  <data name="Renamed" xml:space="preserve">
+    <value>Renamed: {0}</value>
+  </data>
+  <data name="Referenced" xml:space="preserve">
+    <value>Referenced</value>
+  </data>
+  <data name="Copy" xml:space="preserve">
+    <value>Copy</value>
+  </data>
+  <data name="Items2" xml:space="preserve">
+    <value>{0} {1} items</value>
+  </data>
+  <data name="ItemsFailed" xml:space="preserve">
+    <value>{0} {1} items; {2} failed: {3}</value>
+  </data>
+  <data name="Synced" xml:space="preserve">
+    <value>Synced</value>
+  </data>
+  <data name="Opened" xml:space="preserve">
+    <value>Opened {0}</value>
+  </data>
+  <data name="Folder" xml:space="preserve">
+    <value>Folder</value>
+  </data>
+  <data name="File" xml:space="preserve">
+    <value>File</value>
+  </data>
+  <data name="Added" xml:space="preserve">
+    <value>Added</value>
+  </data>
+  <data name="Completed" xml:space="preserve">
+    <value>Completed</value>
+  </data>
+  <data name="Restored" xml:space="preserve">
+    <value>Restored</value>
+  </data>
+  <data name="TaskSaved" xml:space="preserve">
+    <value>Task saved</value>
+  </data>
+  <data name="NoTasksToArchive" xml:space="preserve">
+    <value>No tasks to archive</value>
+  </data>
+  <data name="ArchivedItems" xml:space="preserve">
+    <value>Archived {0} items</value>
+  </data>
+  <data name="DeletedUndoWithin10Seconds" xml:space="preserve">
+    <value>Deleted; undo within 10 seconds</value>
+  </data>
+  <data name="DeletionUndone" xml:space="preserve">
+    <value>Deletion undone</value>
+  </data>
+  <data name="AddTask" xml:space="preserve">
+    <value>Add task</value>
+  </data>
+  <data name="CouldNotSaveSize" xml:space="preserve">
+    <value>Could not save size</value>
+  </data>
+  <data name="TheCurrentDataFolderIsSetByRemoveThis" xml:space="preserve">
+    <value>The current data folder is set by {0}. Remove this environment variable and restart before migrating.</value>
+  </data>
+  <data name="MigratingDataFolder" xml:space="preserve">
+    <value>Migrating data folder…</value>
+  </data>
+  <data name="DataMigratedRestartToApply" xml:space="preserve">
+    <value>Data migrated; restart to apply</value>
+  </data>
+  <data name="DataFolderMigrationFailed" xml:space="preserve">
+    <value>Data folder migration failed</value>
+  </data>
+  <data name="AnotherOperationIsInProgressExportDiagnosticLogsLater" xml:space="preserve">
+    <value>Another operation is in progress. Export diagnostic logs later.</value>
+  </data>
+  <data name="ExportingDiagnosticLogs" xml:space="preserve">
+    <value>Exporting diagnostic logs…</value>
+  </data>
+  <data name="ExportedLogFiles" xml:space="preserve">
+    <value>Exported {0} log files</value>
+  </data>
+  <data name="DiagnosticLogExportFailed" xml:space="preserve">
+    <value>Diagnostic log export failed</value>
+  </data>
+  <data name="SyncedBoxesToTheDesktop" xml:space="preserve">
+    <value>Synced {0} boxes to the desktop</value>
+  </data>
+  <data name="Reordered" xml:space="preserve">
+    <value>Reordered “{0}”</value>
+  </data>
+  <data name="CouldNotSaveBoxOrderRestoredThePreviousOrder" xml:space="preserve">
+    <value>Could not save box order; restored the previous order</value>
+  </data>
+  <data name="SelectABoxFirst" xml:space="preserve">
+    <value>Select a box first</value>
+  </data>
+  <data name="UseTheTaskInputFieldToAddTasksTo" xml:space="preserve">
+    <value>Use the task input field to add tasks to a task box</value>
+  </data>
+  <data name="ImportedItemsRemainingFilesWereNotImported" xml:space="preserve">
+    <value>Imported {0} items; remaining files were not imported: {1}</value>
+  </data>
+  <data name="ImportedItemsIntoBoxIsFullItemsNotImported" xml:space="preserve">
+    <value>Imported {0} items into {1}; box is full ({2} items not imported)</value>
+  </data>
+  <data name="IsFullCannotImportFiles" xml:space="preserve">
+    <value>{0} is full; cannot import files</value>
+  </data>
+  <data name="ImportedItemsInto" xml:space="preserve">
+    <value>Imported {0} items into {1}</value>
+  </data>
+  <data name="NormalBox" xml:space="preserve">
+    <value>Normal box</value>
+  </data>
+  <data name="MappingBox" xml:space="preserve">
+    <value>Mapping box</value>
+  </data>
+  <data name="PixelBox" xml:space="preserve">
+    <value>Pixel box</value>
+  </data>
+  <data name="DrawerBox" xml:space="preserve">
+    <value>Drawer box</value>
+  </data>
+  <data name="Boxes" xml:space="preserve">
+    <value>Boxes</value>
+  </data>
+  <data name="CreatedAndItsDesktopBox" xml:space="preserve">
+    <value>Created {0} and its desktop box</value>
+  </data>
+  <data name="ChangedTo" xml:space="preserve">
+    <value>Changed “{0}” to {1}</value>
+  </data>
+  <data name="LockedTheDesktopPositionOf" xml:space="preserve">
+    <value>Locked the desktop position of “{0}”</value>
+  </data>
+  <data name="UnlockedTheDesktopPositionOf" xml:space="preserve">
+    <value>Unlocked the desktop position of “{0}”</value>
+  </data>
+  <data name="RenamedBoxTo" xml:space="preserve">
+    <value>Renamed box to {0}</value>
+  </data>
+  <data name="QuickPanel" xml:space="preserve">
+    <value>Quick panel</value>
+  </data>
+  <data name="Items3" xml:space="preserve">
+    <value>{0} / {1} items</value>
+  </data>
+  <data name="Light" xml:space="preserve">
+    <value>Light</value>
+  </data>
+  <data name="SwitchedToTheTheme" xml:space="preserve">
+    <value>Switched to the {0} theme</value>
+  </data>
+  <data name="Obsidian" xml:space="preserve">
+    <value>Obsidian</value>
+  </data>
+  <data name="Crystal" xml:space="preserve">
+    <value>Crystal</value>
+  </data>
+  <data name="EditorNowFollowsDesktopBoxOpacity" xml:space="preserve">
+    <value>Editor now follows desktop box opacity</value>
+  </data>
+  <data name="EditorNowUsesStandardOpacity" xml:space="preserve">
+    <value>Editor now uses standard opacity</value>
+  </data>
+  <data name="LaunchAtStartupEnabled" xml:space="preserve">
+    <value>Launch at startup enabled</value>
+  </data>
+  <data name="LaunchAtStartupDisabled" xml:space="preserve">
+    <value>Launch at startup disabled</value>
+  </data>
+  <data name="WindowsDesktopIconsHidden" xml:space="preserve">
+    <value>Windows desktop icons hidden</value>
+  </data>
+  <data name="WindowsDesktopIconsShown" xml:space="preserve">
+    <value>Windows desktop icons shown</value>
+  </data>
+  <data name="DesktopDoubleClickToggleEnabled" xml:space="preserve">
+    <value>Desktop double-click toggle enabled</value>
+  </data>
+  <data name="DesktopDoubleClickToggleDisabled" xml:space="preserve">
+    <value>Desktop double-click toggle disabled</value>
+  </data>
+  <data name="IconTooltipsNowShowFileNames" xml:space="preserve">
+    <value>Icon tooltips now show file names</value>
+  </data>
+  <data name="IconTooltipsNowShowFullPaths" xml:space="preserve">
+    <value>Icon tooltips now show full paths</value>
+  </data>
+  <data name="AutoHideEnabled" xml:space="preserve">
+    <value>Auto-hide enabled</value>
+  </data>
+  <data name="AutoHideDisabled" xml:space="preserve">
+    <value>Auto-hide disabled</value>
+  </data>
+  <data name="HoverOverAnyBoxToRevealAllBoxes" xml:space="preserve">
+    <value>Hover over any box to reveal all boxes</value>
+  </data>
+  <data name="HoverOverABoxToRevealOnlyItsContents" xml:space="preserve">
+    <value>Hover over a box to reveal only its contents</value>
+  </data>
+  <data name="ColorsAndCornersFollowThePreset" xml:space="preserve">
+    <value>Colors and corners follow the preset</value>
+  </data>
+  <data name="ColorsOrStylesCustomized" xml:space="preserve">
+    <value>Colors or styles customized</value>
+  </data>
+  <data name="FollowEachModeSPreset" xml:space="preserve">
+    <value>Follow each mode's preset</value>
+  </data>
+  <data name="FollowIconSize" xml:space="preserve">
+    <value>Follow icon size</value>
+  </data>
+  <data name="FollowTheme" xml:space="preserve">
+    <value>Follow theme</value>
+  </data>
+  <data name="RestoredThePreset" xml:space="preserve">
+    <value>Restored the {0} preset</value>
+  </data>
+  <data name="BoxBackground" xml:space="preserve">
+    <value>Box background</value>
+  </data>
+  <data name="IconBackground" xml:space="preserve">
+    <value>Icon background</value>
+  </data>
+  <data name="ItemHover" xml:space="preserve">
+    <value>Item hover</value>
+  </data>
+  <data name="ItemSelection" xml:space="preserve">
+    <value>Item selection</value>
+  </data>
+  <data name="AccentColor" xml:space="preserve">
+    <value>Accent color</value>
+  </data>
+  <data name="EnterASixDigitHEXColorSuchAs0071E3" xml:space="preserve">
+    <value>Enter a six-digit HEX color, such as #0071E3</value>
+  </data>
+  <data name="StartWithOneSmallTask" xml:space="preserve">
+    <value>Start with one small task</value>
+  </data>
+  <data name="SelectATaskBox" xml:space="preserve">
+    <value>Select a task box</value>
+  </data>
+  <data name="TasksRemaining" xml:space="preserve">
+    <value>{0} tasks remaining</value>
+  </data>
+  <data name="TaskAdded" xml:space="preserve">
+    <value>Task added</value>
+  </data>
+  <data name="TaskCompletedWellDone" xml:space="preserve">
+    <value>Task completed. Well done!</value>
+  </data>
+  <data name="TaskMarkedIncomplete" xml:space="preserve">
+    <value>Task marked incomplete</value>
+  </data>
+  <data name="TaskDeletedUndoWithin10Seconds" xml:space="preserve">
+    <value>Task deleted; undo within 10 seconds</value>
+  </data>
+  <data name="NoCompletedTasksToArchive" xml:space="preserve">
+    <value>No completed tasks to archive</value>
+  </data>
+  <data name="CompletedOn" xml:space="preserve">
+    <value>Completed on</value>
+  </data>
+  <data name="CreatedOn" xml:space="preserve">
+    <value>Created on</value>
+  </data>
+  <data name="CheckingForUpdates" xml:space="preserve">
+    <value>Checking for updates...</value>
+  </data>
+  <data name="UpToDateV" xml:space="preserve">
+    <value>Up to date: v{0}.{1}.{2}</value>
+  </data>
+  <data name="VersionIsAvailable" xml:space="preserve">
+    <value>Version {0} is available</value>
+  </data>
+  <data name="UpdateCanceled" xml:space="preserve">
+    <value>Update canceled</value>
+  </data>
+  <data name="UpdateCheckFailed" xml:space="preserve">
+    <value>Update check failed</value>
+  </data>
+  <data name="DownloadingUpdate" xml:space="preserve">
+    <value>Downloading update...</value>
+  </data>
+  <data name="DownloadingUpdate2" xml:space="preserve">
+    <value>Downloading update... {0}%</value>
+  </data>
+  <data name="UpdateDownloadedRestarting" xml:space="preserve">
+    <value>Update downloaded. Restarting...</value>
+  </data>
+  <data name="UpdateDownloadFailed" xml:space="preserve">
+    <value>Update download failed</value>
+  </data>
+  <data name="UpdateReadyQuitWitchDrawerToFinishUpdating" xml:space="preserve">
+    <value>Update ready. Quit WitchDrawer to finish updating.</value>
+  </data>
+  <data name="TheDiagnosticPackageIncludesOnlyRecentLogsAndBasic" xml:space="preserve">
+    <value>The diagnostic package includes only recent logs and basic environment information, without the database or user file contents.
+
+Logs may contain file names and full paths. Review them before sharing. Continue?</value>
+  </data>
+  <data name="ExportDiagnosticLogs" xml:space="preserve">
+    <value>Export diagnostic logs</value>
+  </data>
+  <data name="SaveWitchDrawerDiagnosticLogs" xml:space="preserve">
+    <value>Save WitchDrawer diagnostic logs</value>
+  </data>
+  <data name="ZIPArchiveZipZip" xml:space="preserve">
+    <value>ZIP archive (*.zip)|*.zip</value>
+  </data>
+  <data name="DiagnosticLogsExportedNNLogFilesNSavedTo" xml:space="preserve">
+    <value>Diagnostic logs exported.
+
+Log files: {0}
+Saved to: {1}</value>
+  </data>
+  <data name="ExportComplete" xml:space="preserve">
+    <value>Export complete</value>
+  </data>
+  <data name="DiagnosticLogExportFailedN" xml:space="preserve">
+    <value>Diagnostic log export failed:
+</value>
+  </data>
+  <data name="ExportFailed" xml:space="preserve">
+    <value>Export failed</value>
+  </data>
+  <data name="ExtraLarge" xml:space="preserve">
+    <value>Extra large</value>
+  </data>
+  <data name="Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="Enable" xml:space="preserve">
+    <value>Enable</value>
+  </data>
+  <data name="Show" xml:space="preserve">
+    <value>Show</value>
+  </data>
+  <data name="Hide" xml:space="preserve">
+    <value>Hide</value>
+  </data>
+  <data name="AutoSize" xml:space="preserve">
+    <value>Auto size</value>
+  </data>
+  <data name="FixedGrid" xml:space="preserve">
+    <value>Fixed grid</value>
+  </data>
+  <data name="RemovedMissingEntries" xml:space="preserve">
+    <value>, removed {0} missing entries</value>
+  </data>
+  <data name="Message" xml:space="preserve">
+    <value> ({0})</value>
+  </data>
+  <data name="DeletionIncompleteItemsCouldNotBeRestoredTheBox" xml:space="preserve">
+    <value>Deletion incomplete: {0} items could not be restored{1}. The box was kept{2}</value>
+  </data>
+  <data name="DeletionIncompleteTheBoxWasKept" xml:space="preserve">
+    <value>Deletion incomplete. The box was kept{0}</value>
+  </data>
+  <data name="DeletedReferencesRemoved" xml:space="preserve">
+    <value>Deleted {0}; references removed</value>
+  </data>
+  <data name="DeletedTasksCleared" xml:space="preserve">
+    <value>Deleted {0}; tasks cleared</value>
+  </data>
+  <data name="Deleted" xml:space="preserve">
+    <value>Deleted {0}{1}</value>
+  </data>
+  <data name="DeletedRestoredItems" xml:space="preserve">
+    <value>Deleted {0}; restored {1} items{2}</value>
+  </data>
+  <data name="TheDestinationIsAlreadyTheCurrentDataFolderNo" xml:space="preserve">
+    <value>The destination is already the current data folder. No migration is needed.</value>
+  </data>
+  <data name="TheDestinationCannotBeInsideTheCurrentDataFolder" xml:space="preserve">
+    <value>The destination cannot be inside the current data folder.</value>
+  </data>
+  <data name="TheDestinationSParentFolderIsUnavailable" xml:space="preserve">
+    <value>The destination's parent folder is unavailable.</value>
+  </data>
+  <data name="TheDestinationIsNotEmptyChooseAnEmptyFolder" xml:space="preserve">
+    <value>The destination is not empty. Choose an empty folder to avoid overwriting data.</value>
+  </data>
+  <data name="TheMigrationFileSnapshotIsUnavailable" xml:space="preserve">
+    <value>The migration file snapshot is unavailable.</value>
+  </data>
+  <data name="MigrationFailedTheDatabaseCouldNotBeCopiedTo" xml:space="preserve">
+    <value>Migration failed: the database could not be copied to the destination.</value>
+  </data>
+  <data name="MigrationDoesNotSupportLinksOrOtherReparsePoints" xml:space="preserve">
+    <value>Migration does not support links or other reparse points: {0}</value>
+  </data>
+  <data name="BoxFilesChangedDuringMigrationTheDestinationWasNot" xml:space="preserve">
+    <value>Box files changed during migration. The destination was not activated. Try again.</value>
+  </data>
+  <data name="TheFileMovedToAnotherBoxRefreshAndTry" xml:space="preserve">
+    <value>The file moved to another box. Refresh and try again.</value>
+  </data>
+  <data name="TheBoxHasPendingFileRecoveryOperationsCompleteRecovery" xml:space="preserve">
+    <value>The box has pending file recovery operations. Complete recovery before deleting it.</value>
+  </data>
+  <data name="TheFileWasMovedOrRemovedByAnotherOperation" xml:space="preserve">
+    <value>The file was moved or removed by another operation. Refresh and try again.</value>
+  </data>
+  <data name="TheFileHasAPendingOperationOrItsRecord" xml:space="preserve">
+    <value>The file has a pending operation or its record changed. Refresh and try again.</value>
+  </data>
+  <data name="WitchDrawerDataFilesAndStoredFilesCannotBeImported" xml:space="preserve">
+    <value>WitchDrawer data files and stored files cannot be imported by dragging. Use the move-between-boxes action.</value>
+  </data>
+  <data name="TheImportSourceChangedTypeRefreshAndTryAgain" xml:space="preserve">
+    <value>The import source changed type. Refresh and try again.</value>
+  </data>
+  <data name="TheBoxWasDeletedRefreshAndTryAgain" xml:space="preserve">
+    <value>The box was deleted. Refresh and try again.</value>
+  </data>
+  <data name="TheCopyRecordHasNotBeenSavedItWill" xml:space="preserve">
+    <value>The copy record has not been saved. It will be retried on the next read or startup. Keep {0}</value>
+  </data>
+  <data name="TheRecordCouldNotBeSavedTheFileWas" xml:space="preserve">
+    <value>The record could not be saved. The file was returned to its original location. Try again.</value>
+  </data>
+  <data name="TheMoveRecordHasNotBeenSavedItWill" xml:space="preserve">
+    <value>The move record has not been saved. It will be retried on the next read or startup. Keep {0}</value>
+  </data>
+  <data name="AndTheRecoveryStagingFile" xml:space="preserve">
+    <value> and the recovery staging file {0}, </value>
+  </data>
+  <data name="TheStagedSourceIsStillAtAndTheDestination" xml:space="preserve">
+    <value>The staged source is still at {0}, and the destination also exists. Manual review is needed.</value>
+  </data>
+  <data name="RecoveryCopiesNeedManualReview" xml:space="preserve">
+    <value>Recovery copies need manual review: {0}; {1}; {2}</value>
+  </data>
+  <data name="RecoveryCopiesNeedManualReview2" xml:space="preserve">
+    <value>Recovery copies need manual review: {0}; {1}</value>
+  </data>
+  <data name="RecoverySourceUnavailableCheck" xml:space="preserve">
+    <value>Recovery source unavailable. Check: {0}; {1}; {2}</value>
+  </data>
+  <data name="TheFileWasRemovedRefreshAndTryAgain" xml:space="preserve">
+    <value>The file was removed. Refresh and try again.</value>
+  </data>
+  <data name="TheBoxWasDeleted" xml:space="preserve">
+    <value>The box was deleted.</value>
+  </data>
+  <data name="FilesCanOnlyBeCopiedIntoNormalBoxes" xml:space="preserve">
+    <value>Files can only be copied into normal boxes.</value>
+  </data>
+  <data name="BoxFoldersAndInternalRecoveryFilesCannotBeCopied" xml:space="preserve">
+    <value>Box folders and internal recovery files cannot be copied.</value>
+  </data>
+  <data name="TheSourceLocationIsUnavailableTheOriginalLocationCannot" xml:space="preserve">
+    <value>The source location is unavailable. The original location cannot be safely recorded.</value>
+  </data>
+  <data name="TheSourceFileHasAPendingRecoveryOperationComplete" xml:space="preserve">
+    <value>The source file has a pending recovery operation. Complete recovery before copying.</value>
+  </data>
+  <data name="TheNameCannotBeEmptyContainInvalidCharactersOr" xml:space="preserve">
+    <value>The name cannot be empty, contain invalid characters, or end with a space or period.</value>
+  </data>
+  <data name="WindowsReservedNamesCannotBeUsed" xml:space="preserve">
+    <value>Windows reserved names cannot be used.</value>
+  </data>
+  <data name="TheFileHasAPendingRecoveryOperationCompleteRecovery" xml:space="preserve">
+    <value>The file has a pending recovery operation. Complete recovery before renaming.</value>
+  </data>
+  <data name="BothTheStagedCopyAndTheDestinationExistKeep" xml:space="preserve">
+    <value>Both the staged copy and the destination exist. Keep both and review them.</value>
+  </data>
+  <data name="TheCopyRecordDoesNotMatchTheDestinationKeep" xml:space="preserve">
+    <value>The copy record does not match the destination. Keep the files and review them.</value>
+  </data>
+  <data name="TheCopySourceIsUnavailableKeepTheStagedCopy" xml:space="preserve">
+    <value>The copy source is unavailable. Keep the staged copy and review it.</value>
+  </data>
+  <data name="TheOriginalRenameLocationIsOccupiedAgainKeepThe" xml:space="preserve">
+    <value>The original rename location is occupied again. Keep the staged file and review it.</value>
+  </data>
+  <data name="RemovedReference" xml:space="preserve">
+    <value>Removed reference {0}</value>
+  </data>
+  <data name="TheFileNoLongerExistsRemovedItsBoxEntry" xml:space="preserve">
+    <value>The file no longer exists. Removed its box entry: {0}</value>
+  </data>
+  <data name="RestoredToTheDesktopOriginalLocationUnavailable" xml:space="preserve">
+    <value>Restored {0} to the desktop (original location unavailable)</value>
+  </data>
+  <data name="RestoredToItsOriginalLocation" xml:space="preserve">
+    <value>Restored {0} to its original location</value>
+  </data>
+  <data name="AFileOrFolderCannotBeCopiedIntoItself" xml:space="preserve">
+    <value>A file or folder cannot be copied into itself.</value>
+  </data>
+  <data name="UndoExpiredOrAlreadyCompleted" xml:space="preserve">
+    <value>Undo expired or already completed.</value>
+  </data>
+  <data name="TheTaskBoxDoesNotExistOrWasDeleted" xml:space="preserve">
+    <value>The task box does not exist or was deleted.</value>
+  </data>
+  <data name="OnlyTasksInTaskBoxesCanBeEdited" xml:space="preserve">
+    <value>Only tasks in task boxes can be edited.</value>
+  </data>
+  <data name="TheTaskDoesNotExistOrWasDeleted" xml:space="preserve">
+    <value>The task does not exist or was deleted.</value>
+  </data>
+  <data name="TaskTextCannotBeEmpty" xml:space="preserve">
+    <value>Task text cannot be empty.</value>
+  </data>
+  <data name="TaskTextCannotExceedCharacters" xml:space="preserve">
+    <value>Task text cannot exceed {0} characters.</value>
+  </data>
+  <data name="InvalidDatabasePath" xml:space="preserve">
+    <value>Invalid database path: </value>
+  </data>
+  <data name="DataHasMigratedRestartBeforeContinuing" xml:space="preserve">
+    <value>Data has migrated. Restart before continuing.</value>
+  </data>
+  <data name="DataChangedDuringMigrationTryAgain" xml:space="preserve">
+    <value>Data changed during migration. Try again.</value>
+  </data>
+  <data name="FileMovesAreIncompleteTryMigratingTheDataFolder" xml:space="preserve">
+    <value>File moves are incomplete. Try migrating the data folder later.</value>
+  </data>
+  <data name="TheTaskWasChangedOrDeletedCancelEditingAnd" xml:space="preserve">
+    <value>The task was changed or deleted. Cancel editing and try again.</value>
+  </data>
+  <data name="DataMigrationIsFinishingTryThisOperationLater" xml:space="preserve">
+    <value>Data migration is finishing. Try this operation later.</value>
+  </data>
+  <data name="CannotOpenOrWriteToTheSQLiteDatabase" xml:space="preserve">
+    <value>Cannot open or write to the SQLite database.</value>
+  </data>
+  <data name="Database" xml:space="preserve">
+    <value>Database: </value>
+  </data>
+  <data name="Folder2" xml:space="preserve">
+    <value>Folder: </value>
+  </data>
+  <data name="MakeSureThisFolderIsWritableOrSetThe" xml:space="preserve">
+    <value>Make sure this folder is writable, or set the environment variable </value>
+  </data>
+  <data name="ToAWritablePath" xml:space="preserve">
+    <value> to a writable path.</value>
+  </data>
+  <data name="CannotResolveLocalApplicationDataToReadTheDataFolderConfiguration" xml:space="preserve">
+    <value>Cannot resolve LocalApplicationData to read the data folder configuration.</value>
+  </data>
+  <data name="TheMigrationConfigurationFolderIsUnavailable" xml:space="preserve">
+    <value>The migration configuration folder is unavailable.</value>
+  </data>
+  <data name="ThisItemCannotBeLaunchedAsAdministrator" xml:space="preserve">
+    <value>This item cannot be launched as administrator.</value>
+  </data>
+  <data name="TheFileOrFolderNoLongerExists" xml:space="preserve">
+    <value>The file or folder no longer exists.</value>
+  </data>
+  <data name="TheShortcutHasNoAccessibleLocalTarget" xml:space="preserve">
+    <value>The shortcut has no accessible local target.</value>
+  </data>
+  <data name="ThisShortcutPointsToAWebsiteOrSystemApp" xml:space="preserve">
+    <value>This shortcut points to a website or system app and has no local file location.</value>
+  </data>
+  <data name="TheShortcutTargetNoLongerExists" xml:space="preserve">
+    <value>The shortcut target no longer exists.</value>
+  </data>
+  <data name="WindowsHasNotFinishedTogglingDesktopIconsWaitFor" xml:space="preserve">
+    <value>Windows has not finished toggling desktop icons. Wait for Explorer to respond.</value>
+  </data>
+  <data name="CannotOpenWindowsDesktopIconSettings" xml:space="preserve">
+    <value>Cannot open Windows desktop icon settings.</value>
+  </data>
+  <data name="ThereAreNoFilesToPasteFromTheClipboard" xml:space="preserve">
+    <value>There are no files to paste from the clipboard.</value>
+  </data>
+  <data name="TheFileHasNoAvailablePath" xml:space="preserve">
+    <value>The file has no available path.</value>
+  </data>
+  <data name="LaunchedAsAdministrator" xml:space="preserve">
+    <value>Launched {0} as administrator</value>
+  </data>
+  <data name="AdministratorLaunchCanceled" xml:space="preserve">
+    <value>Administrator launch canceled</value>
+  </data>
+  <data name="Located" xml:space="preserve">
+    <value>Located {0}</value>
+  </data>
+  <data name="LocatedShortcut" xml:space="preserve">
+    <value>Located shortcut: {0}</value>
+  </data>
+  <data name="TheFileIsInaccessibleAndCannotBeCopied" xml:space="preserve">
+    <value>The file is inaccessible and cannot be copied.</value>
+  </data>
+  <data name="Copied" xml:space="preserve">
+    <value>Copied {0}</value>
+  </data>
+  <data name="FilePathCopied" xml:space="preserve">
+    <value>File path copied</value>
+  </data>
+  <data name="RenameReference" xml:space="preserve">
+    <value>Rename reference</value>
+  </data>
+  <data name="Rename" xml:space="preserve">
+    <value>Rename</value>
+  </data>
+  <data name="OpenTargetLocation" xml:space="preserve">
+    <value>Open target location</value>
+  </data>
+  <data name="OpenFileLocation" xml:space="preserve">
+    <value>Open file location</value>
+  </data>
+  <data name="RemoveReference" xml:space="preserve">
+    <value>Remove reference</value>
+  </data>
+  <data name="MoveOutAndRestoreFile" xml:space="preserve">
+    <value>Move out and restore file</value>
+  </data>
+  <data name="RemoveMissingEntry" xml:space="preserve">
+    <value>Remove missing entry</value>
+  </data>
+  <data name="RenameFolder" xml:space="preserve">
+    <value>Rename folder</value>
+  </data>
+  <data name="RenameFile" xml:space="preserve">
+    <value>Rename file</value>
+  </data>
+  <data name="OnlyTheReferenceNameChangesTheSourceFileStays" xml:space="preserve">
+    <value>Only the reference name changes. The source file stays unchanged.</value>
+  </data>
+  <data name="EnterANewFolderName" xml:space="preserve">
+    <value>Enter a new folder name:</value>
+  </data>
+  <data name="EnterANewNameIncludingTheFileExtension" xml:space="preserve">
+    <value>Enter a new name (including the file extension):</value>
+  </data>
+  <data name="Minimize" xml:space="preserve">
+    <value>Minimize</value>
+  </data>
+  <data name="BoxList" xml:space="preserve">
+    <value>Box list</value>
+  </data>
+  <data name="New" xml:space="preserve">
+    <value>New</value>
+  </data>
+  <data name="DrawerBox2" xml:space="preserve">
+    <value>Drawer box</value>
+  </data>
+  <data name="Archive" xml:space="preserve">
+    <value>Archive</value>
+  </data>
+  <data name="Settings" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="About" xml:space="preserve">
+    <value>About</value>
+  </data>
+  <data name="SelectABox" xml:space="preserve">
+    <value>Select a box</value>
+  </data>
+  <data name="SelectABoxOnTheLeftToStartOrganizing" xml:space="preserve">
+    <value>Select a box on the left to start organizing</value>
+  </data>
+  <data name="ChooseSortOrder" xml:space="preserve">
+    <value>Choose sort order</value>
+  </data>
+  <data name="SortOrder" xml:space="preserve">
+    <value>Sort order</value>
+  </data>
+  <data name="Sort" xml:space="preserve">
+    <value>Sort · {0}</value>
+  </data>
+  <data name="DisplaySettings" xml:space="preserve">
+    <value>Display settings</value>
+  </data>
+  <data name="IconsHoverTitlesAndBoxSize" xml:space="preserve">
+    <value>Icons, hover, titles and box size</value>
+  </data>
+  <data name="RenameDesktopPositionAndDelete" xml:space="preserve">
+    <value>Rename, desktop position and delete</value>
+  </data>
+  <data name="MoreBoxActions" xml:space="preserve">
+    <value>More box actions</value>
+  </data>
+  <data name="More" xml:space="preserve">
+    <value>More</value>
+  </data>
+  <data name="RenameThisBox" xml:space="preserve">
+    <value>Rename this box</value>
+  </data>
+  <data name="ShowDesktopBox" xml:space="preserve">
+    <value>Show desktop box</value>
+  </data>
+  <data name="MoveTheBoxToTheScreenCenter" xml:space="preserve">
+    <value>Move the box to the screen center</value>
+  </data>
+  <data name="MoveToScreenCenter" xml:space="preserve">
+    <value>Move to screen center</value>
+  </data>
+  <data name="DeleteBox" xml:space="preserve">
+    <value>Delete box</value>
+  </data>
+  <data name="Confirm" xml:space="preserve">
+    <value>Confirm</value>
+  </data>
+  <data name="DeleteThisBox" xml:space="preserve">
+    <value>Delete this box?</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="Delete" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="Move" xml:space="preserve">
+    <value>Move “</value>
+  </data>
+  <data name="ToTheScreenCenter" xml:space="preserve">
+    <value>” to the screen center?</value>
+  </data>
+  <data name="TheBoxWillAppearAtTheCenterOfThe" xml:space="preserve">
+    <value>The box will appear at the center of the main screen's work area, and its new position will be saved.</value>
+  </data>
+  <data name="Move2" xml:space="preserve">
+    <value>Move</value>
+  </data>
+  <data name="DoubleClickToOpenDeleteToRemove" xml:space="preserve">
+    <value>  ·  Double-click to open; Delete to remove</value>
+  </data>
+  <data name="Items4" xml:space="preserve">
+    <value>{0} items</value>
+  </data>
+  <data name="ThisBoxIsEmpty" xml:space="preserve">
+    <value>This box is empty</value>
+  </data>
+  <data name="DropFilesHereToOrganizeThemIntoThisBox" xml:space="preserve">
+    <value>Drop files here to organize them into this box</value>
+  </data>
+  <data name="PathUnavailable" xml:space="preserve">
+    <value>Path unavailable</value>
+  </data>
+  <data name="Open" xml:space="preserve">
+    <value>Open</value>
+  </data>
+  <data name="RemoveFromBox" xml:space="preserve">
+    <value>Remove from box</value>
+  </data>
+  <data name="DropFilesIntoTheListToOrganizeThem" xml:space="preserve">
+    <value>Drop files into the list to organize them</value>
+  </data>
+  <data name="SystemSettings" xml:space="preserve">
+    <value>System settings</value>
+  </data>
+  <data name="Appearance" xml:space="preserve">
+    <value>Appearance</value>
+  </data>
+  <data name="CurrentTheme" xml:space="preserve">
+    <value>Current theme: {0}</value>
+  </data>
+  <data name="DesktopBoxTransparency" xml:space="preserve">
+    <value>Desktop box transparency</value>
+  </data>
+  <data name="Range090" xml:space="preserve">
+    <value>Range: 0–90%</value>
+  </data>
+  <data name="ResetDesktopBoxTransparency" xml:space="preserve">
+    <value>Reset desktop box transparency</value>
+  </data>
+  <data name="BoxBorderTransparency" xml:space="preserve">
+    <value>Box border transparency</value>
+  </data>
+  <data name="BoxBorderTransparencyPercentage" xml:space="preserve">
+    <value>Box border transparency percentage</value>
+  </data>
+  <data name="RestoreTheThemeDefaultFollowsDesktopBoxTransparency" xml:space="preserve">
+    <value>Restore the theme default; follows desktop box transparency</value>
+  </data>
+  <data name="ResetBoxBorderTransparency" xml:space="preserve">
+    <value>Reset box border transparency</value>
+  </data>
+  <data name="IconBackgroundTransparency" xml:space="preserve">
+    <value>Icon background transparency</value>
+  </data>
+  <data name="IconBackgroundTransparencyPercentage" xml:space="preserve">
+    <value>Icon background transparency percentage</value>
+  </data>
+  <data name="ResetIconBackgroundTransparency" xml:space="preserve">
+    <value>Reset icon background transparency</value>
+  </data>
+  <data name="EditorFollowsTransparency" xml:space="preserve">
+    <value>Editor follows transparency</value>
+  </data>
+  <data name="KeepTheEditorBackgroundInSyncWithDesktopBox" xml:space="preserve">
+    <value>Keep the editor background in sync with desktop box transparency</value>
+  </data>
+  <data name="RestoreCurrentThemePreset" xml:space="preserve">
+    <value>Restore current theme preset</value>
+  </data>
+  <data name="ResetTransparencyColorsCornersAndHoverStyleForThis" xml:space="preserve">
+    <value>Reset transparency, colors, corners and hover style for this theme</value>
+  </data>
+  <data name="EachThemeIsSavedSeparatelyRestoringAPresetResets" xml:space="preserve">
+    <value>Each theme is saved separately. Restoring a preset resets transparency, colors and corners.</value>
+  </data>
+  <data name="AutoHide" xml:space="preserve">
+    <value>Auto-hide</value>
+  </data>
+  <data name="HideBoxIconsAndTextAtTheTransparencyBelow" xml:space="preserve">
+    <value>Hide box icons and text at the transparency below when the pointer leaves</value>
+  </data>
+  <data name="HiddenTransparency" xml:space="preserve">
+    <value>Hidden transparency</value>
+  </data>
+  <data name="AlsoFade" xml:space="preserve">
+    <value>Also fade</value>
+  </data>
+  <data name="BoxTitle" xml:space="preserve">
+    <value>Box title</value>
+  </data>
+  <data name="BoxBorder" xml:space="preserve">
+    <value>Box border</value>
+  </data>
+  <data name="RevealOnHover" xml:space="preserve">
+    <value>Reveal on hover</value>
+  </data>
+  <data name="HoveredBoxOnly" xml:space="preserve">
+    <value>Hovered box only</value>
+  </data>
+  <data name="AllBoxes" xml:space="preserve">
+    <value>All boxes</value>
+  </data>
+  <data name="IconTooltips" xml:space="preserve">
+    <value>Icon tooltips</value>
+  </data>
+  <data name="ShowFullPathsOrFileNamesWhenHoveringOver" xml:space="preserve">
+    <value>Show full paths or file names when hovering over icons. File name mode hides the .lnk extension.</value>
+  </data>
+  <data name="ShowFileNamesOnly" xml:space="preserve">
+    <value>Show file names only</value>
+  </data>
+  <data name="QuickPanelShortcut" xml:space="preserve">
+    <value>Quick panel shortcut</value>
+  </data>
+  <data name="PressTheGlobalShortcutToSearchAndOpenWitchDrawer" xml:space="preserve">
+    <value>Press the global shortcut to search and open WitchDrawer</value>
+  </data>
+  <data name="ClickThenPressANewShortcutCombination" xml:space="preserve">
+    <value>Click, then press a new shortcut combination</value>
+  </data>
+  <data name="DesktopBoxLayout" xml:space="preserve">
+    <value>Desktop box layout</value>
+  </data>
+  <data name="SaveAllBoxPositionsInThreeSeparateSlotsAnd" xml:space="preserve">
+    <value>Save all box positions in three separate slots and restore them at any time</value>
+  </data>
+  <data name="BackupSlot1" xml:space="preserve">
+    <value>Backup slot 1</value>
+  </data>
+  <data name="SaveLayoutToBackupSlot1" xml:space="preserve">
+    <value>Save layout to backup slot 1</value>
+  </data>
+  <data name="Restore" xml:space="preserve">
+    <value>Restore</value>
+  </data>
+  <data name="RestoreLayoutFromBackupSlot1" xml:space="preserve">
+    <value>Restore layout from backup slot 1</value>
+  </data>
+  <data name="DeleteLayoutInBackupSlot1" xml:space="preserve">
+    <value>Delete layout in backup slot 1</value>
+  </data>
+  <data name="BackupSlot2" xml:space="preserve">
+    <value>Backup slot 2</value>
+  </data>
+  <data name="SaveLayoutToBackupSlot2" xml:space="preserve">
+    <value>Save layout to backup slot 2</value>
+  </data>
+  <data name="RestoreLayoutFromBackupSlot2" xml:space="preserve">
+    <value>Restore layout from backup slot 2</value>
+  </data>
+  <data name="DeleteLayoutInBackupSlot2" xml:space="preserve">
+    <value>Delete layout in backup slot 2</value>
+  </data>
+  <data name="BackupSlot3" xml:space="preserve">
+    <value>Backup slot 3</value>
+  </data>
+  <data name="SaveLayoutToBackupSlot3" xml:space="preserve">
+    <value>Save layout to backup slot 3</value>
+  </data>
+  <data name="RestoreLayoutFromBackupSlot3" xml:space="preserve">
+    <value>Restore layout from backup slot 3</value>
+  </data>
+  <data name="DeleteLayoutInBackupSlot3" xml:space="preserve">
+    <value>Delete layout in backup slot 3</value>
+  </data>
+  <data name="CheckForUpdates" xml:space="preserve">
+    <value>Check for updates</value>
+  </data>
+  <data name="CopyTheDatabaseAndBoxFilesToANew" xml:space="preserve">
+    <value>Copy the database and box files to a new folder, then restart to apply. The original folder is kept as a backup.</value>
+  </data>
+  <data name="ChangeLocation" xml:space="preserve">
+    <value>Change location…</value>
+  </data>
+  <data name="LaunchAtStartup" xml:space="preserve">
+    <value>Launch at startup</value>
+  </data>
+  <data name="RunWitchDrawerWhenWindowsStarts" xml:space="preserve">
+    <value>Run WitchDrawer when Windows starts</value>
+  </data>
+  <data name="HideDesktopIcons" xml:space="preserve">
+    <value>Hide desktop icons</value>
+  </data>
+  <data name="HideWindowsDesktopFilesFoldersShortcutsAndSystemIcons" xml:space="preserve">
+    <value>Hide Windows desktop files, folders, shortcuts and system icons without deleting files</value>
+  </data>
+  <data name="DoubleClickDesktopToToggleIcons" xml:space="preserve">
+    <value>Double-click desktop to toggle icons</value>
+  </data>
+  <data name="DoubleClickAnEmptyDesktopAreaToHideOr" xml:space="preserve">
+    <value>Double-click an empty desktop area to hide or show Windows desktop icons</value>
+  </data>
+  <data name="DesktopWidgets" xml:space="preserve">
+    <value>Desktop widgets</value>
+  </data>
+  <data name="WitchDrawerKeepsYourDesktopSimpleWithFileIconsAnd" xml:space="preserve">
+    <value>WitchDrawer keeps your desktop simple with file icons and lightweight drop areas. Manage titles, settings and refresh actions here in the control center.</value>
+  </data>
+  <data name="EnterToSaveEscToCancel" xml:space="preserve">
+    <value>Enter to save; Esc to cancel</value>
+  </data>
+  <data name="TaskText" xml:space="preserve">
+    <value>Task text</value>
+  </data>
+  <data name="SaveEnter" xml:space="preserve">
+    <value>Save (Enter)</value>
+  </data>
+  <data name="SaveTask" xml:space="preserve">
+    <value>Save task</value>
+  </data>
+  <data name="CancelEsc" xml:space="preserve">
+    <value>Cancel (Esc)</value>
+  </data>
+  <data name="CancelEditing" xml:space="preserve">
+    <value>Cancel editing</value>
+  </data>
+  <data name="EditTaskF2" xml:space="preserve">
+    <value>Edit task (F2)</value>
+  </data>
+  <data name="EditTask" xml:space="preserve">
+    <value>Edit task</value>
+  </data>
+  <data name="DeleteTask" xml:space="preserve">
+    <value>Delete task</value>
+  </data>
+  <data name="AppInformation" xml:space="preserve">
+    <value>App information</value>
+  </data>
+  <data name="ALightweightWindowsDesktopFileOrganizer" xml:space="preserve">
+    <value>A lightweight Windows desktop file organizer</value>
+  </data>
+  <data name="GettingStarted" xml:space="preserve">
+    <value>Getting started</value>
+  </data>
+  <data name="DropAFileOrFolderIntoABoxTo" xml:space="preserve">
+    <value>Drop a file or folder into a box to get started.</value>
+  </data>
+  <data name="NormalBoxesMoveFilesAndFoldersIntoWitchDrawerS" xml:space="preserve">
+    <value>Normal boxes move files and folders into WitchDrawer's data folder. Use them for temporary files managed by the app.</value>
+  </data>
+  <data name="MappingBoxesStoreOriginalPathsAndLeaveSourceFiles" xml:space="preserve">
+    <value>Mapping boxes store original paths and leave source files in place. Use them for project folders, work folders and files used by other apps.</value>
+  </data>
+  <data name="TipUseMappingBoxesForFoldersToAvoidMoving" xml:space="preserve">
+    <value>Tip: use mapping boxes for folders to avoid moving large or active files. Choose a mapping box whenever you need to keep files in their original locations.</value>
+  </data>
+  <data name="CompatibilitySomeFeaturesMayNotWorkOnWindows10" xml:space="preserve">
+    <value>Compatibility: some features may not work on Windows 10 yet. Windows 11 is recommended.</value>
+  </data>
+  <data name="DiagnosticsAndFeedback" xml:space="preserve">
+    <value>Diagnostics and feedback</value>
+  </data>
+  <data name="IfSomethingGoesWrongExportRecentLogsToShare" xml:space="preserve">
+    <value>If something goes wrong, export recent logs to share with the developer.</value>
+  </data>
+  <data name="ExcludesTheDatabaseAndUserFilesLogsMayInclude" xml:space="preserve">
+    <value>Excludes the database and user files. Logs may include file names and full paths.</value>
+  </data>
+  <data name="ExportWitchDrawerDiagnosticLogs" xml:space="preserve">
+    <value>Export WitchDrawer diagnostic logs</value>
+  </data>
+  <data name="SponsorTheAuthor" xml:space="preserve">
+    <value>Sponsor the author</value>
+  </data>
+  <data name="SupportOngoingDevelopmentAndMaintenanceOfWitchDrawer" xml:space="preserve">
+    <value>Support ongoing development and maintenance of WitchDrawer</value>
+  </data>
+  <data name="IncludeYourIDWhenSponsoringToBeAddedTo" xml:space="preserve">
+    <value>Include your ID when sponsoring to be added to the acknowledgments.</value>
+  </data>
+  <data name="VisitSponsorshipPage" xml:space="preserve">
+    <value>Visit sponsorship page</value>
+  </data>
+  <data name="OpenTheAuthorSSponsorshipPageInYourBrowser" xml:space="preserve">
+    <value>Open the author's sponsorship page in your browser</value>
+  </data>
+  <data name="Developer" xml:space="preserve">
+    <value>Developer</value>
+  </data>
+  <data name="Author" xml:space="preserve">
+    <value>Author</value>
+  </data>
+  <data name="Email" xml:space="preserve">
+    <value>Email</value>
+  </data>
+  <data name="Website" xml:space="preserve">
+    <value>Website</value>
+  </data>
+  <data name="License" xml:space="preserve">
+    <value>License</value>
+  </data>
+  <data name="DocumentationInDocsAndIconsAndArtworkInAssets" xml:space="preserve">
+    <value>Documentation in docs/ and icons and artwork in Assets/ are licensed under CC BY-NC-SA 4.0</value>
+  </data>
+  <data name="DocsAndAssetsCCBYNCSA40" xml:space="preserve">
+    <value>Docs and assets: CC BY-NC-SA 4.0</value>
+  </data>
+  <data name="ProjectRepository" xml:space="preserve">
+    <value>Project repository</value>
+  </data>
+  <data name="OpenInBrowser" xml:space="preserve">
+    <value>Open in browser</value>
+  </data>
+  <data name="TaskHistory" xml:space="preserve">
+    <value>Task history</value>
+  </data>
+  <data name="CompletedTasksArchivedFromDesktopTaskBoxesAreSaved" xml:space="preserve">
+    <value>Completed tasks archived from desktop task boxes are saved here</value>
+  </data>
+  <data name="UndoDeletion" xml:space="preserve">
+    <value>Undo deletion</value>
+  </data>
+  <data name="UndoWithin10SecondsOfDeletion" xml:space="preserve">
+    <value>Undo within 10 seconds of deletion</value>
+  </data>
+  <data name="NoArchivedTasksYet" xml:space="preserve">
+    <value>No archived tasks yet</value>
+  </data>
+  <data name="CompleteTasksInADesktopTaskBoxThenClick" xml:space="preserve">
+    <value>Complete tasks in a desktop task box, then click Archive</value>
+  </data>
+  <data name="IconStyle" xml:space="preserve">
+    <value>Icon style</value>
+  </data>
+  <data name="IconSize" xml:space="preserve">
+    <value>Icon size</value>
+  </data>
+  <data name="ExpandOnHover" xml:space="preserve">
+    <value>Expand on hover</value>
+  </data>
+  <data name="BoxTitle2" xml:space="preserve">
+    <value>Box title</value>
+  </data>
+  <data name="FileNames" xml:space="preserve">
+    <value>File names</value>
+  </data>
+  <data name="BoxSize" xml:space="preserve">
+    <value>Box size</value>
+  </data>
+  <data name="Columns" xml:space="preserve">
+    <value>Columns</value>
+  </data>
+  <data name="DecreaseColumns" xml:space="preserve">
+    <value>Decrease columns</value>
+  </data>
+  <data name="IncreaseColumns" xml:space="preserve">
+    <value>Increase columns</value>
+  </data>
+  <data name="Rows" xml:space="preserve">
+    <value>Rows</value>
+  </data>
+  <data name="DecreaseRows" xml:space="preserve">
+    <value>Decrease rows</value>
+  </data>
+  <data name="IncreaseRows" xml:space="preserve">
+    <value>Increase rows</value>
+  </data>
+  <data name="ChangesApplyToDesktopBoxesImmediately" xml:space="preserve">
+    <value>Changes apply to desktop boxes immediately</value>
+  </data>
+  <data name="ConsolasCourierNewMicrosoftYaHei" xml:space="preserve">
+    <value>Consolas, Courier New, Microsoft YaHei</value>
+  </data>
+  <data name="GridView" xml:space="preserve">
+    <value>Grid view</value>
+  </data>
+  <data name="ListView" xml:space="preserve">
+    <value>List view</value>
+  </data>
+  <data name="CloseDrawer" xml:space="preserve">
+    <value>Close drawer</value>
+  </data>
+  <data name="RollUp" xml:space="preserve">
+    <value>Roll up</value>
+  </data>
+  <data name="Expand" xml:space="preserve">
+    <value>Expand</value>
+  </data>
+  <data name="HideBox" xml:space="preserve">
+    <value>Hide box</value>
+  </data>
+  <data name="TaskList" xml:space="preserve">
+    <value>Task list</value>
+  </data>
+  <data name="MoveAllCompletedTasksToTheArchive" xml:space="preserve">
+    <value>Move all completed tasks to the archive</value>
+  </data>
+  <data name="Remaining" xml:space="preserve">
+    <value>{0} remaining</value>
+  </data>
+  <data name="EnterATaskAndPressEnterToAdd" xml:space="preserve">
+    <value>Enter a task and press Enter to add</value>
+  </data>
+  <data name="AddATask" xml:space="preserve">
+    <value>Add a task...</value>
+  </data>
+  <data name="NoTasksYet" xml:space="preserve">
+    <value>No tasks yet</value>
+  </data>
+  <data name="ToggleCompletion" xml:space="preserve">
+    <value>Toggle completion</value>
+  </data>
+  <data name="Undo" xml:space="preserve">
+    <value>Undo</value>
+  </data>
+  <data name="OpenDrawer" xml:space="preserve">
+    <value>Open drawer</value>
+  </data>
+  <data name="DropFilesHere2" xml:space="preserve">
+    <value>Drop files here</value>
+  </data>
+  <data name="SearchFilesOrBoxes" xml:space="preserve">
+    <value>Search files or boxes...</value>
+  </data>
+  <data name="Default" xml:space="preserve">
+    <value>Default</value>
+  </data>
+  <data name="CustomStyle" xml:space="preserve">
+    <value>Custom style</value>
+  </data>
+  <data name="BoxCornerRadius" xml:space="preserve">
+    <value>Box corner radius</value>
+  </data>
+  <data name="BoxCornerRadiusValue" xml:space="preserve">
+    <value>Box corner radius value</value>
+  </data>
+  <data name="LogicalPixelsFollowsSystemScaling" xml:space="preserve">
+    <value>Logical pixels; follows system scaling</value>
+  </data>
+  <data name="ResetBoxCorners" xml:space="preserve">
+    <value>Reset box corners</value>
+  </data>
+  <data name="IconCornerScale" xml:space="preserve">
+    <value>Icon corner scale</value>
+  </data>
+  <data name="IconCornerScalePercentage" xml:space="preserve">
+    <value>Icon corner scale percentage</value>
+  </data>
+  <data name="ResetIconCorners" xml:space="preserve">
+    <value>Reset icon corners</value>
+  </data>
+  <data name="HoverTransparency" xml:space="preserve">
+    <value>Hover transparency</value>
+  </data>
+  <data name="ItemHoverTransparency" xml:space="preserve">
+    <value>Item hover transparency</value>
+  </data>
+  <data name="HoverTransparencyPercentage" xml:space="preserve">
+    <value>Hover transparency percentage</value>
+  </data>
+  <data name="ResetHoverTransparency" xml:space="preserve">
+    <value>Reset hover transparency</value>
+  </data>
+  <data name="Reset" xml:space="preserve">
+    <value>Reset {0}</value>
+  </data>
+  <data name="EnterASixDigitHEXColorIconCornerScale" xml:space="preserve">
+    <value>Enter a six-digit HEX color. Icon corner scale: 100% uses the original ratio; 0% uses square corners.</value>
+  </data>
+  <data name="Preview" xml:space="preserve">
+    <value>Preview</value>
+  </data>
+  <data name="Hover" xml:space="preserve">
+    <value>Hover</value>
+  </data>
+  <data name="Selected" xml:space="preserve">
+    <value>Selected</value>
+  </data>
+  <data name="Remaining2" xml:space="preserve">
+    <value>Remaining </value>
+  </data>
+  <data name="Completed2" xml:space="preserve">
+    <value>Completed </value>
+  </data>
+  <data name="TaskCompletionProgress" xml:space="preserve">
+    <value>Task completion progress</value>
+  </data>
+  <data name="EnterATaskAndPressEnterToAdd2" xml:space="preserve">
+    <value>Enter a task and press Enter to add</value>
+  </data>
+  <data name="NewTaskText" xml:space="preserve">
+    <value>New task text</value>
+  </data>
+  <data name="AddSomethingToDo" xml:space="preserve">
+    <value>Add something to do…</value>
+  </data>
+  <data name="AddTask2" xml:space="preserve">
+    <value>Add task</value>
+  </data>
+  <data name="NoTasksYet2" xml:space="preserve">
+    <value>No tasks yet</value>
+  </data>
+  <data name="AllTasksCompleted" xml:space="preserve">
+    <value>All tasks completed</value>
+  </data>
+  <data name="AddATaskAboveAndPressEnterToBegin" xml:space="preserve">
+    <value>Add a task above and press Enter to begin</value>
+  </data>
+  <data name="ArchiveCompletedTasksOrAddANewTask" xml:space="preserve">
+    <value>Archive completed tasks or add a new task</value>
+  </data>
+  <data name="IncompleteTasks" xml:space="preserve">
+    <value>Incomplete tasks</value>
+  </data>
+  <data name="ExpandOrCollapseCompletedTasks" xml:space="preserve">
+    <value>Expand or collapse completed tasks</value>
+  </data>
+  <data name="ArchiveCompleted" xml:space="preserve">
+    <value>Archive completed</value>
+  </data>
+  <data name="CompletedTasks" xml:space="preserve">
+    <value>Completed tasks</value>
+  </data>
+  <data name="OneTaskDeleted" xml:space="preserve">
+    <value>One task deleted</value>
+  </data>
+  <data name="ItemMenu" xml:space="preserve">
+    <value>Item menu</value>
+  </data>
+  <data name="RunAsAdministrator" xml:space="preserve">
+    <value>Run as administrator</value>
+  </data>
+  <data name="OpenShortcutLocation" xml:space="preserve">
+    <value>Open shortcut location</value>
+  </data>
+  <data name="CopyFile" xml:space="preserve">
+    <value>Copy file</value>
+  </data>
+  <data name="CopyFilePath" xml:space="preserve">
+    <value>Copy file path</value>
+  </data>
+  <data name="PasteIntoThisBox" xml:space="preserve">
+    <value>Paste into this box</value>
+  </data>
+  <data name="MoveOutOfBox" xml:space="preserve">
+    <value>Move out of box</value>
+  </data>
+  <data name="NewName" xml:space="preserve">
+    <value>New name</value>
+  </data>
+  <data name="OK" xml:space="preserve">
+    <value>OK</value>
+  </data>
+  <data name="LanguageTitle" xml:space="preserve">
+    <value>Language</value>
+  </data>
+  <data name="LanguageDescription" xml:space="preserve">
+    <value>Changes apply immediately and are saved for the next launch.</value>
+  </data>
+  <data name="LanguageChanged" xml:space="preserve">
+    <value>Language updated</value>
+  </data>
+  <data name="LanguageSaveFailed" xml:space="preserve">
+    <value>Could not save the language setting</value>
+  </data>
+</root>

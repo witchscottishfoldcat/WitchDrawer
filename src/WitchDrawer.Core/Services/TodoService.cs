@@ -1,3 +1,4 @@
+using WitchDrawer.Core.Localization;
 using WitchDrawer.Core.Models;
 using WitchDrawer.Core.Storage;
 
@@ -101,7 +102,7 @@ public sealed class TodoService
     public Task<TodoItem> UndoDeleteAsync(Guid token, CancellationToken cancellationToken = default) =>
         ExecuteAsync(async () =>
         {
-            if (!_undoEntries.TryGetValue(token, out var entry)) throw new InvalidOperationException("撤销已过期或已完成。");
+            if (!_undoEntries.TryGetValue(token, out var entry)) throw new InvalidOperationException(Strings.Get("UndoExpiredOrAlreadyCompleted"));
             await RequireTodoBoxAsync(entry.Item.BoxId, cancellationToken);
             await _repository.AddTodoAsync(entry.Item, cancellationToken);
             _undoEntries.Remove(token);
@@ -131,16 +132,16 @@ public sealed class TodoService
 
     private async Task RequireTodoBoxAsync(Guid boxId, CancellationToken cancellationToken)
     {
-        var box = await _repository.GetBoxAsync(boxId, cancellationToken) ?? throw new InvalidOperationException("待办盒不存在或已被删除。");
-        if (box.Type != BoxType.Todo) throw new InvalidOperationException("只能操作待办盒中的事项。");
+        var box = await _repository.GetBoxAsync(boxId, cancellationToken) ?? throw new InvalidOperationException(Strings.Get("TheTaskBoxDoesNotExistOrWasDeleted"));
+        if (box.Type != BoxType.Todo) throw new InvalidOperationException(Strings.Get("OnlyTasksInTaskBoxesCanBeEdited"));
     }
     private async Task<TodoItem> RequireTodoAsync(Guid todoId, CancellationToken cancellationToken) =>
-        await _repository.GetTodoAsync(todoId, cancellationToken) ?? throw new InvalidOperationException("待办事项不存在或已被删除。");
+        await _repository.GetTodoAsync(todoId, cancellationToken) ?? throw new InvalidOperationException(Strings.Get("TheTaskDoesNotExistOrWasDeleted"));
     private static string NormalizeTitle(string title)
     {
         var normalized = title?.Trim() ?? string.Empty;
-        if (normalized.Length == 0) throw new ArgumentException("待办内容不能为空。", nameof(title));
-        if (normalized.Length > MaximumTitleLength) throw new ArgumentException($"待办内容不能超过 {MaximumTitleLength} 个字符。", nameof(title));
+        if (normalized.Length == 0) throw new ArgumentException(Strings.Get("TaskTextCannotBeEmpty"), nameof(title));
+        if (normalized.Length > MaximumTitleLength) throw new ArgumentException(Strings.Format("TaskTextCannotExceedCharacters", MaximumTitleLength), nameof(title));
         return normalized;
     }
 }

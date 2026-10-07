@@ -1,9 +1,11 @@
+using WitchDrawer.App.Localization;
+using WitchDrawer.Core.Localization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using WitchDrawer.Core.Models;
 
 namespace WitchDrawer.App.ViewModels;
 
-public sealed class TodoItemViewModel : ObservableObject
+public sealed class TodoItemViewModel : LocalizedObservableObject
 {
     private TodoItem _model;
     private bool _isEditing;
@@ -56,7 +58,7 @@ public sealed class TodoItemViewModel : ObservableObject
         get
         {
             var time = (Model.CompletedAt ?? Model.CreatedAt).ToLocalTime();
-            var prefix = Model.IsCompleted ? "完成于" : "创建于";
+            var prefix = Model.IsCompleted ? Strings.Get("CompletedOn") : Strings.Get("CreatedOn");
             return $"{prefix} {time:MM-dd HH:mm}";
         }
     }

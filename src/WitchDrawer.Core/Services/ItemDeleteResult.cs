@@ -1,3 +1,4 @@
+using WitchDrawer.Core.Localization;
 namespace WitchDrawer.Core.Services;
 
 public sealed record ItemDeleteResult(
@@ -31,20 +32,20 @@ public sealed record ItemDeleteResult(
         {
             if (!WasStoredItem)
             {
-                return $"已移除引用 {DisplayName}";
+                return Strings.Format("RemovedReference", DisplayName);
             }
 
             if (RemovedMissingRecord)
             {
-                return $"文件已不存在，已移除 {DisplayName} 的收纳记录";
+                return Strings.Format("TheFileNoLongerExistsRemovedItsBoxEntry", DisplayName);
             }
 
             if (RestoredToDesktop)
             {
-                return $"已还原 {DisplayName} 到桌面（原位置不可用）";
+                return Strings.Format("RestoredToTheDesktopOriginalLocationUnavailable", DisplayName);
             }
 
-            return $"已还原 {DisplayName} 到原位置";
+            return Strings.Format("RestoredToItsOriginalLocation", DisplayName);
         }
     }
 }

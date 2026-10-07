@@ -1,3 +1,4 @@
+using WitchDrawer.Core.Localization;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
@@ -52,8 +53,8 @@ public partial class AboutPageView : UserControl
         var owner = Window.GetWindow(this);
         var privacyConfirmation = MessageBox.Show(
             owner,
-            "诊断包只包含最近的运行日志和基础环境信息，不包含数据库或用户文件内容。\n\n日志中可能包含文件名和完整路径，发送前请按需检查。是否继续？",
-            "导出诊断日志",
+            Strings.Get("TheDiagnosticPackageIncludesOnlyRecentLogsAndBasic"),
+            Strings.Get("ExportDiagnosticLogs"),
             MessageBoxButton.OKCancel,
             MessageBoxImage.Information);
         if (privacyConfirmation != MessageBoxResult.OK)
@@ -63,8 +64,8 @@ public partial class AboutPageView : UserControl
 
         var dialog = new Microsoft.Win32.SaveFileDialog
         {
-            Title = "保存 WitchDrawer 诊断日志",
-            Filter = "ZIP 压缩包 (*.zip)|*.zip",
+            Title = Strings.Get("SaveWitchDrawerDiagnosticLogs"),
+            Filter = Strings.Get("ZIPArchiveZipZip"),
             DefaultExt = ".zip",
             AddExtension = true,
             FileName = $"WitchDrawer-Diagnostics-{DateTime.Now:yyyyMMdd-HHmmss}.zip"
@@ -80,8 +81,8 @@ public partial class AboutPageView : UserControl
             var result = await ViewModel.Maintenance.ExportDiagnosticLogsAsync(dialog.FileName);
             MessageBox.Show(
                 owner,
-                $"诊断日志已导出。\n\n包含日志：{result.LogFileCount} 个\n保存位置：{result.ArchivePath}",
-                "导出完成",
+                Strings.Format("DiagnosticLogsExportedNNLogFilesNSavedTo", result.LogFileCount, result.ArchivePath),
+                Strings.Get("ExportComplete"),
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
         }
@@ -89,8 +90,8 @@ public partial class AboutPageView : UserControl
         {
             MessageBox.Show(
                 owner,
-                "诊断日志导出失败：\n" + exception.Message,
-                "导出失败",
+                Strings.Get("DiagnosticLogExportFailedN") + exception.Message,
+                Strings.Get("ExportFailed"),
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
         }

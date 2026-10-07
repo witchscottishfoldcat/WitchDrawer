@@ -1,3 +1,4 @@
+using WitchDrawer.Core.Localization;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
@@ -59,16 +60,16 @@ public partial class DrawerItemContextMenuWindow : Window
         CopyButton.Visibility = pathExists && hasItem ? Visibility.Visible : Visibility.Collapsed;
         CopyPathButton.Visibility = hasItem ? Visibility.Visible : Visibility.Collapsed;
         RenameButton.Visibility = hasItem && (pathExists || isMappingBox) ? Visibility.Visible : Visibility.Collapsed;
-        RenameButton.Content = isMappingBox ? "重命名引用" : "重命名";
+        RenameButton.Content = isMappingBox ? Strings.Get("RenameReference") : Strings.Get("Rename");
         PasteButton.IsEnabled = canPaste && !isBusy;
         RenameButton.IsEnabled = !isBusy;
         RemoveButton.IsEnabled = !isBusy;
         ShortcutLocationButton.Visibility = pathExists && isShortcut ? Visibility.Visible : Visibility.Collapsed;
-        RevealButton.Content = isShortcut ? "打开目标所在位置" : "打开所在位置";
+        RevealButton.Content = isShortcut ? Strings.Get("OpenTargetLocation") : Strings.Get("OpenFileLocation");
         System.Windows.Automation.AutomationProperties.SetName(RevealButton, RevealButton.Content.ToString());
         System.Windows.Automation.AutomationProperties.SetName(RenameButton, RenameButton.Content.ToString());
         RemoveButton.Visibility = hasItem ? Visibility.Visible : Visibility.Collapsed;
-        RemoveButton.Content = isMappingBox ? "移除引用" : pathExists ? "移出并还原文件" : "清理失效记录";
+        RemoveButton.Content = isMappingBox ? Strings.Get("RemoveReference") : pathExists ? Strings.Get("MoveOutAndRestoreFile") : Strings.Get("RemoveMissingEntry");
         System.Windows.Automation.AutomationProperties.SetName(
             RemoveButton,
             RemoveButton.Content.ToString());

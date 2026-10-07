@@ -1,3 +1,4 @@
+using WitchDrawer.Core.Localization;
 using WitchDrawer.Core.Storage;
 
 namespace WitchDrawer.Core.Services;
@@ -64,16 +65,16 @@ public sealed class DataStorageMigrationService
 
         if (string.Equals(sourceRoot, targetRoot, StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException("目标文件夹与当前数据目录相同，无需迁移。");
+            throw new InvalidOperationException(Strings.Get("TheDestinationIsAlreadyTheCurrentDataFolderNo"));
         }
 
         if (IsDescendantOf(targetRoot, sourceRoot))
         {
-            throw new InvalidOperationException("目标文件夹不能位于当前数据目录内部。");
+            throw new InvalidOperationException(Strings.Get("TheDestinationCannotBeInsideTheCurrentDataFolder"));
         }
 
         var targetParent = Path.GetDirectoryName(targetRoot)
-            ?? throw new InvalidOperationException("目标文件夹的父目录不可用。");
+            ?? throw new InvalidOperationException(Strings.Get("TheDestinationSParentFolderIsUnavailable"));
         _prepareTargetParent(targetParent);
         var lockPath = targetRoot + ".migration.lock";
         var tempRoot = targetRoot + $".tmp-migrating-{Guid.NewGuid():N}";
@@ -91,7 +92,7 @@ public sealed class DataStorageMigrationService
             if (Directory.Exists(targetRoot) && Directory.EnumerateFileSystemEntries(targetRoot).Any())
             {
                 throw new InvalidOperationException(
-                    "目标文件夹不为空。为避免覆盖已有数据，请选择一个空文件夹。");
+                    Strings.Get("TheDestinationIsNotEmptyChooseAnEmptyFolder"));
             }
 
             // 每次迁移使用独占 staging，避免清理或提升另一进程的临时目录。
@@ -114,7 +115,7 @@ public sealed class DataStorageMigrationService
                 () =>
                 {
                     EnsureMatchingSnapshot(
-                        boxesBeforeCopy ?? throw new InvalidOperationException("迁移文件快照不可用。"),
+                        boxesBeforeCopy ?? throw new InvalidOperationException(Strings.Get("TheMigrationFileSnapshotIsUnavailable")),
                         CaptureDirectorySnapshot(_paths.BoxesDirectory, cancellationToken),
                         compareWriteTimes: true);
                     return Task.CompletedTask;
@@ -123,7 +124,7 @@ public sealed class DataStorageMigrationService
                 {
                     if (!File.Exists(tempPaths.DatabasePath))
                     {
-                        throw new InvalidOperationException("迁移失败：数据库文件未能复制到目标文件夹。");
+                        throw new InvalidOperationException(Strings.Get("MigrationFailedTheDatabaseCouldNotBeCopiedTo"));
                     }
 
                     File.WriteAllText(
@@ -239,7 +240,7 @@ public sealed class DataStorageMigrationService
     {
         if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
         {
-            throw new IOException($"迁移不支持链接或其他 reparse point: {path}");
+            throw new IOException(Strings.Format("MigrationDoesNotSupportLinksOrOtherReparsePoints", path));
         }
     }
 
@@ -281,7 +282,7 @@ public sealed class DataStorageMigrationService
                 || pair.Value.Length != current.Length
                 || (compareWriteTimes && pair.Value.LastWriteTimeUtc != current.LastWriteTimeUtc)))
         {
-            throw new IOException("收纳盒文件在迁移期间发生变化，目标目录未启用。请重试。");
+            throw new IOException(Strings.Get("BoxFilesChangedDuringMigrationTheDestinationWasNot"));
         }
     }
 

@@ -1,3 +1,4 @@
+using WitchDrawer.Core.Localization;
 using System.Text.Json;
 
 namespace WitchDrawer.Core.Storage;
@@ -36,7 +37,7 @@ public sealed class StorageLocationStore
         if (string.IsNullOrWhiteSpace(localAppData))
         {
             throw new InvalidOperationException(
-                "无法解析 LocalApplicationData，无法读取数据目录引导配置。");
+                Strings.Get("CannotResolveLocalApplicationDataToReadTheDataFolderConfiguration"));
         }
 
         return new StorageLocationStore(
@@ -108,7 +109,7 @@ public sealed class StorageLocationStore
     {
         var intentPath = _filePath + ".migration";
         var parent = Path.GetDirectoryName(intentPath)
-            ?? throw new InvalidOperationException("迁移引导目录不可用。");
+            ?? throw new InvalidOperationException(Strings.Get("TheMigrationConfigurationFolderIsUnavailable"));
         Directory.CreateDirectory(parent);
         var temporaryPath = intentPath + ".tmp";
         File.WriteAllText(

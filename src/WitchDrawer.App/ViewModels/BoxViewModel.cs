@@ -1,3 +1,5 @@
+using WitchDrawer.App.Localization;
+using WitchDrawer.Core.Localization;
 using WitchDrawer.Core.Abstractions;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Messaging;
@@ -9,7 +11,7 @@ using WitchDrawer.Core.Services;
 
 namespace WitchDrawer.App.ViewModels;
 
-public sealed partial class BoxViewModel : ObservableObject
+public sealed partial class BoxViewModel : LocalizedObservableObject
 {
     private readonly ISettingsStore _settings;
     private readonly IAppLogger _logger;
@@ -149,9 +151,9 @@ public sealed partial class BoxViewModel : ObservableObject
 
     public bool IsTitleVisible => _isTitleVisible;
 
-    public string TitleVisibilityToolTip => IsTitleVisible ? "隐藏桌面收纳盒名称" : "显示桌面收纳盒名称";
+    public string TitleVisibilityToolTip => IsTitleVisible ? Strings.Get("HideTheDesktopBoxTitle") : Strings.Get("ShowTheDesktopBoxTitle");
 
-    public string TitleVisibilityAutomationName => IsTitleVisible ? "隐藏名称" : "显示名称";
+    public string TitleVisibilityAutomationName => IsTitleVisible ? Strings.Get("HideTitle") : Strings.Get("ShowTitle");
 
     public bool SupportsFileNameVisibility =>
         Type is BoxType.Normal or BoxType.Pixel or BoxType.Drawer;
@@ -159,18 +161,18 @@ public sealed partial class BoxViewModel : ObservableObject
     public bool IsFileNameVisible => _isFileNameVisible;
 
     public string FileNameVisibilityAutomationName =>
-        IsFileNameVisible ? "隐藏文件名" : "显示文件名";
+        IsFileNameVisible ? Strings.Get("HideFileNames") : Strings.Get("ShowFileNames");
 
     public bool SupportsHoverRollUp =>
         Type is BoxType.Normal or BoxType.Pixel or BoxType.Mapping;
 
     public bool IsHoverRollUpEnabled => SupportsHoverRollUp && _isHoverRollUpEnabled;
 
-    public string HoverRollUpButtonLabel => IsHoverRollUpEnabled ? "已开启" : "已关闭";
+    public string HoverRollUpButtonLabel => IsHoverRollUpEnabled ? Strings.Get("On") : Strings.Get("Off");
 
     public string HoverRollUpButtonToolTip => IsHoverRollUpEnabled
-        ? "关闭鼠标悬停标题自动展开"
-        : "开启鼠标悬停标题自动展开";
+        ? Strings.Get("DisableExpandingOnTitleHover")
+        : Strings.Get("EnableExpandingOnTitleHover");
 
     public DrawerItemSortMode DrawerItemSortMode => _drawerItemSortMode;
 
@@ -178,11 +180,11 @@ public sealed partial class BoxViewModel : ObservableObject
 
     public string DrawerSortModeLabel => DrawerItemSortMode switch
     {
-        DrawerItemSortMode.Free => "自由",
-        DrawerItemSortMode.Size => "大小",
-        DrawerItemSortMode.ItemType => "项目类型",
-        DrawerItemSortMode.ModifiedDate => "修改日期",
-        _ => "名称"
+        DrawerItemSortMode.Free => Strings.Get("Free"),
+        DrawerItemSortMode.Size => Strings.Get("Size"),
+        DrawerItemSortMode.ItemType => Strings.Get("Type"),
+        DrawerItemSortMode.ModifiedDate => Strings.Get("DateModified"),
+        _ => Strings.Get("Name")
     };
 
     public bool IsDrawerSortByName => DrawerItemSortMode == DrawerItemSortMode.Name;
@@ -202,28 +204,28 @@ public sealed partial class BoxViewModel : ObservableObject
     public bool IsPositionLocked => _isPositionLocked;
 
     public string PositionLockButtonToolTip =>
-        IsPositionLocked ? "解锁桌面位置" : "锁定桌面位置";
+        IsPositionLocked ? Strings.Get("UnlockDesktopPosition") : Strings.Get("LockDesktopPosition");
 
     public string PositionLockButtonAutomationName =>
-        IsPositionLocked ? "解锁当前收纳盒桌面位置" : "锁定当前收纳盒桌面位置";
+        IsPositionLocked ? Strings.Get("UnlockThisBoxSDesktopPosition") : Strings.Get("LockThisBoxSDesktopPosition");
 
     public string VisualStyleLabel => BoxVisualStyleCatalog.GetOption(VisualStyle).Name;
 
     public string TypeLabel => Model.Type switch
     {
-        BoxType.Normal or BoxType.Pixel => "普通",
-        BoxType.Mapping => "映射",
-        BoxType.Todo => "待办",
-        BoxType.Drawer => "抽屉",
-        _ => "未知"
+        BoxType.Normal or BoxType.Pixel => Strings.Get("Normal"),
+        BoxType.Mapping => Strings.Get("Mapping"),
+        BoxType.Todo => Strings.Get("Tasks"),
+        BoxType.Drawer => Strings.Get("Drawer"),
+        _ => Strings.Get("Unknown")
     };
 
     public string Description => Model.Type switch
     {
-        BoxType.Normal or BoxType.Pixel => "拖入后移动到收纳盒",
-        BoxType.Mapping => "只保存路径引用",
-        BoxType.Todo => "独立桌面待办清单",
-        BoxType.Drawer => "安卓式展开抽屉",
+        BoxType.Normal or BoxType.Pixel => Strings.Get("FilesMoveIntoTheBoxWhenDropped"),
+        BoxType.Mapping => Strings.Get("StoresPathReferencesOnly"),
+        BoxType.Todo => Strings.Get("SeparateDesktopTaskList"),
+        BoxType.Drawer => Strings.Get("ExpandableDrawer"),
         _ => string.Empty
     };
 
@@ -239,15 +241,15 @@ public sealed partial class BoxViewModel : ObservableObject
     public string StorageLabel => Model.Type switch
     {
         BoxType.Normal or BoxType.Pixel or BoxType.Drawer => Model.StoragePath ?? string.Empty,
-        BoxType.Todo => "待办事项保存在本地数据库",
-        _ => "源文件保留在原位置"
+        BoxType.Todo => Strings.Get("TasksAreStoredInTheLocalDatabase"),
+        _ => Strings.Get("SourceFilesStayInTheirOriginalLocations")
     };
 
     public string DeleteWarning => Model.Type switch
     {
-        BoxType.Todo => "该待办盒中的所有事项（包括归档历史）将一并删除，此操作无法撤销。",
-        BoxType.Mapping => "只会移除映射引用，源文件不会被移动或删除。",
-        _ => "收纳盒内的文件将恢复到原来的位置；如有重名会自动加后缀。"
+        BoxType.Todo => Strings.Get("AllTasksInThisBoxIncludingArchivedHistoryWill"),
+        BoxType.Mapping => Strings.Get("OnlyReferencesWillBeRemovedSourceFilesWillStay"),
+        _ => Strings.Get("FilesInThisBoxWillReturnToTheirOriginal")
     };
 
     public void ApplyVisualStyle(BoxVisualStyle visualStyle)

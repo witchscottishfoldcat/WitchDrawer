@@ -1,3 +1,6 @@
+using WitchDrawer.App.Localization;
+using System.Globalization;
+using WitchDrawer.Core.Localization;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
@@ -40,6 +43,7 @@ public partial class App : Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        LocalizationProvider.Instance.Apply(AppLanguage.Resolve(null, CultureInfo.CurrentUICulture));
 
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
@@ -137,6 +141,8 @@ public partial class App : Application
                 quickPanelHotKeySettings);
             startupTimer.Mark("数据初始化完成（恢复 → 路径修复 → 默认盒子）");
             startupTimer.Mark($"启动设置快照就绪（{startupSettings.Count} 项，单次查询）");
+            LocalizationProvider.Instance.Apply(AppLanguage.Resolve(
+                startupSettings.Get(AppLanguage.SettingKey), CultureInfo.CurrentUICulture));
             AppThemeManager.Apply(LoadSavedTheme(startupSettings));
 
             var quickPanelViewModel = new QuickPanelViewModel(
@@ -196,7 +202,7 @@ public partial class App : Application
                     {
                         var count = await (await desktopReady.Task).RecordLayoutBackupAsync(slot);
                         _mainWindow.SetLayoutBackupSlotState(slot, hasBackup: true);
-                        mainViewModel.ReportStatus($"已将 {count} 个盒子记录到布局备份槽位 {slot}");
+                        mainViewModel.ReportStatus(Strings.Format("SavedBoxesToLayoutBackupSlot", count, slot));
                     },
                     "RecordLayoutBackupAsync",
                     logger);
@@ -208,15 +214,15 @@ public partial class App : Application
                         if (!result.BackupFound)
                         {
                             _mainWindow.SetLayoutBackupSlotState(slot, hasBackup: false);
-                            mainViewModel.ReportStatus($"布局备份槽位 {slot} 为空或不可用");
+                            mainViewModel.ReportStatus(Strings.Format("LayoutBackupSlotIsEmptyOrUnavailable", slot));
                             return;
                         }
 
                         var missingText = result.MissingCount > 0
-                            ? $"，另有 {result.MissingCount} 个已删除盒子被跳过"
+                            ? Strings.Format("SkippedDeletedBoxes", result.MissingCount)
                             : string.Empty;
                         mainViewModel.ReportStatus(
-                            $"已从布局备份槽位 {slot} 恢复 {result.RestoredCount} 个盒子{missingText}");
+                            Strings.Format("RestoredBoxesFromLayoutBackupSlot", slot, result.RestoredCount, missingText));
                     },
                     "RestoreLayoutBackupAsync",
                     logger);
@@ -228,8 +234,8 @@ public partial class App : Application
                         _mainWindow.SetLayoutBackupSlotState(slot, hasBackup: false);
                         mainViewModel.ReportStatus(
                             deleted
-                                ? $"已删除布局备份槽位 {slot}"
-                                : $"布局备份槽位 {slot} 已经为空");
+                                ? Strings.Format("DeletedLayoutBackupSlot", slot)
+                                : Strings.Format("LayoutBackupSlotIsAlreadyEmpty", slot));
                     },
                     "DeleteLayoutBackupAsync",
                     logger);
@@ -239,7 +245,7 @@ public partial class App : Application
                     {
                         if (await (await desktopReady.Task).CenterBoxOnScreenAsync(boxId))
                         {
-                            mainViewModel.ReportStatus("已将盒子召回主屏中心");
+                            mainViewModel.ReportStatus(Strings.Get("MovedTheBoxToTheCenterOfTheMain"));
                         }
                     },
                     "CenterBoxOnScreenAsync",
@@ -344,7 +350,7 @@ public partial class App : Application
             startupTimer.Mark("桌面盒子全部就绪");
             if (isElevated)
             {
-                mainViewModel.ReportStatus("管理员权限运行：从普通权限窗口拖入文件受 Windows 限制。");
+                mainViewModel.ReportStatus(Strings.Get("RunningAsAdministratorWindowsRestrictsFileDropsFromWindows"));
             }
             if (drawerService.RecoveryWarnings.Count > 0)
             {
@@ -352,11 +358,11 @@ public partial class App : Application
                     Environment.NewLine,
                     drawerService.RecoveryWarnings.Take(3));
                 logger.Error(new IOException(details), "File move recovery needs attention.");
-                mainViewModel.ReportStatus("部分文件搬移需要人工核对；其他盒子仍可使用。");
+                mainViewModel.ReportStatus(Strings.Get("SomeFileMovesNeedManualReviewOtherBoxesRemain"));
                 MessageBox.Show(
-                    "部分文件搬移未能自动恢复，相关文件均已保留。请核对以下路径："
+                    Strings.Get("SomeFileMovesCouldNotBeRecoveredAutomaticallyAll")
                     + Environment.NewLine + details,
-                    "WitchDrawer 文件恢复提示",
+                    Strings.Get("WitchDrawerFileRecovery"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
             }
@@ -536,10 +542,10 @@ public partial class App : Application
             }
 
             var menu = CreatePopupMenu();
-            var showOrHideText = _mainWindow.IsVisible ? "隐藏主窗口" : "显示主窗口";
+            var showOrHideText = _mainWindow.IsVisible ? Strings.Get("HideMainWindow") : Strings.Get("ShowMainWindow");
             AppendMenuW(menu, 0, 1, showOrHideText);
-            AppendMenuW(menu, 0, 2, "显示全部收纳盒");
-            AppendMenuW(menu, 0, 3, "退出 WitchDrawer");
+            AppendMenuW(menu, 0, 2, Strings.Get("ShowAllBoxes"));
+            AppendMenuW(menu, 0, 3, Strings.Get("QuitWitchDrawer"));
 
             var pt = GetCursorPosition();
             _taskbarIcon.ShowContextMenu(menu, pt.X, pt.Y);
@@ -587,8 +593,8 @@ public partial class App : Application
     {
         var versionText = $"v{result.LatestVersion.Major}.{result.LatestVersion.Minor}.{result.LatestVersion.Build}";
         var choice = MessageBox.Show(
-            $"发现新版本 {versionText}\n\n是否立即更新？\n更新将自动下载并重启应用。",
-            "发现新版本",
+            Strings.Format("VersionIsAvailableNNUpdateNowNTheUpdateWill", versionText),
+            Strings.Get("UpdateAvailable"),
             MessageBoxButton.OKCancel,
             MessageBoxImage.Question);
         return Task.FromResult(choice == MessageBoxResult.OK);

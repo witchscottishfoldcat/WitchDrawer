@@ -26,16 +26,16 @@ public sealed class AboutPageSupportLinkTests
             element => (string?)element.Attribute(XamlNamespace + "Name") == "DeveloperCard");
         var acknowledgementNote = Assert.Single(
             supportCard.Descendants(PresentationNamespace + "TextBlock"),
-            element => ((string?)element.Attribute("Text"))?.Contains("备注你的 ID") == true);
+            element => (string?)element.Attribute("Text") == "{loc:Text IncludeYourIDWhenSponsoringToBeAddedTo}");
         var aboutScrollViewer = Assert.Single(
             supportButton.Ancestors(PresentationNamespace + "ScrollViewer"));
 
-        Assert.Equal("前往赞助页面", (string?)supportButton.Attribute("Content"));
+        Assert.Equal("{loc:Text VisitSponsorshipPage}", (string?)supportButton.Attribute("Content"));
         Assert.Equal("https://www.witchcat.cn/zh/support", AboutPageView.SupportPageUri);
         Assert.Contains(supportButton, supportCard.Descendants(PresentationNamespace + "Button"));
         Assert.DoesNotContain(supportButton, developerCard.Descendants(PresentationNamespace + "Button"));
         Assert.True(supportCard.IsBefore(developerCard), "The support card should appear above the developer card.");
-        Assert.Equal("赞助时请备注你的 ID，可加入鸣谢名单。", (string?)acknowledgementNote.Attribute("Text"));
+        Assert.Equal("{loc:Text IncludeYourIDWhenSponsoringToBeAddedTo}", (string?)acknowledgementNote.Attribute("Text"));
         Assert.Equal("False", (string?)aboutScrollViewer.Attribute("CanContentScroll"));
         Assert.Equal("VerticalOnly", (string?)aboutScrollViewer.Attribute("PanningMode"));
         Assert.Contains(
@@ -52,9 +52,9 @@ public sealed class AboutPageSupportLinkTests
             element => (string?)element.Attribute(XamlNamespace + "Name") == "ExportDiagnosticLogsButton");
         var privacyNotice = Assert.Single(
             document.Descendants(PresentationNamespace + "TextBlock"),
-            element => ((string?)element.Attribute("Text"))?.Contains("不包含数据库和用户文件") == true);
+            element => (string?)element.Attribute("Text") == "{loc:Text ExcludesTheDatabaseAndUserFilesLogsMayInclude}");
 
-        Assert.Equal("导出诊断日志", (string?)exportButton.Attribute("Content"));
+        Assert.Equal("{loc:Text ExportDiagnosticLogs}", (string?)exportButton.Attribute("Content"));
         Assert.Equal("OnExportDiagnosticLogsClick", (string?)exportButton.Attribute("Click"));
         Assert.NotEmpty(exportButton.Ancestors(PresentationNamespace + "ScrollViewer"));
         Assert.NotEmpty(privacyNotice.Ancestors(PresentationNamespace + "ScrollViewer"));

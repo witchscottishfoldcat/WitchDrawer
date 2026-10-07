@@ -33,6 +33,8 @@ Both packages are self-contained and require no separate .NET runtime installati
 
 ## Features
 
+- **Languages**: English and Simplified Chinese. Switch instantly in **Settings → Language**; your choice is saved. The first launch follows the system UI language, using English for other languages.
+
 | Box | Purpose |
 | --- | --- |
 | Normal | Manage files stored in the app's data directory, with standard and pixel styles |

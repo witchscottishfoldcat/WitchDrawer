@@ -1,3 +1,4 @@
+using WitchDrawer.Core.Localization;
 using WitchDrawer.Core.Storage;
 
 namespace WitchDrawer.Core;
@@ -83,9 +84,9 @@ public sealed record AppPaths(string RootDirectory)
         if (string.IsNullOrWhiteSpace(localAppData))
         {
             throw new InvalidOperationException(
-                "无法解析 LocalApplicationData。请设置环境变量 "
+                Strings.Get("CannotResolveLocalApplicationDataSetTheEnvironmentVariable")
                 + DataDirectoryEnvironmentVariableName
-                + " 指向可写目录。");
+                + Strings.Get("ToAWritableFolder"));
         }
 
         var defaultPaths = new AppPaths(Path.Combine(localAppData, DefaultRootDirectoryName));
@@ -136,14 +137,14 @@ public sealed record AppPaths(string RootDirectory)
         catch (Exception exception)
         {
             throw new InvalidOperationException(
-                "WitchDrawer 数据目录不可写，SQLite 无法创建数据库旁路文件（-wal/-shm）。"
+                Strings.Get("TheWitchDrawerDataFolderIsNotWritableSQLiteCannot")
                 + Environment.NewLine
-                + "数据目录: "
+                + Strings.Get("DataFolder")
                 + RootDirectory
                 + Environment.NewLine
-                + "请检查目录权限，或设置环境变量 "
+                + Strings.Get("CheckFolderPermissionsOrSetTheEnvironmentVariable")
                 + DataDirectoryEnvironmentVariableName
-                + " 指向可写目录。",
+                + Strings.Get("ToAWritableFolder"),
                 exception);
         }
         finally

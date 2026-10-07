@@ -1,3 +1,4 @@
+using WitchDrawer.Core.Localization;
 using System.IO;
 using WitchDrawer.App.Infrastructure;
 using WitchDrawer.Core.Models;
@@ -103,7 +104,7 @@ public sealed partial class DesktopBoxViewModel
                 Items.Synchronize(ordered);
             }
 
-            StatusText = Items.Count == 0 ? "拖入文件" : "已同步";
+            StatusText = Items.Count == 0 ? Strings.Get("DropFilesHere") : Strings.Get("Synced");
             UpdateGridCanvasSize();
             OnPropertyChanged(nameof(ItemCountLabel));
             OnPropertyChanged(nameof(IsEmpty));
@@ -156,7 +157,7 @@ public sealed partial class DesktopBoxViewModel
         try
         {
             await _drawerService.OpenItemAsync(item.Id, _launcher);
-            StatusText = $"已打开 {item.DisplayName}";
+            StatusText = Strings.Format("Opened", item.DisplayName);
         }
         catch (Exception exception)
         {
@@ -378,11 +379,11 @@ public sealed partial class DesktopBoxViewModel
         try
         {
             var itemType = item.Model.ItemKind == ItemKind.Directory
-                ? "文件夹"
+                ? Strings.Get("Folder")
                 : Path.GetExtension(path);
             if (string.IsNullOrWhiteSpace(itemType))
             {
-                itemType = "文件";
+                itemType = Strings.Get("File");
             }
 
             // 名称与类型只依赖模型及路径文本；慢盘/网络路径无需查询文件系统。
