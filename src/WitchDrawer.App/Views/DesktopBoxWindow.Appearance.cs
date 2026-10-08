@@ -37,6 +37,7 @@ public partial class DesktopBoxWindow
     private void OnDpiChanged(object sender, DpiChangedEventArgs e)
     {
         UpdateIconDisplayMetrics(e.NewDpi);
+        RequestDisplayLayoutRecovery();
     }
 
     private void UpdateIconDisplayMetrics(DpiScale dpi)

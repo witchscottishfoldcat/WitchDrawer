@@ -172,6 +172,11 @@ public partial class DesktopBoxWindow
     /// </summary>
     private void OnWindowSizeChanged(object sender, SizeChangedEventArgs e)
     {
+        if (_isDisplayLayoutRecoveryPending || _isRestoringDisplayLayout)
+        {
+            return;
+        }
+
         if (_mappingViewTransitionVisibleOriginPixels is Point anchoredOrigin
             && IsVisible
             && e.PreviousSize != e.NewSize)
@@ -198,7 +203,8 @@ public partial class DesktopBoxWindow
     {
         _ = Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
         {
-            if (_isVisibleBoundsClampingEnabled && IsVisible && !_isDrawerResizing)
+            if (_isVisibleBoundsClampingEnabled && IsVisible && !_isDrawerResizing
+                && !_isDisplayLayoutRecoveryPending && !_isRestoringDisplayLayout)
             {
                 ClampVisibleBoundsToWorkArea();
             }

@@ -99,6 +99,7 @@ public sealed partial class DesktopBoxManager
 
                     if (position.IsPhysicalPixels)
                     {
+                        window.RememberPreferredWindowOriginPixels(new Point(position.Left, position.Top));
                         window.MoveWindowOriginPixels(position.Left, position.Top);
                     }
                     else
@@ -107,6 +108,7 @@ public sealed partial class DesktopBoxManager
                         // Keep the legacy interpretation for one-time migration.
                         window.Left = position.Left;
                         window.Top = position.Top;
+                        window.RememberCurrentDisplayPosition();
                     }
                     window.ResyncSizeToContent();
                     window.UpdateLayout();
@@ -210,6 +212,7 @@ public sealed partial class DesktopBoxManager
             }
 
             window.QueueSendToBottom();
+            window.RememberCurrentDisplayPosition();
             var key = BoxPositionSettingPrefix + boxId.ToString("N");
             var value = CaptureStoredPosition(window);
             await _drawerService.SetSettingAsync(key, value);
@@ -238,6 +241,7 @@ public sealed partial class DesktopBoxManager
                 // Create the HWND before restoring. Assigning physical coordinates
                 // through WPF Left/Top would reinterpret them using the primary DPI.
                 new System.Windows.Interop.WindowInteropHelper(window).EnsureHandle();
+                window.RememberPreferredWindowOriginPixels(new Point(left, top));
                 window.MoveWindowOriginPixels(left, top);
             }
             else
@@ -247,6 +251,7 @@ public sealed partial class DesktopBoxManager
                 window.Left = left;
                 window.Top = top;
                 new System.Windows.Interop.WindowInteropHelper(window).EnsureHandle();
+                window.RememberCurrentDisplayPosition();
             }
 
             // Do not clamp yet. Before Show + LoadAsync + the first stable
@@ -333,6 +338,10 @@ public sealed partial class DesktopBoxManager
 
     private static string CaptureStoredPosition(DesktopBoxWindow window)
     {
+        if (window.PreferredWindowOriginPixels is Point preferred)
+        {
+            return SerializePhysicalPosition(preferred.X, preferred.Y);
+        }
         if (window.TryGetWindowBoundsPixels(out var bounds))
         {
             return SerializePhysicalPosition(bounds.Left, bounds.Top);
@@ -347,6 +356,10 @@ public sealed partial class DesktopBoxManager
         Guid boxId,
         DesktopBoxWindow window)
     {
+        if (window.PreferredWindowOriginPixels is Point preferred)
+        {
+            return new LayoutBackupPosition(boxId, preferred.X, preferred.Y, IsPhysicalPixels: true);
+        }
         if (window.TryGetWindowBoundsPixels(out var bounds))
         {
             return new LayoutBackupPosition(boxId, bounds.Left, bounds.Top, IsPhysicalPixels: true);

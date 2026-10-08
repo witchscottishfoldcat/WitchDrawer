@@ -261,6 +261,7 @@ public sealed partial class DesktopBoxManager : IBoxContentRefreshTarget
                             _isAdjustingPosition = false;
                         }
                         HideGuides();
+                        window.RememberCurrentDisplayPosition();
                         await SavePositionAsync(id);
                     });
 
@@ -310,6 +311,10 @@ public sealed partial class DesktopBoxManager : IBoxContentRefreshTarget
             }
 
             ResolveWindowOverlaps();
+            foreach (var window in _windows.Values)
+            {
+                window.InitializeDisplayPosition();
+            }
             if (!DesktopWindowLayer.IsEnabled && DesktopToolWindow.RepairShellLastActivePopup())
             {
                 _logger.Info("Reset Progman last-active-popup after attaching desktop boxes.");
@@ -444,6 +449,7 @@ public sealed partial class DesktopBoxManager : IBoxContentRefreshTarget
             {
                 await window.ViewModel.LoadAsync();
                 window.Show();
+                window.RequestDisplayLayoutRecovery();
             }
 
             window.QueueSendToBottom();
@@ -483,6 +489,7 @@ public sealed partial class DesktopBoxManager : IBoxContentRefreshTarget
                 }
 
                 window.Show();
+                window.RequestDisplayLayoutRecovery();
                 window.QueueSendToBottom();
             }
         }
@@ -590,13 +597,8 @@ public sealed partial class DesktopBoxManager : IBoxContentRefreshTarget
     private void OnWindowMouseUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         HideGuides();
-        if (sender is DesktopBoxWindow window)
-        {
-            FireAndForget.Run(
-                SavePositionAsync(window.ViewModel.BoxId),
-                _logger,
-                $"Failed to save position for box {window.ViewModel.BoxId:N}.");
-        }
+        // Completed DragMove callbacks save the final snapped position. Saving on
+        // every click could race that write and persist an older display anchor.
     }
 
 }

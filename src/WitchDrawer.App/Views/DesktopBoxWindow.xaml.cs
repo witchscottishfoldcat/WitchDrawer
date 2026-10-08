@@ -127,6 +127,7 @@ public partial class DesktopBoxWindow : Window
     {
         _itemContextMenu.CloseActiveMenu();
         _forceClose = true;
+        StopDisplayLayoutRecovery();
         Close();
     }
 
@@ -158,6 +159,7 @@ public partial class DesktopBoxWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        StopDisplayLayoutRecovery();
         CancelHoverRollUpTimers();
         ViewModel.Undo.Clear();
         SourceInitialized -= OnSourceInitialized;

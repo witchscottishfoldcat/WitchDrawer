@@ -19,6 +19,38 @@ public sealed class FileContextActionTests
 {
     [Theory]
     [InlineData(BoxType.Normal)]
+    [InlineData(BoxType.Drawer)]
+    [InlineData(BoxType.Mapping)]
+    public Task RenameThenRemove_OffersBothActionsAndPreservesFile(BoxType type) => Sta(async () =>
+    {
+        using var w = await Workspace.CreateAsync(type);
+        var imported = await w.Drawer.ImportPathAsync(w.Box.Id, w.Source);
+        await w.Host.LoadAsync();
+        var item = Assert.Single(w.Host.Items);
+        var menu = DrawerItemContextMenuCoordinator.CreateMenuForPath(item.PathLabel,
+            DrawerItemContextMenuCoordinator.InspectPath(item.PathLabel), w.Host.IsMappingBox, false, 0, 0);
+        try
+        {
+            foreach (var name in new[] { "RenameButton", "RemoveButton" })
+            {
+                Assert.Equal(Visibility.Visible, Button(menu, name).Visibility);
+                Assert.True(Button(menu, name).IsEnabled);
+            }
+        }
+        finally { menu.Close(); }
+        await w.Host.RenameFileItemAsync(item, "renamed.txt");
+        var renamed = (await w.Repository.GetItemAsync(imported.Id))!;
+        Assert.Equal("renamed.txt", renamed.DisplayName);
+        using var coordinator = new DrawerItemContextMenuCoordinator(w.Host, new FakeClipboard());
+        await coordinator.ExecuteAsync(DrawerItemContextAction.RemoveFromBox, Assert.Single(w.Host.Items));
+        Assert.Empty(w.Host.Items);
+        Assert.Null(await w.Repository.GetItemAsync(imported.Id));
+        var restored = type == BoxType.Mapping ? w.Source : Path.Combine(w.Root, "renamed.txt");
+        Assert.Equal("payload", File.ReadAllText(restored));
+    });
+
+    [Theory]
+    [InlineData(BoxType.Normal)]
     [InlineData(BoxType.Mapping)]
     public Task Paste_UsesCopyForStorageAndReferencesForMapping(BoxType type) => Sta(async () =>
     {

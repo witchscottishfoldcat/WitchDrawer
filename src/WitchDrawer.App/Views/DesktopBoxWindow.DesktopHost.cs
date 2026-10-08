@@ -160,6 +160,11 @@ public partial class DesktopBoxWindow
         nint longParameter,
         ref bool handled)
     {
+        if (DesktopDisplayMessages.ChangesLayout(message, wordParameter))
+        {
+            RequestDisplayLayoutRecovery();
+        }
+
         if (DesktopToolWindow.IsMouseActivationMessage(message))
         {
             // Active window tracking can bypass WS_EX_NOACTIVATE. Always reject

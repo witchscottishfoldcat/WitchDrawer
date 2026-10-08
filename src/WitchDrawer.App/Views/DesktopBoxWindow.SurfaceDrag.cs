@@ -23,11 +23,14 @@ public partial class DesktopBoxWindow
         }
 
         e.Handled = true;
+        var originBeforeDrag = GetVisibleBoundsPixels();
+        _isSurfaceDragging = true;
         try
         {
             DragMove();
             QueueSendToBottom();
-            if (_positionChangedCallback is not null)
+            if (_positionChangedCallback is not null
+                && HasPositionChanged(originBeforeDrag, GetVisibleBoundsPixels()))
             {
                 FireAndForget.Run(
                     _positionChangedCallback(ViewModel.BoxId),
@@ -37,6 +40,10 @@ public partial class DesktopBoxWindow
         }
         catch (InvalidOperationException)
         {
+        }
+        finally
+        {
+            _isSurfaceDragging = false;
         }
     }
 
@@ -64,17 +71,19 @@ public partial class DesktopBoxWindow
 
         if (e.ButtonState == MouseButtonState.Pressed)
         {
+            var originBeforeDrag = GetVisibleBoundsPixels();
             _isSurfaceDragging = true;
             try
             {
                 DragMove();
                 QueueSendToBottom();
-                if (_positionChangedCallback is not null)
+                if (_positionChangedCallback is not null
+                    && HasPositionChanged(originBeforeDrag, GetVisibleBoundsPixels()))
                 {
                     FireAndForget.Run(
-                    _positionChangedCallback(ViewModel.BoxId),
-                    ViewModel.Logger,
-                    $"Failed to run position callback for box {ViewModel.BoxId:N}.");
+                        _positionChangedCallback(ViewModel.BoxId),
+                        ViewModel.Logger,
+                        $"Failed to run position callback for box {ViewModel.BoxId:N}.");
                 }
             }
             catch (InvalidOperationException)
@@ -90,4 +99,8 @@ public partial class DesktopBoxWindow
             }
         }
     }
+
+    internal static bool HasPositionChanged(Rect before, Rect after) =>
+        !before.IsEmpty && !after.IsEmpty
+        && (Math.Abs(before.Left - after.Left) > 0.5 || Math.Abs(before.Top - after.Top) > 0.5);
 }
