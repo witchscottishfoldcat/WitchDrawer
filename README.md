@@ -5,13 +5,13 @@
 <h1 align="center">WitchDrawer</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.4.3-blue" alt="版本 1.4.3" />
+  <img src="https://img.shields.io/badge/version-1.4.4-blue" alt="版本 1.4.4" />
   <img src="https://img.shields.io/badge/platform-Windows%20x64-blue" alt="Windows x64" />
   <img src="https://img.shields.io/badge/.NET-10.0-purple" alt=".NET 10" />
 </p>
 
 <p align="center">
-  简体中文 · <a href="README.en.md">English</a> · <a href="https://github.com/witchscottishfoldcat/WitchDrawer/releases/latest">下载</a> · <a href="docs/releases/v1.4.3.md">更新记录</a>
+  简体中文 · <a href="README.en.md">English</a> · <a href="https://github.com/witchscottishfoldcat/WitchDrawer/releases/latest">下载</a> · <a href="docs/releases/v1.4.4.md">更新记录</a>
 </p>
 
 WitchDrawer 是基于原生 WPF 的轻量级 Windows 桌面文件收纳工具。把常用文件放进桌面收纳盒，通过拖放和快捷搜索整理、打开文件。
@@ -114,7 +114,7 @@ dotnet test WitchDrawer.sln
 ```powershell
 dotnet build WitchDrawer.sln --configuration Release
 dotnet test WitchDrawer.sln --configuration Release
-.\tools\Publish-WitchDrawer.ps1 -Version 1.4.3
+.\tools\Publish-WitchDrawer.ps1 -Version 1.4.4
 ```
 
 脚本在 `publish/` 生成 Windows x64 自包含安装包、完整便携 ZIP 及各自的 SHA-256 文件；缺少 Inno Setup 编译器时会报错。发布前验证 ZIP 完整解压后可启动、校验文件与 `Get-FileHash` 一致，并上传全部四个文件。

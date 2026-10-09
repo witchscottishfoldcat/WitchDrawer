@@ -1,4 +1,6 @@
 using System.Windows.Media;
+using System.Windows;
+using System.Windows.Input;
 using WitchDrawer.App.ViewModels;
 using WitchDrawer.App.Views;
 
@@ -6,6 +8,29 @@ namespace WitchDrawer.App.Tests;
 
 public sealed class DesktopBoxWindowDragTests
 {
+    [Theory]
+    [InlineData(DragDropKeyStates.LeftMouseButton | DragDropKeyStates.RightMouseButton)]
+    [InlineData(DragDropKeyStates.LeftMouseButton | DragDropKeyStates.MiddleMouseButton)]
+    [InlineData(DragDropKeyStates.MiddleMouseButton | DragDropKeyStates.RightMouseButton)]
+    public void SecondMouseButton_CancelsDragAndPreventsExport(DragDropKeyStates buttons)
+    {
+        var cancelled = DesktopBoxWindow.IsDragCancellation(false, buttons, DragAction.Continue);
+        Assert.True(cancelled);
+        Assert.False(DesktopBoxWindow.ShouldExportItemAfterDrag(cancelled, true, false, false));
+    }
+
+    [Theory]
+    [InlineData(false, DragDropKeyStates.None, DragAction.Continue, false)]
+    [InlineData(false, DragDropKeyStates.LeftMouseButton, DragAction.Continue, false)]
+    [InlineData(false, DragDropKeyStates.None, DragAction.Drop, false)]
+    [InlineData(true, DragDropKeyStates.LeftMouseButton, DragAction.Continue, true)]
+    [InlineData(false, DragDropKeyStates.LeftMouseButton, DragAction.Cancel, true)]
+    public void DragCancellation_DistinguishesCancelFromOrdinaryRelease(
+        bool escape, DragDropKeyStates keys, DragAction action, bool expected)
+    {
+        Assert.Equal(expected, DesktopBoxWindow.IsDragCancellation(escape, keys, action));
+    }
+
     [Fact]
     public void ReleasedOutsideApp_WithExistingPath_ExportsToDesktop()
     {

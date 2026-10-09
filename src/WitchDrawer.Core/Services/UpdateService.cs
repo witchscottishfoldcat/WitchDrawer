@@ -36,12 +36,22 @@ public sealed class UpdateService
 
     private readonly IUpdateInstaller? _installer;
     private readonly HttpClient _httpClient;
+    private readonly TimeSpan _downloadIdleTimeout;
+    private readonly TimeSpan _downloadTimeout;
 
     public UpdateService(IAppLogger logger, IUpdateInstaller? installer = null, HttpClient? httpClient = null)
+        : this(logger, installer, httpClient, TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(10))
+    {
+    }
+
+    internal UpdateService(IAppLogger logger, IUpdateInstaller? installer, HttpClient? httpClient,
+        TimeSpan downloadIdleTimeout, TimeSpan downloadTimeout)
     {
         _logger = logger;
         _installer = installer;
         _httpClient = httpClient ?? DefaultHttpClient;
+        _downloadIdleTimeout = downloadIdleTimeout;
+        _downloadTimeout = downloadTimeout;
     }
 
     public event Action<int>? DownloadProgressChanged;
@@ -56,11 +66,11 @@ public sealed class UpdateService
         }
     }
 
-    public async Task<UpdateCheckResult> CheckForUpdateAsync(Version currentVersion)
+    public async Task<UpdateCheckResult> CheckForUpdateAsync(Version currentVersion, CancellationToken cancellationToken = default)
     {
         try
         {
-            var response = await _httpClient.GetFromJsonAsync<GitHubReleaseResponse>(GitHubRepoApiUrl);
+            var response = await _httpClient.GetFromJsonAsync<GitHubReleaseResponse>(GitHubRepoApiUrl, cancellationToken).ConfigureAwait(false);
 
             if (response is null || string.IsNullOrWhiteSpace(response.TagName))
             {
@@ -79,7 +89,7 @@ public sealed class UpdateService
             }
 
             var hasUpdate = IsNewerVersion(remoteVersion, currentVersion);
-            var (downloadUrl, expectedSha256) = await ResolveAssetAsync(response.Assets);
+            var (downloadUrl, expectedSha256) = await ResolveAssetAsync(response.Assets, cancellationToken).ConfigureAwait(false);
 
             if (string.IsNullOrWhiteSpace(downloadUrl))
             {
@@ -95,6 +105,10 @@ public sealed class UpdateService
                 ExpectedSha256 = expectedSha256
             };
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception exception)
         {
             _logger.Error(exception, "Failed to check for updates.");
@@ -105,12 +119,14 @@ public sealed class UpdateService
     public async Task<bool> DownloadAndApplyUpdateAsync(
         string downloadUrl,
         IProgress<int>? progress = null,
-        string? expectedSha256 = null)
+        string? expectedSha256 = null,
+        CancellationToken cancellationToken = default)
     {
         string? tempRoot = null;
 
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (_installer is null)
             {
                 _logger.Info("Cannot apply an update without a platform installer.");
@@ -129,24 +145,31 @@ public sealed class UpdateService
                 UpdateRootFolderName,
                 updateId);
             var payloadDir = Path.Combine(tempRoot, "payload");
-            Directory.CreateDirectory(payloadDir);
+            await Task.Run(() => Directory.CreateDirectory(payloadDir), cancellationToken).ConfigureAwait(false);
+            _logger.Info($"Downloading update into {tempRoot}.");
 
             var zipPath = Path.Combine(tempRoot, "update.zip");
-            using (var response = await _httpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead))
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            deadline.CancelAfter(_downloadTimeout);
+            using var idle = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token);
+            idle.CancelAfter(_downloadIdleTimeout);
+            using (var response = await _httpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead, idle.Token).ConfigureAwait(false))
             {
                 response.EnsureSuccessStatusCode();
 
                 var totalBytes = response.Content.Headers.ContentLength ?? 0;
-                await using var contentStream = await response.Content.ReadAsStreamAsync();
-                await using var fileStream = new FileStream(zipPath, FileMode.Create, FileAccess.Write);
+                await using var contentStream = await response.Content.ReadAsStreamAsync(idle.Token).ConfigureAwait(false);
+                await using var fileStream = new FileStream(zipPath, FileMode.CreateNew, FileAccess.Write,
+                    FileShare.None, 81920, FileOptions.Asynchronous | FileOptions.SequentialScan);
 
                 var buffer = new byte[81920];
                 long bytesRead = 0;
                 int read;
 
-                while ((read = await contentStream.ReadAsync(buffer)) > 0)
+                while ((read = await contentStream.ReadAsync(buffer.AsMemory(), idle.Token).ConfigureAwait(false)) > 0)
                 {
-                    await fileStream.WriteAsync(buffer.AsMemory(0, read));
+                    await fileStream.WriteAsync(buffer.AsMemory(0, read), idle.Token).ConfigureAwait(false);
+                    idle.CancelAfter(_downloadIdleTimeout);
                     bytesRead += read;
 
                     if (totalBytes > 0)
@@ -158,9 +181,11 @@ public sealed class UpdateService
                 }
             }
 
+            idle.CancelAfter(Timeout.InfiniteTimeSpan);
+            cancellationToken.ThrowIfCancellationRequested();
             if (!string.IsNullOrWhiteSpace(expectedSha256))
             {
-                var actualHash = await ComputeSha256HexAsync(zipPath);
+                var actualHash = await ComputeSha256HexAsync(zipPath, deadline.Token).ConfigureAwait(false);
                 if (!string.Equals(actualHash, expectedSha256, StringComparison.OrdinalIgnoreCase))
                 {
                     _logger.Info($"Update hash mismatch. expected={expectedSha256} actual={actualHash}");
@@ -177,7 +202,8 @@ public sealed class UpdateService
                 System.IO.Compression.ZipFile.ExtractToDirectory(
                     zipPath,
                     payloadDir,
-                    overwriteFiles: true));
+                    overwriteFiles: true), deadline.Token).ConfigureAwait(false);
+            deadline.Token.ThrowIfCancellationRequested();
 
             var appExecutablePath = Environment.ProcessPath;
             if (string.IsNullOrWhiteSpace(appExecutablePath))
@@ -212,9 +238,10 @@ public sealed class UpdateService
                 "WitchDrawer", "Logs", "updater.log");
             Directory.CreateDirectory(Path.GetDirectoryName(updateLogPath)!);
             using var currentProcess = Process.GetCurrentProcess();
+            cancellationToken.ThrowIfCancellationRequested();
             var started = await _installer.StartAsync(new UpdateInstallRequest(
                 updateId, tempRoot, payloadDir, appDirectory, appExecutablePath, executableName,
-                updateLogPath, currentProcess.Id, currentProcess.StartTime.ToUniversalTime().Ticks));
+                updateLogPath, currentProcess.Id, currentProcess.StartTime.ToUniversalTime().Ticks)).ConfigureAwait(false);
             if (!started)
             {
                 _logger.Info("Failed to start the update helper process.");
@@ -223,6 +250,11 @@ public sealed class UpdateService
             }
 
             return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            if (tempRoot is not null) TryDeleteDirectory(tempRoot);
+            throw;
         }
         catch (Exception exception)
         {
@@ -387,7 +419,7 @@ public sealed class UpdateService
         return false;
     }
 
-    private async Task<(string? DownloadUrl, string? Sha256)> ResolveAssetAsync(List<GitHubAsset>? assets)
+    private async Task<(string? DownloadUrl, string? Sha256)> ResolveAssetAsync(List<GitHubAsset>? assets, CancellationToken cancellationToken)
     {
         if (assets is null || assets.Count == 0)
         {
@@ -417,11 +449,11 @@ public sealed class UpdateService
             return (null, null);
         }
 
-        var sha256 = await TryResolveSha256Async(assets, match);
+        var sha256 = await TryResolveSha256Async(assets, match, cancellationToken).ConfigureAwait(false);
         return (match.BrowserDownloadUrl, sha256);
     }
 
-    private async Task<string?> TryResolveSha256Async(List<GitHubAsset> assets, GitHubAsset packageAsset)
+    private async Task<string?> TryResolveSha256Async(List<GitHubAsset> assets, GitHubAsset packageAsset, CancellationToken cancellationToken)
     {
         var companion = assets.FirstOrDefault(asset =>
             asset.Name.Equals(packageAsset.Name + ".sha256", StringComparison.OrdinalIgnoreCase)
@@ -429,7 +461,7 @@ public sealed class UpdateService
 
         if (companion is not null && IsAllowedDownloadUrl(companion.BrowserDownloadUrl))
         {
-            return await ReadSha256FromAssetAsync(companion.BrowserDownloadUrl, packageAsset.Name);
+            return await ReadSha256FromAssetAsync(companion.BrowserDownloadUrl, packageAsset.Name, cancellationToken).ConfigureAwait(false);
         }
 
         var checksums = assets.FirstOrDefault(asset =>
@@ -439,17 +471,17 @@ public sealed class UpdateService
 
         if (checksums is not null && IsAllowedDownloadUrl(checksums.BrowserDownloadUrl))
         {
-            return await ReadSha256FromAssetAsync(checksums.BrowserDownloadUrl, packageAsset.Name);
+            return await ReadSha256FromAssetAsync(checksums.BrowserDownloadUrl, packageAsset.Name, cancellationToken).ConfigureAwait(false);
         }
 
         return null;
     }
 
-    private async Task<string?> ReadSha256FromAssetAsync(string url, string packageFileName)
+    private async Task<string?> ReadSha256FromAssetAsync(string url, string packageFileName, CancellationToken cancellationToken)
     {
         try
         {
-            var text = await _httpClient.GetStringAsync(url);
+            var text = await _httpClient.GetStringAsync(url, cancellationToken).ConfigureAwait(false);
             foreach (var rawLine in text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
             {
                 var line = rawLine.Trim();
@@ -483,6 +515,10 @@ public sealed class UpdateService
                 }
             }
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception exception)
         {
             _logger.Error(exception, "Failed to read update checksum asset.");
@@ -491,10 +527,10 @@ public sealed class UpdateService
         return null;
     }
 
-    private static async Task<string> ComputeSha256HexAsync(string filePath)
+    private static async Task<string> ComputeSha256HexAsync(string filePath, CancellationToken cancellationToken)
     {
         await using var stream = File.OpenRead(filePath);
-        var hash = await SHA256.HashDataAsync(stream);
+        var hash = await SHA256.HashDataAsync(stream, cancellationToken).ConfigureAwait(false);
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 

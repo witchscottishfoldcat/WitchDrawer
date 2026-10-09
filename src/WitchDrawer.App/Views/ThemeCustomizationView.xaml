@@ -40,139 +40,137 @@
             </Setter>
         </Style>
     </UserControl.Resources>
-    <Expander Header="{loc:Text CustomStyle}" FontSize="12" Padding="0,4" Foreground="{DynamicResource TextPrimaryBrush}">
-        <StackPanel Margin="0,8,0,0">
-            <TextBlock Text="{Binding CustomizationLabel}" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,10" />
-            <Grid Margin="0,0,0,8">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="104" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="48" />
-                    <ColumnDefinition Width="18" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="{loc:Text BoxCornerRadius}" />
-                    <TextBlock Text="{Binding BoxCornerLabel}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" />
-                </StackPanel>
-                <Slider Grid.Column="1" Margin="8,0,10,0" VerticalAlignment="Center" Minimum="0" Maximum="32" SmallChange="1" IsSnapToTickEnabled="True" TickFrequency="1" Style="{DynamicResource ThemeOpacitySliderStyle}" Value="{Binding BoxCornerRadius, Mode=TwoWay}" AutomationProperties.Name="{loc:Text BoxCornerRadius}" />
-                <TextBox Grid.Column="2" Style="{StaticResource AppearanceInput}" Text="{Binding BoxCornerRadius, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" AutomationProperties.Name="{loc:Text BoxCornerRadiusValue}" KeyDown="OnInputKeyDown" />
-                <TextBlock Grid.Column="3" Text="px" Style="{StaticResource AppearanceUnit}" ToolTip="{loc:Text LogicalPixelsFollowsSystemScaling}" />
-                <Button Grid.Column="4" Style="{StaticResource AppearanceReset}" Command="{Binding ResetThemeFieldCommand}" CommandParameter="BoxCornerRadius" AutomationProperties.Name="{loc:Text ResetBoxCorners}" />
-            </Grid>
-            <Grid Margin="0,0,0,8">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="104" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="48" />
-                    <ColumnDefinition Width="18" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="{loc:Text IconCornerScale}" />
-                    <TextBlock Text="{Binding IconCornerLabel}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" />
-                </StackPanel>
-                <Slider Grid.Column="1" Margin="8,0,10,0" VerticalAlignment="Center" Minimum="0" Maximum="200" SmallChange="5" IsSnapToTickEnabled="True" TickFrequency="5" Style="{DynamicResource ThemeOpacitySliderStyle}" Value="{Binding IconCornerPercent, Mode=TwoWay}" AutomationProperties.Name="{loc:Text IconCornerScale}" />
-                <TextBox Grid.Column="2" Style="{StaticResource AppearanceInput}" Text="{Binding IconCornerPercent, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" AutomationProperties.Name="{loc:Text IconCornerScalePercentage}" KeyDown="OnInputKeyDown" />
-                <TextBlock Grid.Column="3" Text="%" Style="{StaticResource AppearanceUnit}" />
-                <Button Grid.Column="4" Style="{StaticResource AppearanceReset}" Command="{Binding ResetThemeFieldCommand}" CommandParameter="IconCornerScale" AutomationProperties.Name="{loc:Text ResetIconCorners}" />
-            </Grid>
-            <Grid Margin="0,0,0,12">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="104" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="48" />
-                    <ColumnDefinition Width="18" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="{loc:Text HoverTransparency}" />
-                    <TextBlock Text="{Binding HoverTransparencyLabel}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" />
-                </StackPanel>
-                <Slider Grid.Column="1" Margin="8,0,10,0" VerticalAlignment="Center" Minimum="0" Maximum="100" SmallChange="1" IsSnapToTickEnabled="True" TickFrequency="1" Style="{DynamicResource ThemeOpacitySliderStyle}" Value="{Binding ItemHoverTransparencyPercent, Mode=TwoWay}" AutomationProperties.Name="{loc:Text ItemHoverTransparency}" />
-                <TextBox Grid.Column="2" Style="{StaticResource AppearanceInput}" Text="{Binding ItemHoverTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" AutomationProperties.Name="{loc:Text HoverTransparencyPercentage}" KeyDown="OnInputKeyDown" />
-                <TextBlock Grid.Column="3" Text="%" Style="{StaticResource AppearanceUnit}" />
-                <Button Grid.Column="4" Style="{StaticResource AppearanceReset}" Command="{Binding ResetThemeFieldCommand}" CommandParameter="ItemHoverOpacity" AutomationProperties.Name="{loc:Text ResetHoverTransparency}" />
-            </Grid>
-            <ItemsControl ItemsSource="{Binding ThemeColors}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <StackPanel Margin="0,0,0,8">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="104" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="112" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
-                                <ItemsControl Grid.Column="1" ItemsSource="{x:Static viewModels:ThemeColorOptionViewModel.Swatches}" Margin="8,0,0,0" VerticalAlignment="Center">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <StackPanel Orientation="Horizontal" />
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Button Style="{StaticResource SwatchButton}" Background="{Binding}" Command="{Binding DataContext.ChooseColorCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" ToolTip="{Binding}" AutomationProperties.Name="{Binding}" />
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                    <Border Width="18" Height="18" Margin="0,0,5,0" CornerRadius="4" BorderBrush="{DynamicResource BorderBrushSoft}" BorderThickness="1" Background="{Binding PreviewBrush}" />
-                                    <TextBox Width="88" MaxLength="7" Style="{StaticResource AppearanceInput}" Text="{Binding Hex, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" AutomationProperties.Name="{Binding Label}" KeyDown="OnInputKeyDown" />
-                                </StackPanel>
-                                <Button Grid.Column="3" Style="{StaticResource AppearanceReset}" Command="{Binding ResetCommand}" AutomationProperties.Name="{loc:Text Reset, Value={Binding Label}}" />
-                            </Grid>
-                            <TextBlock Text="{Binding Error}" FontSize="10" Foreground="{DynamicResource DangerBrush}" Margin="104,2,0,0">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Error}" Value="">
-                                                <Setter Property="Visibility" Value="Collapsed" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
+    <StackPanel>
+        <TextBlock Text="{Binding CustomizationLabel}" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,10" />
+        <Grid Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="104" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="48" />
+                <ColumnDefinition Width="18" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="{loc:Text BoxCornerRadius}" />
+                <TextBlock Text="{Binding BoxCornerLabel}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" />
+            </StackPanel>
+            <Slider Grid.Column="1" Margin="8,0,10,0" VerticalAlignment="Center" Minimum="0" Maximum="32" SmallChange="1" IsSnapToTickEnabled="True" TickFrequency="1" Style="{DynamicResource ThemeOpacitySliderStyle}" Value="{Binding BoxCornerRadius, Mode=TwoWay}" AutomationProperties.Name="{loc:Text BoxCornerRadius}" />
+            <TextBox Grid.Column="2" Style="{StaticResource AppearanceInput}" Text="{Binding BoxCornerRadius, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" AutomationProperties.Name="{loc:Text BoxCornerRadiusValue}" KeyDown="OnInputKeyDown" />
+            <TextBlock Grid.Column="3" Text="px" Style="{StaticResource AppearanceUnit}" ToolTip="{loc:Text LogicalPixelsFollowsSystemScaling}" />
+            <Button Grid.Column="4" Style="{StaticResource AppearanceReset}" Command="{Binding ResetThemeFieldCommand}" CommandParameter="BoxCornerRadius" AutomationProperties.Name="{loc:Text ResetBoxCorners}" />
+        </Grid>
+        <Grid Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="104" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="48" />
+                <ColumnDefinition Width="18" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="{loc:Text IconCornerScale}" />
+                <TextBlock Text="{Binding IconCornerLabel}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" />
+            </StackPanel>
+            <Slider Grid.Column="1" Margin="8,0,10,0" VerticalAlignment="Center" Minimum="0" Maximum="200" SmallChange="5" IsSnapToTickEnabled="True" TickFrequency="5" Style="{DynamicResource ThemeOpacitySliderStyle}" Value="{Binding IconCornerPercent, Mode=TwoWay}" AutomationProperties.Name="{loc:Text IconCornerScale}" />
+            <TextBox Grid.Column="2" Style="{StaticResource AppearanceInput}" Text="{Binding IconCornerPercent, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" AutomationProperties.Name="{loc:Text IconCornerScalePercentage}" KeyDown="OnInputKeyDown" />
+            <TextBlock Grid.Column="3" Text="%" Style="{StaticResource AppearanceUnit}" />
+            <Button Grid.Column="4" Style="{StaticResource AppearanceReset}" Command="{Binding ResetThemeFieldCommand}" CommandParameter="IconCornerScale" AutomationProperties.Name="{loc:Text ResetIconCorners}" />
+        </Grid>
+        <Grid Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="104" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="48" />
+                <ColumnDefinition Width="18" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="{loc:Text HoverTransparency}" />
+                <TextBlock Text="{Binding HoverTransparencyLabel}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" />
+            </StackPanel>
+            <Slider Grid.Column="1" Margin="8,0,10,0" VerticalAlignment="Center" Minimum="0" Maximum="100" SmallChange="1" IsSnapToTickEnabled="True" TickFrequency="1" Style="{DynamicResource ThemeOpacitySliderStyle}" Value="{Binding ItemHoverTransparencyPercent, Mode=TwoWay}" AutomationProperties.Name="{loc:Text ItemHoverTransparency}" />
+            <TextBox Grid.Column="2" Style="{StaticResource AppearanceInput}" Text="{Binding ItemHoverTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" AutomationProperties.Name="{loc:Text HoverTransparencyPercentage}" KeyDown="OnInputKeyDown" />
+            <TextBlock Grid.Column="3" Text="%" Style="{StaticResource AppearanceUnit}" />
+            <Button Grid.Column="4" Style="{StaticResource AppearanceReset}" Command="{Binding ResetThemeFieldCommand}" CommandParameter="ItemHoverOpacity" AutomationProperties.Name="{loc:Text ResetHoverTransparency}" />
+        </Grid>
+        <ItemsControl ItemsSource="{Binding ThemeColors}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel Margin="0,0,0,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="104" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="112" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+                            <ItemsControl Grid.Column="1" ItemsSource="{x:Static viewModels:ThemeColorOptionViewModel.Swatches}" Margin="8,0,0,0" VerticalAlignment="Center">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Style="{StaticResource SwatchButton}" Background="{Binding}" Command="{Binding DataContext.ChooseColorCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" ToolTip="{Binding}" AutomationProperties.Name="{Binding}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Border Width="18" Height="18" Margin="0,0,5,0" CornerRadius="4" BorderBrush="{DynamicResource BorderBrushSoft}" BorderThickness="1" Background="{Binding PreviewBrush}" />
+                                <TextBox Width="88" MaxLength="7" Style="{StaticResource AppearanceInput}" Text="{Binding Hex, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" AutomationProperties.Name="{Binding Label}" KeyDown="OnInputKeyDown" />
+                            </StackPanel>
+                            <Button Grid.Column="3" Style="{StaticResource AppearanceReset}" Command="{Binding ResetCommand}" AutomationProperties.Name="{loc:Text Reset, Value={Binding Label}}" />
+                        </Grid>
+                        <TextBlock Text="{Binding Error}" FontSize="10" Foreground="{DynamicResource DangerBrush}" Margin="104,2,0,0">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Error}" Value="">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock Text="{loc:Text EnterASixDigitHEXColorIconCornerScale}" FontSize="10.5" TextWrapping="Wrap" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,10" />
+        <Border Background="{DynamicResource PanelAltBrush}" CornerRadius="10" Padding="10">
+            <StackPanel>
+                <TextBlock Text="{loc:Text Preview}" FontSize="11" Margin="0,0,0,8" />
+                <Border Background="{Binding PreviewSurfaceBrush}" BorderBrush="{Binding PreviewBorderBrush}" BorderThickness="1" CornerRadius="{Binding PreviewBoxRadius}" Padding="12">
+                    <UniformGrid Columns="3">
+                        <StackPanel>
+                            <Border Width="52" Height="46" CornerRadius="{Binding PreviewIconRadius}">
+                                <Border Width="30" Height="30" CornerRadius="{Binding PreviewIconRadius}" Background="{Binding PreviewFrameBrush}">
+                                    <Path Width="13" Height="17" Stretch="Uniform" Stroke="{DynamicResource TextPrimaryBrush}" StrokeThickness="1" StrokeLineJoin="Round" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M0,0 L9,0 L13,4 L13,17 L0,17 Z M9,0 L9,4 L13,4 M3,8 L10,8 M3,11 L10,11" />
+                                </Border>
+                            </Border>
+                            <TextBlock Text="{loc:Text Normal}" FontSize="10" HorizontalAlignment="Center" />
                         </StackPanel>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-            <TextBlock Text="{loc:Text EnterASixDigitHEXColorIconCornerScale}" FontSize="10.5" TextWrapping="Wrap" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,10" />
-            <Border Background="{DynamicResource PanelAltBrush}" CornerRadius="10" Padding="10">
-                <StackPanel>
-                    <TextBlock Text="{loc:Text Preview}" FontSize="11" Margin="0,0,0,8" />
-                    <Border Background="{Binding PreviewSurfaceBrush}" BorderBrush="{Binding PreviewBorderBrush}" BorderThickness="1" CornerRadius="{Binding PreviewBoxRadius}" Padding="12">
-                        <UniformGrid Columns="3">
-                            <StackPanel>
-                                <Border Width="52" Height="46" CornerRadius="{Binding PreviewIconRadius}">
-                                    <Border Width="30" Height="30" CornerRadius="{Binding PreviewIconRadius}" Background="{Binding PreviewFrameBrush}">
-                                        <Path Width="13" Height="17" Stretch="Uniform" Stroke="{DynamicResource TextPrimaryBrush}" StrokeThickness="1" StrokeLineJoin="Round" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M0,0 L9,0 L13,4 L13,17 L0,17 Z M9,0 L9,4 L13,4 M3,8 L10,8 M3,11 L10,11" />
-                                    </Border>
+                        <StackPanel>
+                            <Border Width="52" Height="46" Background="{Binding PreviewHoverBrush}" CornerRadius="{Binding PreviewIconRadius}">
+                                <Border Width="30" Height="30" CornerRadius="{Binding PreviewIconRadius}" Background="{Binding PreviewFrameBrush}">
+                                    <Path Width="13" Height="17" Stretch="Uniform" Stroke="{DynamicResource TextPrimaryBrush}" StrokeThickness="1" StrokeLineJoin="Round" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M0,0 L9,0 L13,4 L13,17 L0,17 Z M9,0 L9,4 L13,4 M3,8 L10,8 M3,11 L10,11" />
                                 </Border>
-                                <TextBlock Text="{loc:Text Normal}" FontSize="10" HorizontalAlignment="Center" />
-                            </StackPanel>
-                            <StackPanel>
-                                <Border Width="52" Height="46" Background="{Binding PreviewHoverBrush}" CornerRadius="{Binding PreviewIconRadius}">
-                                    <Border Width="30" Height="30" CornerRadius="{Binding PreviewIconRadius}" Background="{Binding PreviewFrameBrush}">
-                                        <Path Width="13" Height="17" Stretch="Uniform" Stroke="{DynamicResource TextPrimaryBrush}" StrokeThickness="1" StrokeLineJoin="Round" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M0,0 L9,0 L13,4 L13,17 L0,17 Z M9,0 L9,4 L13,4 M3,8 L10,8 M3,11 L10,11" />
-                                    </Border>
+                            </Border>
+                            <TextBlock Text="{loc:Text Hover}" FontSize="10" HorizontalAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel>
+                            <Border Width="52" Height="46" Background="{Binding PreviewSelectedBrush}" BorderBrush="{Binding PreviewAccentBrush}" BorderThickness="1" CornerRadius="{Binding PreviewIconRadius}">
+                                <Border Width="30" Height="30" CornerRadius="{Binding PreviewIconRadius}" Background="{Binding PreviewFrameBrush}">
+                                    <Path Width="13" Height="17" Stretch="Uniform" Stroke="{DynamicResource TextPrimaryBrush}" StrokeThickness="1" StrokeLineJoin="Round" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M0,0 L9,0 L13,4 L13,17 L0,17 Z M9,0 L9,4 L13,4 M3,8 L10,8 M3,11 L10,11" />
                                 </Border>
-                                <TextBlock Text="{loc:Text Hover}" FontSize="10" HorizontalAlignment="Center" />
-                            </StackPanel>
-                            <StackPanel>
-                                <Border Width="52" Height="46" Background="{Binding PreviewSelectedBrush}" BorderBrush="{Binding PreviewAccentBrush}" BorderThickness="1" CornerRadius="{Binding PreviewIconRadius}">
-                                    <Border Width="30" Height="30" CornerRadius="{Binding PreviewIconRadius}" Background="{Binding PreviewFrameBrush}">
-                                        <Path Width="13" Height="17" Stretch="Uniform" Stroke="{DynamicResource TextPrimaryBrush}" StrokeThickness="1" StrokeLineJoin="Round" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M0,0 L9,0 L13,4 L13,17 L0,17 Z M9,0 L9,4 L13,4 M3,8 L10,8 M3,11 L10,11" />
-                                    </Border>
-                                </Border>
-                                <TextBlock Text="{loc:Text Selected}" FontSize="10" HorizontalAlignment="Center" />
-                            </StackPanel>
-                        </UniformGrid>
-                    </Border>
-                </StackPanel>
-            </Border>
-        </StackPanel>
-    </Expander>
+                            </Border>
+                            <TextBlock Text="{loc:Text Selected}" FontSize="10" HorizontalAlignment="Center" />
+                        </StackPanel>
+                    </UniformGrid>
+                </Border>
+            </StackPanel>
+        </Border>
+    </StackPanel>
 </UserControl>

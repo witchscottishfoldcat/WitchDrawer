@@ -86,15 +86,7 @@ public sealed class BoxPositionLockStateStoreTests
                 new BoxPositionLockStateStore(drawerService, logger));
         }
 
-        public ValueTask DisposeAsync()
-        {
-            if (Directory.Exists(Root))
-            {
-                Directory.Delete(Root, recursive: true);
-            }
-
-            return ValueTask.CompletedTask;
-        }
+        public ValueTask DisposeAsync() => new(TestDirectoryCleanup.DeleteAsync(Root));
     }
 
     private sealed class RecordingLogger : IAppLogger

@@ -612,7 +612,9 @@ public partial class MainWindow : Window
             return;
         }
 
-        e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Move : DragDropEffects.None;
+        e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop)
+            ? FileDropPolicy.ChooseEffect(ViewModel.SelectedBox?.Model.Type, e.AllowedEffects)
+            : DragDropEffects.None;
         e.Handled = true;
     }
 
@@ -631,9 +633,15 @@ public partial class MainWindow : Window
 
         if (!ViewModel.CanImportFiles)
         {
+            e.Effects = DragDropEffects.None;
             e.Handled = true;
             return;
         }
+
+        e.Handled = true;
+        var dropEffect = FileDropPolicy.ChooseEffect(ViewModel.SelectedBox?.Model.Type, e.AllowedEffects);
+        e.Effects = dropEffect;
+        if (dropEffect == DragDropEffects.None) return;
 
         if (e.Data.GetData(DataFormats.FileDrop) is string[] paths)
         {

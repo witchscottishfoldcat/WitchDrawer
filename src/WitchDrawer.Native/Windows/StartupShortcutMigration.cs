@@ -133,6 +133,28 @@ public static class StartupShortcutMigration
         }
     }
 
+    internal static bool TargetsExecutable(string shortcutPath, string executablePath)
+    {
+        var shellType = Type.GetTypeFromProgID("WScript.Shell")
+            ?? throw new InvalidOperationException("Windows shortcut support is unavailable.");
+        object? shell = null;
+        object? shortcut = null;
+        try
+        {
+            shell = Activator.CreateInstance(shellType);
+            shortcut = shellType.InvokeMember("CreateShortcut", BindingFlags.InvokeMethod,
+                null, shell, [shortcutPath]);
+            var targetPath = shortcut?.GetType().InvokeMember("TargetPath", BindingFlags.GetProperty,
+                null, shortcut, null) as string;
+            return PathsEqual(targetPath, executablePath);
+        }
+        finally
+        {
+            ReleaseComObject(shortcut);
+            ReleaseComObject(shell);
+        }
+    }
+
     private static bool PathsEqual(string? first, string second)
     {
         if (string.IsNullOrWhiteSpace(first))

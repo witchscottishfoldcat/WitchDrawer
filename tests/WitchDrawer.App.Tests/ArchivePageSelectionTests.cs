@@ -15,6 +15,7 @@ public sealed class ArchivePageSelectionTests
     public async Task LoadAsync_FirstLaunchShowsAboutPageAndRemembersIt()
     {
         var root = Path.Combine(Path.GetTempPath(), "WitchDrawerTests", Guid.NewGuid().ToString("N"));
+        MainViewModel? viewModel = null;
         try
         {
             var paths = new AppPaths(root);
@@ -25,7 +26,7 @@ public sealed class ArchivePageSelectionTests
             var launcher = new NoOpFileLauncher();
             var visualStyleStore = new BoxVisualStyleStore(drawerService, logger);
             var quickPanel = new QuickPanelViewModel(drawerService, launcher, logger, visualStyleStore);
-            var viewModel = MainViewModelFactory.Create(
+            viewModel = MainViewModelFactory.Create(
                 drawerService,
                 new TodoService(repository),
                 launcher,
@@ -57,10 +58,8 @@ public sealed class ArchivePageSelectionTests
         }
         finally
         {
-            if (Directory.Exists(root))
-            {
-                Directory.Delete(root, recursive: true);
-            }
+            if (viewModel is not null) await viewModel.WaitForPendingLoadsAsync();
+            await TestDirectoryCleanup.DeleteAsync(root);
         }
     }
 
@@ -68,6 +67,7 @@ public sealed class ArchivePageSelectionTests
     public async Task ShowArchiveCommand_ClearsSelectedBox()
     {
         var root = Path.Combine(Path.GetTempPath(), "WitchDrawerTests", Guid.NewGuid().ToString("N"));
+        MainViewModel? viewModel = null;
         try
         {
             var paths = new AppPaths(root);
@@ -78,7 +78,7 @@ public sealed class ArchivePageSelectionTests
             var launcher = new NoOpFileLauncher();
             var visualStyleStore = new BoxVisualStyleStore(drawerService, logger);
             var quickPanel = new QuickPanelViewModel(drawerService, launcher, logger, visualStyleStore);
-            var viewModel = MainViewModelFactory.Create(
+            viewModel = MainViewModelFactory.Create(
                 drawerService,
                 new TodoService(repository),
                 launcher,
@@ -109,10 +109,8 @@ public sealed class ArchivePageSelectionTests
         }
         finally
         {
-            if (Directory.Exists(root))
-            {
-                Directory.Delete(root, recursive: true);
-            }
+            if (viewModel is not null) await viewModel.WaitForPendingLoadsAsync();
+            await TestDirectoryCleanup.DeleteAsync(root);
         }
     }
 
@@ -120,6 +118,7 @@ public sealed class ArchivePageSelectionTests
     public async Task ShowSettingsAndAboutCommands_ClearSelectedBox()
     {
         var root = Path.Combine(Path.GetTempPath(), "WitchDrawerTests", Guid.NewGuid().ToString("N"));
+        MainViewModel? viewModel = null;
         try
         {
             var paths = new AppPaths(root);
@@ -130,7 +129,7 @@ public sealed class ArchivePageSelectionTests
             var launcher = new NoOpFileLauncher();
             var visualStyleStore = new BoxVisualStyleStore(drawerService, logger);
             var quickPanel = new QuickPanelViewModel(drawerService, launcher, logger, visualStyleStore);
-            var viewModel = MainViewModelFactory.Create(
+            viewModel = MainViewModelFactory.Create(
                 drawerService,
                 new TodoService(repository),
                 launcher,
@@ -167,19 +166,15 @@ public sealed class ArchivePageSelectionTests
         }
         finally
         {
-            if (Directory.Exists(root))
-            {
-                Directory.Delete(root, recursive: true);
-            }
+            if (viewModel is not null) await viewModel.WaitForPendingLoadsAsync();
+            await TestDirectoryCleanup.DeleteAsync(root);
         }
     }
 
     private static async Task SelectFirstBoxAsync(MainViewModel viewModel)
     {
         viewModel.SelectedBox = viewModel.Boxes.First();
-        // SelectedBox setter queues a fire-and-forget items load; give it a moment
-        // so the SQLite connection is released before temp directory cleanup.
-        await Task.Delay(200);
+        await viewModel.WaitForPendingLoadsAsync();
     }
 
     private sealed class NoOpFileLauncher : IFileLauncher

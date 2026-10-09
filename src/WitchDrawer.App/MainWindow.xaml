@@ -1241,10 +1241,6 @@
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -1273,196 +1269,194 @@
                                                 Command="{Binding Settings.ApplyCrystalThemeCommand}"
                                                 Style="{StaticResource CrystalThemeChoiceButtonStyle}" />
                                     </UniformGrid>
-                                    <Grid Grid.Row="1"
-                                          Grid.ColumnSpan="2"
-                                          Margin="0,10,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="104" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="42" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel VerticalAlignment="Center">
-                                            <TextBlock TextWrapping="Wrap" Text="{loc:Text DesktopBoxTransparency}" FontSize="11.5" Foreground="{DynamicResource TextMutedBrush}" />
-                                            <TextBlock TextWrapping="Wrap" Text="{loc:Text Range090}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" />
+                                    <Expander Grid.Row="1" Grid.ColumnSpan="2" Margin="0,10,0,0"
+                                              Header="{loc:Text CustomStyle}" FontSize="12" Padding="0,4"
+                                              Foreground="{DynamicResource TextPrimaryBrush}">
+                                        <StackPanel Margin="0,8,0,0">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="104" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="42" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel VerticalAlignment="Center">
+                                                    <TextBlock TextWrapping="Wrap" Text="{loc:Text DesktopBoxTransparency}" FontSize="11.5" Foreground="{DynamicResource TextMutedBrush}" />
+                                                    <TextBlock TextWrapping="Wrap" Text="{loc:Text Range090}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" />
+                                                </StackPanel>
+                                                <Slider Grid.Column="1"
+                                                        Margin="12,0,10,0"
+                                                        Minimum="0"
+                                                        Maximum="90"
+                                                        SmallChange="1"
+                                                        LargeChange="10"
+                                                        IsMoveToPointEnabled="True"
+                                                        IsSnapToTickEnabled="True"
+                                                        TickFrequency="1"
+                                                        Style="{StaticResource ThemeOpacitySliderStyle}"
+                                                        VerticalAlignment="Center"
+                                                        Value="{Binding Settings.ThemeTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                <StackPanel Grid.Column="2"
+                                                            Orientation="Horizontal"
+                                                            HorizontalAlignment="Right"
+                                                            VerticalAlignment="Center">
+                                                    <TextBox x:Name="ThemeTransparencyInput"
+                                                             Width="30"
+                                                             Height="24"
+                                                             Padding="2,1"
+                                                             MaxLength="3"
+                                                             TextAlignment="Right"
+                                                             VerticalContentAlignment="Center"
+                                                             FontSize="11.5"
+                                                             FontWeight="SemiBold"
+                                                             KeyDown="OnThemeTransparencyInputKeyDown"
+                                                             LostFocus="OnThemeTransparencyInputLostFocus"
+                                                             Text="{Binding Settings.ThemeTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" />
+                                                    <TextBlock Text="%"
+                                                               Margin="2,0,0,0"
+                                                               VerticalAlignment="Center"
+                                                               FontSize="11.5"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                </StackPanel>
+                                                <Button Grid.Column="3" Style="{StaticResource ThemeOpacityResetButtonStyle}"
+                                                        Command="{Binding Settings.ResetThemeFieldCommand}" CommandParameter="ThemeTransparencyPercent"
+                                                        AutomationProperties.Name="{loc:Text ResetDesktopBoxTransparency}" />
+                                            </Grid>
+                                            <Grid Margin="0,9,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="104" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="42" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock TextWrapping="Wrap" Text="{loc:Text BoxBorderTransparency}"
+                                                           VerticalAlignment="Center"
+                                                           FontSize="11.5"
+                                                           Foreground="{DynamicResource TextMutedBrush}" />
+                                                <Slider Grid.Column="1"
+                                                        Margin="12,0,10,0"
+                                                        Minimum="0"
+                                                        Maximum="100"
+                                                        SmallChange="1"
+                                                        LargeChange="10"
+                                                        IsMoveToPointEnabled="True"
+                                                        IsSnapToTickEnabled="True"
+                                                        TickFrequency="1"
+                                                        Style="{StaticResource ThemeOpacitySliderStyle}"
+                                                        VerticalAlignment="Center"
+                                                        AutomationProperties.Name="{loc:Text BoxBorderTransparency}"
+                                                        Value="{Binding Settings.BoxBorderTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                <StackPanel Grid.Column="2"
+                                                            Orientation="Horizontal"
+                                                            HorizontalAlignment="Right"
+                                                            VerticalAlignment="Center">
+                                                    <TextBox x:Name="BoxBorderTransparencyInput"
+                                                             Width="30"
+                                                             Height="24"
+                                                             Padding="2,1"
+                                                             MaxLength="3"
+                                                             TextAlignment="Right"
+                                                             VerticalContentAlignment="Center"
+                                                             FontSize="11.5"
+                                                             FontWeight="SemiBold"
+                                                             KeyDown="OnThemeTransparencyInputKeyDown"
+                                                             LostFocus="OnThemeTransparencyInputLostFocus"
+                                                             AutomationProperties.Name="{loc:Text BoxBorderTransparencyPercentage}"
+                                                             Text="{Binding Settings.BoxBorderTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" />
+                                                    <TextBlock Text="%"
+                                                               Margin="2,0,0,0"
+                                                               VerticalAlignment="Center"
+                                                               FontSize="11.5"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                </StackPanel>
+                                                <Button Grid.Column="3" Style="{StaticResource ThemeOpacityResetButtonStyle}"
+                                                        Command="{Binding Settings.ResetThemeFieldCommand}" CommandParameter="BoxBorderTransparencyPercent"
+                                                        ToolTip="{loc:Text RestoreTheThemeDefaultFollowsDesktopBoxTransparency}"
+                                                        AutomationProperties.Name="{loc:Text ResetBoxBorderTransparency}" />
+                                            </Grid>
+                                            <Grid Margin="0,9,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="104" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="42" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock TextWrapping="Wrap" Text="{loc:Text IconBackgroundTransparency}"
+                                                           VerticalAlignment="Center"
+                                                           FontSize="11.5"
+                                                           Foreground="{DynamicResource TextMutedBrush}" />
+                                                <Slider Grid.Column="1"
+                                                        Margin="12,0,10,0"
+                                                        Minimum="0"
+                                                        Maximum="100"
+                                                        SmallChange="1"
+                                                        LargeChange="10"
+                                                        IsMoveToPointEnabled="True"
+                                                        IsSnapToTickEnabled="True"
+                                                        TickFrequency="1"
+                                                        Style="{StaticResource ThemeOpacitySliderStyle}"
+                                                        VerticalAlignment="Center"
+                                                        AutomationProperties.Name="{loc:Text IconBackgroundTransparency}"
+                                                        Value="{Binding Settings.IconFrameTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                <StackPanel Grid.Column="2"
+                                                            Orientation="Horizontal"
+                                                            HorizontalAlignment="Right"
+                                                            VerticalAlignment="Center">
+                                                    <TextBox x:Name="IconFrameTransparencyInput"
+                                                             Width="30"
+                                                             Height="24"
+                                                             Padding="2,1"
+                                                             MaxLength="3"
+                                                             TextAlignment="Right"
+                                                             VerticalContentAlignment="Center"
+                                                             FontSize="11.5"
+                                                             FontWeight="SemiBold"
+                                                             KeyDown="OnThemeTransparencyInputKeyDown"
+                                                             LostFocus="OnThemeTransparencyInputLostFocus"
+                                                             AutomationProperties.Name="{loc:Text IconBackgroundTransparencyPercentage}"
+                                                             Text="{Binding Settings.IconFrameTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" />
+                                                    <TextBlock Text="%"
+                                                               Margin="2,0,0,0"
+                                                               VerticalAlignment="Center"
+                                                               FontSize="11.5"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                </StackPanel>
+                                                <Button Grid.Column="3" Style="{StaticResource ThemeOpacityResetButtonStyle}"
+                                                        Command="{Binding Settings.ResetThemeFieldCommand}" CommandParameter="IconFrameTransparencyPercent"
+                                                        ToolTip="{loc:Text RestoreTheThemeDefaultFollowsDesktopBoxTransparency}"
+                                                        AutomationProperties.Name="{loc:Text ResetIconBackgroundTransparency}" />
+                                            </Grid>
+                                            <Grid Margin="0,9,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel VerticalAlignment="Center">
+                                                    <TextBlock TextWrapping="Wrap" Text="{loc:Text EditorFollowsTransparency}"
+                                                               FontSize="11.5"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                    <TextBlock TextWrapping="Wrap" Text="{loc:Text KeepTheEditorBackgroundInSyncWithDesktopBox}"
+                                                               Margin="0,2,12,0"
+                                                               FontSize="10.5"
+                                                               Foreground="{DynamicResource TextMutedBrush}" />
+                                                </StackPanel>
+                                                <ToggleButton x:Name="EditorOpacityFollowToggle"
+                                                              Grid.Column="1"
+                                                              Margin="12,0,0,0"
+                                                              VerticalAlignment="Center"
+                                                              Style="{StaticResource SettingsToggleButtonStyle}"
+                                                              IsChecked="{Binding Settings.EditorFollowsBoxOpacity, Mode=OneWay}"
+                                                              Command="{Binding Settings.ToggleEditorOpacityFollowCommand}"
+                                                              AutomationProperties.Name="{loc:Text EditorFollowsTransparency}" />
+                                            </Grid>
+                                            <views:ThemeCustomizationView Margin="0,10,0,0" DataContext="{Binding Settings}" />
                                         </StackPanel>
-                                        <Slider Grid.Column="1"
-                                                Margin="12,0,10,0"
-                                                Minimum="0"
-                                                Maximum="90"
-                                                SmallChange="1"
-                                                LargeChange="10"
-                                                IsMoveToPointEnabled="True"
-                                                IsSnapToTickEnabled="True"
-                                                TickFrequency="1"
-                                                Style="{StaticResource ThemeOpacitySliderStyle}"
-                                                VerticalAlignment="Center"
-                                                Value="{Binding Settings.ThemeTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                        <StackPanel Grid.Column="2"
-                                                    Orientation="Horizontal"
-                                                    HorizontalAlignment="Right"
-                                                    VerticalAlignment="Center">
-                                            <TextBox x:Name="ThemeTransparencyInput"
-                                                     Width="30"
-                                                     Height="24"
-                                                     Padding="2,1"
-                                                     MaxLength="3"
-                                                     TextAlignment="Right"
-                                                     VerticalContentAlignment="Center"
-                                                     FontSize="11.5"
-                                                     FontWeight="SemiBold"
-                                                     KeyDown="OnThemeTransparencyInputKeyDown"
-                                                     LostFocus="OnThemeTransparencyInputLostFocus"
-                                                     Text="{Binding Settings.ThemeTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" />
-                                            <TextBlock Text="%"
-                                                       Margin="2,0,0,0"
-                                                       VerticalAlignment="Center"
-                                                       FontSize="11.5"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        </StackPanel>
-                                        <Button Grid.Column="3" Style="{StaticResource ThemeOpacityResetButtonStyle}"
-                                                Command="{Binding Settings.ResetThemeFieldCommand}" CommandParameter="ThemeTransparencyPercent"
-                                                AutomationProperties.Name="{loc:Text ResetDesktopBoxTransparency}" />
-                                    </Grid>
-                                    <Grid Grid.Row="2"
-                                          Grid.ColumnSpan="2"
-                                          Margin="0,9,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="104" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="42" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock TextWrapping="Wrap" Text="{loc:Text BoxBorderTransparency}"
-                                                   VerticalAlignment="Center"
-                                                   FontSize="11.5"
-                                                   Foreground="{DynamicResource TextMutedBrush}" />
-                                        <Slider Grid.Column="1"
-                                                Margin="12,0,10,0"
-                                                Minimum="0"
-                                                Maximum="100"
-                                                SmallChange="1"
-                                                LargeChange="10"
-                                                IsMoveToPointEnabled="True"
-                                                IsSnapToTickEnabled="True"
-                                                TickFrequency="1"
-                                                Style="{StaticResource ThemeOpacitySliderStyle}"
-                                                VerticalAlignment="Center"
-                                                AutomationProperties.Name="{loc:Text BoxBorderTransparency}"
-                                                Value="{Binding Settings.BoxBorderTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                        <StackPanel Grid.Column="2"
-                                                    Orientation="Horizontal"
-                                                    HorizontalAlignment="Right"
-                                                    VerticalAlignment="Center">
-                                            <TextBox x:Name="BoxBorderTransparencyInput"
-                                                     Width="30"
-                                                     Height="24"
-                                                     Padding="2,1"
-                                                     MaxLength="3"
-                                                     TextAlignment="Right"
-                                                     VerticalContentAlignment="Center"
-                                                     FontSize="11.5"
-                                                     FontWeight="SemiBold"
-                                                     KeyDown="OnThemeTransparencyInputKeyDown"
-                                                     LostFocus="OnThemeTransparencyInputLostFocus"
-                                                     AutomationProperties.Name="{loc:Text BoxBorderTransparencyPercentage}"
-                                                     Text="{Binding Settings.BoxBorderTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" />
-                                            <TextBlock Text="%"
-                                                       Margin="2,0,0,0"
-                                                       VerticalAlignment="Center"
-                                                       FontSize="11.5"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        </StackPanel>
-                                        <Button Grid.Column="3" Style="{StaticResource ThemeOpacityResetButtonStyle}"
-                                                Command="{Binding Settings.ResetThemeFieldCommand}" CommandParameter="BoxBorderTransparencyPercent"
-                                                ToolTip="{loc:Text RestoreTheThemeDefaultFollowsDesktopBoxTransparency}"
-                                                AutomationProperties.Name="{loc:Text ResetBoxBorderTransparency}" />
-                                    </Grid>
-                                    <Grid Grid.Row="3"
-                                          Grid.ColumnSpan="2"
-                                          Margin="0,9,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="104" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="42" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock TextWrapping="Wrap" Text="{loc:Text IconBackgroundTransparency}"
-                                                   VerticalAlignment="Center"
-                                                   FontSize="11.5"
-                                                   Foreground="{DynamicResource TextMutedBrush}" />
-                                        <Slider Grid.Column="1"
-                                                Margin="12,0,10,0"
-                                                Minimum="0"
-                                                Maximum="100"
-                                                SmallChange="1"
-                                                LargeChange="10"
-                                                IsMoveToPointEnabled="True"
-                                                IsSnapToTickEnabled="True"
-                                                TickFrequency="1"
-                                                Style="{StaticResource ThemeOpacitySliderStyle}"
-                                                VerticalAlignment="Center"
-                                                AutomationProperties.Name="{loc:Text IconBackgroundTransparency}"
-                                                Value="{Binding Settings.IconFrameTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                        <StackPanel Grid.Column="2"
-                                                    Orientation="Horizontal"
-                                                    HorizontalAlignment="Right"
-                                                    VerticalAlignment="Center">
-                                            <TextBox x:Name="IconFrameTransparencyInput"
-                                                     Width="30"
-                                                     Height="24"
-                                                     Padding="2,1"
-                                                     MaxLength="3"
-                                                     TextAlignment="Right"
-                                                     VerticalContentAlignment="Center"
-                                                     FontSize="11.5"
-                                                     FontWeight="SemiBold"
-                                                     KeyDown="OnThemeTransparencyInputKeyDown"
-                                                     LostFocus="OnThemeTransparencyInputLostFocus"
-                                                     AutomationProperties.Name="{loc:Text IconBackgroundTransparencyPercentage}"
-                                                     Text="{Binding Settings.IconFrameTransparencyPercent, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}, ValidatesOnExceptions=True}" />
-                                            <TextBlock Text="%"
-                                                       Margin="2,0,0,0"
-                                                       VerticalAlignment="Center"
-                                                       FontSize="11.5"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        </StackPanel>
-                                        <Button Grid.Column="3" Style="{StaticResource ThemeOpacityResetButtonStyle}"
-                                                Command="{Binding Settings.ResetThemeFieldCommand}" CommandParameter="IconFrameTransparencyPercent"
-                                                ToolTip="{loc:Text RestoreTheThemeDefaultFollowsDesktopBoxTransparency}"
-                                                AutomationProperties.Name="{loc:Text ResetIconBackgroundTransparency}" />
-                                    </Grid>
-                                    <Grid Grid.Row="4"
-                                          Grid.ColumnSpan="2"
-                                          Margin="0,9,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel VerticalAlignment="Center">
-                                            <TextBlock TextWrapping="Wrap" Text="{loc:Text EditorFollowsTransparency}"
-                                                       FontSize="11.5"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="{DynamicResource TextPrimaryBrush}" />
-                                            <TextBlock TextWrapping="Wrap" Text="{loc:Text KeepTheEditorBackgroundInSyncWithDesktopBox}"
-                                                       Margin="0,2,12,0"
-                                                       FontSize="10.5"
-                                                       Foreground="{DynamicResource TextMutedBrush}" />
-                                        </StackPanel>
-                                        <ToggleButton x:Name="EditorOpacityFollowToggle"
-                                                      Grid.Column="1"
-                                                      Margin="12,0,0,0"
-                                                      VerticalAlignment="Center"
-                                                      Style="{StaticResource SettingsToggleButtonStyle}"
-                                                      IsChecked="{Binding Settings.EditorFollowsBoxOpacity, Mode=OneWay}"
-                                                      Command="{Binding Settings.ToggleEditorOpacityFollowCommand}"
-                                                      AutomationProperties.Name="{loc:Text EditorFollowsTransparency}" />
-                                    </Grid>
-                                    <views:ThemeCustomizationView Grid.Row="5" Grid.ColumnSpan="2" Margin="0,10,0,0" DataContext="{Binding Settings}" />
-                                    <DockPanel Grid.Row="6" Grid.ColumnSpan="2" Margin="0,10,0,0">
+                                    </Expander>
+                                    <DockPanel Grid.Row="2" Grid.ColumnSpan="2" Margin="0,10,0,0">
                                         <Button DockPanel.Dock="Right" Content="{loc:Text RestoreCurrentThemePreset}"
                                                 Command="{Binding Settings.ResetThemePresetCommand}"
                                                 Style="{StaticResource GhostButtonStyle}" Height="28" Padding="10,0"
@@ -1892,13 +1886,19 @@
                                                    Foreground="{DynamicResource TextMutedBrush}"
                                                    Visibility="{Binding Updates.UpdateStatusText, Converter={StaticResource NonEmptyToVisibilityConverter}}" />
                                     </StackPanel>
-                                    <Button Grid.Column="1"
-                                            Content="{loc:Text CheckForUpdates}"
-                                             Command="{Binding Updates.CheckForUpdateCommand}"
-                                             Style="{StaticResource PrimaryButtonStyle}"
-                                             Height="28"
-                                            Padding="12,0"
-                                            VerticalAlignment="Center" />
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Button Content="{loc:Text Cancel}"
+                                                Command="{Binding Updates.CancelUpdateCommand}"
+                                                Visibility="{Binding Updates.IsCheckingUpdate, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                Style="{StaticResource PrimaryButtonStyle}"
+                                                Height="28" Padding="12,0" Margin="0,0,6,0" />
+                                        <Button Content="{loc:Text CheckForUpdates}"
+                                                Command="{Binding Updates.CheckForUpdateCommand}"
+                                                Style="{StaticResource PrimaryButtonStyle}"
+                                                Height="28"
+                                                Padding="12,0"
+                                                VerticalAlignment="Center" />
+                                    </StackPanel>
                                 </Grid>
                             </Border>
 

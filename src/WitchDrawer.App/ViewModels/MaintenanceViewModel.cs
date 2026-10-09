@@ -80,6 +80,7 @@ public sealed class MaintenanceViewModel
         LogInfoWithoutThrowing("Diagnostic log export started.");
         try
         {
+            if (_logger is FileAppLogger fileLogger) await fileLogger.FlushAsync();
             var result = await _diagnosticLogExportService.ExportAsync(
                 destinationPath,
                 $"v{UpdateViewModel.GetCurrentVersion().ToString(3)}");

@@ -40,15 +40,15 @@ public partial class DesktopBoxWindow
         {
             acceptsDrop = TryGetInternalDragPayload(e.Data, out var payload);
             // 固定模式（硬约束）：盒已满时拒绝拖入。
-        if (acceptsDrop && !ViewModel.HasFreeSlotForDrop(
-                payload.SourceBoxId == ViewModel.BoxId ? payload.ItemId : (Guid?)null))
-        {
-            acceptsDrop = false;
-        }
+            if (acceptsDrop && !ViewModel.HasFreeSlotForDrop(
+                    payload.SourceBoxId == ViewModel.BoxId ? payload.ItemId : (Guid?)null))
+            {
+                acceptsDrop = false;
+            }
 
-        // 排序模式的落点由排序键决定（盒内拖动为空操作），槽位预览会误导：
-        // 只保留盒子高亮，不显示落点框。
-        showPreview = acceptsDrop && ViewModel.IsFreeSort;
+            // 排序模式的落点由排序键决定（盒内拖动为空操作），槽位预览会误导：
+            // 只保留盒子高亮，不显示落点框。
+            showPreview = acceptsDrop && ViewModel.IsFreeSort;
             e.Effects = acceptsDrop ? DragDropEffects.Move : DragDropEffects.None;
             if (showPreview)
             {
@@ -57,7 +57,7 @@ public partial class DesktopBoxWindow
         }
         else
         {
-            var dropEffect = ChooseFileDropEffect(e.AllowedEffects);
+            var dropEffect = FileDropPolicy.ChooseEffect(ViewModel.Type, e.AllowedEffects);
             acceptsDrop = e.Data.GetDataPresent(DataFormats.FileDrop) && dropEffect != DragDropEffects.None;
             // 固定模式（硬约束）：盒已满时拒绝拖入文件。
             if (acceptsDrop && !ViewModel.HasFreeSlotForDrop())
@@ -173,6 +173,13 @@ public partial class DesktopBoxWindow
 
             if (e.Data.GetData(DataFormats.FileDrop) is string[] paths)
             {
+                var dropEffect = FileDropPolicy.ChooseEffect(ViewModel.Type, e.AllowedEffects);
+                if (paths.Length == 0 || dropEffect == DragDropEffects.None)
+                {
+                    e.Effects = DragDropEffects.None;
+                    return;
+                }
+
                 var slot = GetDropSlot(e);
                 if (slot is null)
                 {
@@ -181,12 +188,11 @@ public partial class DesktopBoxWindow
                     return;
                 }
 
-                e.Effects = paths.Length > 0 ? ChooseFileDropEffect(e.AllowedEffects) : DragDropEffects.None;
+                e.Effects = dropEffect;
                 ResetDragVisualState();
                 ResetDragCursor();
                 // ImportPathsAsync already reloads the box internally; no extra LoadAsync here.
                 var importedIds = await ViewModel.ImportPathsAsync(paths, slot.Value.Column, slot.Value.Row);
-                e.Effects = importedIds.Count > 0 ? ChooseFileDropEffect(e.AllowedEffects) : DragDropEffects.None;
                 var lastImportedId = importedIds.LastOrDefault();
                 var importedItem = lastImportedId != Guid.Empty
                     ? ViewModel.Items.FirstOrDefault(candidate => candidate.Id == lastImportedId)
@@ -492,17 +498,4 @@ public partial class DesktopBoxWindow
         }
     }
 
-    private static DragDropEffects ChooseFileDropEffect(DragDropEffects allowedEffects)
-    {
-        if ((allowedEffects & DragDropEffects.Move) == DragDropEffects.Move)
-        {
-            return DragDropEffects.Move;
-        }
-
-        return (allowedEffects & DragDropEffects.Copy) == DragDropEffects.Copy
-            ? DragDropEffects.Copy
-            : (allowedEffects & DragDropEffects.Link) == DragDropEffects.Link
-                ? DragDropEffects.Link
-                : DragDropEffects.None;
-    }
 }

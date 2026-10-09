@@ -143,7 +143,7 @@ public partial class DesktopBoxWindow
         var dragWasCanceled = false;
         QueryContinueDragEventHandler queryContinueDrag = (_, args) =>
         {
-            if (args.EscapePressed)
+            if (IsDragCancellation(args.EscapePressed, args.KeyStates, args.Action))
             {
                 dragWasCanceled = true;
             }
@@ -222,7 +222,7 @@ public partial class DesktopBoxWindow
                     _keyboardDeleteTarget = null;
                 }
             }
-            // else: released over the same box without moving, or cancelled with Esc → no action.
+            // A cancelled OLE gesture must never export a file.
         }
         finally
         {
@@ -242,6 +242,17 @@ public partial class DesktopBoxWindow
             dragSource.Focus();
             QueueSendToBottom();
         }
+    }
+
+    internal static bool IsDragCancellation(bool escapePressed, DragDropKeyStates keyStates, DragAction action)
+    {
+        // WPF applies its default action after QueryContinueDrag handlers return.
+        // Mirror the mouse-button cancellation rule instead of relying on Action alone.
+        var buttons = 0;
+        if ((keyStates & DragDropKeyStates.LeftMouseButton) != 0) buttons++;
+        if ((keyStates & DragDropKeyStates.MiddleMouseButton) != 0) buttons++;
+        if ((keyStates & DragDropKeyStates.RightMouseButton) != 0) buttons++;
+        return escapePressed || action == DragAction.Cancel || buttons >= 2;
     }
 
     internal static bool ShouldExportItemAfterDrag(

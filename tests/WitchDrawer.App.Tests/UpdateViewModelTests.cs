@@ -15,6 +15,31 @@ namespace WitchDrawer.App.Tests;
 public sealed class UpdateViewModelTests
 {
     [Fact]
+    public async Task CancelDownload_ReleasesBusyStateAndAllowsRetry()
+    {
+        using var handler = new ReleaseHandler();
+        using var client = new HttpClient(handler);
+        using var installer = new TestInstaller();
+        var viewModel = CreateViewModel(client, installer, _ => Task.FromResult(true));
+        var operation = viewModel.CheckForUpdateCommand.ExecuteAsync(null);
+        await handler.DownloadEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.True(viewModel.CancelUpdateCommand.CanExecute(null));
+        viewModel.CancelUpdateCommand.Execute(null);
+        await operation.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal("更新已取消", viewModel.UpdateStatusText);
+        Assert.False(viewModel.IsCheckingUpdate);
+        Assert.False(viewModel.CancelUpdateCommand.CanExecute(null));
+        Assert.True(viewModel.CheckForUpdateCommand.CanExecute(null));
+        Assert.Equal(0, installer.Calls);
+
+        handler.DownloadStatus = HttpStatusCode.ServiceUnavailable;
+        handler.DownloadRelease.SetResult();
+        await viewModel.CheckForUpdateCommand.ExecuteAsync(null);
+        Assert.Equal("下载更新失败", viewModel.UpdateStatusText);
+        Assert.Equal(2, handler.Downloads);
+    }
+
+    [Fact]
     public async Task UpdateCommand_RemainsExclusiveThroughConfirmationDownloadInstallerAndShutdown()
     {
         using var handler = new ReleaseHandler();

@@ -119,12 +119,12 @@ public sealed record AppPaths(string RootDirectory)
     /// </summary>
     private void EnsureRootDirectoryWritable()
     {
-        var probePath = Path.Combine(RootDirectory, WritabilityProbeFileName);
+        var probePath = Path.Combine(RootDirectory, $"{WritabilityProbeFileName}-{Guid.NewGuid():N}");
         try
         {
             using (var stream = new FileStream(
                        probePath,
-                       FileMode.Create,
+                       FileMode.CreateNew,
                        FileAccess.Write,
                        FileShare.None,
                        bufferSize: 1,
@@ -146,21 +146,6 @@ public sealed record AppPaths(string RootDirectory)
                 + DataDirectoryEnvironmentVariableName
                 + Strings.Get("ToAWritableFolder"),
                 exception);
-        }
-        finally
-        {
-            // DeleteOnClose 通常已清理；再兜底一次，避免探测文件残留。
-            try
-            {
-                if (File.Exists(probePath))
-                {
-                    File.Delete(probePath);
-                }
-            }
-            catch
-            {
-                // 清理失败不影响启动判定；可写性已在创建阶段确认。
-            }
         }
     }
 }

@@ -38,6 +38,7 @@ public sealed partial class MainViewModel : ObservableObject, IBoxContentRefresh
     private BoxViewModel? _selectedBox;
     private CancellationTokenSource? _itemsLoadCts;
     private int _itemsLoadVersion;
+    private Task _pendingItemsLoads = Task.CompletedTask;
     private bool _pendingDesktopReload;
     private BoxRefreshRequest? _pendingDesktopReloadRequest;
     private bool _isSettingsPage;

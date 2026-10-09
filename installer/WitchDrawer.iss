@@ -46,6 +46,9 @@ ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=lowest
 UninstallDisplayIcon={app}\{#MyAppExeName}
 UninstallDisplayName={#MyAppName}
+; Earlier versions logged a recursive {app} deletion. A full replacement
+; install must overwrite that log so the unsafe action cannot survive upgrades.
+UninstallLogMode=overwrite
 ; Keep user data (SQLite db in LocalAppData) on uninstall — the app stores
 ; boxes/items there, so we never touch it from the installer.
 
@@ -64,7 +67,11 @@ Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{group}\卸载 {#MyAppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
-Name: "{autostartup}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--silent"; Tasks: startup
+
+[Registry]
+; The settings switch uses the same entry. Cleanup below checks its owner so
+; uninstalling this copy cannot disable a different portable installation.
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "WitchDrawer"; ValueData: """{app}\{#MyAppExeName}"" --silent"; Tasks: startup
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent
@@ -75,5 +82,65 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}
 Filename: "{cmd}"; Parameters: "/c taskkill /IM ""{#MyAppExeName}"" /F 2>nul"; Flags: runhidden; RunOnceId: "KillApp"
 
 [UninstallDelete]
-; Remove installed files but leave user data (in LocalAppData) intact.
-Type: filesandordirs; Name: "{app}"
+; The installation log removes only installer-owned files. Custom data may
+; live below {app}, so remove the root only when it is completely empty.
+Type: dirifempty; Name: "{app}"
+
+[Code]
+procedure RemoveOwnedStartupRegistry;
+var
+  StartupCommand, ExecutablePrefix: String;
+begin
+  ExecutablePrefix := '"' + ExpandConstant('{app}\{#MyAppExeName}') + '"';
+  if RegQueryStringValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run',
+    'WitchDrawer', StartupCommand) then
+  begin
+    if (CompareText(StartupCommand, ExecutablePrefix) = 0) or
+      (CompareText(Copy(StartupCommand, 1, Length(ExecutablePrefix) + 1),
+        ExecutablePrefix + ' ') = 0) then
+      RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'WitchDrawer');
+  end;
+end;
+
+procedure RemoveOwnedStartupShortcut(const Folder: String);
+var
+  ShortcutPath: String;
+  Shell, Shortcut: Variant;
+begin
+  ShortcutPath := Folder + '\{#MyAppName}.lnk';
+  if FileExists(ShortcutPath) then
+  begin
+    try
+      Shell := CreateOleObject('WScript.Shell');
+      Shortcut := Shell.CreateShortcut(ShortcutPath);
+      if CompareText(Shortcut.TargetPath, ExpandConstant('{app}\{#MyAppExeName}')) = 0 then
+      begin
+        Shortcut := Unassigned;
+        if not DeleteFile(ShortcutPath) then
+          Log('Could not remove legacy startup shortcut: ' + ShortcutPath);
+      end;
+    except
+      Log('Could not inspect legacy startup shortcut: ' + ShortcutPath);
+    end;
+  end;
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+  begin
+    RemoveOwnedStartupShortcut(ExpandConstant('{userstartup}'));
+    RemoveOwnedStartupShortcut(ExpandConstant('{commonstartup}'));
+    if not WizardIsTaskSelected('startup') then RemoveOwnedStartupRegistry;
+  end;
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usUninstall then
+  begin
+    RemoveOwnedStartupRegistry;
+    RemoveOwnedStartupShortcut(ExpandConstant('{userstartup}'));
+    RemoveOwnedStartupShortcut(ExpandConstant('{commonstartup}'));
+  end;
+end;

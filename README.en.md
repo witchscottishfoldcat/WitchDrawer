@@ -5,13 +5,13 @@
 <h1 align="center">WitchDrawer</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.4.3-blue" alt="Version 1.4.3" />
+  <img src="https://img.shields.io/badge/version-1.4.4-blue" alt="Version 1.4.4" />
   <img src="https://img.shields.io/badge/platform-Windows%20x64-blue" alt="Windows x64" />
   <img src="https://img.shields.io/badge/.NET-10.0-purple" alt=".NET 10" />
 </p>
 
 <p align="center">
-  <a href="README.md">简体中文</a> · English · <a href="https://github.com/witchscottishfoldcat/WitchDrawer/releases/latest">Download</a> · <a href="docs/releases/v1.4.3.md">Release notes (Chinese)</a>
+  <a href="README.md">简体中文</a> · English · <a href="https://github.com/witchscottishfoldcat/WitchDrawer/releases/latest">Download</a> · <a href="docs/releases/v1.4.4.md">Release notes (Chinese)</a>
 </p>
 
 WitchDrawer is a lightweight Windows desktop file organizer built with native WPF. Keep frequently used files in desktop boxes, organize them with drag and drop, and open them through quick search.
@@ -114,7 +114,7 @@ Packaging requires Inno Setup 6. The version is defined in [Directory.Build.prop
 ```powershell
 dotnet build WitchDrawer.sln --configuration Release
 dotnet test WitchDrawer.sln --configuration Release
-.\tools\Publish-WitchDrawer.ps1 -Version 1.4.3
+.\tools\Publish-WitchDrawer.ps1 -Version 1.4.4
 ```
 
 The script creates a self-contained Windows x64 installer, a complete portable ZIP and a SHA-256 file for each in `publish/`. It fails if the Inno Setup compiler is unavailable. Before publishing, verify that the fully extracted ZIP launches, compare checksums with `Get-FileHash`, and upload all four files.

@@ -196,11 +196,5 @@ public sealed class StartupSettingsSnapshotTests
     private static string CreateTempRoot() =>
         Path.Combine(Path.GetTempPath(), "WitchDrawerTests", Guid.NewGuid().ToString("N"));
 
-    private static void DeleteTempRoot(string root)
-    {
-        if (Directory.Exists(root))
-        {
-            Directory.Delete(root, recursive: true);
-        }
-    }
+    private static void DeleteTempRoot(string root) => TestDirectoryCleanup.Delete(root);
 }

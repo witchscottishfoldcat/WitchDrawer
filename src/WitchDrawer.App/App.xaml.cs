@@ -92,24 +92,20 @@ public partial class App : Application
             _logger = logger;
             if (Volatile.Read(ref _shutdownStarted) != 0)
             {
+                await logger.DisposeAsync();
                 return;
             }
             var startupTimer = new StartupTimer(logger, startupStarted);
             using var uiStallMonitor = new UiThreadStallMonitor(logger);
             startupTimer.Mark("日志与数据路径就绪");
-            var shortcutMigration = await Task.Run(() =>
-                StartupShortcutMigration.EnsureSilentArguments(
-                    Environment.ProcessPath,
-                    StartupLaunchPolicy.SilentArgument));
-            if (shortcutMigration.UpdatedCount > 0)
+            var desktopIntegration = new WindowsDesktopIntegration();
+            try
             {
-                logger.Info(
-                    $"Added silent startup arguments to {shortcutMigration.UpdatedCount} legacy shortcut(s).");
+                await desktopIntegration.MigrateLegacyStartupShortcutsAsync();
             }
-
-            foreach (var exception in shortcutMigration.Errors)
+            catch (Exception exception)
             {
-                logger.Error(exception, "Failed to update a legacy startup shortcut.");
+                logger.Error(exception, "Failed to migrate legacy startup shortcuts.");
             }
 
             startupTimer.Mark("启动快捷方式迁移完成");
@@ -152,7 +148,7 @@ public partial class App : Application
                 boxVisualStyleStore);
             var operations = new UiOperationState(logger);
             var settings = new SettingsViewModel(drawerService.Settings, logger,
-                new WindowsDesktopIntegration(), autoHideSettingsStore, operations);
+                desktopIntegration, autoHideSettingsStore, operations);
             var updates = new UpdateViewModel(updateService, logger, operations,
                 ConfirmUpdateAsync, PerformShutdownAsync);
             var archive = new ArchiveViewModel(drawerService, todoService, logger, operations);
@@ -386,6 +382,11 @@ public partial class App : Application
                 "WitchDrawer startup failed",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
+            if (_logger is FileAppLogger fileLogger)
+            {
+                fileLogger.Error(exception, "Application startup failed.");
+                await fileLogger.DisposeAsync();
+            }
             Shutdown(-1);
         }
     }
@@ -648,6 +649,7 @@ public partial class App : Application
             _mainWindow = null;
         }
 
+        if (_logger is FileAppLogger fileLogger) await fileLogger.DisposeAsync();
         Shutdown(0);
     }
 
@@ -680,6 +682,8 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        // Early startup failures can exit without running the normal asynchronous shutdown.
+        if (_logger is FileAppLogger fileLogger) _ = fileLogger.DisposeAsync();
         _singleInstancePipeCts?.Cancel();
         _singleInstancePipeCts?.Dispose();
         _taskbarIcon?.Dispose();

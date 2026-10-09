@@ -25,6 +25,7 @@ public sealed class UpdateViewModel : LocalizedObservableObject
     private string _updateStatusText = string.Empty;
     private bool _isCheckingUpdate;
     private bool _updateStarted;
+    private CancellationTokenSource? _updateCancellation;
 
     public UpdateViewModel(UpdateService updateService, IAppLogger logger, UiOperationState operations,
         Func<UpdateCheckResult, Task<bool>>? confirmUpdateAsync = null,
@@ -36,9 +37,11 @@ public sealed class UpdateViewModel : LocalizedObservableObject
         _confirmUpdateAsync = confirmUpdateAsync;
         _shutdownAfterUpdateAsync = shutdownAfterUpdateAsync;
         CheckForUpdateCommand = new AsyncRelayCommand(CheckForUpdateAsync, () => !IsCheckingUpdate);
+        CancelUpdateCommand = new RelayCommand(() => _updateCancellation?.Cancel(), () => IsCheckingUpdate && !_updateStarted);
     }
 
     public IAsyncRelayCommand CheckForUpdateCommand { get; }
+    public IRelayCommand CancelUpdateCommand { get; }
 
     public string UpdateStatusText
     {
@@ -52,7 +55,10 @@ public sealed class UpdateViewModel : LocalizedObservableObject
         private set
         {
             if (SetProperty(ref _isCheckingUpdate, value))
+            {
                 CheckForUpdateCommand.NotifyCanExecuteChanged();
+                CancelUpdateCommand.NotifyCanExecuteChanged();
+            }
         }
     }
 
@@ -74,13 +80,18 @@ public sealed class UpdateViewModel : LocalizedObservableObject
             return;
         }
 
+        // Keep cancellation inside the exclusivity gate. A direct duplicate ExecuteAsync
+        // must not replace/cancel the token of the operation already in progress.
+        using var cancellation = new CancellationTokenSource();
+        _updateCancellation = cancellation;
+        var cancellationToken = cancellation.Token;
         try
         {
             IsCheckingUpdate = true;
             UpdateStatusText = Strings.Get("CheckingForUpdates");
 
             var currentVersion = GetCurrentVersion();
-            var result = await _updateService.CheckForUpdateAsync(currentVersion);
+            var result = await _updateService.CheckForUpdateAsync(currentVersion, cancellationToken);
 
             if (!result.HasUpdate)
             {
@@ -92,10 +103,16 @@ public sealed class UpdateViewModel : LocalizedObservableObject
             var versionText = $"v{result.LatestVersion.Major}.{result.LatestVersion.Minor}.{result.LatestVersion.Build}";
             UpdateStatusText = Strings.Format("VersionIsAvailable", versionText);
             StatusText = UpdateStatusText;
-            if (_confirmUpdateAsync is not null && await _confirmUpdateAsync(result))
+            if (_confirmUpdateAsync is not null && await _confirmUpdateAsync(result).WaitAsync(cancellationToken))
             {
-                await ExecuteUpdateAsync(result);
+                cancellationToken.ThrowIfCancellationRequested();
+                await ExecuteUpdateAsync(result, cancellationToken);
             }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            UpdateStatusText = Strings.Get("UpdateCanceled");
+            StatusText = UpdateStatusText;
         }
         catch (Exception exception)
         {
@@ -108,11 +125,12 @@ public sealed class UpdateViewModel : LocalizedObservableObject
             // Once an installer has started, it is waiting for this process to exit.
             // Never allow another installer even if shutdown is delayed or fails.
             if (!_updateStarted) IsCheckingUpdate = false;
+            _updateCancellation = null;
             _updateGate.Release();
         }
     }
 
-    private async Task ExecuteUpdateAsync(UpdateCheckResult result)
+    private async Task ExecuteUpdateAsync(UpdateCheckResult result, CancellationToken cancellationToken)
     {
         try
         {
@@ -120,17 +138,20 @@ public sealed class UpdateViewModel : LocalizedObservableObject
 
             var progress = new Progress<int>(percent =>
             {
-                UpdateStatusText = Strings.Format("DownloadingUpdate2", percent);
+                if (IsCheckingUpdate && !_updateStarted && !cancellationToken.IsCancellationRequested)
+                    UpdateStatusText = Strings.Format("DownloadingUpdate2", percent);
             });
 
             var success = await _updateService.DownloadAndApplyUpdateAsync(
                 result.DownloadUrl,
                 progress,
-                result.ExpectedSha256);
+                result.ExpectedSha256,
+                cancellationToken);
 
             if (success)
             {
                 _updateStarted = true;
+                CancelUpdateCommand.NotifyCanExecuteChanged();
                 UpdateStatusText = Strings.Get("UpdateDownloadedRestarting");
                 StatusText = UpdateStatusText;
                 if (_shutdownAfterUpdateAsync is not null)
@@ -141,6 +162,10 @@ public sealed class UpdateViewModel : LocalizedObservableObject
                 UpdateStatusText = Strings.Get("UpdateDownloadFailed");
                 StatusText = UpdateStatusText;
             }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception exception)
         {

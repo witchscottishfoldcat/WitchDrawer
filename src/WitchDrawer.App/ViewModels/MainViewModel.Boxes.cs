@@ -457,8 +457,14 @@ public sealed partial class MainViewModel
     {
         var selectedBox = SelectedBox;
         var (version, cancellationToken) = BeginItemsLoad();
-        _ = LoadItemsForSelectedBoxAsync(selectedBox, version, cancellationToken);
+        var load = LoadItemsForSelectedBoxAsync(selectedBox, version, cancellationToken);
+        _pendingItemsLoads = _pendingItemsLoads.IsCompleted
+            ? load
+            : Task.WhenAll(_pendingItemsLoads, load);
+        FireAndForget.Run(load, _logger, "Failed to load selected box content.");
     }
+
+    internal Task WaitForPendingLoadsAsync() => Task.WhenAll(_pendingItemsLoads, BoxSizeSettings.WaitForPendingLoadsAsync());
 
     private async Task LoadItemsForSelectedBoxAsync(BoxViewModel? selectedBox)
     {
@@ -469,6 +475,7 @@ public sealed partial class MainViewModel
     private (int Version, CancellationToken CancellationToken) BeginItemsLoad()
     {
         _itemsLoadCts?.Cancel();
+        _itemsLoadCts?.Dispose();
         _itemsLoadCts = new CancellationTokenSource();
 
         var version = Interlocked.Increment(ref _itemsLoadVersion);
