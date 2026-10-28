@@ -1,10 +1,10 @@
 name: Plugin catalog
 on:
   pull_request:
-    paths: ['plugins/**', 'tools/PluginCatalog/**', 'src/WitchDrawer.Core/Plugins/**', 'Directory.Build.props', '.github/workflows/plugin-catalog.yml']
+    paths: ['plugins/**', 'tools/PluginCatalog/**', 'src/WitchDrawer.Core/Plugins/**', 'Directory.Build.props', '.gitignore', '.gitmodules', '.github/workflows/plugin-catalog.yml']
   push:
     branches: [main]
-    paths: ['plugins/**', 'tools/PluginCatalog/**', 'src/WitchDrawer.Core/Plugins/**', 'Directory.Build.props', '.github/workflows/plugin-catalog.yml']
+    paths: ['plugins/**', 'tools/PluginCatalog/**', 'src/WitchDrawer.Core/Plugins/**', 'Directory.Build.props', '.gitignore', '.gitmodules', '.github/workflows/plugin-catalog.yml']
 permissions:
   contents: read
 jobs:
