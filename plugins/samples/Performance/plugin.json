@@ -1,0 +1,13 @@
+{
+  "id": "witchdrawer.performance",
+  "name": "性能监控",
+  "description": "轻量 CPU 与物理内存监控，后台每 2 秒采样，显示最近一分钟的趋势。",
+  "author": "Thewitchcat",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "minHostVersion": "1.4.4",
+  "repositoryUrl": "https://github.com/witchscottishfoldcat/WitchDrawer.Plugins",
+  "entryAssembly": "WitchDrawer.Performance.dll",
+  "entryType": "WitchDrawer.Performance.PerformancePlugin",
+  "permissions": ["system-metrics"]
+}

@@ -426,7 +426,14 @@
                                      Background="{DynamicResource BorderBrushSoft}"
                                      Opacity="0.72" />
 
-                            <UniformGrid Columns="3">
+                            <UniformGrid Columns="4">
+                                <Button Command="{Binding ShowPluginsCommand}" Style="{StaticResource NavPluginsButtonStyle}"
+                                        AutomationProperties.Name="{loc:Text PluginCenter}">
+                                    <StackPanel HorizontalAlignment="Center">
+                                        <TextBlock Text="&#xE8A5;" FontFamily="Segoe Fluent Icons" FontSize="14" HorizontalAlignment="Center" Margin="0,0,0,2" />
+                                        <TextBlock Text="{loc:Text Plugins}" FontSize="11.5" HorizontalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
                                 <Button Command="{Binding ShowArchiveCommand}"
                                         Style="{StaticResource NavArchiveButtonStyle}"
                                         AutomationProperties.Name="{loc:Text Archive}">
@@ -496,6 +503,9 @@
                             <Style TargetType="Grid">
                                 <Setter Property="Visibility" Value="Visible" />
                                 <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsPluginsPage}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
                                     <DataTrigger Binding="{Binding IsSettingsPage}" Value="True">
                                         <Setter Property="Visibility" Value="Collapsed" />
                                     </DataTrigger>
@@ -2062,6 +2072,8 @@
                     </Grid>
 
                     <!-- About Page -->
+                    <controls:LazyPageHost PageType="{x:Type views:PluginsPageView}" DataContext="{Binding Plugins}"
+                                           Visibility="{Binding DataContext.IsPluginsPage, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BooleanToVisibilityConverter}}" />
                     <controls:LazyPageHost PageType="{x:Type views:AboutPageView}"
                                            Visibility="{Binding IsAboutPage, Converter={StaticResource BooleanToVisibilityConverter}}" />
                 </Grid>

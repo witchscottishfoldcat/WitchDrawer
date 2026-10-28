@@ -68,9 +68,9 @@ public sealed partial class DesktopBoxManager
             try
             {
                 isBlankDesktopPoint = mouseEvent.Button == GlobalMouseButton.Left
-                    && DesktopIconVisibility.IsBlankDesktopPoint(
+                    && await DesktopIconVisibility.IsBlankDesktopPointAsync(
                         mouseEvent.ScreenX,
-                        mouseEvent.ScreenY);
+                        mouseEvent.ScreenY).ConfigureAwait(false);
             }
             catch (Exception exception)
             {

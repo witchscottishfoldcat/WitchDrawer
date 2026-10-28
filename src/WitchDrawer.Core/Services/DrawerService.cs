@@ -532,8 +532,7 @@ public sealed partial class DrawerService : ISettingsStore
             // Check and remove missing records under the same gate as file moves. A queued
             // deletion must not erase a row that another operation has moved elsewhere.
             var currentItem = await _repository.GetItemAsync(item.Id, cancellationToken);
-            if (currentItem is null || !string.Equals(currentItem.StoredPath, item.StoredPath,
-                    StringComparison.OrdinalIgnoreCase))
+            if (currentItem is null || !PathSafety.PathsEqual(currentItem.StoredPath, item.StoredPath))
             {
                 throw new InvalidOperationException(Strings.Get("TheFileWasMovedOrRemovedByAnotherOperation"));
             }
@@ -590,7 +589,7 @@ public sealed partial class DrawerService : ISettingsStore
         // must preserve the original location and any pending recovery information.
         var parent = Path.GetDirectoryName(fullPath)!;
         return !Directory.EnumerateFileSystemEntries(parent).Any(entry =>
-            string.Equals(Path.GetFullPath(entry), fullPath, StringComparison.OrdinalIgnoreCase));
+            PathSafety.PathsEqual(entry, fullPath));
     }
 
     private RestorePlan CreateRestorePlan(DrawerItem item, HashSet<string>? reservedTargets)
@@ -700,36 +699,7 @@ public sealed partial class DrawerService : ISettingsStore
         string fileName,
         bool isDirectory,
         HashSet<string>? reservedTargets)
-    {
-        var targetPath = FileNameService.GetUniqueDestinationPath(directory, fileName, isDirectory);
-        if (reservedTargets is null)
-        {
-            return targetPath;
-        }
-
-        var normalizedTargetPath = Path.GetFullPath(targetPath);
-        if (reservedTargets.Add(normalizedTargetPath))
-        {
-            return targetPath;
-        }
-
-        var nameWithoutExtension = isDirectory ? fileName : Path.GetFileNameWithoutExtension(fileName);
-        var extension = isDirectory ? string.Empty : Path.GetExtension(fileName);
-        for (var index = 1; index < 10_000; index++)
-        {
-            var candidate = Path.Combine(directory, $"{nameWithoutExtension} ({index}){extension}");
-            var normalizedCandidate = Path.GetFullPath(candidate);
-            if ((File.Exists(candidate) || Directory.Exists(candidate))
-                || !reservedTargets.Add(normalizedCandidate))
-            {
-                continue;
-            }
-
-            return candidate;
-        }
-
-        throw new IOException($"Could not find a unique destination for {fileName}.");
-    }
+        => FileNameService.GetUniqueDestinationPath(directory, fileName, isDirectory, reservedTargets);
 
     private void TryDeleteBoxStorageDirectory(Box box)
     {
@@ -808,10 +778,7 @@ public sealed partial class DrawerService : ISettingsStore
 
             // 先比较记录路径：路径一致（再次启动的常态）时无需为改写入库做目录存在检查；
             // 不一致时才确认期望目录确实存在（可移动盘掉线时不改写记录）。
-            var storagePathMatches = string.Equals(
-                Path.GetFullPath(box.StoragePath ?? expectedStoragePath),
-                Path.GetFullPath(expectedStoragePath),
-                StringComparison.OrdinalIgnoreCase);
+            var storagePathMatches = PathSafety.PathsEqual(box.StoragePath ?? expectedStoragePath, expectedStoragePath);
             if (!storagePathMatches)
             {
                 if (!Directory.Exists(expectedStoragePath))
@@ -841,11 +808,7 @@ public sealed partial class DrawerService : ISettingsStore
 
                 var expectedStoredPath = Path.Combine(expectedStoragePath, name);
                 // 路径一致是绝大多数情况：先做字符串比较，跳过文件存在检查。
-                if (string.Equals(item.StoredPath, expectedStoredPath, StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(
-                        Path.GetFullPath(item.StoredPath!),
-                        Path.GetFullPath(expectedStoredPath),
-                        StringComparison.OrdinalIgnoreCase))
+                if (PathSafety.PathsEqual(item.StoredPath, expectedStoredPath))
                 {
                     continue;
                 }
@@ -877,6 +840,7 @@ public sealed partial class DrawerService : ISettingsStore
 
     private void ValidateImportSource(string sourcePath)
     {
+        var comparisonSource = PathSafety.GetComparisonPath(sourcePath);
         // Reject aliases too: a normal-looking file under a junction could be our database.
         for (var current = sourcePath; !string.IsNullOrEmpty(current); current = Path.GetDirectoryName(current))
         {
@@ -896,8 +860,8 @@ public sealed partial class DrawerService : ISettingsStore
         };
         if (protectedPaths.Any(path => IsSameOrDescendant(sourcePath, path)
                 || (Directory.Exists(sourcePath) && IsSameOrDescendant(path, sourcePath)))
-            || sourcePath.StartsWith(bootstrap + ".", StringComparison.OrdinalIgnoreCase)
-            || sourcePath.StartsWith(Path.Combine(_paths.RootDirectory, StorageLocationStore.ConfigFileName) + ".",
+            || comparisonSource.StartsWith(PathSafety.GetComparisonPath(bootstrap) + ".", StringComparison.OrdinalIgnoreCase)
+            || comparisonSource.StartsWith(PathSafety.GetComparisonPath(Path.Combine(_paths.RootDirectory, StorageLocationStore.ConfigFileName)) + ".",
                 StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(Strings.Get("WitchDrawerDataFilesAndStoredFilesCannotBeImported"));
@@ -905,12 +869,7 @@ public sealed partial class DrawerService : ISettingsStore
     }
 
     private static bool IsSameOrDescendant(string path, string root)
-    {
-        path = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        root = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        return string.Equals(path, root, StringComparison.OrdinalIgnoreCase)
-            || path.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
-    }
+        => PathSafety.IsSameOrDescendant(path, root);
 
     private async Task<PendingFileOperation> ExecuteJournaledOperationAsync(
         PendingFileOperation operation,
@@ -944,14 +903,13 @@ public sealed partial class DrawerService : ISettingsStore
             else
             {
                 var currentItem = await _repository.GetItemAsync(operation.ItemId, cancellationToken);
-                if (currentItem is null || !string.Equals(currentItem.StoredPath, operation.SourcePath,
-                    StringComparison.OrdinalIgnoreCase))
+                if (currentItem is null || !PathSafety.PathsEqual(currentItem.StoredPath, operation.SourcePath))
                 {
                     throw new InvalidOperationException(Strings.Get("TheFileWasMovedOrRemovedByAnotherOperation"));
                 }
             }
             var pending = await _repository.GetPendingFileOperationsAsync(cancellationToken);
-            var reserved = pending.Select(value => Path.GetFullPath(value.TargetPath))
+            var reserved = pending.Select(value => PathSafety.GetComparisonPath(value.TargetPath))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
             var target = await Task.Run(() => GetReservedUniqueDestinationPath(
                 Path.GetDirectoryName(operation.TargetPath)!, Path.GetFileName(operation.TargetPath),
@@ -1180,7 +1138,7 @@ public sealed partial class DrawerService : ISettingsStore
         {
             PendingFileOperationKind.Import => currentItem is not null,
             PendingFileOperationKind.Move => currentItem is not null
-                && string.Equals(currentItem.StoredPath, operation.TargetPath, StringComparison.OrdinalIgnoreCase),
+                && PathSafety.PathsEqual(currentItem.StoredPath, operation.TargetPath),
             PendingFileOperationKind.Remove => currentItem is null,
             _ => throw new InvalidOperationException($"Unknown file operation: {operation.Kind}")
         };

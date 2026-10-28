@@ -88,7 +88,7 @@ internal static class SafeFileOps
         destinationPath = Path.GetFullPath(destinationPath);
         ValidateDestinationParent(Path.GetDirectoryName(destinationPath));
 
-        if (string.Equals(sourcePath, destinationPath, StringComparison.OrdinalIgnoreCase))
+        if (PathSafety.PathsEqual(sourcePath, destinationPath))
         {
             return;
         }
@@ -152,8 +152,8 @@ internal static class SafeFileOps
 
     internal static bool AreSameVolume(string pathA, string pathB)
     {
-        var rootA = Path.GetPathRoot(Path.GetFullPath(pathA));
-        var rootB = Path.GetPathRoot(Path.GetFullPath(pathB));
+        var rootA = Path.GetPathRoot(PathSafety.GetComparisonPath(pathA));
+        var rootB = Path.GetPathRoot(PathSafety.GetComparisonPath(pathB));
         if (string.IsNullOrEmpty(rootA) || string.IsNullOrEmpty(rootB))
         {
             return false;
@@ -172,6 +172,10 @@ internal static class SafeFileOps
         cancellationToken.ThrowIfCancellationRequested();
         sourcePath = Path.GetFullPath(sourcePath);
         destinationPath = Path.GetFullPath(destinationPath);
+        // This entry point is also used directly by recovery tests. Reject
+        // unsupported device namespaces before copying or removing any entry.
+        PathSafety.GetComparisonPath(sourcePath);
+        PathSafety.GetComparisonPath(destinationPath);
         ValidateEntryIsNotReparsePoint(sourcePath);
         ValidateDestinationParent(Path.GetDirectoryName(destinationPath));
 
@@ -563,14 +567,7 @@ internal static class SafeFileOps
     }
 
     private static bool IsSameOrDescendant(string candidate, string ancestor)
-    {
-        var fullCandidate = Path.GetFullPath(candidate)
-            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        var fullAncestor = Path.GetFullPath(ancestor)
-            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        return string.Equals(fullCandidate, fullAncestor, StringComparison.OrdinalIgnoreCase)
-            || fullCandidate.StartsWith(fullAncestor + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
-    }
+        => PathSafety.IsSameOrDescendant(candidate, ancestor);
 
     private static void ValidateDestinationParent(string? directory)
     {

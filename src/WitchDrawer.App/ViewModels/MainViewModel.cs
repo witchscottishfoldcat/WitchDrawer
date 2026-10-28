@@ -15,12 +15,15 @@ public sealed partial class MainViewModel : ObservableObject, IBoxContentRefresh
     public UpdateViewModel Updates { get; }
     public ArchiveViewModel Archive { get; }
     public MaintenanceViewModel Maintenance { get; }
+    public PluginsViewModel? Plugins { get; internal set; }
+    private bool _isPluginsPage;
     private Task RunBusyAsync(Func<Task> action) => _operations.RunAsync(action);
 
     private async Task ShowArchiveAsync()
     {
         SelectedBox = null;
         IsArchivePage = true;
+        IsPluginsPage = false;
         IsSettingsPage = false;
         IsAboutPage = false;
         await Archive.LoadAsync();
@@ -98,6 +101,7 @@ public sealed partial class MainViewModel : ObservableObject, IBoxContentRefresh
         DeleteItemCommand = new AsyncRelayCommand<DrawerItemViewModel?>(DeleteItemAsync);
         ShowDashboardCommand = new RelayCommand(() =>
         {
+            IsPluginsPage = false;
             IsArchivePage = false;
             IsSettingsPage = false;
             IsAboutPage = false;
@@ -105,6 +109,7 @@ public sealed partial class MainViewModel : ObservableObject, IBoxContentRefresh
         ShowArchiveCommand = new AsyncRelayCommand(ShowArchiveAsync);
         ShowSettingsCommand = new AsyncRelayCommand(async () =>
         {
+            IsPluginsPage = false;
             SelectedBox = null;
             IsArchivePage = false;
             IsSettingsPage = true;
@@ -113,10 +118,19 @@ public sealed partial class MainViewModel : ObservableObject, IBoxContentRefresh
         });
         ShowAboutCommand = new RelayCommand(() =>
         {
+            IsPluginsPage = false;
             SelectedBox = null;
             IsArchivePage = false;
             IsSettingsPage = false;
             IsAboutPage = true;
+        });
+        ShowPluginsCommand = new RelayCommand(() =>
+        {
+            SelectedBox = null;
+            IsArchivePage = false;
+            IsSettingsPage = false;
+            IsAboutPage = false;
+            IsPluginsPage = true;
         });
     }
 
@@ -177,6 +191,12 @@ public sealed partial class MainViewModel : ObservableObject, IBoxContentRefresh
     public IAsyncRelayCommand ShowSettingsCommand { get; }
 
     public IRelayCommand ShowAboutCommand { get; }
+    public IRelayCommand ShowPluginsCommand { get; }
+    public bool IsPluginsPage
+    {
+        get => _isPluginsPage;
+        set => SetProperty(ref _isPluginsPage, value);
+    }
 
     public BoxViewModel? SelectedBox
     {

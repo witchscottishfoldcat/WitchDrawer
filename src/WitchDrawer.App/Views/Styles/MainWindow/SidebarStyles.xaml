@@ -59,6 +59,15 @@
             </DataTrigger>
         </Style.Triggers>
     </Style>
+    <Style x:Key="NavPluginsButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource FooterNavButtonStyle}">
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsPluginsPage}" Value="True">
+                <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
     <Style x:Key="NavSettingsButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource FooterNavButtonStyle}">
         <Style.Triggers>
             <DataTrigger Binding="{Binding IsSettingsPage}" Value="True">

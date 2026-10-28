@@ -139,6 +139,7 @@ public sealed class DrawerRepository
             await EnsureColumnAsync(connection, "Todos", "BoxId", "TEXT NULL", cancellationToken);
             await EnsureColumnAsync(connection, "Todos", "IsArchived", "INTEGER NOT NULL DEFAULT 0", cancellationToken);
             await EnsureColumnAsync(connection, "Todos", "ArchivedAt", "TEXT NULL", cancellationToken);
+            await RecoverLegacyTodosAsync(connection, cancellationToken);
             await ExecuteNonQueryAsync(
                 connection,
                 "CREATE INDEX IF NOT EXISTS IX_Todos_BoxStateSort ON Todos(BoxId, IsCompleted, SortOrder);",
@@ -1269,6 +1270,43 @@ public sealed class DrawerRepository
         var alterCommand = connection.CreateCommand();
         alterCommand.CommandText = $"ALTER TABLE {tableName} ADD COLUMN {columnName} {columnDefinition};";
         await alterCommand.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static async Task RecoverLegacyTodosAsync(
+        SqliteConnection connection,
+        CancellationToken cancellationToken)
+    {
+        // Pre-box versions stored global tasks. Also repair databases opened by
+        // versions that added BoxId without assigning those existing rows.
+        using var hasLegacy = connection.CreateCommand();
+        hasLegacy.CommandText = "SELECT EXISTS (SELECT 1 FROM Todos WHERE BoxId IS NULL);";
+        if (Convert.ToInt32(await hasLegacy.ExecuteScalarAsync(cancellationToken)) == 0) return;
+
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
+        hasLegacy.Transaction = transaction;
+        // A simultaneous initialization may have recovered them while we waited.
+        if (Convert.ToInt32(await hasLegacy.ExecuteScalarAsync(cancellationToken)) == 0) return;
+
+        var boxId = Guid.NewGuid().ToString();
+        using var createBox = connection.CreateCommand();
+        createBox.Transaction = transaction;
+        createBox.CommandText = """
+            INSERT INTO Boxes (Id, Name, Type, StoragePath, SortOrder, CreatedAt, UpdatedAt)
+            VALUES ($id, $name, $type, NULL,
+                (SELECT COALESCE(MAX(SortOrder), -1) + 1 FROM Boxes), $now, $now);
+            """;
+        createBox.Parameters.AddWithValue("$id", boxId);
+        createBox.Parameters.AddWithValue("$name", Strings.Get("RecoveredTaskBox"));
+        createBox.Parameters.AddWithValue("$type", (int)BoxType.Todo);
+        createBox.Parameters.AddWithValue("$now", ToDb(DateTimeOffset.UtcNow));
+        await createBox.ExecuteNonQueryAsync(cancellationToken);
+
+        using var assignTasks = connection.CreateCommand();
+        assignTasks.Transaction = transaction;
+        assignTasks.CommandText = "UPDATE Todos SET BoxId = $boxId WHERE BoxId IS NULL;";
+        assignTasks.Parameters.AddWithValue("$boxId", boxId);
+        await assignTasks.ExecuteNonQueryAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
     private static Box ReadBox(SqliteDataReader reader)

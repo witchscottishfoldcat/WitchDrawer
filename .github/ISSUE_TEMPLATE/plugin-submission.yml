@@ -1,0 +1,44 @@
+name: 插件收录申请 / Plugin submission
+description: 不熟悉 PR？填写此表，维护者审核后帮助加入插件目录。
+title: "[Plugin] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请先发布公开源码和固定版本的 GitHub Release ZIP。收录需人工审核，更新版本也需审核。
+        熟悉 GitHub 的作者可直接向 plugins/entries/ 提交 PR，参见 plugins/README.md。
+  - type: input
+    id: name
+    attributes: {label: 插件名称和唯一 ID, placeholder: "桌面时钟 / yourname.clock"}
+    validations: {required: true}
+  - type: textarea
+    id: description
+    attributes: {label: 功能介绍和截图, description: "说明用途，并附上 GitHub 托管的截图链接。"}
+    validations: {required: true}
+  - type: input
+    id: repository
+    attributes: {label: GitHub 源码仓库, placeholder: "https://github.com/owner/repository"}
+    validations: {required: true}
+  - type: input
+    id: package
+    attributes: {label: 固定版本的 Release ZIP 地址, placeholder: "https://github.com/owner/repository/releases/download/v1.0.0/plugin.zip"}
+    validations: {required: true}
+  - type: input
+    id: sha256
+    attributes: {label: ZIP 的 SHA-256, description: "用 Get-FileHash -Algorithm SHA256 计算，粘贴 64 位十六进制值。"}
+    validations: {required: true}
+  - type: textarea
+    id: manifest
+    attributes: {label: 完整 plugin.json, description: "包含作者、版本、API、兼容范围、入口和能力声明。"}
+    validations: {required: true}
+  - type: textarea
+    id: build
+    attributes: {label: 构建方法、资源开销和访问行为, description: "说明依赖、启动/内存/后台 CPU 开销，以及联网、系统指标或文件访问。"}
+    validations: {required: true}
+  - type: checkboxes
+    id: agreement
+    attributes:
+      label: 提交确认
+      options:
+        - label: 我有权分发代码与素材，已注明依赖和许可证；发布包可从所提供源码构建。
+          required: true

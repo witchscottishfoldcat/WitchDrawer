@@ -5,6 +5,7 @@ using WitchDrawer.Native.Windows;
 
 namespace WitchDrawer.App.Tests;
 
+[Collection("Desktop window ordering")]
 public sealed class DesktopWindowLayerTests
 {
     [Theory]

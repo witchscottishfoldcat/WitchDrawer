@@ -122,6 +122,14 @@ public sealed class DesktopBoxWindowVisibleBoundsTests
             isRollTransitioning: false,
             isVisible: true,
             sizeChanged: true,
+            isDragPreviewVisible: true));
+
+        Assert.False(DesktopBoxWindow.ShouldClampVisibleBounds(
+            isClampingEnabled: true,
+            isMappingViewTransitioning: false,
+            isRollTransitioning: false,
+            isVisible: true,
+            sizeChanged: true,
             isDrawerResizing: true));
         Assert.False(DesktopBoxWindow.ShouldClampVisibleBounds(
             isClampingEnabled: true,

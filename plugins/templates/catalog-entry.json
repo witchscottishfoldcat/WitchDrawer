@@ -1,0 +1,19 @@
+{
+  "plugin": {
+    "id": "yourname.clock",
+    "name": "Your clock",
+    "description": "Describe what the widget does.",
+    "author": "yourname",
+    "version": "1.0.0",
+    "apiVersion": 1,
+    "minHostVersion": "1.4.4",
+    "maxHostVersion": null,
+    "repositoryUrl": "https://github.com/yourname/WitchDrawer.Clock",
+    "entryAssembly": "YourClock.dll",
+    "entryType": "YourClock.ClockPlugin",
+    "permissions": []
+  },
+  "packageUrl": "https://github.com/yourname/WitchDrawer.Clock/releases/download/v1.0.0/YourClock-v1.0.0.zip",
+  "sha256": "REPLACE_WITH_64_HEX_DIGITS_FROM_GET_FILEHASH",
+  "screenshotUrl": "https://raw.githubusercontent.com/yourname/WitchDrawer.Clock/main/screenshot.png"
+}

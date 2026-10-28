@@ -133,8 +133,10 @@ public sealed partial class DesktopBoxViewModel
         IsDragPreviewVisible = true;
         UpdateGridCanvasSize(positionsChanged: false);
 
-        DragPreviewLeft = (column * LayoutSettings.ItemSlotWidth) + LayoutSettings.ItemSpacing;
-        DragPreviewTop = (row * LayoutSettings.ItemSlotHeight) + LayoutSettings.ItemSpacing;
+        // The preview repeats the item's layout, including rounded margins and padding.
+        // Keep the slot origin intact instead of subtracting those insets twice.
+        DragPreviewLeft = column * LayoutSettings.ItemSlotWidth;
+        DragPreviewTop = row * LayoutSettings.ItemSlotHeight;
     }
 
     public void HideDragPreview()

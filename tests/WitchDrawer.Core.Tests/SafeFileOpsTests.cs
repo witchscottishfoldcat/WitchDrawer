@@ -7,6 +7,35 @@ namespace WitchDrawer.Core.Tests;
 public sealed class SafeFileOpsTests
 {
     [Theory]
+    [InlineData(@"C:\source\file.txt", @"\\?\C:\destination\file.txt", true)]
+    [InlineData(@"\\?\C:\source\file.txt", @"C:\destination\file.txt", true)]
+    [InlineData(@"\\server\share\source.txt", @"\\?\UNC\server\share\destination.txt", true)]
+    [InlineData(@"\\server\share\source.txt", @"\\?\UNC\server\other\destination.txt", false)]
+    public void AreSameVolume_RecognizesExtendedPathAliases(string source, string destination, bool expected)
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        Assert.Equal(expected, SafeFileOps.AreSameVolume(source, destination));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ExtendedDirectoryAlias_CannotBeMovedOrCopiedIntoItsOwnDescendant(bool copy)
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var workspace = new TempWorkspace();
+        var source = workspace.CreateDirectory("source");
+        File.WriteAllText(Path.Combine(source, "payload.txt"), "payload");
+        var destination = Path.Combine(source, "child");
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => copy
+            ? SafeFileOps.CopyAsync(@"\\?\" + source, destination, true, timeout.Token)
+            : SafeFileOps.MoveAsync(@"\\?\" + source, destination, true, timeout.Token));
+        Assert.Equal("payload", File.ReadAllText(Path.Combine(source, "payload.txt")));
+        Assert.Single(Directory.EnumerateFileSystemEntries(source));
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void CopyThenDelete_LongEntryName_PreservesContentAndRemovesSource(bool isDirectory)

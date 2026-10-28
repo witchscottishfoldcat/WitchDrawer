@@ -179,6 +179,7 @@ public partial class DesktopBoxWindow
 
         if (_mappingViewTransitionVisibleOriginPixels is Point anchoredOrigin
             && IsVisible
+            && !ViewModel.IsDragPreviewVisible
             && e.PreviousSize != e.NewSize)
         {
             MoveToVisibleOriginPixels(anchoredOrigin.X, anchoredOrigin.Y);
@@ -191,7 +192,8 @@ public partial class DesktopBoxWindow
                 _isRollTransitioning,
                 IsVisible,
                 e.PreviousSize != e.NewSize,
-                _isDrawerResizing))
+                _isDrawerResizing,
+                ViewModel.IsDragPreviewVisible))
         {
             return;
         }
@@ -204,6 +206,7 @@ public partial class DesktopBoxWindow
         _ = Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
         {
             if (_isVisibleBoundsClampingEnabled && IsVisible && !_isDrawerResizing
+                && !ViewModel.IsDragPreviewVisible
                 && !_isDisplayLayoutRecoveryPending && !_isRestoringDisplayLayout)
             {
                 ClampVisibleBoundsToWorkArea();
@@ -217,16 +220,17 @@ public partial class DesktopBoxWindow
         // HWND 缩放与 SizeChanged 事件不同步，事件触发时 HWND 可能仍是初始尺寸，
         // 读 HWND 会把正常窗口误判为越界并错误钳回左上（首次显示时必现）。
         var bounds = GetLayoutVisibleBoundsPixels();
-        if (bounds.Width <= 0 || bounds.Height <= 0)
-        {
-            return;
-        }
+        var correction = GetWorkAreaCorrection(bounds, GetWorkAreaPixels(), ViewModel.IsDragPreviewVisible);
+        if (correction is Point origin) MoveToVisibleOriginPixels(origin.X, origin.Y);
+    }
 
-        var workArea = GetWorkAreaPixels();
-        if (workArea.IsEmpty)
-        {
-            return;
-        }
+    internal static Point? GetWorkAreaCorrection(Rect bounds, Rect workArea, bool isDragPreviewVisible)
+    {
+        // A preview is temporary. Moving its window would leave a canceled drag
+        // displaced and change the pointer's grid coordinates. Real content
+        // growth after a completed drop still receives the normal correction.
+        if (isDragPreviewVisible || bounds.IsEmpty || bounds.Width <= 0 || bounds.Height <= 0 || workArea.IsEmpty)
+            return null;
         var visibleLeft = bounds.Left;
         var visibleTop = bounds.Top;
         if (bounds.Right > workArea.Right)
@@ -245,8 +249,9 @@ public partial class DesktopBoxWindow
         if (Math.Abs(visibleLeft - bounds.Left) > 0.5
             || Math.Abs(visibleTop - bounds.Top) > 0.5)
         {
-            MoveToVisibleOriginPixels(visibleLeft, visibleTop);
+            return new Point(visibleLeft, visibleTop);
         }
+        return null;
     }
 
     internal static bool ShouldClampVisibleBounds(
@@ -255,11 +260,13 @@ public partial class DesktopBoxWindow
         bool isRollTransitioning,
         bool isVisible,
         bool sizeChanged,
-        bool isDrawerResizing = false) =>
+        bool isDrawerResizing = false,
+        bool isDragPreviewVisible = false) =>
         isClampingEnabled
         && !isMappingViewTransitioning
         && !isRollTransitioning
         && !isDrawerResizing
+        && !isDragPreviewVisible
         && isVisible
         && sizeChanged;
 

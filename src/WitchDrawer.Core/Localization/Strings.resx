@@ -1679,4 +1679,44 @@ Saved to: {1}</value>
   <data name="LanguageSaveFailed" xml:space="preserve">
     <value>Could not save the language setting</value>
   </data>
+  <data name="Plugins" xml:space="preserve"><value>Plugins</value></data>
+  <data name="PluginCenter" xml:space="preserve"><value>Plugin center</value></data>
+  <data name="PluginCenterDescription" xml:space="preserve"><value>Install desktop widgets when you need them. Only enabled plugins run in the background.</value></data>
+  <data name="PluginRefresh" xml:space="preserve"><value>Refresh catalog</value></data>
+  <data name="PluginImport" xml:space="preserve"><value>Install local package</value></data>
+  <data name="PluginSubmit" xml:space="preserve"><value>Submit a plugin</value></data>
+  <data name="PluginGuide" xml:space="preserve"><value>Author guide / PR</value></data>
+  <data name="PluginInstallUpdate" xml:space="preserve"><value>Install / update</value></data>
+  <data name="PluginEnable" xml:space="preserve"><value>Enable</value></data>
+  <data name="PluginDisable" xml:space="preserve"><value>Disable</value></data>
+  <data name="PluginSettings" xml:space="preserve"><value>Settings</value></data>
+  <data name="PluginUninstall" xml:space="preserve"><value>Uninstall</value></data>
+  <data name="PluginSource" xml:space="preserve"><value>Source code</value></data>
+  <data name="PluginEmptyCatalog" xml:space="preserve"><value>No plugins are listed yet. You can import a local package or submit a plugin for review.</value></data>
+  <data name="PluginOfflineCatalog" xml:space="preserve"><value>GitHub is unavailable. Showing the cached or bundled catalog; installed plugins work offline.</value></data>
+  <data name="PluginCatalogUpdated" xml:space="preserve"><value>Catalog refreshed.</value></data>
+  <data name="PluginWorking" xml:space="preserve"><value>Working…</value></data>
+  <data name="PluginOperationFailed" xml:space="preserve"><value>Plugin operation failed: {0}</value></data>
+  <data name="PluginCancelled" xml:space="preserve"><value>Cancelled.</value></data>
+  <data name="PluginInstalledDisabled" xml:space="preserve"><value>Installed. Enable the plugin to show its desktop widget.</value></data>
+  <data name="PluginUninstalled" xml:space="preserve"><value>Plugin uninstalled.</value></data>
+  <data name="PluginConfirmUninstall" xml:space="preserve"><value>Uninstall this plugin and remove its settings?</value></data>
+  <data name="PluginTrustMessage" xml:space="preserve"><value>{0} by {1}
+Source: {2}
+Declared capabilities: {3}
+
+This plugin runs with WitchDrawer's process permissions. These declarations do not restrict DLL access. Install only code you trust. It will stay disabled until you enable it.</value></data>
+  <data name="PluginNoCapabilities" xml:space="preserve"><value>No additional capabilities declared</value></data>
+  <data name="PluginIncompatible" xml:space="preserve"><value>Incompatible with this app version</value></data>
+  <data name="PluginRunning" xml:space="preserve"><value>Running</value></data>
+  <data name="PluginNotInstalled" xml:space="preserve"><value>Not installed</value></data>
+  <data name="PluginDisabled" xml:space="preserve"><value>Installed · disabled</value></data>
+  <data name="PluginUpdateAvailable" xml:space="preserve"><value>Update available: {0} · disable before updating</value></data>
+  <data name="PluginOperationCompleted" xml:space="preserve"><value>Done.</value></data>
+  <data name="PluginNoSettings" xml:space="preserve"><value>This plugin has no settings.</value></data>
+  <data name="PluginScreenshot" xml:space="preserve"><value>Screenshot</value></data>
+  <data name="PluginNetwork" xml:space="preserve"><value>Network access</value></data>
+  <data name="PluginMetrics" xml:space="preserve"><value>System metrics</value></data>
+  <data name="PluginFiles" xml:space="preserve"><value>File access</value></data>
+  <data name="RecoveredTaskBox" xml:space="preserve"><value>Recovered tasks</value></data>
 </root>

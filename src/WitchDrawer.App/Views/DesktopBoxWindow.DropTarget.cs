@@ -330,61 +330,33 @@ public partial class DesktopBoxWindow
     private void ShowMappingListDropIndicator(DragEventArgs e, Guid? movingItemId)
     {
         var insertionIndex = GetMappingListDropIndex(e, movingItemId);
-        var remainingItems = ViewModel.Items
-            .Where(item => movingItemId is null || item.Id != movingItemId.Value)
-            .ToList();
+        var sourceIndex = movingItemId is Guid id ? ViewModel.GetDropItemIndex(id) : -1;
+        var remainingCount = ViewModel.Items.Count - (sourceIndex >= 0 ? 1 : 0);
 
         FrameworkElement? boundaryContainer = null;
         var useContainerBottom = false;
-        if (remainingItems.Count > 0)
+        if (remainingCount > 0)
         {
-            if (insertionIndex < remainingItems.Count)
-            {
-                boundaryContainer = FileList.ItemContainerGenerator.ContainerFromItem(
-                    remainingItems[insertionIndex]) as FrameworkElement;
-            }
-            else
-            {
-                boundaryContainer = FileList.ItemContainerGenerator.ContainerFromItem(
-                    remainingItems[^1]) as FrameworkElement;
-                useContainerBottom = true;
-            }
+            // Translate the insertion index without copying the entire mapped
+            // folder on every OLE DragOver, including repeats in the same row.
+            var boundaryIndex = Math.Min(insertionIndex, remainingCount - 1);
+            if (sourceIndex >= 0 && boundaryIndex >= sourceIndex) boundaryIndex++;
+            boundaryContainer = FileList.ItemContainerGenerator.ContainerFromIndex(boundaryIndex) as FrameworkElement;
+            useContainerBottom = insertionIndex >= remainingCount;
         }
 
-        Point boundaryPoint;
-        if (boundaryContainer is not null)
-        {
-            boundaryPoint = boundaryContainer.TranslatePoint(
-                new Point(0, useContainerBottom ? boundaryContainer.ActualHeight : 0),
-                MappingListDropOverlay);
-        }
-        else
+        if (boundaryContainer is null)
         {
             var source = e.OriginalSource as DependencyObject;
             var hoveredContainer = source is null
                 ? null
                 : ItemsControl.ContainerFromElement(FileList, source) as FrameworkElement;
-            boundaryPoint = hoveredContainer is null
-                ? FileList.TranslatePoint(
-                    new Point(0, FileList.Padding.Top),
-                    MappingListDropOverlay)
-                : hoveredContainer.TranslatePoint(
-                    new Point(
-                        0,
-                        e.GetPosition(hoveredContainer).Y >= hoveredContainer.ActualHeight / 2
-                            ? hoveredContainer.ActualHeight
-                            : 0),
-                    MappingListDropOverlay);
+            boundaryContainer = hoveredContainer ?? FileList;
+            useContainerBottom = hoveredContainer is not null
+                && e.GetPosition(hoveredContainer).Y >= hoveredContainer.ActualHeight / 2;
         }
 
-        var listOrigin = FileList.TranslatePoint(new Point(0, 0), MappingListDropOverlay);
-        var horizontalInset = Math.Max(6, FileList.Padding.Left);
-        Canvas.SetLeft(MappingListInsertionIndicator, listOrigin.X + horizontalInset);
-        Canvas.SetTop(MappingListInsertionIndicator, boundaryPoint.Y - 1);
-        MappingListInsertionIndicator.Width = Math.Max(
-            MappingListInsertionIndicator.MinWidth,
-            FileList.ActualWidth - horizontalInset - Math.Max(6, FileList.Padding.Right));
-        MappingListDropOverlay.Visibility = Visibility.Visible;
+        MappingListDropOverlay.ShowBoundary(boundaryContainer, useContainerBottom);
     }
 
     private void HideMappingListDropIndicator()
@@ -408,39 +380,31 @@ public partial class DesktopBoxWindow
             return;
         }
 
-        var cellRect = CalculateCoverCellRect(
-            insertIndex,
-            ViewModel.DrawerCoverColumns,
-            ViewModel.DrawerCoverRows,
-            DrawerCoverItems.ActualWidth,
-            DrawerCoverItems.ActualHeight,
-            ViewModel.LayoutSettings.ItemSpacing);
-        var origin = DrawerCoverItems.TranslatePoint(
-            new Point(cellRect.Left, cellRect.Top),
-            DragPreviewCanvas);
-        ViewModel.ShowDragPreviewAt(origin.X, origin.Y, cellRect.Width, cellRect.Height);
+        // FixedCellGridPanel places cells at these fixed steps, rather than
+        // dividing a DPI-rounded surface size. The overlay anchors to that panel
+        // during arrange, including on the first drag while it was still hidden.
+        var cell = CalculateCoverCellRect(insertIndex, ViewModel.DrawerCoverDisplayColumns,
+            ViewModel.LayoutSettings.DrawerCoverCellWidth, ViewModel.LayoutSettings.DrawerCoverCellHeight);
+        ViewModel.ShowDragPreviewAt(cell.X, cell.Y, cell.Width, cell.Height);
     }
 
     internal static Rect CalculateCoverCellRect(
         int cellIndex,
         int columns,
-        int rows,
-        double surfaceWidth,
-        double surfaceHeight,
-        double inset)
+        double cellWidth,
+        double cellHeight)
     {
         var safeColumns = Math.Max(1, columns);
-        var safeRows = Math.Max(1, rows);
-        var cellWidth = surfaceWidth / safeColumns;
-        var cellHeight = surfaceHeight / safeRows;
+        cellWidth = double.IsFinite(cellWidth) ? Math.Max(1, cellWidth) : 1;
+        cellHeight = double.IsFinite(cellHeight) ? Math.Max(1, cellHeight) : 1;
         var safeIndex = Math.Max(0, cellIndex);
         var cellColumn = safeIndex % safeColumns;
         var cellRow = safeIndex / safeColumns;
         return new Rect(
-            (cellColumn * cellWidth) + inset,
-            (cellRow * cellHeight) + inset,
-            Math.Max(1, cellWidth - (inset * 2)),
-            Math.Max(1, cellHeight - (inset * 2)));
+            cellColumn * cellWidth,
+            cellRow * cellHeight,
+            cellWidth,
+            cellHeight);
     }
 
     private async Task CompleteInternalDropAsync(DesktopBoxDragPayload payload, (int Column, int Row) slot)

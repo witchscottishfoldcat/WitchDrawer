@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\WitchDrawer.Core\WitchDrawer.Core.csproj" />
     <ProjectReference Include="..\WitchDrawer.Native\WitchDrawer.Native.csproj" />
+    <ProjectReference Include="..\WitchDrawer.PluginSdk\WitchDrawer.PluginSdk.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -28,6 +29,7 @@
 
   <ItemGroup>
     <None Include="Assets\app.ico" CopyToOutputDirectory="Always" CopyToPublishDirectory="Always" />
+    <None Include="..\..\plugins\catalog.json" Link="plugins\catalog.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
   </ItemGroup>
 
 </Project>

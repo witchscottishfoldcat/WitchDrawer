@@ -607,9 +607,10 @@
                 </ListBox.ItemTemplate>
             </ListBox>
 
-            <Canvas x:Name="MappingListDropOverlay"
+            <controls:MappingListDropCanvas x:Name="MappingListDropOverlay"
                     Grid.Row="1"
                     Panel.ZIndex="11"
+                    SourceList="{Binding ElementName=FileList}"
                     IsHitTestVisible="False"
                     Visibility="Collapsed">
                 <Border x:Name="MappingListInsertionIndicator"
@@ -618,7 +619,7 @@
                         CornerRadius="1"
                         Background="{DynamicResource AccentBrush}"
                         SnapsToDevicePixels="True" />
-            </Canvas>
+            </controls:MappingListDropCanvas>
 
             <Thumb x:Name="MappingListResizeThumb"
                    Grid.RowSpan="2"
@@ -1316,53 +1317,118 @@
                 </Grid>
             </Grid>
 
-            <Canvas x:Name="DragPreviewCanvas"
+            <controls:IconDragPreviewCanvas x:Name="DragPreviewCanvas"
                     Grid.Row="1"
-                    Panel.ZIndex="2"
+                    Panel.ZIndex="6"
                     Margin="8,2,8,8"
                     IsHitTestVisible="False"
                     ClipToBounds="False"
                     HorizontalAlignment="Left"
                     VerticalAlignment="Top"
                     Visibility="{Binding IsDragPreviewVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <Canvas.Style>
-                    <Style TargetType="Canvas">
+                <controls:IconDragPreviewCanvas.Style>
+                    <Style TargetType="controls:IconDragPreviewCanvas">
                         <Setter Property="Width" Value="{Binding GridCanvasWidth}" />
                         <Setter Property="Height" Value="{Binding GridCanvasHeight}" />
+                        <Setter Property="SourceList" Value="{Binding ElementName=IconList}" />
                         <Style.Triggers>
                             <!-- Collapsed drawer: the frame is positioned over a cover cell;
                                  the canvas itself must not grow the SizeToContent window. -->
                             <DataTrigger Binding="{Binding IsDrawerCollapsed}" Value="True">
                                 <Setter Property="Width" Value="0" />
                                 <Setter Property="Height" Value="0" />
+                                <Setter Property="SourceList" Value="{x:Null}" />
+                                <Setter Property="SourceCover" Value="{Binding ElementName=DrawerCoverItems}" />
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
-                </Canvas.Style>
-                <Rectangle Canvas.Left="{Binding DragPreviewLeft}"
-                           Canvas.Top="{Binding DragPreviewTop}"
-                           Width="{Binding DragPreviewWidth}"
-                           Height="{Binding DragPreviewHeight}"
-                           Fill="{DynamicResource AccentSoftBrush}"
-                           Stroke="{DynamicResource AccentBrush}"
-                           StrokeThickness="1.4"
-                           StrokeDashArray="4 3"
-                           Opacity="0.68"
-                           RenderTransformOrigin="0.5,0.5">
-                    <Rectangle.Style>
-                        <Style TargetType="Rectangle">
-                            <Setter Property="RadiusX" Value="{Binding LayoutSettings.ItemCornerRadius.TopLeft}" />
-                            <Setter Property="RadiusY" Value="{Binding LayoutSettings.ItemCornerRadius.TopLeft}" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsPixelStyle}" Value="True">
-                                    <Setter Property="RadiusX" Value="6" />
-                                    <Setter Property="RadiusY" Value="6" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Rectangle.Style>
-                </Rectangle>
-            </Canvas>
+                </controls:IconDragPreviewCanvas.Style>
+                <!-- Match the actual item layout so names and fractional-DPI rounding
+                     place the dashed outline on the icon card, rather than its slot. -->
+                <Grid Canvas.Left="{Binding DragPreviewLeft}"
+                      Canvas.Top="{Binding DragPreviewTop}"
+                      Width="{Binding DragPreviewWidth}"
+                      Height="{Binding DragPreviewHeight}">
+                    <Grid Margin="{Binding LayoutSettings.ItemMargin}">
+                        <Border>
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Padding" Value="{Binding LayoutSettings.ItemPadding}" />
+                                    <Setter Property="BorderThickness" Value="1.2" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsDrawerCollapsed}" Value="True">
+                                            <Setter Property="Padding" Value="0" />
+                                            <Setter Property="BorderThickness" Value="0" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <ContentPresenter>
+                                <ContentPresenter.Style>
+                                    <Style TargetType="ContentPresenter">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsDrawerCollapsed}" Value="True">
+                                                <Setter Property="HorizontalAlignment" Value="Center" />
+                                                <Setter Property="VerticalAlignment" Value="Center" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ContentPresenter.Style>
+                                <ContentPresenter.Content>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <Rectangle x:Name="DragPreviewOutline"
+                                                   Width="{Binding LayoutSettings.IconFrameSize}"
+                                                   Height="{Binding LayoutSettings.IconFrameSize}"
+                                                   HorizontalAlignment="Center"
+                                                   Fill="{DynamicResource AccentSoftBrush}"
+                                                   Stroke="{DynamicResource AccentBrush}"
+                                                   StrokeThickness="1.4"
+                                                   StrokeDashArray="4 3"
+                                                   Opacity="0.68">
+                                            <Rectangle.Style>
+                                                <Style TargetType="Rectangle">
+                                                    <Setter Property="RadiusX" Value="{Binding LayoutSettings.IconCornerRadius.TopLeft}" />
+                                                    <Setter Property="RadiusY" Value="{Binding LayoutSettings.IconCornerRadius.TopLeft}" />
+                                                    <Style.Triggers>
+                                                        <MultiDataTrigger>
+                                                            <MultiDataTrigger.Conditions>
+                                                                <Condition Binding="{Binding IsPixelStyle}" Value="True" />
+                                                                <Condition Binding="{Binding IsDrawerCollapsed}" Value="False" />
+                                                            </MultiDataTrigger.Conditions>
+                                                            <Setter Property="RadiusX" Value="{Binding PixelIconRadius.TopLeft, Source={x:Static infrastructure:AppThemeManager.DesktopCorners}}" />
+                                                            <Setter Property="RadiusY" Value="{Binding PixelIconRadius.TopLeft, Source={x:Static infrastructure:AppThemeManager.DesktopCorners}}" />
+                                                        </MultiDataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Rectangle.Style>
+                                        </Rectangle>
+                                        <!-- Reserve the same text row without drawing a filename. -->
+                                        <TextBlock Text="Ag"
+                                                   MaxHeight="{Binding LayoutSettings.IconTextMaxHeight}"
+                                                   FontSize="{Binding LayoutSettings.IconFontSize}"
+                                                   TextWrapping="{Binding LayoutSettings.IconTextWrapping}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Opacity="0"
+                                                   Visibility="{Binding IsFileNameVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Margin" Value="1,1,1,0" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsDrawerCollapsed}" Value="True">
+                                                            <Setter Property="Width" Value="{Binding LayoutSettings.IconFrameSize}" />
+                                                            <Setter Property="Margin" Value="0,1,0,0" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </ContentPresenter.Content>
+                            </ContentPresenter>
+                        </Border>
+                    </Grid>
+                </Grid>
+            </controls:IconDragPreviewCanvas>
 
             <!-- 空列表时: 拖拽投放槽 (跑马灯虚线动画) -->
             <Border Grid.Row="1"

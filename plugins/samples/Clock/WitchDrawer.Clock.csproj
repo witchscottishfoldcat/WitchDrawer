@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <Version>1.1.1</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../src/WitchDrawer.PluginSdk/WitchDrawer.PluginSdk.csproj" Private="false" ExcludeAssets="runtime" />
+    <None Update="plugin.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

@@ -15,6 +15,8 @@ using WitchDrawer.Core;
 using WitchDrawer.Core.Logging;
 using WitchDrawer.Core.Services;
 using WitchDrawer.Core.Storage;
+using WitchDrawer.Core.Plugins;
+using WitchDrawer.App.Plugins;
 using WitchDrawer.Native.Files;
 using WitchDrawer.Native.Shell;
 using WitchDrawer.Native.Windows;
@@ -39,6 +41,8 @@ public partial class App : Application
     private TaskCompletionSource<DesktopBoxManager>? _desktopReady;
     private IAppLogger? _logger;
     private int _shutdownStarted;
+    private PluginService? _pluginService;
+    private PluginRuntime? _pluginRuntime;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -157,6 +161,10 @@ public partial class App : Application
             var mainViewModel = new MainViewModel(drawerService, todoService, launcher,
                 shellChangeNotifier, logger, boxVisualStyleStore, boxPositionLockStateStore,
                 settings, updates, archive, maintenance, operations);
+            _pluginService = new PluginService(paths, typeof(App).Assembly.GetName().Version!,
+                Path.Combine(AppContext.BaseDirectory, "plugins", "catalog.json"), logger);
+            _pluginRuntime = new PluginRuntime(_pluginService, logger, Dispatcher);
+            mainViewModel.Plugins = new PluginsViewModel(_pluginService, _pluginRuntime, logger);
             _mainWindow = new MainWindow(
                 mainViewModel,
                 () => new QuickPanelWindow(quickPanelViewModel),
@@ -364,6 +372,8 @@ public partial class App : Application
             }
             startupTimer.Mark("启动完成");
             await updateService.ConfirmUpdateStartupAsync();
+            if (Volatile.Read(ref _shutdownStarted) == 0)
+                FireAndForget.Run(_pluginRuntime.EnsureInitializedAsync(), logger, "Plugin restore failed.");
         }
         catch (Exception exception)
         {
@@ -614,6 +624,13 @@ public partial class App : Application
 
         _contentSync?.Dispose();
         _contentSync = null;
+        _mainWindow?.ViewModel.Plugins?.Dispose();
+        if (_pluginRuntime is not null)
+        {
+            try { await _pluginRuntime.ShutdownAsync(); }
+            catch (Exception exception) { _logger?.Error(exception, "Plugin shutdown failed."); }
+        }
+        _pluginService?.Dispose();
         var desktopBoxManager = _desktopBoxManager;
         _desktopBoxManager = null;
         if (desktopBoxManager is not null)
@@ -682,6 +699,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _pluginService?.Dispose();
         // Early startup failures can exit without running the normal asynchronous shutdown.
         if (_logger is FileAppLogger fileLogger) _ = fileLogger.DisposeAsync();
         _singleInstancePipeCts?.Cancel();

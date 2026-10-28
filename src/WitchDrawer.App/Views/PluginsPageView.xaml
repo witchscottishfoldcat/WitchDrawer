@@ -1,0 +1,47 @@
+<UserControl x:Class="WitchDrawer.App.Views.PluginsPageView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:WitchDrawer.App.Localization" Loaded="OnLoaded">
+    <Grid>
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <StackPanel Margin="0,0,0,14">
+            <TextBlock Text="{loc:Text PluginCenter}" FontSize="24" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}"/>
+            <TextBlock Text="{loc:Text PluginCenterDescription}" TextWrapping="Wrap" Margin="0,6,0,0" Foreground="{DynamicResource TextMutedBrush}"/>
+        </StackPanel>
+        <WrapPanel Grid.Row="1" Margin="0,0,0,12">
+            <Button Content="{loc:Text PluginRefresh}" Command="{Binding RefreshCommand}" Margin="0,0,8,6"/>
+            <Button Content="{loc:Text PluginImport}" Command="{Binding ImportCommand}" Margin="0,0,8,6"/>
+            <Button Content="{loc:Text PluginSubmit}" Command="{Binding SubmitCommand}" Margin="0,0,8,6"/>
+            <Button Content="{loc:Text PluginGuide}" Command="{Binding GuideCommand}" Margin="0,0,8,6"/>
+        </WrapPanel>
+        <ListBox Grid.Row="2" ItemsSource="{Binding Items}" Background="Transparent" BorderThickness="0"
+                 ScrollViewer.CanContentScroll="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+            <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Padding" Value="0"/><Setter Property="Margin" Value="0,0,0,10"/></Style></ListBox.ItemContainerStyle>
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Border Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource BorderBrushSoft}" BorderThickness="1" CornerRadius="12" Padding="16">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            <TextBlock Text="{Binding Details}" Margin="0,4,0,0" Foreground="{DynamicResource TextMutedBrush}"/>
+                            <TextBlock Text="{Binding Description}" TextWrapping="Wrap" Margin="0,8,0,0" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            <TextBlock Text="{Binding Capabilities}" TextWrapping="Wrap" Margin="0,4,0,0" Foreground="{DynamicResource TextMutedBrush}"/>
+                            <TextBlock Text="{Binding State}" TextWrapping="Wrap" Margin="0,8,0,0" Foreground="{DynamicResource AccentBrush}"/>
+                            <WrapPanel Margin="0,12,0,0">
+                                <Button Content="{loc:Text PluginInstallUpdate}" Command="{Binding InstallCommand}" Margin="0,0,8,4"/>
+                                <Button Content="{loc:Text PluginEnable}" Command="{Binding EnableCommand}" Margin="0,0,8,4"/>
+                                <Button Content="{loc:Text PluginDisable}" Command="{Binding DisableCommand}" Margin="0,0,8,4"/>
+                                <Button Content="{loc:Text PluginSettings}" Command="{Binding SettingsCommand}" Margin="0,0,8,4"/>
+                                <Button Content="{loc:Text PluginUninstall}" Command="{Binding UninstallCommand}" Margin="0,0,8,4"/>
+                                <Button Content="{loc:Text PluginSource}" Command="{Binding SourceCommand}" Margin="0,0,8,4"/>
+                                <Button Content="{loc:Text PluginScreenshot}" Command="{Binding ScreenshotCommand}" Margin="0,0,8,4"/>
+                            </WrapPanel>
+                        </StackPanel>
+                    </Border>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+        <TextBlock Grid.Row="2" Text="{loc:Text PluginEmptyCatalog}" TextWrapping="Wrap" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="400"
+                   Foreground="{DynamicResource TextMutedBrush}" Visibility="{Binding IsEmpty, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+        <TextBlock Grid.Row="3" Text="{Binding Status}" TextWrapping="Wrap" Margin="0,10,0,0" Foreground="{DynamicResource TextMutedBrush}"/>
+    </Grid>
+</UserControl>

@@ -7,6 +7,123 @@ namespace WitchDrawer.Core.Tests;
 
 public sealed class FileCommandTests
 {
+    [Fact]
+    public async Task ExtendedDatabaseAlias_IsRejectedWithoutChangingTheDatabase()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var w = await Workspace.CreateAsync();
+        var before = await w.Service.GetBoxesAsync();
+        var alias = @"\\?\" + w.Paths.DatabasePath;
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => w.Service.ImportPathAsync(w.Box.Id, alias));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => w.Service.CopyPathToBoxAsync(w.Box.Id, alias));
+
+        Assert.True(File.Exists(w.Paths.DatabasePath));
+        Assert.Equal(before.Select(box => box.Id), (await w.Service.GetBoxesAsync()).Select(box => box.Id));
+        Assert.Empty(await w.Service.GetItemsAsync(w.Box.Id));
+        Assert.Empty(await w.Repository.GetPendingFileOperationsAsync());
+        Assert.Empty(Directory.EnumerateFileSystemEntries(w.Box.StoragePath!));
+    }
+
+    [Fact]
+    public async Task ExtendedConfigurationSidecarAlias_IsRejectedBeforeImport()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var w = await Workspace.CreateAsync();
+        var source = Path.Combine(w.Paths.RootDirectory, StorageLocationStore.ConfigFileName + ".backup");
+        File.WriteAllText(source, "configuration backup");
+        await Assert.ThrowsAsync<InvalidOperationException>(() => w.Service.ImportPathAsync(w.Box.Id, @"\\?\" + source));
+        Assert.Equal("configuration backup", File.ReadAllText(source));
+        Assert.Empty(await w.Repository.GetPendingFileOperationsAsync());
+    }
+
+    [Fact]
+    public async Task ExtendedStoredFileAlias_CannotBeImportedAndKeepsItsOriginalRestoreLocationWhenCopied()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var w = await Workspace.CreateAsync();
+        var source = w.Source("original", "payload");
+        var original = await w.Service.ImportPathAsync(w.Box.Id, source);
+        var secondBox = await w.Service.CreateBoxAsync("second", BoxType.Normal);
+        var alias = @"\\?\" + original.StoredPath;
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => w.Service.ImportPathAsync(secondBox.Id, alias));
+        Assert.Equal("payload", File.ReadAllText(original.StoredPath!));
+        Assert.Equal(original.Id, Assert.Single(await w.Service.GetItemsAsync(w.Box.Id)).Id);
+        Assert.Empty(await w.Service.GetItemsAsync(secondBox.Id));
+
+        var copied = await w.Service.CopyPathToBoxAsync(secondBox.Id, alias);
+        Assert.Equal(source, copied.SourcePath);
+        Assert.Equal("payload", File.ReadAllText(copied.StoredPath!));
+        Assert.Equal("payload", File.ReadAllText(original.StoredPath!));
+        Assert.Empty(await w.Repository.GetPendingFileOperationsAsync());
+    }
+
+    [Fact]
+    public async Task ExtendedOrdinaryFilePath_CanBeImportedAndRestoredWithoutRewritingItsIoPath()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var w = await Workspace.CreateAsync();
+        var source = w.Source("original", "payload");
+        var alias = @"\\?\" + source;
+        var item = await w.Service.ImportPathAsync(w.Box.Id, alias);
+        Assert.Equal(alias, item.SourcePath);
+        Assert.False(File.Exists(source));
+        var restored = await w.Service.DeleteItemAsync(item.Id);
+        Assert.Equal(alias, restored.RestoredPath);
+        Assert.Equal("payload", File.ReadAllText(source));
+        Assert.Empty(await w.Repository.GetPendingFileOperationsAsync());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LongNameConflicts_ImportAndRestoreEveryItemWithValidSuffixes(bool directory)
+    {
+        using var w = await Workspace.CreateAsync();
+        var stem = new string('a', directory ? 255 : 251);
+        var source = w.Source(stem, "first", directory);
+        var first = await w.Service.ImportPathAsync(w.Box.Id, source);
+        var second = await w.Service.ImportPathAsync(w.Box.Id, w.Source(stem, "second", directory));
+        Assert.EndsWith(" (1)" + (directory ? "" : ".txt"), second.DisplayName);
+        Assert.True(second.DisplayName.Length <= 255);
+        w.Source(stem, "external", directory);
+
+        var deleted = await w.Service.DeleteBoxAsync(w.Box.Id);
+
+        Assert.True(deleted.BoxRemoved);
+        Assert.Equal(2, deleted.RestoredCount);
+        Assert.Equal("external", w.Read(source, directory));
+        var restored = Directory.EnumerateFileSystemEntries(Path.GetDirectoryName(source)!).ToArray();
+        Assert.Equal(3, restored.Length);
+        Assert.All(restored, path => Assert.True(Path.GetFileName(path).Length <= 255));
+        Assert.Contains(restored, path => w.Read(path, directory) == "first");
+        Assert.Contains(restored, path => w.Read(path, directory) == "second");
+        Assert.Empty(await w.Repository.GetPendingFileOperationsAsync());
+    }
+
+    [Fact]
+    public async Task LongNameConflict_WithPendingTargetReservation_UsesABoundedSuffix()
+    {
+        using var w = await Workspace.CreateAsync();
+        var name = new string('a', 251) + ".txt";
+        var target = Path.Combine(w.Box.StoragePath!, name);
+        var now = DateTimeOffset.UtcNow;
+        var reservedItem = new DrawerItem(Guid.NewGuid(), w.Box.Id, name, ItemKind.File,
+            Path.Combine(w.Root, "missing.txt"), target, 0, now, now);
+        var pending = new PendingFileOperation(Guid.NewGuid(), PendingFileOperationKind.Copy,
+            reservedItem.Id, reservedItem.SourcePath!, target, false, reservedItem);
+        await w.Repository.AddPendingFileOperationAsync(pending);
+
+        var imported = await w.Service.ImportPathAsync(w.Box.Id, w.Source(new string('a', 251), "payload"));
+
+        Assert.EndsWith(" (1).txt", imported.DisplayName);
+        Assert.Equal(255, imported.DisplayName.Length);
+        Assert.False(File.Exists(target));
+        Assert.Equal("payload", File.ReadAllText(imported.StoredPath!));
+        Assert.Equal(pending.Id, Assert.Single(await w.Repository.GetPendingFileOperationsAsync()).Id);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

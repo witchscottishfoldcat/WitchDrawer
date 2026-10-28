@@ -21,6 +21,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\WitchDrawer.App\WitchDrawer.App.csproj" />
+    <ProjectReference Include="..\..\plugins\samples\Clock\WitchDrawer.Clock.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\plugins\samples\Performance\WitchDrawer.Performance.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>

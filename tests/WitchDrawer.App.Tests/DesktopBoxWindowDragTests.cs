@@ -112,27 +112,27 @@ public sealed class DesktopBoxWindowDragTests
     }
 
     [Theory]
-    [InlineData(0, 0.5, 0.5)]      // first cell starts at the inset
-    [InlineData(1, 37.5, 0.5)]     // second column starts one cell over
-    [InlineData(3, 0.5, 30.5)]     // second row starts one cell down
+    [InlineData(0, 0, 0)]         // first cell starts at the panel origin
+    [InlineData(1, 37, 0)]        // second column starts one fixed cell over
+    [InlineData(3, 0, 30)]        // second row starts one fixed cell down
     public void CoverCellRect_PlacesFrameOnTheAppendedCoverCell(
         int cellIndex,
         double expectedLeft,
         double expectedTop)
     {
-        // 3 columns x 2 rows over a 111 x 60 cover surface with 0.5 inset.
-        var rect = DesktopBoxWindow.CalculateCoverCellRect(cellIndex, 3, 2, 111, 60, 0.5);
+        // FixedCellGridPanel retains its cell steps when the surface is DPI-rounded.
+        var rect = DesktopBoxWindow.CalculateCoverCellRect(cellIndex, 3, 37, 30);
 
         Assert.Equal(expectedLeft, rect.Left);
         Assert.Equal(expectedTop, rect.Top);
-        Assert.Equal(36, rect.Width);
-        Assert.Equal(29, rect.Height);
+        Assert.Equal(37, rect.Width);
+        Assert.Equal(30, rect.Height);
     }
 
     [Fact]
     public void CoverCellRect_ClampsDegenerateInput()
     {
-        var rect = DesktopBoxWindow.CalculateCoverCellRect(-1, 0, 0, 0, 0, 10);
+        var rect = DesktopBoxWindow.CalculateCoverCellRect(-1, 0, 0, double.NaN);
 
         Assert.Equal(1, rect.Width);
         Assert.Equal(1, rect.Height);

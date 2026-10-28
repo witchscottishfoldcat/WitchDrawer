@@ -94,6 +94,14 @@ logs\             运行日志
 
 ## 开发与构建
 
+### 插件中心（开发中）
+
+时钟等桌面组件通过原生 WPF 插件按需安装、启用和停用。插件目录由独立的 [WitchDrawer.Plugins 仓库](https://github.com/witchscottishfoldcat/WitchDrawer.Plugins) 中经 PR 审核的条目生成，安装包由作者的 GitHub Releases 分发；支持本地 ZIP 安装与离线运行。桌面时钟 v1.0.0 已发布并收录，可在支持插件的开发版中刷新目录安装。
+
+开发源码还包含重新设计的时钟 v1.1.1 与 CPU/内存性能监控 v1.0.0，可打包后本地安装；这些新版本尚未发布到在线目录。接口、组件示例、打包方法及投稿流程见 [插件开发与投稿指南](plugins/README.md)。
+
+### 构建本体
+
 需要 Windows 和 .NET SDK `10.0.300` 或兼容的 .NET 10 SDK（见 [global.json](global.json)）。在仓库根目录执行：
 
 ```powershell

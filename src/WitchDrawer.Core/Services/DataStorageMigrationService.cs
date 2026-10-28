@@ -1,5 +1,6 @@
 using WitchDrawer.Core.Localization;
 using WitchDrawer.Core.Storage;
+using WitchDrawer.Core.Plugins;
 
 namespace WitchDrawer.Core.Services;
 
@@ -63,12 +64,12 @@ public sealed class DataStorageMigrationService
         var sourceRoot = Path.GetFullPath(_paths.RootDirectory);
         var targetRoot = Path.GetFullPath(targetRootDirectory.Trim());
 
-        if (string.Equals(sourceRoot, targetRoot, StringComparison.OrdinalIgnoreCase))
+        if (PathSafety.PathsEqual(sourceRoot, targetRoot))
         {
             throw new InvalidOperationException(Strings.Get("TheDestinationIsAlreadyTheCurrentDataFolderNo"));
         }
 
-        if (IsDescendantOf(targetRoot, sourceRoot))
+        if (PathSafety.IsSameOrDescendant(targetRoot, sourceRoot))
         {
             throw new InvalidOperationException(Strings.Get("TheDestinationCannotBeInsideTheCurrentDataFolder"));
         }
@@ -82,6 +83,7 @@ public sealed class DataStorageMigrationService
         var targetPromoted = false;
 
         await using var migrationLock = await AcquireMigrationLockAsync(lockPath, cancellationToken);
+        using var pluginMigration = await PluginStorageCoordinator.BeginMigrationAsync(sourceRoot, targetRoot, cancellationToken);
         try
         {
             if (Directory.Exists(targetRoot))
@@ -133,6 +135,7 @@ public sealed class DataStorageMigrationService
                     _locationStore.SaveMigrationIntent(targetRoot, migrationId);
                     PromoteStagedDirectory(tempRoot, targetRoot);
                     targetPromoted = true;
+                    pluginMigration.Promote();
                     _repository.MarkMigrationPromoted();
                     try
                     {
@@ -186,13 +189,6 @@ public sealed class DataStorageMigrationService
                 await Task.Delay(50, cancellationToken);
             }
         }
-    }
-
-    private static bool IsDescendantOf(string candidate, string ancestor)
-    {
-        var prefix = ancestor.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-            + Path.DirectorySeparatorChar;
-        return candidate.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
     }
 
     private static void CopyDirectory(

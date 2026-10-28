@@ -65,7 +65,8 @@ public partial class DesktopBoxWindow
         {
             return;
         }
-        if (_isMappingViewTransitioning || _isRollTransitioning || _isDrawerResizing || _isSurfaceDragging)
+        if (_isMappingViewTransitioning || _isRollTransitioning || _isDrawerResizing || _isSurfaceDragging
+            || ViewModel.IsDragPreviewVisible)
         {
             RequestDisplayLayoutRecovery();
             return;

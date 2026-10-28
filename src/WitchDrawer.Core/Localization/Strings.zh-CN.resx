@@ -1679,4 +1679,45 @@
   <data name="LanguageSaveFailed" xml:space="preserve">
     <value>语言设置保存失败</value>
   </data>
+  <data name="Plugins" xml:space="preserve"><value>插件</value></data>
+  <data name="PluginCenter" xml:space="preserve"><value>插件中心</value></data>
+  <data name="PluginCenterDescription" xml:space="preserve"><value>按需安装桌面组件，只有启用的插件才会运行。</value></data>
+  <data name="PluginRefresh" xml:space="preserve"><value>刷新目录</value></data>
+  <data name="PluginImport" xml:space="preserve"><value>安装本地插件</value></data>
+  <data name="PluginSubmit" xml:space="preserve"><value>提交插件</value></data>
+  <data name="PluginGuide" xml:space="preserve"><value>开发与投稿指南</value></data>
+  <data name="PluginInstallUpdate" xml:space="preserve"><value>安装 / 更新</value></data>
+  <data name="PluginEnable" xml:space="preserve"><value>启用</value></data>
+  <data name="PluginDisable" xml:space="preserve"><value>停用</value></data>
+  <data name="PluginSettings" xml:space="preserve"><value>设置</value></data>
+  <data name="PluginUninstall" xml:space="preserve"><value>卸载</value></data>
+  <data name="PluginSource" xml:space="preserve"><value>源码</value></data>
+  <data name="PluginEmptyCatalog" xml:space="preserve"><value>暂时没有已收录的插件。可以安装本地插件，或提交插件申请收录。</value></data>
+  <data name="PluginOfflineCatalog" xml:space="preserve"><value>暂时无法连接 GitHub，显示缓存或随应用提供的目录；已安装插件可离线使用。</value></data>
+  <data name="PluginCatalogUpdated" xml:space="preserve"><value>插件目录已刷新。</value></data>
+  <data name="PluginWorking" xml:space="preserve"><value>正在处理…</value></data>
+  <data name="PluginOperationFailed" xml:space="preserve"><value>插件操作失败：{0}</value></data>
+  <data name="PluginCancelled" xml:space="preserve"><value>已取消。</value></data>
+  <data name="PluginInstalledDisabled" xml:space="preserve"><value>安装成功。启用后即可显示桌面组件。</value></data>
+  <data name="PluginUninstalled" xml:space="preserve"><value>插件已卸载。</value></data>
+  <data name="PluginConfirmUninstall" xml:space="preserve"><value>卸载此插件并删除它的设置？</value></data>
+  <data name="PluginTrustMessage" xml:space="preserve"><value>插件：{0}
+作者：{1}
+源码：{2}
+声明能力：{3}
+
+插件与 WitchDrawer 共享进程权限，能力声明不能限制 DLL 的实际访问。请只安装你信任的插件。安装后默认停用。</value></data>
+  <data name="PluginNoCapabilities" xml:space="preserve"><value>未声明额外能力</value></data>
+  <data name="PluginIncompatible" xml:space="preserve"><value>与当前应用版本不兼容</value></data>
+  <data name="PluginRunning" xml:space="preserve"><value>运行中</value></data>
+  <data name="PluginNotInstalled" xml:space="preserve"><value>未安装</value></data>
+  <data name="PluginDisabled" xml:space="preserve"><value>已安装 · 已停用</value></data>
+  <data name="PluginUpdateAvailable" xml:space="preserve"><value>可更新至 {0} · 更新前请停用</value></data>
+  <data name="PluginOperationCompleted" xml:space="preserve"><value>操作完成。</value></data>
+  <data name="PluginNoSettings" xml:space="preserve"><value>此插件没有可配置的选项。</value></data>
+  <data name="PluginScreenshot" xml:space="preserve"><value>截图</value></data>
+  <data name="PluginNetwork" xml:space="preserve"><value>联网访问</value></data>
+  <data name="PluginMetrics" xml:space="preserve"><value>系统指标读取</value></data>
+  <data name="PluginFiles" xml:space="preserve"><value>文件访问</value></data>
+  <data name="RecoveredTaskBox" xml:space="preserve"><value>已恢复的待办</value></data>
 </root>

@@ -94,6 +94,8 @@ You can migrate the directory using the data storage location setting. Restart t
 
 ## Development and build
 
+The plugin center (in development) supports optional native WPF desktop widgets, local ZIP installation and offline use. Authors submit metadata through PRs to `plugins/entries/` in the separate [WitchDrawer.Plugins repository](https://github.com/witchscottishfoldcat/WitchDrawer.Plugins); approved, pinned packages are distributed through GitHub Releases. Desktop Clock v1.0.0 is published and listed; refresh the catalog in a development build that supports plugins to install it. Development sources also include the redesigned Clock v1.1.1 and CPU/memory Performance Monitor v1.0.0 for local packaging; these new versions are not yet in the online catalog. See the [author guide and widget samples](plugins/README.md).
+
 Requires Windows and .NET SDK `10.0.300` or a compatible .NET 10 SDK (see [global.json](global.json)). Run from the repository root:
 
 ```powershell

@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../src/WitchDrawer.PluginSdk/WitchDrawer.PluginSdk.csproj" Private="false" ExcludeAssets="runtime" />
+    <!-- Compile the small Native implementation into this optional DLL; no host/Core dependency is packaged. -->
+    <Compile Include="../../../src/WitchDrawer.Native/Metrics/WindowsSystemMetricsReader.cs" Link="Native/WindowsSystemMetricsReader.cs" />
+    <None Update="plugin.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

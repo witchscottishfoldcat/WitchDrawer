@@ -35,14 +35,15 @@ public sealed partial class DrawerService
                 PathSafety.EnsureChildPath(_paths.BoxesDirectory, fullSource);
                 var items = await _repository.GetItemsAsync(null, cancellationToken);
                 var sourceItem = items.FirstOrDefault(item => item.StoredPath is not null
-                    && (string.Equals(item.StoredPath, fullSource, StringComparison.OrdinalIgnoreCase)
+                    && (PathSafety.PathsEqual(item.StoredPath, fullSource)
                         || (item.ItemKind == ItemKind.Directory && IsSameOrDescendant(fullSource, item.StoredPath))))
                     ?? throw new InvalidOperationException(Strings.Get("BoxFoldersAndInternalRecoveryFilesCannotBeCopied"));
                 if (string.IsNullOrWhiteSpace(sourceItem.SourcePath))
                     throw new InvalidOperationException(Strings.Get("TheSourceLocationIsUnavailableTheOriginalLocationCannot"));
-                originalPath = string.Equals(sourceItem.StoredPath, fullSource, StringComparison.OrdinalIgnoreCase)
+                originalPath = PathSafety.PathsEqual(sourceItem.StoredPath, fullSource)
                     ? sourceItem.SourcePath
-                    : Path.Combine(sourceItem.SourcePath, Path.GetRelativePath(sourceItem.StoredPath!, fullSource));
+                    : Path.Combine(sourceItem.SourcePath, Path.GetRelativePath(
+                        PathSafety.GetComparisonPath(sourceItem.StoredPath!), PathSafety.GetComparisonPath(fullSource)));
             }
             else
             {
@@ -123,7 +124,7 @@ public sealed partial class DrawerService
             PathSafety.EnsureChildPath(_paths.BoxesDirectory, source);
             var parent = Path.GetDirectoryName(source)!;
             var target = Path.Combine(parent, newName);
-            var caseOnly = string.Equals(source, target, StringComparison.OrdinalIgnoreCase);
+            var caseOnly = PathSafety.PathsEqual(source, target);
             if (!caseOnly) target = FileNameService.GetUniqueDestinationPath(parent, newName, item.ItemKind == ItemKind.Directory);
             PathSafety.EnsureChildPath(parent, target);
             var originalParent = string.IsNullOrWhiteSpace(item.SourcePath) ? null : Path.GetDirectoryName(item.SourcePath);
@@ -167,7 +168,7 @@ public sealed partial class DrawerService
             throw new IOException(Strings.Get("BothTheStagedCopyAndTheDestinationExistKeep"));
         if (await _repository.GetItemAsync(operation.ItemId, cancellationToken) is { } current)
         {
-            if (!string.Equals(current.StoredPath, operation.TargetPath, StringComparison.OrdinalIgnoreCase))
+            if (!PathSafety.PathsEqual(current.StoredPath, operation.TargetPath))
                 throw new IOException(Strings.Get("TheCopyRecordDoesNotMatchTheDestinationKeep"));
             await _repository.RemovePendingFileOperationAsync(operation.Id, cancellationToken);
             return;
@@ -194,7 +195,7 @@ public sealed partial class DrawerService
             return;
         }
         var stage = SafeFileOps.CreateStagingPath(operation.TargetPath, operation.Id);
-        var caseOnly = string.Equals(operation.SourcePath, operation.TargetPath, StringComparison.OrdinalIgnoreCase);
+        var caseOnly = PathSafety.PathsEqual(operation.SourcePath, operation.TargetPath);
         if (!caseOnly)
         {
             await RecoverPendingFileOperationAsync(operation with { Kind = PendingFileOperationKind.Move }, cancellationToken);
@@ -208,7 +209,8 @@ public sealed partial class DrawerService
             return;
         }
         var current = await _repository.GetItemAsync(operation.ItemId, cancellationToken);
-        if (current?.StoredPath == operation.TargetPath && current.DisplayName == operation.ResultItem?.DisplayName)
+        if (current is not null && PathSafety.PathsEqual(current.StoredPath, operation.TargetPath)
+            && current.DisplayName == operation.ResultItem?.DisplayName)
         {
             await _repository.RemovePendingFileOperationAsync(operation.Id, cancellationToken);
             return;

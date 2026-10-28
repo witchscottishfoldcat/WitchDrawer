@@ -532,10 +532,10 @@ public sealed partial class DesktopBoxViewModel : LocalizedObservableObject
     }
 
     public double DragPreviewWidth => _dragPreviewWidthOverride
-        ?? Math.Max(1, LayoutSettings.ItemSlotWidth - (LayoutSettings.ItemSpacing * 2));
+        ?? Math.Max(1, LayoutSettings.ItemSlotWidth);
 
     public double DragPreviewHeight => _dragPreviewHeightOverride
-        ?? Math.Max(1, LayoutSettings.ItemSlotHeight - (LayoutSettings.ItemSpacing * 2));
+        ?? Math.Max(1, LayoutSettings.ItemSlotHeight);
 
     public bool IsBusy
     {
