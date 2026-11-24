@@ -234,6 +234,6 @@ public sealed class PluginStorageRegressionTests : IDisposable
     {
         SqliteConnection.ClearAllPools();
         Assert.StartsWith(Path.Combine(Path.GetTempPath(), "WitchDrawerPluginStorageTests") + Path.DirectorySeparatorChar, Path.GetFullPath(_root));
-        if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
+        TempDirectoryCleanup.Delete(_root);
     }
 }

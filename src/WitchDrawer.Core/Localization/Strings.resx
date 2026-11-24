@@ -410,6 +410,9 @@ The saved layout in this slot cannot be recovered.</value>
   <data name="Items2" xml:space="preserve">
     <value>{0} {1} items</value>
   </data>
+  <data name="PasteSkippedBecauseBoxFull" xml:space="preserve">
+    <value>{0}. Box full, skipped {1}.</value>
+  </data>
   <data name="ItemsFailed" xml:space="preserve">
     <value>{0} {1} items; {2} failed: {3}</value>
   </data>
@@ -1719,4 +1722,34 @@ This plugin runs with WitchDrawer's process permissions. These declarations do n
   <data name="PluginMetrics" xml:space="preserve"><value>System metrics</value></data>
   <data name="PluginFiles" xml:space="preserve"><value>File access</value></data>
   <data name="RecoveredTaskBox" xml:space="preserve"><value>Recovered tasks</value></data>
+  <data name="PendingTodosOnly" xml:space="preserve">
+    <value>Open only</value>
+  </data>
+  <data name="NoCompletedTodosYet" xml:space="preserve">
+    <value>No completed tasks yet</value>
+  </data>
+  <data name="TodoOrderChanged" xml:space="preserve">
+    <value>The list changed. Check its order and try again.</value>
+  </data>
+  <data name="TodoOrderSaved" xml:space="preserve">
+    <value>List order saved</value>
+  </data>
+  <data name="TodoManualOrder" xml:space="preserve">
+    <value>Manual order</value>
+  </data>
+  <data name="TodoNewestFirst" xml:space="preserve">
+    <value>Created · newest first</value>
+  </data>
+  <data name="TodoOldestFirst" xml:space="preserve">
+    <value>Created · oldest first</value>
+  </data>
+  <data name="MoveTodoHint" xml:space="preserve">
+    <value>Drag to reorder, or click to move up or down</value>
+  </data>
+  <data name="MoveTodoUp" xml:space="preserve">
+    <value>Move up</value>
+  </data>
+  <data name="MoveTodoDown" xml:space="preserve">
+    <value>Move down</value>
+  </data>
 </root>

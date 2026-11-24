@@ -40,6 +40,39 @@ public sealed class TodoService
     public Task<IReadOnlyList<TodoItem>> GetTodosAsync(Guid boxId, CancellationToken cancellationToken = default) =>
         ExecuteAsync(() => _repository.GetTodosAsync(boxId, cancellationToken), cancellationToken);
 
+    private static string SortSetting(Guid boxId) => $"TodoSortMode:{boxId:N}";
+
+    private async Task<TodoSortMode> ReadSortModeAsync(Guid boxId, CancellationToken token)
+    {
+        var value = await _repository.GetSettingAsync(SortSetting(boxId), token);
+        return Enum.TryParse<TodoSortMode>(value, out var mode) && Enum.IsDefined(mode)
+            ? mode : TodoSortMode.Manual;
+    }
+
+    public Task<TodoListSnapshot> GetListAsync(Guid boxId, CancellationToken token = default) =>
+        ExecuteAsync(async () => new TodoListSnapshot(await ReadSortModeAsync(boxId, token),
+            await _repository.GetTodosAsync(boxId, token)), token);
+
+    public Task SetSortModeAsync(Guid boxId, TodoSortMode mode, CancellationToken token = default) =>
+        ExecuteAsync(async () =>
+        {
+            if (!Enum.IsDefined(mode)) throw new ArgumentOutOfRangeException(nameof(mode));
+            await RequireTodoBoxAsync(boxId, token);
+            await _repository.SetSettingAsync(SortSetting(boxId), mode.ToString(), token);
+            Changes.Publish(boxId);
+            return true;
+        }, token);
+
+    public Task MoveTodoAsync(Guid boxId, Guid itemId, Guid anchorId, bool completed, bool after,
+        CancellationToken token = default) => ExecuteAsync(async () =>
+    {
+        if (await ReadSortModeAsync(boxId, token) != TodoSortMode.Manual)
+            throw new InvalidOperationException(Strings.Get("TodoOrderChanged"));
+        var changed = await _repository.MoveTodoAsync(boxId, itemId, anchorId, completed, after, token);
+        if (changed) Changes.Publish(boxId);
+        return changed;
+    }, token);
+
     public Task<IReadOnlyList<TodoItem>> GetArchivedTodosAsync(Guid? boxId = null, CancellationToken cancellationToken = default) =>
         ExecuteAsync(() => _repository.GetArchivedTodosAsync(boxId, cancellationToken), cancellationToken);
 

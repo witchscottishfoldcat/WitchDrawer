@@ -184,9 +184,10 @@ public sealed partial class MainViewModel
             // 超容量的项目若入库，会因无格位被分配到固定边界外，在盒内不可见也不可选。
             var pathsToImport = pathList;
             var skippedForCapacity = 0;
+            var capacity = int.MaxValue;
             if (selectedBox.SupportsFixedSize && BoxSizeSettings.IsFixedMode)
             {
-                var capacity = BoxSizeSettings.FixedColumns * BoxSizeSettings.FixedRows;
+                capacity = BoxSizeSettings.FixedColumns * BoxSizeSettings.FixedRows;
                 var remaining = Math.Max(0, capacity - Items.Count);
                 if (remaining < pathList.Length)
                 {
@@ -202,7 +203,7 @@ public sealed partial class MainViewModel
                 using var batch = _drawerService.Changes.BeginBatch();
                 foreach (var path in pathsToImport)
                 {
-                    var importedItem = await _drawerService.ImportPathAsync(selectedBox.Id, path);
+                    var importedItem = await _drawerService.ImportPathAsync(selectedBox.Id, path, capacity: capacity);
                     imported++;
                     await _shellChangeNotifier.NotifyItemImportedAsync(importedItem, _logger);
                 }

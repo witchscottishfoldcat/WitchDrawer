@@ -1117,28 +1117,29 @@ public partial class MainWindow : Window
     private void OnMainWindowPreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
         if (e.OriginalSource is not DependencyObject source) return;
-        if (ReferenceEquals(source, BtnMoreBoxActions) || BtnMoreBoxActions.IsAncestorOf(source)
-            || ReferenceEquals(source, BoxDisplaySettingsButton) || BoxDisplaySettingsButton.IsAncestorOf(source)
-            || ReferenceEquals(source, DrawerSortMenuButton) || DrawerSortMenuButton.IsAncestorOf(source)) return;
+        if (IsWithinBoxControl(BtnMoreBoxActions, source)
+            || IsWithinBoxControl(BoxDisplaySettingsButton, source)
+            || IsWithinBoxControl(DrawerSortMenuButton, source)) return;
         foreach (var popup in new[] { BoxDisplaySettingsPopup, BoxActionsPopup, DrawerSortPopup })
         {
-            if (popup.IsOpen && IsWithinBoxPopup(popup, source)) return;
+            if (popup.IsOpen && IsWithinBoxControl(popup, source)) return;
         }
         BoxActionsPopup.IsOpen = false;
         BoxDisplaySettingsPopup.IsOpen = false;
     }
 
-    internal static bool IsWithinBoxPopup(Popup popup, DependencyObject source)
+    internal static bool IsWithinBoxControl(DependencyObject control, DependencyObject source)
     {
         // ComboBox dropdowns have a separate visual root. Follow logical and
         // template ownership as well, so an option click can finish selection
         // before any outside-click handling closes the settings panel.
+        var popupContent = (control as Popup)?.Child;
         for (DependencyObject? current = source; current is not null;)
         {
-            if (ReferenceEquals(current, popup) || ReferenceEquals(current, popup.Child)) return true;
+            if (ReferenceEquals(current, control) || ReferenceEquals(current, popupContent)) return true;
             current = LogicalTreeHelper.GetParent(current)
                 ?? (current as FrameworkElement)?.TemplatedParent
-                ?? (current is Visual ? VisualTreeHelper.GetParent(current) : null);
+                ?? InputTree.GetParent(current);
         }
         return false;
     }

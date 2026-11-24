@@ -713,7 +713,7 @@ public sealed class DrawerRepository
             SELECT Id, BoxId, Title, IsCompleted, SortOrder, CreatedAt, UpdatedAt, CompletedAt, IsArchived, ArchivedAt
             FROM Todos
             WHERE BoxId = $boxId AND IsArchived = 0
-            ORDER BY IsCompleted, SortOrder, CreatedAt;
+            ORDER BY IsCompleted, SortOrder, CreatedAt, Id;
             """;
         command.Parameters.AddWithValue("$boxId", boxId.ToString());
 
@@ -725,6 +725,61 @@ public sealed class DrawerRepository
         }
 
         return todos;
+    }
+
+    internal async Task<bool> MoveTodoAsync(Guid boxId, Guid itemId, Guid anchorId, bool completed,
+        bool after, CancellationToken token)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(token);
+        using var transaction = connection.BeginTransaction();
+        using var read = connection.CreateCommand();
+        read.Transaction = transaction;
+        read.CommandText = """
+            SELECT Id, SortOrder FROM Todos
+            WHERE BoxId = $box AND IsArchived = 0 AND IsCompleted = $completed
+            ORDER BY SortOrder, CreatedAt, Id;
+            """;
+        read.Parameters.AddWithValue("$box", boxId.ToString());
+        read.Parameters.AddWithValue("$completed", completed);
+        var ids = new List<Guid>();
+        var ranks = new List<int>();
+        using (var reader = await read.ExecuteReaderAsync(token))
+        {
+            while (await reader.ReadAsync(token))
+            {
+                ids.Add(Guid.Parse(reader.GetString(0)));
+                ranks.Add(reader.GetInt32(1));
+            }
+        }
+
+        var from = ids.IndexOf(itemId);
+        var anchor = ids.IndexOf(anchorId);
+        if (from < 0 || anchor < 0)
+            throw new InvalidOperationException(Strings.Get("TodoOrderChanged"));
+        var to = anchor + (after ? 1 : 0) - (from < anchor ? 1 : 0);
+        if (itemId == anchorId || from == to) return false;
+        ids.RemoveAt(from);
+        ids.Insert(to, itemId);
+
+        // Keep existing slots, including gaps left by undoable deletions.
+        // Reassign the whole group only when older items have tied ranks.
+        var tied = ranks.Distinct().Count() != ranks.Count;
+        var first = tied ? 0 : Math.Min(from, to);
+        var last = tied ? ids.Count - 1 : Math.Max(from, to);
+        using var update = connection.CreateCommand();
+        update.Transaction = transaction;
+        update.CommandText = "UPDATE Todos SET SortOrder = $rank WHERE Id = $id AND SortOrder <> $rank;";
+        var rank = update.Parameters.Add("$rank", SqliteType.Integer);
+        var id = update.Parameters.Add("$id", SqliteType.Text);
+        for (var i = first; i <= last; i++)
+        {
+            rank.Value = tied ? i : ranks[i];
+            id.Value = ids[i].ToString();
+            await update.ExecuteNonQueryAsync(token);
+        }
+        await transaction.CommitAsync(token);
+        return true;
     }
 
     public async Task<IReadOnlyList<TodoItem>> GetArchivedTodosAsync(
@@ -929,11 +984,33 @@ public sealed class DrawerRepository
 
     internal async Task AddPendingFileOperationAsync(
         PendingFileOperation operation,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        int capacity = int.MaxValue)
     {
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);
-        var command = connection.CreateCommand();
+        // Reserve the slot and the file operation together. An unfinished copy or
+        // move can still become an item when the recovery journal is replayed.
+        using var transaction = capacity == int.MaxValue ? null : connection.BeginTransaction();
+        if (transaction is not null)
+        {
+            using var count = connection.CreateCommand();
+            count.Transaction = transaction;
+            count.CommandText = """
+                SELECT COUNT(*) FROM (
+                    SELECT Id FROM Items WHERE BoxId = $boxId
+                    UNION
+                    SELECT ItemId FROM PendingFileOperations
+                    WHERE IsCompensating = 0 AND json_extract(ResultItemJson, '$.BoxId') = $boxId
+                );
+                """;
+            count.Parameters.AddWithValue("$boxId", operation.ResultItem!.BoxId.ToString());
+            if (Convert.ToInt64(await count.ExecuteScalarAsync(cancellationToken)) >= capacity)
+                throw new BoxFullException();
+        }
+
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText =
             """
             INSERT INTO PendingFileOperations
@@ -958,6 +1035,7 @@ public sealed class DrawerRepository
         {
             throw new InvalidOperationException("Item does not exist.");
         }
+        transaction?.Commit();
     }
 
     internal async Task<IReadOnlyList<PendingFileOperation>> GetPendingFileOperationsAsync(

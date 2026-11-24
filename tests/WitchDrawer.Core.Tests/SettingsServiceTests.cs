@@ -24,7 +24,7 @@ public sealed class SettingsServiceTests
             Assert.False(await reloaded.DeleteSettingAsync("透明度"));
             Assert.Null(await settings.GetSettingAsync("透明度"));
         }
-        finally { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); }
+        finally { TempDirectoryCleanup.Delete(root); }
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public sealed class SettingsServiceTests
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => settings.SetSettingAsync("value", "canceled", canceled.Token));
             Assert.Equal("24", await settings.GetSettingAsync("value"));
         }
-        finally { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); }
+        finally { TempDirectoryCleanup.Delete(root); }
     }
 
     [Fact]
@@ -65,6 +65,6 @@ public sealed class SettingsServiceTests
                 });
             Assert.Equal("original", await settings.GetSettingAsync("key"));
         }
-        finally { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); }
+        finally { TempDirectoryCleanup.Delete(root); }
     }
 }

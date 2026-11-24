@@ -18,7 +18,7 @@ internal sealed class PluginStorageCoordinator
 
     public static PluginStorageCoordinator ForDataDirectory(string directory)
     {
-        var fullPath = Normalize(Path.Combine(directory, "Plugins"));
+        var fullPath = Normalize(Path.Combine(directory, AppPaths.PluginsDirectoryName));
         return Roots.GetOrAdd(PathSafety.GetComparisonPath(fullPath), _ => new(fullPath));
     }
 
@@ -49,8 +49,8 @@ internal sealed class PluginStorageCoordinator
     {
         var sourceEntry = ForDataDirectory(sourceDirectory);
         var targetEntry = ForDataDirectory(targetDirectory);
-        var sourcePath = Normalize(Path.Combine(sourceDirectory, "Plugins"));
-        var targetPath = Normalize(Path.Combine(targetDirectory, "Plugins"));
+        var sourcePath = Normalize(Path.Combine(sourceDirectory, AppPaths.PluginsDirectoryName));
+        var targetPath = Normalize(Path.Combine(targetDirectory, AppPaths.PluginsDirectoryName));
         while (true)
         {
             var source = sourceEntry.Resolve();

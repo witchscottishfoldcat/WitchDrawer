@@ -66,6 +66,31 @@ public sealed class FileContextActionTests
     });
 
     [Fact]
+    public Task PasteInFixedBox_SkipsOnlyOverflowAndStopsWhenFull() => Sta(async () =>
+    {
+        using var w = await Workspace.CreateAsync(BoxType.Normal);
+        w.Host.ApplySizeMode(new BoxSizeModeState(true, 1, 1));
+        var extra = Path.Combine(w.Root, "extra.txt");
+        File.WriteAllText(extra, "extra");
+        var clipboard = new FakeClipboard { Paths = [w.Source, w.Source, extra] };
+        using var menu = new DrawerItemContextMenuCoordinator(w.Host, clipboard);
+
+        await menu.ExecuteAsync(DrawerItemContextAction.Paste, null);
+        var item = Assert.Single(await w.Drawer.GetItemsAsync(w.Box.Id));
+        Assert.Equal(w.Source, item.SourcePath);
+        Assert.Contains("已跳过 1 项", w.Host.StatusText);
+
+        clipboard.Paths = [extra];
+        await menu.ExecuteAsync(DrawerItemContextAction.Paste, null);
+        Assert.Contains("已复制 0 项", w.Host.StatusText);
+        Assert.Contains("已跳过 1 项", w.Host.StatusText);
+        Assert.Equal(item.Id, Assert.Single(w.Host.Items).Id);
+        Assert.Single(Directory.GetFileSystemEntries(w.Box.StoragePath!));
+        Assert.Equal("extra", File.ReadAllText(extra));
+        Assert.Equal("payload", File.ReadAllText(w.Source));
+    });
+
+    [Fact]
     public Task CopyAndCopyPath_UseLatestPathWithoutMutatingFile() => Sta(async () =>
     {
         using var w = await Workspace.CreateAsync(BoxType.Normal);

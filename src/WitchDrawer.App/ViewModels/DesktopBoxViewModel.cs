@@ -21,7 +21,7 @@ public sealed partial class DesktopBoxViewModel : LocalizedObservableObject
 {
     protected override void OnLanguageChanged()
     {
-        if (!IsBusy) StatusText = Strings.Get("DropFilesHere");
+        if (!IsBusy) StatusText = IsTodoBox ? string.Empty : Strings.Get("DropFilesHere");
     }
 
     // 弹窗 chrome 预留 = DesktopBoxWindow.xaml 中 DrawerSecondaryPopup 根 Border 的
@@ -81,7 +81,7 @@ public sealed partial class DesktopBoxViewModel : LocalizedObservableObject
     private double? _dragPreviewHeightOverride;
     private int _previewColumn;
     private int _previewRow;
-    private string _statusText = Strings.Get("DropFilesHere");
+    private string _statusText;
     private bool _isDragOver;
     private bool _isMappingListMode;
     private double _mappingListWidth;
@@ -125,6 +125,7 @@ public sealed partial class DesktopBoxViewModel : LocalizedObservableObject
         DesktopBoxLayoutSettings? layoutSettings = null)
     {
         _box = box;
+        _statusText = IsTodoBox ? string.Empty : Strings.Get("DropFilesHere");
         _visualStyle = visualStyle;
         _drawerService = drawerService;
         _todoService = todoService;

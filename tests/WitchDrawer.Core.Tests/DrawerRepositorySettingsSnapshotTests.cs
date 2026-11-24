@@ -175,9 +175,6 @@ public sealed class DrawerRepositorySettingsSnapshotTests
 
     private static void DeleteTempRoot(string root)
     {
-        if (Directory.Exists(root))
-        {
-            Directory.Delete(root, recursive: true);
-        }
+        TempDirectoryCleanup.Delete(root);
     }
 }

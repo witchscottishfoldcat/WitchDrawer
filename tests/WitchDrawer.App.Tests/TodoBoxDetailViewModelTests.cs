@@ -219,6 +219,44 @@ public sealed class TodoBoxDetailViewModelTests
         Assert.Equal(DesktopBoxViewModel.MaximumTodoPanelHeight, restored.TodoPanelHeight);
     }
 
+    [Fact]
+    public async Task BothSurfaces_ReloadTheSameOrderAndKeepManualPositionsAcrossTimeSorts()
+    {
+        using var workspace = await TodoWorkspace.CreateAsync();
+        var box = workspace.TodoBox;
+        var now = DateTimeOffset.UtcNow.AddDays(-5);
+        var manual = new[] { "middle", "oldest", "newest" };
+        var days = new[] { 1, 0, 2 };
+        for (var i = 0; i < manual.Length; i++)
+            await workspace.Repository.AddTodoAsync(new TodoItem(Guid.NewGuid(), box.Id, manual[i], false,
+                i, now.AddDays(days[i]), now));
+
+        var main = new TodoBoxDetailViewModel(workspace.TodoService, new RecordingLogger());
+        var desktop = new DesktopBoxViewModel(box, workspace.DrawerService, workspace.TodoService,
+            new NoOpFileLauncher(), new WitchDrawer.Native.Files.ShellChangeNotifierService(),
+            new RecordingLogger(), BoxVisualStyle.Modern);
+        await main.LoadAsync(box.Id);
+        await main.MoveTodoAsync(main.ActiveTodos[2], main.ActiveTodos[0], after: false);
+        await desktop.LoadAsync();
+        Assert.Equal(["newest", "middle", "oldest"], desktop.TodoItems.Select(x => x.Title));
+
+        await desktop.SetSortModeAsync(TodoSortMode.OldestFirst);
+        await main.LoadAsync(box.Id);
+        Assert.Equal(["oldest", "middle", "newest"], main.ActiveTodos.Select(x => x.Title));
+        await main.SetSortModeAsync(TodoSortMode.NewestFirst);
+        main.NewTodoTitle = "just created";
+        await main.AddTodoCommand.ExecuteAsync(null);
+        Assert.Equal("just created", main.ActiveTodos[0].Title);
+        await desktop.LoadAsync();
+        Assert.Equal(main.ActiveTodos.Select(x => x.Title), desktop.TodoItems.Select(x => x.Title));
+        await desktop.ToggleTodoCommand.ExecuteAsync(desktop.TodoItems[0]);
+        Assert.True(desktop.TodoItems[^1].IsCompleted);
+        await desktop.SetSortModeAsync(TodoSortMode.Manual);
+        await main.LoadAsync(box.Id);
+        Assert.Equal(["newest", "middle", "oldest"], main.ActiveTodos.Select(x => x.Title));
+        Assert.Equal("just created", Assert.Single(main.CompletedTodos).Title);
+    }
+
     private sealed class TodoWorkspace : IDisposable
     {
         private TodoWorkspace(

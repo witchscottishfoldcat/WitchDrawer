@@ -97,6 +97,6 @@ public sealed class BoxContentChangeTests
             Repository = new DrawerRepository(paths.DatabasePath);
             Drawer = new DrawerService(paths, Repository);
         }
-        public void Dispose() { if (Directory.Exists(Root)) Directory.Delete(Root, recursive: true); }
+        public void Dispose() => TempDirectoryCleanup.Delete(Root);
     }
 }

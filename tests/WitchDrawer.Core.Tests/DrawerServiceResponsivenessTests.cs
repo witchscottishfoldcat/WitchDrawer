@@ -82,7 +82,7 @@ public sealed class DrawerServiceResponsivenessTests
         }
         finally
         {
-            Directory.Delete(root, recursive: true);
+            TempDirectoryCleanup.Delete(root);
         }
     }
 
@@ -111,7 +111,7 @@ public sealed class DrawerServiceResponsivenessTests
         }
         finally
         {
-            Directory.Delete(root, recursive: true);
+            TempDirectoryCleanup.Delete(root);
         }
     }
 }

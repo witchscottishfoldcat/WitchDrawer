@@ -1,7 +1,8 @@
 <Application x:Class="WitchDrawer.App.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:infra="clr-namespace:WitchDrawer.App.Infrastructure">
+             xmlns:infra="clr-namespace:WitchDrawer.App.Infrastructure"
+             xmlns:controls="clr-namespace:WitchDrawer.App.Controls">
     <Application.Resources>
         <infra:ZeroToVisibilityConverter x:Key="ZeroToVisibilityConverter" />
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
@@ -300,6 +301,71 @@
             </Setter>
         </Style>
 
+        <Style x:Key="TodoPopupMenuItemStyle" TargetType="MenuItem">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="Padding" Value="9,0,12,0" />
+            <Setter Property="MinHeight" Value="34" />
+            <Setter Property="Margin" Value="0,1" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="MenuItem">
+                        <Border x:Name="Row" Background="Transparent" CornerRadius="7" Padding="{TemplateBinding Padding}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="20" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Path x:Name="Check" Data="M1,5 L4,8 L10,2" Stroke="{DynamicResource AccentBrush}"
+                                      StrokeThickness="1.7" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                      StrokeLineJoin="Round" VerticalAlignment="Center" Visibility="Hidden" />
+                                <ContentPresenter Grid.Column="1" ContentSource="Header" VerticalAlignment="Center"
+                                                  RecognizesAccessKey="True" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Row" Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+                                <Setter TargetName="Check" Property="Visibility" Value="Visible" />
+                                <Setter Property="FontWeight" Value="SemiBold" />
+                            </Trigger>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="Row" Property="Background" Value="{DynamicResource HoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.48" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="TodoPopupMenuStyle" TargetType="ContextMenu">
+            <Setter Property="Background" Value="{DynamicResource PanelBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushSoft}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="5" />
+            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Microsoft YaHei UI" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="MinWidth" Value="132" />
+            <Setter Property="VerticalOffset" Value="2" />
+            <Setter Property="ItemContainerStyle" Value="{StaticResource TodoPopupMenuItemStyle}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContextMenu">
+                        <Border Margin="6,4,6,8" Padding="{TemplateBinding Padding}" CornerRadius="12"
+                                Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="10" ShadowDepth="2" Opacity="0.14" Direction="270" />
+                            </Border.Effect>
+                            <ItemsPresenter />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style TargetType="{x:Type TextBox}">
             <Setter Property="Background" Value="{DynamicResource PanelBrush}" />
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
@@ -331,6 +397,33 @@
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        </Style>
+
+        <Style x:Key="SmoothListBoxStyle" TargetType="ListBox" BasedOn="{StaticResource {x:Type ListBox}}">
+            <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+            <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True" />
+            <Setter Property="VirtualizingPanel.VirtualizationMode" Value="Recycling" />
+            <Setter Property="VirtualizingPanel.ScrollUnit" Value="Pixel" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBox">
+                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <controls:SmoothScrollViewer Focusable="False" Background="Transparent" Padding="{TemplateBinding Padding}"
+                                CanContentScroll="{TemplateBinding ScrollViewer.CanContentScroll}"
+                                HorizontalScrollBarVisibility="{TemplateBinding ScrollViewer.HorizontalScrollBarVisibility}"
+                                VerticalScrollBarVisibility="{TemplateBinding ScrollViewer.VerticalScrollBarVisibility}">
+                                <controls:SmoothScrollViewer.Resources>
+                                    <Style TargetType="ScrollBar" BasedOn="{StaticResource DrawerScrollBarStyle}" />
+                                </controls:SmoothScrollViewer.Resources>
+                                <ItemsPresenter />
+                            </controls:SmoothScrollViewer>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style TargetType="{x:Type ListBoxItem}">

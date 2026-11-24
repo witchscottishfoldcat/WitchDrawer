@@ -56,6 +56,6 @@ public sealed class ThemeCustomizationSettingsTests
             Assert.Equal(ThemeCustomization.Empty, ThemeCustomizationSettings.Deserialize(await settings.GetSettingAsync("ThemeCustomization.Moe")));
             Assert.Equal(glass, ThemeCustomizationSettings.Deserialize(await settings.GetSettingAsync("ThemeCustomization.Glass")));
         }
-        finally { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); }
+        finally { TempDirectoryCleanup.Delete(root); }
     }
 }

@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Documents;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -133,17 +134,37 @@ public sealed class BoxControlsLayoutTests
             var label = FindVisual<TextBlock>(option);
             Assert.NotNull(label);
             Assert.False(content.IsAncestorOf(option)); // A different PopupRoot.
-            Assert.True(MainWindow.IsWithinBoxPopup(popup, option));
-            Assert.True(MainWindow.IsWithinBoxPopup(popup, label));
-            Assert.True(MainWindow.IsWithinBoxPopup(popup, choice));
-            Assert.False(MainWindow.IsWithinBoxPopup(popup, target));
-            Assert.False(MainWindow.IsWithinBoxPopup(popup, host));
+            Assert.True(MainWindow.IsWithinBoxControl(popup, option));
+            Assert.True(MainWindow.IsWithinBoxControl(popup, label));
+            Assert.True(MainWindow.IsWithinBoxControl(popup, choice));
+            Assert.False(MainWindow.IsWithinBoxControl(popup, target));
+            Assert.False(MainWindow.IsWithinBoxControl(popup, host));
         }
         finally
         {
             ((ComboBox)view.FindName("IconSizeChoice")).IsDropDownOpen = false;
             popup.IsOpen = false;
         }
+    });
+
+    [Fact]
+    public Task BoxToolbarHitTest_AcceptsInlineTextOutsideAndInsideButton() => RunOnStaAsync(() =>
+    {
+        var buttonInline = new Run("Box actions");
+        var button = new Button { Content = new TextBlock(new Span(buttonInline)) };
+        var todoInline = new Run("2");
+        var todoTab = new RadioButton { Content = new TextBlock(todoInline) };
+        var layout = new StackPanel();
+        layout.Children.Add(button);
+        layout.Children.Add(todoTab);
+        layout.Measure(new Size(240, 180));
+        layout.Arrange(new Rect(0, 0, 240, 180));
+
+        Assert.False(MainWindow.IsWithinBoxControl(button, todoInline));
+        Assert.True(MainWindow.IsWithinBoxControl(button, buttonInline));
+        Assert.Same(todoTab.Content, InputTree.GetParent(todoInline));
+        Assert.False(MainWindow.IsWithinBoxControl(button, new Run("Detached")));
+        return Task.CompletedTask;
     });
 
     [Theory]

@@ -35,6 +35,8 @@ public sealed record AppPaths(string RootDirectory)
     /// </summary>
     public const string LogsDirectoryName = "logs";
 
+    public const string PluginsDirectoryName = "Plugins";
+
     /// <summary>
     /// 可写性探测文件名（创建后立即删除）。
     /// </summary>

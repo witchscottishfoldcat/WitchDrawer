@@ -10,7 +10,7 @@ using WitchDrawer.Core.Services;
 
 namespace WitchDrawer.App.ViewModels;
 
-public sealed class TodoBoxDetailViewModel : LocalizedObservableObject
+public sealed class TodoBoxDetailViewModel : LocalizedObservableObject, ITodoOrdering
 {
     protected override void OnLanguageChanged()
     {
@@ -25,6 +25,7 @@ public sealed class TodoBoxDetailViewModel : LocalizedObservableObject
     private Guid? _boxId;
     private string _newTodoTitle = string.Empty;
     private string _statusText = Strings.Get("StartWithOneSmallTask");
+    private bool _showCompleted;
     private bool _isBusy;
     private int _busyOperationCount;
 
@@ -41,6 +42,43 @@ public sealed class TodoBoxDetailViewModel : LocalizedObservableObject
         Undo.AvailabilityChanged += (_, _) => UndoDeleteCommand.NotifyCanExecuteChanged();
     }
 
+    private TodoSortMode _sortMode;
+
+    public TodoSortMode SortMode
+    {
+        get => _sortMode;
+        private set
+        {
+            if (SetProperty(ref _sortMode, value)) OnPropertyChanged(nameof(IsManualOrder));
+        }
+    }
+    public bool IsManualOrder => SortMode == TodoSortMode.Manual;
+
+    public Task SetSortModeAsync(TodoSortMode mode) => RunMutationAsync(async (boxId, current) =>
+    {
+        await _todoService.SetSortModeAsync(boxId, mode);
+        if (current())
+        {
+            SortMode = mode;
+            ApplyItems(AllModels());
+        }
+        return Strings.Get("TodoOrderSaved");
+    });
+
+    public Task MoveTodoAsync(TodoItemViewModel source, TodoItemViewModel target, bool after)
+    {
+        if (!IsManualOrder || !CanMutateTodo(source) || !CanMutateTodo(target) ||
+            source.IsCompleted != target.IsCompleted) return Task.CompletedTask;
+
+        return RunMutationAsync(async (boxId, current) =>
+        {
+            await _todoService.MoveTodoAsync(boxId, source.Id, target.Id, source.IsCompleted, after);
+            var todos = await _todoService.GetTodosAsync(boxId);
+            if (current()) ApplyItems(todos);
+            return Strings.Get("TodoOrderSaved");
+        });
+    }
+
     public event EventHandler<BoxItemsChangedEventArgs>? ItemsChanged;
     public ObservableCollection<TodoItemViewModel> ActiveTodos { get; } = [];
     public ObservableCollection<TodoItemViewModel> CompletedTodos { get; } = [];
@@ -55,6 +93,26 @@ public sealed class TodoBoxDetailViewModel : LocalizedObservableObject
     public string NewTodoTitle { get => _newTodoTitle; set { if (SetProperty(ref _newTodoTitle, value)) AddTodoCommand.NotifyCanExecuteChanged(); } }
     public string StatusText { get => _statusText; private set => SetProperty(ref _statusText, value); }
     public bool IsBusy { get => _isBusy; private set { if (SetProperty(ref _isBusy, value)) NotifyCommands(); } }
+    public bool ShowCompleted
+    {
+        get => _showCompleted;
+        set
+        {
+            if (SetProperty(ref _showCompleted, value))
+            {
+                OnPropertyChanged(nameof(ShowActive));
+                OnPropertyChanged(nameof(DisplayedTodos));
+            }
+        }
+    }
+
+    public bool ShowActive
+    {
+        get => !ShowCompleted;
+        set { if (value) ShowCompleted = false; }
+    }
+
+    public ObservableCollection<TodoItemViewModel> DisplayedTodos => ShowCompleted ? CompletedTodos : ActiveTodos;
     public int RemainingCount => ActiveTodos.Count;
     public int CompletedCount => CompletedTodos.Count;
     public int TotalCount => RemainingCount + CompletedCount;
@@ -67,7 +125,7 @@ public sealed class TodoBoxDetailViewModel : LocalizedObservableObject
     {
         _loadCts?.Cancel(); _loadCts?.Dispose(); _loadCts = new CancellationTokenSource();
         var token = _loadCts.Token; var version = ++_loadVersion;
-        if (BoxId != boxId) { BoxId = boxId; NewTodoTitle = string.Empty; Undo.Clear(); ApplyItems([]); }
+        if (BoxId != boxId) { BoxId = boxId; SortMode = TodoSortMode.Manual; ShowCompleted = false; NewTodoTitle = string.Empty; Undo.Clear(); ApplyItems([]); }
         if (boxId is null) { StatusText = Strings.Get("SelectATaskBox"); return; }
         BeginBusy();
         var entered = false;
@@ -75,9 +133,11 @@ public sealed class TodoBoxDetailViewModel : LocalizedObservableObject
         {
             await _gate.WaitAsync(token);
             entered = true;
-            var todos = await _todoService.GetTodosAsync(boxId.Value, token);
+            var list = await _todoService.GetListAsync(boxId.Value, token);
             if (version != _loadVersion || token.IsCancellationRequested) return;
-            ApplyItems(todos); StatusText = IsEmpty ? Strings.Get("StartWithOneSmallTask") : Strings.Format("TasksRemaining", RemainingCount);
+            SortMode = list.SortMode;
+            ApplyItems(list.Items);
+            StatusText = IsEmpty ? Strings.Get("StartWithOneSmallTask") : Strings.Format("TasksRemaining", RemainingCount);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception) { _logger.Error(exception, "Failed to load todo box."); if (version == _loadVersion) StatusText = exception.Message; }
@@ -90,7 +150,12 @@ public sealed class TodoBoxDetailViewModel : LocalizedObservableObject
     private Task AddTodoAsync() => RunMutationAsync(async (boxId, current) =>
     {
         var title = NewTodoTitle; var item = await _todoService.AddTodoAsync(boxId, title);
-        if (current()) { Upsert(item); if (NewTodoTitle == title) NewTodoTitle = string.Empty; }
+        if (current())
+        {
+            Upsert(item);
+            ShowCompleted = false;
+            if (NewTodoTitle == title) NewTodoTitle = string.Empty;
+        }
         return Strings.Get("TaskAdded");
     });
     private Task ToggleTodoAsync(TodoItemViewModel? item)
@@ -140,10 +205,11 @@ public sealed class TodoBoxDetailViewModel : LocalizedObservableObject
         IsBusy = _busyOperationCount > 0;
     }
     private IEnumerable<TodoItem> AllModels() => ActiveTodos.Concat(CompletedTodos).Select(item => item.Model);
-    private void Upsert(TodoItem model) => ApplyItems(TodoCollectionSync.Ordered(AllModels().Where(item => item.Id != model.Id).Append(model)));
+    private void Upsert(TodoItem model) => ApplyItems(AllModels().Where(item => item.Id != model.Id).Append(model));
     private void ApplyItems(IEnumerable<TodoItem> items)
     {
-        var models = items.ToArray(); var existing = ActiveTodos.Concat(CompletedTodos).ToDictionary(item => item.Id);
+        var models = TodoCollectionSync.Ordered(items, SortMode).ToArray();
+        var existing = ActiveTodos.Concat(CompletedTodos).ToDictionary(item => item.Id);
         TodoCollectionSync.Apply(ActiveTodos, models.Where(item => !item.IsCompleted && !item.IsArchived), existing);
         TodoCollectionSync.Apply(CompletedTodos, models.Where(item => item.IsCompleted && !item.IsArchived), existing);
         foreach (var name in new[] { nameof(RemainingCount), nameof(CompletedCount), nameof(TotalCount), nameof(CompletionPercentage), nameof(IsEmpty), nameof(HasActiveTodos), nameof(HasCompletedTodos) }) OnPropertyChanged(name);

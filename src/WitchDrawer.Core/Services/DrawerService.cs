@@ -148,11 +148,12 @@ public sealed partial class DrawerService : ISettingsStore
         string sourcePath,
         int? gridColumn = null,
         int? gridRow = null,
-        CancellationToken cancellationToken = default)
-        => Task.Run(() => ImportPathCoreAsync(boxId, sourcePath, gridColumn, gridRow, cancellationToken), cancellationToken);
+        CancellationToken cancellationToken = default,
+        int capacity = int.MaxValue)
+        => Task.Run(() => ImportPathCoreAsync(boxId, sourcePath, gridColumn, gridRow, cancellationToken, capacity), cancellationToken);
 
     private async Task<DrawerItem> ImportPathCoreAsync(
-        Guid boxId, string sourcePath, int? gridColumn, int? gridRow, CancellationToken cancellationToken)
+        Guid boxId, string sourcePath, int? gridColumn, int? gridRow, CancellationToken cancellationToken, int capacity)
     {
         var box = await _repository.GetBoxAsync(boxId, cancellationToken)
             ?? throw new InvalidOperationException("Box does not exist.");
@@ -212,7 +213,7 @@ public sealed partial class DrawerService : ISettingsStore
             var operation = new PendingFileOperation(
                 Guid.NewGuid(), PendingFileOperationKind.Import, item.Id,
                 fullSourcePath, targetPath, isDirectory, item);
-            var completed = await ExecuteJournaledOperationAsync(operation, cancellationToken);
+            var completed = await ExecuteJournaledOperationAsync(operation, cancellationToken, capacity: capacity);
 
             Changes.Publish(boxId);
             return completed.ResultItem!;
@@ -245,11 +246,12 @@ public sealed partial class DrawerService : ISettingsStore
         Guid targetBoxId,
         int? gridColumn = null,
         int? gridRow = null,
-        CancellationToken cancellationToken = default)
-        => Task.Run(() => MoveItemToBoxCoreAsync(itemId, targetBoxId, gridColumn, gridRow, cancellationToken), cancellationToken);
+        CancellationToken cancellationToken = default,
+        int capacity = int.MaxValue)
+        => Task.Run(() => MoveItemToBoxCoreAsync(itemId, targetBoxId, gridColumn, gridRow, cancellationToken, capacity), cancellationToken);
 
     private async Task MoveItemToBoxCoreAsync(
-        Guid itemId, Guid targetBoxId, int? gridColumn, int? gridRow, CancellationToken cancellationToken)
+        Guid itemId, Guid targetBoxId, int? gridColumn, int? gridRow, CancellationToken cancellationToken, int capacity)
     {
         var item = await _repository.GetItemAsync(itemId, cancellationToken)
             ?? throw new InvalidOperationException("Item does not exist.");
@@ -324,7 +326,7 @@ public sealed partial class DrawerService : ISettingsStore
             var operation = new PendingFileOperation(
                 Guid.NewGuid(), PendingFileOperationKind.Move, item.Id,
                 fullSourcePath, targetPath, isDirectory, resultItem);
-            await ExecuteJournaledOperationAsync(operation, cancellationToken);
+            await ExecuteJournaledOperationAsync(operation, cancellationToken, capacity: capacity);
             Changes.Publish(sourceBox.Id, targetBox.Id);
 
             return;
@@ -854,6 +856,7 @@ public sealed partial class DrawerService : ISettingsStore
         var protectedPaths = new[]
         {
             _paths.BoxesDirectory, _paths.LogsDirectory, _paths.DatabasePath,
+            Path.Combine(_paths.RootDirectory, AppPaths.PluginsDirectoryName),
             _paths.DatabasePath + "-wal", _paths.DatabasePath + "-shm", _paths.DatabasePath + "-journal",
             Path.Combine(_paths.RootDirectory, StorageLocationStore.ConfigFileName), bootstrap,
             Path.Combine(_paths.RootDirectory, StorageLocationStore.MigrationMarkerFileName)
@@ -874,7 +877,8 @@ public sealed partial class DrawerService : ISettingsStore
     private async Task<PendingFileOperation> ExecuteJournaledOperationAsync(
         PendingFileOperation operation,
         CancellationToken cancellationToken,
-        bool fileOperationGateHeld = false)
+        bool fileOperationGateHeld = false,
+        int capacity = int.MaxValue)
     {
         // Hold the gate for the whole journal → move → commit sequence. A recovery pass
         // triggered by a concurrent read must never see this live operation's journal
@@ -923,7 +927,7 @@ public sealed partial class DrawerService : ISettingsStore
                     DisplayName = Path.GetFileName(target)
                 }
             };
-            await MoveWithJournalAsync(operation, cancellationToken);
+            await MoveWithJournalAsync(operation, cancellationToken, capacity);
             await CompleteJournaledOperationAsync(operation);
             return operation;
         }
@@ -938,11 +942,12 @@ public sealed partial class DrawerService : ISettingsStore
 
     private async Task MoveWithJournalAsync(
         PendingFileOperation operation,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int capacity)
     {
         // The durable intent must exist before the first filesystem mutation.
         await Task.Run(
-            () => _repository.AddPendingFileOperationAsync(operation, cancellationToken),
+            () => _repository.AddPendingFileOperationAsync(operation, cancellationToken, capacity),
             cancellationToken);
         try
         {

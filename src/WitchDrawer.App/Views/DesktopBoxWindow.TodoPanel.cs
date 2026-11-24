@@ -88,6 +88,5 @@ public partial class DesktopBoxWindow
 
         e.Handled = true;
         await ViewModel.AddTodoCommand.ExecuteAsync(null);
-        TodoTitleTextBox.Focus();
     }
 }

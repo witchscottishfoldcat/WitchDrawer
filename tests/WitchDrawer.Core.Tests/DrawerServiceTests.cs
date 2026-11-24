@@ -1463,6 +1463,23 @@ public sealed class DrawerServiceTests
     }
 
     [Fact]
+    public async Task ImportPathAsync_PreservesPluginDirectoryAndInstallationIndex()
+    {
+        using var workspace = await TestWorkspace.CreateAsync();
+        var box = await workspace.GetBoxAsync(BoxType.Normal);
+        var plugins = Directory.CreateDirectory(Path.Combine(workspace.Root, AppPaths.PluginsDirectoryName));
+        var index = Path.Combine(plugins.FullName, "installed.json");
+        File.WriteAllText(index, """{"schemaVersion":1,"plugins":[]}""");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => workspace.Service.ImportPathAsync(box.Id, plugins.FullName));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => workspace.Service.ImportPathAsync(box.Id, index));
+
+        Assert.Equal("""{"schemaVersion":1,"plugins":[]}""", File.ReadAllText(index));
+        Assert.Empty(await workspace.Repository.GetItemsAsync(box.Id));
+        Assert.Empty(await workspace.Repository.GetPendingFileOperationsAsync());
+    }
+
+    [Fact]
     public async Task ImportPathAsync_RejectsManagedFileAndPreservesRestoreLocation()
     {
         using var workspace = await TestWorkspace.CreateAsync();

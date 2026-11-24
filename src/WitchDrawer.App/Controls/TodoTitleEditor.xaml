@@ -17,120 +17,47 @@
             <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
 
-        <Grid x:Name="TodoContent"
-              Grid.Column="0"
-              Margin="0,0,8,0">
-            <StackPanel VerticalAlignment="Center"
-                        Visibility="{Binding IsEditing, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
-                <Border Background="Transparent"
-                        MouseLeftButtonDown="OnTitleMouseLeftButtonDown">
-                    <TextBlock Text="{Binding Title}"
-                               FontSize="12.5"
-                               FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextPrimaryBrush}"
-                               TextWrapping="Wrap">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsCompleted}" Value="True">
-                                        <Setter Property="TextDecorations" Value="Strikethrough" />
-                                        <Setter Property="Opacity" Value="0.5" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                </Border>
-                <TextBlock Text="{Binding TimeLabel}"
-                           Margin="0,2,0,0"
-                           Foreground="{DynamicResource TextMutedBrush}"
-                           FontSize="9.5" />
-            </StackPanel>
-
-            <Border CornerRadius="7"
-                    Padding="3"
-                    Background="{DynamicResource AccentSoftBrush}"
-                    BorderBrush="{DynamicResource AccentBrush}"
-                    BorderThickness="1"
-                    RenderTransformOrigin="0.5,0.5">
-                <Border.RenderTransform>
-                    <TranslateTransform Y="2" />
-                </Border.RenderTransform>
-                <Border.Style>
-                    <Style TargetType="{x:Type Border}">
-                        <Setter Property="Visibility" Value="Collapsed" />
-                        <Setter Property="Opacity" Value="0" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsEditing}" Value="True">
-                                <Setter Property="Visibility" Value="Visible" />
-                                <DataTrigger.EnterActions>
-                                    <BeginStoryboard>
-                                        <Storyboard>
-                                            <DoubleAnimation Storyboard.TargetProperty="Opacity"
-                                                             From="0"
-                                                             To="1"
-                                                             Duration="0:0:0.12" />
-                                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
-                                                             From="2"
-                                                             To="0"
-                                                             Duration="0:0:0.12" />
-                                        </Storyboard>
-                                    </BeginStoryboard>
-                                </DataTrigger.EnterActions>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <Border Width="3"
-                            Height="18"
-                            Margin="1,0,5,0"
-                            CornerRadius="2"
-                            Background="{DynamicResource AccentBrush}"
-                            VerticalAlignment="Center" />
-                    <TextBox x:Name="Editor"
-                             Grid.Column="1"
-                             Text="{Binding EditTitle, UpdateSourceTrigger=PropertyChanged}"
-                             MaxLength="200"
-                             MinHeight="26"
-                             Padding="3,1"
-                             FontSize="12.5"
-                             VerticalContentAlignment="Center"
-                             TextWrapping="Wrap"
-                             Foreground="{DynamicResource TextPrimaryBrush}"
-                             Background="Transparent"
-                             BorderThickness="0"
-                             ToolTip="{loc:Text EnterToSaveEscToCancel}"
-                             AutomationProperties.Name="{loc:Text TaskText}" />
-                    <Button Grid.Column="2"
-                            Content="✓"
-                            Click="OnSave"
-                            Width="28"
-                            Height="28"
-                            Padding="0"
-                            Margin="2,0,0,0"
-                            Style="{DynamicResource GhostButtonStyle}"
-                            Foreground="{DynamicResource AccentBrush}"
-                            ToolTip="{loc:Text SaveEnter}"
-                            AutomationProperties.Name="{loc:Text SaveTask}" />
-                    <Button Grid.Column="3"
-                            Content="×"
-                            Click="OnCancel"
-                            Width="28"
-                            Height="28"
-                            Padding="0"
-                            Style="{DynamicResource GhostButtonStyle}"
-                            Foreground="{DynamicResource TextMutedBrush}"
-                            ToolTip="{loc:Text CancelEsc}"
-                            AutomationProperties.Name="{loc:Text CancelEditing}" />
-                </Grid>
+        <Grid x:Name="TodoContent" Margin="0,0,4,0">
+            <Border Background="Transparent" MinHeight="30" VerticalAlignment="Center"
+                    ToolTip="{Binding TimeLabel}" MouseLeftButtonDown="OnTitleMouseLeftButtonDown"
+                    Visibility="{Binding IsEditing, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                <TextBlock Text="{Binding Title}" TextWrapping="Wrap" VerticalAlignment="Center" FontSize="14">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsCompleted}" Value="True">
+                                    <Setter Property="TextDecorations" Value="Strikethrough" />
+                                    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
             </Border>
+
+            <Grid Margin="0,0,12,0"
+                  Visibility="{Binding IsEditing, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="Editor" Text="{Binding EditTitle, UpdateSourceTrigger=PropertyChanged}"
+                         MaxLength="200" MinHeight="32" Padding="5,2" FontSize="13"
+                         VerticalContentAlignment="Center" TextWrapping="Wrap"
+                         Foreground="{DynamicResource TextPrimaryBrush}" Background="{DynamicResource PanelBrush}"
+                         BorderBrush="{DynamicResource AccentBrush}" BorderThickness="0,0,0,2"
+                         ToolTip="{loc:Text EnterToSaveEscToCancel}" AutomationProperties.Name="{loc:Text TaskText}" />
+                <Button Grid.Column="1" Click="OnSave" Content="&#xE73E;" FontFamily="Segoe Fluent Icons"
+                        Width="28" Height="30" Padding="0" Margin="2,0,0,0" Style="{DynamicResource GhostButtonStyle}"
+                        Foreground="{DynamicResource AccentBrush}" ToolTip="{loc:Text SaveEnter}"
+                        AutomationProperties.Name="{loc:Text SaveTask}" />
+                <Button Grid.Column="2" Click="OnCancel" Content="&#xE711;" FontFamily="Segoe Fluent Icons" FontSize="11"
+                        Width="28" Height="30" Padding="0" Style="{DynamicResource GhostButtonStyle}"
+                        Foreground="{DynamicResource TextMutedBrush}" ToolTip="{loc:Text CancelEsc}"
+                        AutomationProperties.Name="{loc:Text CancelEditing}" />
+            </Grid>
         </Grid>
 
         <!-- Keep the desktop overlay scrollbar and resize edge clear of row actions. -->
@@ -142,6 +69,22 @@
                 Background="Transparent"
                 BorderThickness="0"
                 VerticalAlignment="Center">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding IsKeyboardFocusWithin, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
             <StackPanel Orientation="Horizontal">
                 <Button Click="OnBeginEdit"
                         Content="&#xE70F;"
@@ -152,7 +95,6 @@
                         Padding="0"
                         Style="{DynamicResource GhostButtonStyle}"
                         Foreground="{DynamicResource TextMutedBrush}"
-                        Visibility="{Binding IsEditing, Converter={StaticResource InverseBooleanToVisibilityConverter}}"
                         ToolTip="{loc:Text EditTaskF2}"
                         AutomationProperties.Name="{loc:Text EditTask}" />
                 <Button Command="{Binding DeleteCommand, ElementName=Root}"

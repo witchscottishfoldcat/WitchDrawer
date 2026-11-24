@@ -66,7 +66,7 @@ public sealed class LocalizationTests
             var reopened = new SettingsService(new DrawerRepository(path));
             Assert.Equal(language, await reopened.GetSettingAsync(AppLanguage.SettingKey));
         }
-        finally { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); }
+        finally { TempDirectoryCleanup.Delete(root); }
     }
 
     private static Dictionary<string, string> Read(ResourceManager manager, string culture) =>

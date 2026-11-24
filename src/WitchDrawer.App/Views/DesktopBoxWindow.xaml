@@ -671,34 +671,57 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0" Margin="4,0,4,8">
+                <Grid Grid.Row="0" Margin="4,0,4,6">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="{loc:Text TaskList}"
-                               Foreground="{DynamicResource TextMutedBrush}"
-                               FontSize="10.5"
-                               FontWeight="Bold"
-                               VerticalAlignment="Center" />
-                    <Button Grid.Column="1"
-                            Content="{loc:Text Archive}"
-                            Command="{Binding ArchiveCompletedTodosCommand}"
-                            Style="{StaticResource TodoArchiveButtonStyle}"
-                            Margin="0,0,6,0"
-                            Foreground="{DynamicResource TextMutedBrush}"
-                            FontSize="10.5"
-                            ToolTip="{loc:Text MoveAllCompletedTasksToTheArchive}" />
-                    <Border Grid.Column="2"
-                            Background="{DynamicResource AccentSoftBrush}"
-                            CornerRadius="8"
-                            Padding="8,3">
-                        <TextBlock Text="{loc:Text Remaining, Value={Binding TodoRemainingCount}}"
-                                   Foreground="{DynamicResource AccentBrush}"
-                                   FontSize="10.5"
-                                   FontWeight="SemiBold" />
-                    </Border>
+                    <TextBlock Text="{loc:Text Remaining, Value={Binding TodoRemainingCount}}" TextTrimming="CharacterEllipsis"
+                               Foreground="{DynamicResource TextPrimaryBrush}" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <controls:TodoSortButton Content="&#xE8CB;" FontFamily="Segoe Fluent Icons"
+                                                 Width="28" Height="26" Padding="0" FontSize="13"
+                                                 Style="{StaticResource TodoArchiveButtonStyle}"
+                                                 ToolTip="{loc:Text ChooseSortOrder}" AutomationProperties.Name="{loc:Text SortOrder}" />
+                        <ToggleButton x:Name="OnlyPendingToggle" Content="{loc:Text PendingTodosOnly}"
+                                      Cursor="Hand" Padding="7,3" FontSize="11" MinHeight="26"
+                                      AutomationProperties.Name="{loc:Text PendingTodosOnly}">
+                            <ToggleButton.Template>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <Border x:Name="Surface" Background="Transparent" CornerRadius="6" Padding="{TemplateBinding Padding}"
+                                            BorderBrush="Transparent" BorderThickness="1">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="&#xE71C;" FontFamily="Segoe Fluent Icons" FontSize="10"
+                                                       VerticalAlignment="Center" Margin="0,0,4,0" />
+                                            <ContentPresenter />
+                                        </StackPanel>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Surface" Property="Background" Value="{DynamicResource HoverBrush}" />
+                                        </Trigger>
+                                        <Trigger Property="IsChecked" Value="True">
+                                            <Setter TargetName="Surface" Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+                                            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                                        </Trigger>
+                                        <Trigger Property="IsKeyboardFocused" Value="True">
+                                            <Setter TargetName="Surface" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </ToggleButton.Template>
+                            <ToggleButton.Style>
+                                <Style TargetType="ToggleButton">
+                                    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+                                </Style>
+                            </ToggleButton.Style>
+                        </ToggleButton>
+                        <Button Command="{Binding ArchiveCompletedTodosCommand}" Content="&#xE7B8;" FontFamily="Segoe Fluent Icons"
+                                Style="{StaticResource TodoArchiveButtonStyle}" Padding="0" Width="28" Height="26"
+                                Margin="3,0,0,0" Foreground="{DynamicResource TextMutedBrush}" FontSize="12"
+                                AutomationProperties.Name="{loc:Text ArchiveCompleted}"
+                                ToolTip="{loc:Text MoveAllCompletedTasksToTheArchive}" />
+                    </StackPanel>
                 </Grid>
 
                 <Border Grid.Row="1"
@@ -725,6 +748,7 @@
                                  Background="Transparent"
                                  BorderThickness="0"
                                  FontSize="12.5"
+                                 AutomationProperties.Name="{loc:Text NewTaskText}"
                                  ToolTip="{loc:Text EnterATaskAndPressEnterToAdd}" />
                         <TextBlock Margin="9,0,0,0"
                                    Text="{loc:Text AddATask}"
@@ -751,7 +775,8 @@
                                 Padding="0"
                                 FontSize="18"
                                 FontWeight="SemiBold"
-                                Style="{StaticResource MappingModeButtonStyle}"
+                                Style="{StaticResource PrimaryButtonStyle}"
+                                AutomationProperties.Name="{loc:Text AddTask}"
                                 ToolTip="{loc:Text AddTask}" />
                     </Grid>
                 </Border>
@@ -759,27 +784,47 @@
                 <Grid Grid.Row="2">
                     <StackPanel HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
-                                Visibility="{Binding TodoItems.Count, Converter={StaticResource ZeroToVisibilityConverter}}">
+                                Visibility="{Binding Items.Count, ElementName=TodoList, Converter={StaticResource ZeroToVisibilityConverter}}">
                         <TextBlock Text="✓"
                                    HorizontalAlignment="Center"
                                    Foreground="{DynamicResource AccentBrush}"
                                    FontSize="24"
                                    FontWeight="SemiBold" />
-                        <TextBlock Text="{loc:Text NoTasksYet}"
+                        <TextBlock
                                    Margin="0,5,0,0"
                                    Foreground="{DynamicResource TextMutedBrush}"
-                                   FontSize="12" />
+                                   FontSize="12">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="{loc:Text NoTasksYet}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasTodos}" Value="True">
+                                            <Setter Property="Text" Value="{loc:Text AllTasksCompleted}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
                     </StackPanel>
 
                     <ListBox x:Name="TodoList"
-                             ItemsSource="{Binding TodoItems}"
-                             Visibility="{Binding HasTodos, Converter={StaticResource BooleanToVisibilityConverter}}"
+                             Visibility="{Binding HasItems, RelativeSource={RelativeSource Self}, Converter={StaticResource BooleanToVisibilityConverter}}"
                              ScrollViewer.CanContentScroll="True"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                              ScrollViewer.VerticalScrollBarVisibility="Auto"
                              VirtualizingPanel.IsVirtualizing="True"
                              VirtualizingPanel.VirtualizationMode="Recycling"
                              VirtualizingPanel.ScrollUnit="Pixel">
+                        <ListBox.Style>
+                            <Style TargetType="ListBox" BasedOn="{StaticResource {x:Type ListBox}}">
+                                <Setter Property="ItemsSource" Value="{Binding TodoItems}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsChecked, ElementName=OnlyPendingToggle}" Value="True">
+                                        <Setter Property="ItemsSource" Value="{Binding PendingTodos}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ListBox.Style>
                         <ListBox.Template>
                             <ControlTemplate TargetType="{x:Type ListBox}">
                                 <Grid ClipToBounds="True">
@@ -870,15 +915,18 @@
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <Button Command="{Binding DataContext.ToggleTodoCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                    <controls:TodoReorderHandle Visibility="{Binding DataContext.IsManualOrder, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                    <Button Grid.Column="1" Command="{Binding DataContext.ToggleTodoCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                             CommandParameter="{Binding}"
                                             Style="{StaticResource TodoCompletionButtonStyle}"
                                             Margin="0,0,8,0"
                                             VerticalAlignment="Center"
+                                            AutomationProperties.Name="{Binding Title}"
                                             ToolTip="{loc:Text ToggleCompletion}" />
-                                    <controls:TodoTitleEditor Grid.Column="1"
+                                    <controls:TodoTitleEditor Grid.Column="2"
                                                               SaveCommand="{Binding DataContext.SaveTodoCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                               DeleteCommand="{Binding DataContext.DeleteTodoCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
                                 </Grid>

@@ -7,26 +7,30 @@
              UseLayoutRounding="True"
              SnapsToDevicePixels="True">
     <UserControl.Resources>
-        <Style x:Key="TodoSectionToggleStyle" TargetType="{x:Type ToggleButton}">
-            <Setter Property="Height" Value="34" />
-            <Setter Property="Padding" Value="2,0" />
-            <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
-            <Setter Property="FontSize" Value="11.5" />
+        <Style x:Key="TodoTabStyle" TargetType="RadioButton">
             <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+            <Setter Property="FontSize" Value="13" />
             <Setter Property="Template">
                 <Setter.Value>
-                    <ControlTemplate TargetType="{x:Type ToggleButton}">
-                        <Border x:Name="Root" Background="Transparent" BorderBrush="Transparent"
-                                BorderThickness="1" CornerRadius="9" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Left" />
-                        </Border>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Grid Background="Transparent" MinHeight="38">
+                            <Border x:Name="Surface" Padding="10,4" CornerRadius="6" Margin="0,0,0,3">
+                                <ContentPresenter VerticalAlignment="Center" />
+                            </Border>
+                            <Border x:Name="Indicator" Height="2" CornerRadius="1" VerticalAlignment="Bottom" Margin="10,0" />
+                        </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource HoverBrush}" />
+                                <Setter TargetName="Surface" Property="Background" Value="{DynamicResource HoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                                <Setter Property="FontWeight" Value="SemiBold" />
+                                <Setter TargetName="Indicator" Property="Background" Value="{DynamicResource AccentBrush}" />
                             </Trigger>
                             <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                <Setter TargetName="Surface" Property="Background" Value="{DynamicResource AccentSoftBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -64,12 +68,11 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type ListBoxItem}">
                         <Border x:Name="RowSurface"
-                                MinHeight="48"
+                                MinHeight="46"
                                 Padding="8,4"
                                 Background="Transparent"
-                                BorderBrush="Transparent"
-                                BorderThickness="1"
-                                CornerRadius="10">
+                                BorderBrush="{DynamicResource BorderBrushSoft}"
+                                BorderThickness="0,0,0,1">
                             <ContentPresenter />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -115,9 +118,9 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type Button}">
                         <Grid>
-                            <Ellipse x:Name="CompletionRing"
+                            <Ellipse x:Name="CompletionRing" Margin="3"
                                      Fill="Transparent"
-                                     Stroke="{DynamicResource BorderBrushSoft}"
+                                     Stroke="{DynamicResource TextMutedBrush}"
                                      StrokeThickness="1.5" />
                             <Path x:Name="CompletionCheck"
                                   Data="M 4,9 L 8,13 L 16,5"
@@ -132,6 +135,10 @@
                                   Visibility="Collapsed" />
                         </Grid>
                         <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="CompletionRing" Property="Stroke" Value="{DynamicResource AccentBrush}" />
+                                <Setter TargetName="CompletionRing" Property="StrokeThickness" Value="3" />
+                            </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="CompletionRing"
                                         Property="Stroke"
@@ -161,30 +168,30 @@
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-
-                <Button Command="{Binding DataContext.ToggleTodoCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                <controls:TodoReorderHandle Visibility="{Binding DataContext.IsManualOrder, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <Button Grid.Column="1" Command="{Binding DataContext.ToggleTodoCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
                         CommandParameter="{Binding}"
                         Style="{StaticResource TodoCompletionButtonStyle}"
                         Margin="0,0,10,0"
                         VerticalAlignment="Center"
+                        AutomationProperties.Name="{Binding Title}"
                         ToolTip="{loc:Text ToggleCompletion}" />
 
-                <controls:TodoTitleEditor Grid.Column="1"
+                <controls:TodoTitleEditor Grid.Column="2"
                                           SaveCommand="{Binding DataContext.SaveTodoCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
                                           DeleteCommand="{Binding DataContext.DeleteTodoCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}" />
             </Grid>
         </DataTemplate>
     </UserControl.Resources>
 
-    <Border Padding="14"
-            Background="{DynamicResource PanelBrush}"
-            BorderBrush="{DynamicResource BorderBrushSoft}"
-            BorderThickness="1"
-            CornerRadius="16">
+    <Border Padding="20,16" Background="{DynamicResource PanelBrush}"
+            BorderBrush="{DynamicResource BorderBrushSoft}" BorderThickness="1" CornerRadius="16">
         <Grid>
             <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
@@ -192,39 +199,28 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <Grid Grid.Row="0" Margin="2,0,2,12">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Ellipse Width="6" Height="6" Fill="{DynamicResource AccentBrush}" Margin="0,0,8,0" />
-                    <TextBlock Text="{loc:Text TaskList}"
-                               Foreground="{DynamicResource TextPrimaryBrush}"
-                               FontSize="13"
-                               FontWeight="SemiBold" />
-                </StackPanel>
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Foreground="{DynamicResource TextMutedBrush}" FontSize="11.5">
-                        <Run Text="{loc:Text Remaining2}" /><Run Text="{Binding RemainingCount, Mode=OneWay}" Foreground="{DynamicResource TextPrimaryBrush}" FontWeight="SemiBold" />
+            <DockPanel LastChildFill="True" Margin="0,0,0,16">
+                <StackPanel DockPanel.Dock="Right" VerticalAlignment="Center"
+                            Visibility="{Binding IsEmpty, Converter={StaticResource InverseBooleanToVisibilityConverter}}"
+                            ToolTip="{loc:Text TaskCompletionProgress}">
+                    <TextBlock HorizontalAlignment="Right" FontSize="12" Foreground="{DynamicResource TextMutedBrush}">
+                        <Run Text="{loc:Text Completed2}" /><Run Text="{Binding CompletionPercentage, Mode=OneWay, StringFormat={}{0}%}" FontWeight="SemiBold" />
                     </TextBlock>
-                    <TextBlock Text="·" Foreground="{DynamicResource TextMutedBrush}" Margin="8,0" />
-                    <TextBlock Foreground="{DynamicResource TextMutedBrush}" FontSize="11.5">
-                        <Run Text="{loc:Text Completed2}" /><Run Text="{Binding CompletedCount, Mode=OneWay}" Foreground="{DynamicResource TextPrimaryBrush}" FontWeight="SemiBold" />
-                    </TextBlock>
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0"
-                                Visibility="{Binding IsEmpty, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
-                        <ProgressBar Width="60" Height="4" VerticalAlignment="Center"
-                                     Minimum="0" Maximum="100"
-                                     Value="{Binding CompletionPercentage, Mode=OneWay}"
-                                     Foreground="{DynamicResource AccentBrush}"
-                                     Background="{DynamicResource PanelAltBrush}" BorderThickness="0"
-                                     ToolTip="{loc:Text TaskCompletionProgress}" />
-                        <TextBlock Text="{Binding CompletionPercentage, StringFormat={}{0}%}"
-                                   FontSize="10.5" Foreground="{DynamicResource TextMutedBrush}" Margin="8,0,0,0" />
-                    </StackPanel>
+                    <ProgressBar Height="4" Width="88" Margin="0,5,0,0" Minimum="0" Maximum="100"
+                                 Value="{Binding CompletionPercentage, Mode=OneWay}" Background="{DynamicResource BorderBrushSoft}"
+                                 Foreground="{DynamicResource AccentBrush}" BorderThickness="0"
+                                 AutomationProperties.Name="{loc:Text TaskCompletionProgress}" />
                 </StackPanel>
-            </Grid>
+                <StackPanel Orientation="Horizontal">
+                    <Border Width="36" Height="36" CornerRadius="10" Background="{DynamicResource AccentSoftBrush}">
+                        <Path Data="M2,5 L4,7 L8,2 M11,5 L20,5 M2,14 L4,16 L8,11 M11,14 L20,14"
+                              Width="19" Height="15" Stretch="Uniform" Stroke="{DynamicResource AccentBrush}"
+                              StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                    </Border>
+                    <TextBlock Text="{loc:Text TaskList}" Margin="10,0,0,0" VerticalAlignment="Center"
+                               FontSize="21" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                </StackPanel>
+            </DockPanel>
 
             <Grid Grid.Row="1" Margin="0,0,0,10">
                 <Grid.ColumnDefinitions>
@@ -232,21 +228,16 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <Grid Margin="0,0,8,0">
-                    <TextBox x:Name="NewTodoInput"
-                             Text="{Binding NewTodoTitle, UpdateSourceTrigger=PropertyChanged}"
-                             MaxLength="200" Height="34" Padding="10,0"
-                             VerticalContentAlignment="Center"
-                             Foreground="{DynamicResource TextPrimaryBrush}"
-                             Background="{DynamicResource PanelAltBrush}"
-                             BorderBrush="{DynamicResource BorderBrushSoft}"
-                             BorderThickness="1" FontSize="12"
-                             ToolTip="{loc:Text EnterATaskAndPressEnterToAdd2}"
+                    <TextBox x:Name="NewTodoInput" Text="{Binding NewTodoTitle, UpdateSourceTrigger=PropertyChanged}"
+                             KeyDown="OnNewTodoKeyDown" MaxLength="200" Height="38" Padding="11,0"
+                             VerticalContentAlignment="Center" FontSize="13" Background="{DynamicResource PanelAltBrush}"
+                             Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderBrushSoft}"
+                             BorderThickness="1" ToolTip="{loc:Text EnterATaskAndPressEnterToAdd2}"
                              AutomationProperties.Name="{loc:Text NewTaskText}" />
-                    <TextBlock Text="{loc:Text AddSomethingToDo}" Margin="11,0,0,0"
-                               Foreground="{DynamicResource TextMutedBrush}" FontSize="12"
-                               VerticalAlignment="Center" IsHitTestVisible="False">
+                    <TextBlock Text="{loc:Text AddSomethingToDo}" Margin="12,0" IsHitTestVisible="False" VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextMutedBrush}" FontSize="13">
                         <TextBlock.Style>
-                            <Style TargetType="{x:Type TextBlock}">
+                            <Style TargetType="TextBlock">
                                 <Setter Property="Visibility" Value="Collapsed" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding NewTodoTitle}" Value="">
@@ -257,110 +248,72 @@
                         </TextBlock.Style>
                     </TextBlock>
                 </Grid>
-                <Button Grid.Column="1" Command="{Binding AddTodoCommand}"
-                        IsDefault="True" Width="112" Height="34" Padding="12,0" FontSize="12"
-                        Style="{StaticResource PrimaryButtonStyle}"
-                        AutomationProperties.Name="{loc:Text AddTask2}">
+                <Button Grid.Column="1" Command="{Binding AddTodoCommand}" Style="{StaticResource PrimaryButtonStyle}"
+                        Height="38" Padding="14,0" AutomationProperties.Name="{loc:Text AddTask2}">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="+" Margin="0,0,6,0" />
+                        <TextBlock Text="&#xE710;" FontFamily="Segoe Fluent Icons" FontSize="12" Margin="0,0,7,0" VerticalAlignment="Center" />
                         <TextBlock Text="{loc:Text AddTask2}" />
                     </StackPanel>
                 </Button>
             </Grid>
 
-            <Grid Grid.Row="2">
+            <Grid Grid.Row="2" Margin="0,0,0,4">
+                <Border VerticalAlignment="Bottom" Height="1" Background="{DynamicResource BorderBrushSoft}" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                    <RadioButton Style="{StaticResource TodoTabStyle}" IsChecked="{Binding ShowActive}"
+                                 AutomationProperties.Name="{loc:Text IncompleteTasks}">
+                        <TextBlock><Run Text="{loc:Text Remaining2}" /><Run Text="{Binding RemainingCount, Mode=OneWay}" /></TextBlock>
+                    </RadioButton>
+                    <RadioButton Style="{StaticResource TodoTabStyle}" IsChecked="{Binding ShowCompleted}" Margin="2,0,0,0"
+                                 AutomationProperties.Name="{loc:Text CompletedTasks}">
+                        <TextBlock><Run Text="{loc:Text Completed2}" /><Run Text="{Binding CompletedCount, Mode=OneWay}" /></TextBlock>
+                    </RadioButton>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <controls:TodoSortButton ToolTip="{loc:Text ChooseSortOrder}" AutomationProperties.Name="{loc:Text SortOrder}"
+                                             Style="{StaticResource GhostButtonStyle}" FontSize="12" Padding="10,3">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{loc:Text SortOrder}" VerticalAlignment="Center" />
+                            <TextBlock Text="&#xE70D;" FontFamily="Segoe Fluent Icons" FontSize="8" Margin="6,0,0,0"
+                                       Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </controls:TodoSortButton>
+                    <Button Content="{loc:Text ArchiveCompleted}" Command="{Binding ArchiveCompletedCommand}"
+                            Style="{StaticResource GhostButtonStyle}" FontSize="12" Padding="8,3"
+                            Foreground="{DynamicResource TextMutedBrush}"
+                            Visibility="{Binding ShowCompleted, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                </StackPanel>
+            </Grid>
+            <Grid Grid.Row="3">
+                <ListBox x:Name="DisplayedList" ItemsSource="{Binding DisplayedTodos}"
+                         Style="{StaticResource TodoListStyle}" ItemTemplate="{StaticResource TodoDetailItemTemplate}"
+                         ItemContainerStyle="{StaticResource TodoRowContainerStyle}" AutomationProperties.Name="{loc:Text TaskList}" />
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
-                            Visibility="{Binding HasActiveTodos, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
-                    <Border Width="40" Height="40" CornerRadius="12" Background="{DynamicResource AccentSoftBrush}">
-                        <TextBlock Text="&#xE73E;" FontFamily="Segoe Fluent Icons" FontSize="18"
-                                   Foreground="{DynamicResource AccentBrush}"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </Border>
-                    <TextBlock Margin="0,10,0,0" HorizontalAlignment="Center"
-                               Foreground="{DynamicResource TextPrimaryBrush}" FontSize="13" FontWeight="SemiBold">
+                            Visibility="{Binding DisplayedTodos.Count, Converter={StaticResource ZeroToVisibilityConverter}}">
+                    <TextBlock FontFamily="Segoe Fluent Icons" Text="&#xE73E;" FontSize="22" HorizontalAlignment="Center"
+                               Foreground="{DynamicResource AccentBrush}" />
+                    <TextBlock Margin="0,6,0,0" FontSize="14" Foreground="{DynamicResource TextPrimaryBrush}">
                         <TextBlock.Style>
-                            <Style TargetType="{x:Type TextBlock}">
+                            <Style TargetType="TextBlock">
                                 <Setter Property="Text" Value="{loc:Text NoTasksYet2}" />
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsEmpty}" Value="False">
+                                    <DataTrigger Binding="{Binding HasCompletedTodos}" Value="True">
                                         <Setter Property="Text" Value="{loc:Text AllTasksCompleted}" />
                                     </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                    <TextBlock Margin="0,4,0,0" HorizontalAlignment="Center"
-                               Foreground="{DynamicResource TextMutedBrush}" FontSize="11.5">
-                        <TextBlock.Style>
-                            <Style TargetType="{x:Type TextBlock}">
-                                <Setter Property="Text" Value="{loc:Text AddATaskAboveAndPressEnterToBegin}" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsEmpty}" Value="False">
-                                        <Setter Property="Text" Value="{loc:Text ArchiveCompletedTasksOrAddANewTask}" />
+                                    <DataTrigger Binding="{Binding ShowCompleted}" Value="True">
+                                        <Setter Property="Text" Value="{loc:Text NoCompletedTodosYet}" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
                         </TextBlock.Style>
                     </TextBlock>
                 </StackPanel>
-                <ListBox ItemsSource="{Binding ActiveTodos}"
-                         Style="{StaticResource TodoListStyle}"
-                         ItemTemplate="{StaticResource TodoDetailItemTemplate}"
-                         ItemContainerStyle="{StaticResource TodoRowContainerStyle}"
-                         Visibility="{Binding HasActiveTodos, Converter={StaticResource BooleanToVisibilityConverter}}"
-                         AutomationProperties.Name="{loc:Text IncompleteTasks}" />
             </Grid>
-
-            <Border Grid.Row="3" Margin="0,10,0,0" Padding="0,8,0,0"
-                    BorderBrush="{DynamicResource BorderBrushSoft}" BorderThickness="0,1,0,0"
-                    Visibility="{Binding HasCompletedTodos, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-                    <Grid Margin="2,0,0,6">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <ToggleButton x:Name="CompletedTodosToggle" IsChecked="False"
-                                      HorizontalAlignment="Left" Style="{StaticResource TodoSectionToggleStyle}"
-                                      ToolTip="{loc:Text ExpandOrCollapseCompletedTasks}" AutomationProperties.Name="{loc:Text ExpandOrCollapseCompletedTasks}">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock FontFamily="Segoe Fluent Icons" FontSize="10" Margin="0,0,8,0" VerticalAlignment="Center">
-                                    <TextBlock.Style>
-                                        <Style TargetType="{x:Type TextBlock}">
-                                            <Setter Property="Text" Value="&#xE76C;" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsChecked, ElementName=CompletedTodosToggle}" Value="True">
-                                                    <Setter Property="Text" Value="&#xE70D;" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                                <TextBlock>
-                                    <Run Text="{loc:Text Completed2}" /><Run Text="{Binding CompletedCount, Mode=OneWay}" FontWeight="SemiBold" />
-                                </TextBlock>
-                            </StackPanel>
-                        </ToggleButton>
-                        <Button Grid.Column="1" Content="{loc:Text ArchiveCompleted}" Command="{Binding ArchiveCompletedCommand}"
-                                Width="112" Height="34" Padding="12,0" FontSize="12"
-                                Style="{StaticResource GhostButtonStyle}"
-                                Foreground="{DynamicResource TextMutedBrush}" />
-                    </Grid>
-                    <ListBox Grid.Row="1" MaxHeight="120"
-                             ItemsSource="{Binding CompletedTodos}"
-                             Style="{StaticResource TodoListStyle}"
-                             ItemTemplate="{StaticResource TodoDetailItemTemplate}"
-                             ItemContainerStyle="{StaticResource TodoRowContainerStyle}"
-                             Visibility="{Binding IsChecked, ElementName=CompletedTodosToggle, Converter={StaticResource BooleanToVisibilityConverter}}"
-                             AutomationProperties.Name="{loc:Text CompletedTasks}" />
-                </Grid>
-            </Border>
-
-            <Border Grid.Row="4" Margin="0,10,0,0" Padding="10,6" CornerRadius="9"
+            <TextBlock Grid.Row="4" Margin="2,5" Text="{Binding StatusText}" ToolTip="{Binding StatusText}"
+                       TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextMutedBrush}" FontSize="12"
+                       AutomationProperties.LiveSetting="Polite"
+                       Visibility="{Binding Undo.IsAvailable, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+            <Border Grid.Row="5" Margin="0,10,0,0" Padding="10,6" CornerRadius="9"
                     Background="{DynamicResource AccentSoftBrush}"
                     Visibility="{Binding Undo.IsAvailable, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <Grid>

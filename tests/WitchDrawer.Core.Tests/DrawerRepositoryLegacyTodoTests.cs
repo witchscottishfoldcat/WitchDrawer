@@ -177,7 +177,7 @@ public sealed class DrawerRepositoryLegacyTodoTests
                 + Path.DirectorySeparatorChar + "WitchDrawerLegacyTodo-";
             if (!Paths.RootDirectory.StartsWith(allowed, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("Invalid test cleanup root.");
-            Directory.Delete(Paths.RootDirectory, recursive: true);
+            TempDirectoryCleanup.Delete(Paths.RootDirectory);
         }
     }
 }

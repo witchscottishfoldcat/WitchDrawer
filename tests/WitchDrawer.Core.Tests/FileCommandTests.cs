@@ -257,6 +257,9 @@ public sealed class FileCommandTests
         Assert.Equal(PendingFileOperationKind.Copy, pending.Kind);
         Assert.Equal("payload", File.ReadAllText(source));
         Assert.Equal("payload", File.ReadAllText(pending.TargetPath));
+        var next = w.Source("second", "keep");
+        await Assert.ThrowsAsync<BoxFullException>(() => w.Service.ImportPathAsync(w.Box.Id, next, capacity: 1));
+        Assert.True(File.Exists(next));
         await w.Sql("DROP TRIGGER FailCopy;");
         var restarted = new DrawerService(w.Paths, w.Repository);
         await restarted.InitializeAsync();
@@ -395,6 +398,26 @@ public sealed class FileCommandTests
     }
 
     [Fact]
+    public async Task ConcurrentCopyAndImport_OnlyOneCanClaimTheLastSlot()
+    {
+        using var w = await Workspace.CreateAsync();
+        var copySource = w.Source("copy", "copy payload");
+        var importSource = w.Source("import", "import payload");
+        var otherService = new DrawerService(w.Paths, w.Repository);
+        var copy = w.Service.CopyPathToBoxAsync(w.Box.Id, copySource, capacity: 1);
+        var import = otherService.ImportPathAsync(w.Box.Id, importSource, capacity: 1);
+
+        await Assert.ThrowsAsync<BoxFullException>(() => Task.WhenAll(copy, import));
+        var stored = Assert.Single(await w.Service.GetItemsAsync(w.Box.Id));
+        Assert.True(copy.IsCompletedSuccessfully ^ import.IsCompletedSuccessfully);
+        Assert.Equal(import.IsCompletedSuccessfully ? importSource : copySource, stored.SourcePath);
+        Assert.Equal(!import.IsCompletedSuccessfully, File.Exists(importSource));
+        Assert.True(File.Exists(copySource));
+        Assert.Single(Directory.GetFileSystemEntries(w.Box.StoragePath!));
+        Assert.Empty(await w.Repository.GetPendingFileOperationsAsync());
+    }
+
+    [Fact]
     public async Task Copy_RejectsInternalPathsAndHonorsCancellation()
     {
         using var w = await Workspace.CreateAsync();
@@ -439,6 +462,6 @@ public sealed class FileCommandTests
             await using var c = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Paths.DatabasePath, Pooling = false }.ToString());
             await c.OpenAsync(); using var command = c.CreateCommand(); command.CommandText = sql; await command.ExecuteNonQueryAsync();
         }
-        public void Dispose() { if (Directory.Exists(Root)) Directory.Delete(Root, true); }
+        public void Dispose() => TempDirectoryCleanup.Delete(Root);
     }
 }

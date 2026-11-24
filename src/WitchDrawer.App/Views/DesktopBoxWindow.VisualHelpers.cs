@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Media;
+using WitchDrawer.App.Infrastructure;
 using WitchDrawer.Native.Windows;
 using static WitchDrawer.Native.Windows.User32Interop;
 
@@ -13,7 +14,7 @@ public partial class DesktopBoxWindow
     private static T? FindVisualAncestor<T>(DependencyObject source)
         where T : DependencyObject
     {
-        for (var current = source; current is not null; current = VisualTreeHelper.GetParent(current))
+        for (var current = source; current is not null; current = InputTree.GetParent(current))
         {
             if (current is T typed)
             {

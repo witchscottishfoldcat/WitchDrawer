@@ -1,5 +1,6 @@
 using WitchDrawer.Core.Localization;
 using System.Globalization;
+using System.Windows.Data;
 using WitchDrawer.App.Infrastructure;
 using WitchDrawer.Core.Models;
 using WitchDrawer.Core.Services;
@@ -7,8 +8,60 @@ using WitchDrawer.Core.Services;
 namespace WitchDrawer.App.ViewModels;
 
 /// <summary>DesktopBoxViewModel 的待办部分：待办项增删改、撤销归档与待办面板尺寸逻辑。</summary>
-public sealed partial class DesktopBoxViewModel
+public sealed partial class DesktopBoxViewModel : ITodoOrdering
 {
+    private TodoSortMode _sortMode;
+
+    public TodoSortMode SortMode
+    {
+        get => _sortMode;
+        private set
+        {
+            if (SetProperty(ref _sortMode, value)) OnPropertyChanged(nameof(IsManualOrder));
+        }
+    }
+    public bool IsManualOrder => SortMode == TodoSortMode.Manual;
+
+    public Task SetSortModeAsync(TodoSortMode mode) => RunTodoOperationAsync(async () =>
+    {
+        await _todoService.SetSortModeAsync(BoxId, mode);
+        SortMode = mode;
+        ApplyTodoItems(TodoItems.Select(item => item.Model));
+        return Strings.Get("TodoOrderSaved");
+    });
+
+    public Task MoveTodoAsync(TodoItemViewModel source, TodoItemViewModel target, bool after)
+    {
+        if (!IsManualOrder || !CanMutateTodo(source) || !CanMutateTodo(target) ||
+            source.IsCompleted != target.IsCompleted) return Task.CompletedTask;
+
+        return RunTodoOperationAsync(async () =>
+        {
+            await _todoService.MoveTodoAsync(BoxId, source.Id, target.Id, source.IsCompleted, after);
+            ApplyTodoItems(await _todoService.GetTodosAsync(BoxId));
+            return Strings.Get("TodoOrderSaved");
+        });
+    }
+
+    private ListCollectionView? _pendingTodos;
+
+    public ListCollectionView PendingTodos
+    {
+        get
+        {
+            if (_pendingTodos is null)
+            {
+                _pendingTodos = new ListCollectionView(TodoItems)
+                {
+                    Filter = item => item is TodoItemViewModel { IsCompleted: false }
+                };
+                _pendingTodos.LiveFilteringProperties.Add(nameof(TodoItemViewModel.IsCompleted));
+                _pendingTodos.IsLiveFiltering = true;
+            }
+            return _pendingTodos;
+        }
+    }
+
     private bool CanAddTodo()
     {
         return IsTodoBox && !IsBusy && NewTodoTitle.Trim().Length is > 0 and <= TodoService.MaximumTitleLength;
@@ -118,8 +171,9 @@ public sealed partial class DesktopBoxViewModel
 
     private async Task LoadTodoItemsAsync()
     {
-        var todos = await _todoService.GetTodosAsync(BoxId);
-        ApplyTodoItems(todos);
+        var list = await _todoService.GetListAsync(BoxId);
+        SortMode = list.SortMode;
+        ApplyTodoItems(list.Items);
         if (!IsBusy) StatusText = TodoItems.Count == 0 ? Strings.Get("AddTask") : Strings.Get("Synced");
         OnPropertyChanged(nameof(ItemCountLabel));
         OnPropertyChanged(nameof(TodoRemainingCount));
@@ -128,10 +182,10 @@ public sealed partial class DesktopBoxViewModel
         ArchiveCompletedTodosCommand.NotifyCanExecuteChanged();
     }
 
-    private void UpsertTodo(TodoItem model) => ApplyTodoItems(TodoCollectionSync.Ordered(TodoItems.Select(item => item.Model).Where(item => item.Id != model.Id).Append(model)));
+    private void UpsertTodo(TodoItem model) => ApplyTodoItems(TodoItems.Select(item => item.Model).Where(item => item.Id != model.Id).Append(model));
     private void ApplyTodoItems(IEnumerable<TodoItem> items)
     {
-        TodoCollectionSync.Apply(TodoItems, items.Where(item => !item.IsArchived));
+        TodoCollectionSync.Apply(TodoItems, TodoCollectionSync.Ordered(items.Where(item => !item.IsArchived), SortMode));
         NotifyTodoState();
     }
     private void NotifyTodoState()

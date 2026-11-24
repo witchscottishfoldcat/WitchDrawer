@@ -73,7 +73,7 @@ public sealed class PluginService : IDisposable
             }, cancellationToken).ConfigureAwait(false);
             return new(catalog, false);
         }
-        catch (Exception exception) when (exception is HttpRequestException or IOException or JsonException or TaskCanceledException or TimeoutException)
+        catch (Exception exception) when (exception is HttpRequestException or IOException or InvalidDataException or JsonException or TaskCanceledException or TimeoutException)
         {
             cancellationToken.ThrowIfCancellationRequested();
             _logger.Error(exception, "Plugin catalog unavailable; using offline catalog.");
@@ -96,7 +96,7 @@ public sealed class PluginService : IDisposable
                     PluginValidation.Validate(catalog);
                     return catalog;
                 }
-                catch (Exception exception) when (exception is IOException or JsonException or ArgumentException)
+                catch (Exception exception) when (exception is IOException or InvalidDataException or JsonException or ArgumentException)
                 { _logger.Error(exception, "Invalid cached plugin catalog."); }
             }
             return new PluginCatalog();
@@ -262,7 +262,9 @@ public sealed class PluginService : IDisposable
             var packages = Path.Combine(_root, "packages");
             if (!Directory.Exists(packages)) return;
             EnsureNoReparsePoints(packages);
-            var active = ReadState().Plugins.Select(p => PackageDirectory(p.Manifest.Id, p.Generation)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var state = ReadStateIfPresent();
+            if (state is null) return; // Without the installation index no generation is known to be unused.
+            var active = state.Plugins.Select(p => PackageDirectory(p.Manifest.Id, p.Generation)).ToHashSet(StringComparer.OrdinalIgnoreCase);
             foreach (var idDirectory in Directory.EnumerateDirectories(packages))
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -273,9 +275,11 @@ public sealed class PluginService : IDisposable
         }, cancellationToken).ConfigureAwait(false);
     }
 
-    private PluginState ReadState()
+    private PluginState ReadState() => ReadStateIfPresent() ?? new();
+
+    private PluginState? ReadStateIfPresent()
     {
-        if (!File.Exists(StatePath)) return new();
+        if (!File.Exists(StatePath)) return null;
         EnsureNoReparsePoints(StatePath);
         if (new FileInfo(StatePath).Length > 8 * 1024 * 1024) throw new InvalidDataException("Oversized plugin state.");
         var state = Deserialize<PluginState>(File.ReadAllBytes(StatePath));

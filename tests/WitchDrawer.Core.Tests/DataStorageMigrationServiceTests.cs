@@ -63,8 +63,10 @@ public sealed class DataStorageMigrationServiceTests
         finally { DeleteDirectory(root); }
     }
 
-    [Fact]
-    public async Task MigrateAsync_CopiesDataAndWritesBootstrapConfig()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MigrateAsync_CopiesDataAndWritesBootstrapConfig(bool useTrailingSeparator)
     {
         var sourceRoot = CreateTempDirectory();
         var bootstrapRoot = CreateTempDirectory();
@@ -90,7 +92,13 @@ public sealed class DataStorageMigrationServiceTests
                 Path.Combine(bootstrapRoot, StorageLocationStore.ConfigFileName));
             var migration = new DataStorageMigrationService(paths, repository, store);
 
-            var newPaths = await migration.MigrateAsync(targetRoot);
+            var targetArgument = targetRoot;
+            if (useTrailingSeparator)
+            {
+                Directory.CreateDirectory(targetRoot);
+                targetArgument += Path.DirectorySeparatorChar;
+            }
+            var newPaths = await migration.MigrateAsync(targetArgument);
 
             Assert.Equal(Path.GetFullPath(targetRoot), newPaths.RootDirectory);
             Assert.True(File.Exists(newPaths.DatabasePath));

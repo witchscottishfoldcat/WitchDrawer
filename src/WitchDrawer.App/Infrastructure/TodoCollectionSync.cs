@@ -21,5 +21,15 @@ internal static class TodoCollectionSync
             if (previousIndex >= 0) target.Move(previousIndex, index); else target.Insert(index, item);
         }
     }
-    public static IEnumerable<TodoItem> Ordered(IEnumerable<TodoItem> items) => items.OrderBy(item => item.IsCompleted).ThenBy(item => item.SortOrder).ThenBy(item => item.CreatedAt).ThenBy(item => item.Id);
+    public static IEnumerable<TodoItem> Ordered(IEnumerable<TodoItem> items, TodoSortMode mode)
+    {
+        var groups = items.OrderBy(item => item.IsCompleted);
+        var sorted = mode switch
+        {
+            TodoSortMode.NewestFirst => groups.ThenByDescending(item => item.CreatedAt),
+            TodoSortMode.OldestFirst => groups.ThenBy(item => item.CreatedAt),
+            _ => groups.ThenBy(item => item.SortOrder)
+        };
+        return sorted.ThenBy(item => item.SortOrder).ThenBy(item => item.CreatedAt).ThenBy(item => item.Id);
+    }
 }

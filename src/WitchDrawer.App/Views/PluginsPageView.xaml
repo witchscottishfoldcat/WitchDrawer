@@ -14,29 +14,58 @@
             <Button Content="{loc:Text PluginSubmit}" Command="{Binding SubmitCommand}" Margin="0,0,8,6"/>
             <Button Content="{loc:Text PluginGuide}" Command="{Binding GuideCommand}" Margin="0,0,8,6"/>
         </WrapPanel>
-        <ListBox Grid.Row="2" ItemsSource="{Binding Items}" Background="Transparent" BorderThickness="0"
-                 ScrollViewer.CanContentScroll="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
-            <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Padding" Value="0"/><Setter Property="Margin" Value="0,0,0,10"/></Style></ListBox.ItemContainerStyle>
+        <ListBox Grid.Row="2" ItemsSource="{Binding Items}" Style="{StaticResource SmoothListBoxStyle}"
+                 Background="Transparent" BorderThickness="0">
+            <ListBox.ItemContainerStyle>
+                <Style TargetType="ListBoxItem">
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <Setter Property="Margin" Value="0,0,0,10" />
+                    <Setter Property="Padding" Value="16" />
+                    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="ListBoxItem">
+                                <Border x:Name="Card"
+                                        Background="{DynamicResource PanelBrush}"
+                                        BorderBrush="{DynamicResource BorderBrushSoft}"
+                                        BorderThickness="1" CornerRadius="12"
+                                        Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
+                                    <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Card" Property="BorderBrush" Value="{DynamicResource AccentSoftBrush}" />
+                                    </Trigger>
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter TargetName="Card" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                    </Trigger>
+                                    <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                        <Setter TargetName="Card" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </ListBox.ItemContainerStyle>
             <ListBox.ItemTemplate>
                 <DataTemplate>
-                    <Border Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource BorderBrushSoft}" BorderThickness="1" CornerRadius="12" Padding="16">
-                        <StackPanel>
-                            <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}"/>
-                            <TextBlock Text="{Binding Details}" Margin="0,4,0,0" Foreground="{DynamicResource TextMutedBrush}"/>
-                            <TextBlock Text="{Binding Description}" TextWrapping="Wrap" Margin="0,8,0,0" Foreground="{DynamicResource TextPrimaryBrush}"/>
-                            <TextBlock Text="{Binding Capabilities}" TextWrapping="Wrap" Margin="0,4,0,0" Foreground="{DynamicResource TextMutedBrush}"/>
-                            <TextBlock Text="{Binding State}" TextWrapping="Wrap" Margin="0,8,0,0" Foreground="{DynamicResource AccentBrush}"/>
-                            <WrapPanel Margin="0,12,0,0">
-                                <Button Content="{loc:Text PluginInstallUpdate}" Command="{Binding InstallCommand}" Margin="0,0,8,4"/>
-                                <Button Content="{loc:Text PluginEnable}" Command="{Binding EnableCommand}" Margin="0,0,8,4"/>
-                                <Button Content="{loc:Text PluginDisable}" Command="{Binding DisableCommand}" Margin="0,0,8,4"/>
-                                <Button Content="{loc:Text PluginSettings}" Command="{Binding SettingsCommand}" Margin="0,0,8,4"/>
-                                <Button Content="{loc:Text PluginUninstall}" Command="{Binding UninstallCommand}" Margin="0,0,8,4"/>
-                                <Button Content="{loc:Text PluginSource}" Command="{Binding SourceCommand}" Margin="0,0,8,4"/>
-                                <Button Content="{loc:Text PluginScreenshot}" Command="{Binding ScreenshotCommand}" Margin="0,0,8,4"/>
-                            </WrapPanel>
-                        </StackPanel>
-                    </Border>
+                    <StackPanel>
+                        <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        <TextBlock Text="{Binding Details}" Margin="0,4,0,0" Foreground="{DynamicResource TextMutedBrush}"/>
+                        <TextBlock Text="{Binding Description}" TextWrapping="Wrap" Margin="0,8,0,0" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        <TextBlock Text="{Binding Capabilities}" TextWrapping="Wrap" Margin="0,4,0,0" Foreground="{DynamicResource TextMutedBrush}"/>
+                        <TextBlock Text="{Binding State}" TextWrapping="Wrap" Margin="0,8,0,0" Foreground="{DynamicResource AccentBrush}"/>
+                        <WrapPanel Margin="0,12,0,0">
+                            <Button Content="{loc:Text PluginInstallUpdate}" Command="{Binding InstallCommand}" Margin="0,0,8,4"/>
+                            <Button Content="{loc:Text PluginEnable}" Command="{Binding EnableCommand}" Margin="0,0,8,4"/>
+                            <Button Content="{loc:Text PluginDisable}" Command="{Binding DisableCommand}" Margin="0,0,8,4"/>
+                            <Button Content="{loc:Text PluginSettings}" Command="{Binding SettingsCommand}" Margin="0,0,8,4"/>
+                            <Button Content="{loc:Text PluginUninstall}" Command="{Binding UninstallCommand}" Margin="0,0,8,4"/>
+                            <Button Content="{loc:Text PluginSource}" Command="{Binding SourceCommand}" Margin="0,0,8,4"/>
+                            <Button Content="{loc:Text PluginScreenshot}" Command="{Binding ScreenshotCommand}" Margin="0,0,8,4"/>
+                        </WrapPanel>
+                    </StackPanel>
                 </DataTemplate>
             </ListBox.ItemTemplate>
         </ListBox>

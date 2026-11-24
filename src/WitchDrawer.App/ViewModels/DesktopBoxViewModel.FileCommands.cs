@@ -27,16 +27,23 @@ public sealed partial class DesktopBoxViewModel
         if (IsTodoBox || paths.Length == 0) return;
         IsBusy = true;
         var succeeded = 0;
+        var skipped = 0;
         var failures = new List<string>();
         try
         {
-            foreach (var path in paths.Distinct(StringComparer.OrdinalIgnoreCase))
+            var uniquePaths = paths.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            foreach (var path in uniquePaths)
             {
                 try
                 {
                     if (IsMappingBox) await _drawerService.ImportPathAsync(BoxId, path);
-                    else await _drawerService.CopyPathToBoxAsync(BoxId, path);
+                    else await _drawerService.CopyPathToBoxAsync(BoxId, path, capacity: FixedCapacity);
                     succeeded++;
+                }
+                catch (BoxFullException)
+                {
+                    skipped = uniquePaths.Length - succeeded - failures.Count;
+                    break;
                 }
                 catch (Exception exception)
                 {
@@ -46,9 +53,10 @@ public sealed partial class DesktopBoxViewModel
             }
             await LoadAsync();
             var operation = IsMappingBox ? Strings.Get("Referenced") : Strings.Get("Copy");
-            StatusText = failures.Count == 0
+            var result = failures.Count == 0
                 ? Strings.Format("Items2", operation, succeeded)
                 : Strings.Format("ItemsFailed", operation, succeeded, failures.Count, failures[0]);
+            StatusText = skipped == 0 ? result : Strings.Format("PasteSkippedBecauseBoxFull", result, skipped);
         }
         finally { IsBusy = false; }
     }

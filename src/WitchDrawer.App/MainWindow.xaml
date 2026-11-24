@@ -201,16 +201,8 @@
                                      PreviewMouseMove="OnBoxesPreviewMouseMove"
                                      DragOver="OnBoxesDragOver"
                                      Drop="OnBoxesDrop"
-                                     ScrollViewer.CanContentScroll="True"
-                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                     VirtualizingPanel.IsVirtualizing="True"
-                                     VirtualizingPanel.VirtualizationMode="Recycling"
+                                     Style="{StaticResource SmoothListBoxStyle}"
                                      Margin="0,0,0,6">
-                                <ListBox.Resources>
-                                    <Style TargetType="{x:Type ScrollBar}"
-                                           BasedOn="{StaticResource DrawerScrollBarStyle}" />
-                                </ListBox.Resources>
                                 <ListBox.ItemContainerStyle>
                                     <Style TargetType="{x:Type ListBoxItem}">
                                         <Setter Property="MinHeight" Value="52" />

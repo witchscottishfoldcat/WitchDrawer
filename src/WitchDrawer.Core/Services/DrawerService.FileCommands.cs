@@ -15,10 +15,11 @@ public sealed partial class DrawerService
             return item;
         }, cancellationToken);
 
-    public Task<DrawerItem> CopyPathToBoxAsync(Guid boxId, string sourcePath, CancellationToken cancellationToken = default)
-        => Task.Run(() => CopyPathToBoxCoreAsync(boxId, sourcePath, cancellationToken), cancellationToken);
+    public Task<DrawerItem> CopyPathToBoxAsync(Guid boxId, string sourcePath, CancellationToken cancellationToken = default,
+        int capacity = int.MaxValue)
+        => Task.Run(() => CopyPathToBoxCoreAsync(boxId, sourcePath, cancellationToken, capacity), cancellationToken);
 
-    private async Task<DrawerItem> CopyPathToBoxCoreAsync(Guid boxId, string sourcePath, CancellationToken cancellationToken)
+    private async Task<DrawerItem> CopyPathToBoxCoreAsync(Guid boxId, string sourcePath, CancellationToken cancellationToken, int capacity)
     {
         await _fileOperationGate.WaitAsync(cancellationToken);
         try
@@ -68,7 +69,7 @@ public sealed partial class DrawerService
                 await _repository.GetNextItemSortOrderAsync(boxId, cancellationToken), now, now);
             var operation = new PendingFileOperation(Guid.NewGuid(), PendingFileOperationKind.Copy,
                 item.Id, fullSource, target, isDirectory, item);
-            await _repository.AddPendingFileOperationAsync(operation, cancellationToken);
+            await _repository.AddPendingFileOperationAsync(operation, cancellationToken, capacity);
             try
             {
                 await SafeFileOps.CopyAsync(fullSource, target, isDirectory, cancellationToken, operation.Id);

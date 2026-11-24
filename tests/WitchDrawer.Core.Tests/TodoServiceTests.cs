@@ -201,6 +201,35 @@ public sealed class TodoServiceTests
         Assert.Single(await workspace.Service.GetTodosAsync(secondBox.Id));
     }
 
+    [Fact]
+    public async Task MoveTodo_PreservesOrderAfterReloadAndRejectsStaleOrForeignTargets()
+    {
+        using var workspace = await TodoWorkspace.CreateAsync();
+        var service = workspace.Service;
+        var box = workspace.BoxId;
+        var a = await service.AddTodoAsync(box, "A");
+        var b = await service.AddTodoAsync(box, "B");
+        var c = await service.AddTodoAsync(box, "C");
+        var other = await workspace.DrawerService.CreateBoxAsync("other", BoxType.Todo);
+        var foreign = await service.AddTodoAsync(other.Id, "another box");
+
+        await service.MoveTodoAsync(box, a.Id, c.Id, completed: false, after: true);
+        var reloaded = new TodoService(new DrawerRepository(workspace.DatabasePath));
+        Assert.Equal([b.Id, c.Id, a.Id], (await reloaded.GetTodosAsync(box)).Select(x => x.Id));
+        await reloaded.MoveTodoAsync(box, c.Id, b.Id, completed: false, after: false);
+        await reloaded.SetCompletedAsync(b.Id, true);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.MoveTodoAsync(box, a.Id, b.Id, false, false));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.MoveTodoAsync(box, a.Id, foreign.Id, false, true));
+        await reloaded.ArchiveCompletedAsync(box);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.MoveTodoAsync(box, b.Id, b.Id, true, true));
+
+        await service.SetSortModeAsync(box, TodoSortMode.NewestFirst);
+        Assert.Equal(TodoSortMode.NewestFirst, (await reloaded.GetListAsync(box)).SortMode);
+        Assert.Equal(TodoSortMode.Manual, (await reloaded.GetListAsync(other.Id)).SortMode);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => reloaded.MoveTodoAsync(box, a.Id, c.Id, false, false));
+        Assert.Equal([c.Id, a.Id], (await reloaded.GetTodosAsync(box)).Select(x => x.Id));
+    }
+
     private sealed class TodoWorkspace : IDisposable
     {
         private TodoWorkspace(

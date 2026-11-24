@@ -42,10 +42,7 @@ public sealed class DrawerRepositoryGridPositionTests
         }
         finally
         {
-            if (Directory.Exists(root))
-            {
-                Directory.Delete(root, recursive: true);
-            }
+            TempDirectoryCleanup.Delete(root);
         }
     }
 }

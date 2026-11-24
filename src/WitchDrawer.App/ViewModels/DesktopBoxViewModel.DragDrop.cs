@@ -446,7 +446,7 @@ public sealed partial class DesktopBoxViewModel
                             break;
                         }
 
-                        var sortedImport = await _drawerService.ImportPathAsync(BoxId, path);
+                        var sortedImport = await _drawerService.ImportPathAsync(BoxId, path, capacity: FixedCapacity);
                         importedIds.Add(sortedImport.Id);
                         await _shellChangeNotifier.NotifyItemImportedAsync(sortedImport, _logger);
                         continue;
@@ -467,7 +467,7 @@ public sealed partial class DesktopBoxViewModel
                     }
 
                     reservedSlots.Add(slot);
-                    var importedItem = await _drawerService.ImportPathAsync(BoxId, path, slot.Column, slot.Row);
+                    var importedItem = await _drawerService.ImportPathAsync(BoxId, path, slot.Column, slot.Row, capacity: FixedCapacity);
                     importedIds.Add(importedItem.Id);
                     await _shellChangeNotifier.NotifyItemImportedAsync(importedItem, _logger);
                     nextColumn = slot.Column + 1;
@@ -551,7 +551,7 @@ public sealed partial class DesktopBoxViewModel
                     {
                         targetSlot = FindFirstFreeSlot(targetColumn, targetRow, occupiedSlots);
                     }
-                    await _drawerService.MoveItemToBoxAsync(itemId, BoxId, targetSlot.Column, targetSlot.Row);
+                    await _drawerService.MoveItemToBoxAsync(itemId, BoxId, targetSlot.Column, targetSlot.Row, capacity: FixedCapacity);
                 }
                 else
                 {
@@ -562,7 +562,7 @@ public sealed partial class DesktopBoxViewModel
                         return false;
                     }
 
-                    await _drawerService.MoveItemToBoxAsync(itemId, BoxId);
+                    await _drawerService.MoveItemToBoxAsync(itemId, BoxId, capacity: FixedCapacity);
                 }
 
                 await LoadAsync();

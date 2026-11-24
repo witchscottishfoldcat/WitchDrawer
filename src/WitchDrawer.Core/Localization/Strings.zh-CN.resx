@@ -410,6 +410,9 @@
   <data name="Items2" xml:space="preserve">
     <value>已{0} {1} 项</value>
   </data>
+  <data name="PasteSkippedBecauseBoxFull" xml:space="preserve">
+    <value>{0}。盒子已满，已跳过 {1} 项。</value>
+  </data>
   <data name="ItemsFailed" xml:space="preserve">
     <value>已{0} {1} 项，{2} 项失败：{3}</value>
   </data>
@@ -1720,4 +1723,34 @@
   <data name="PluginMetrics" xml:space="preserve"><value>系统指标读取</value></data>
   <data name="PluginFiles" xml:space="preserve"><value>文件访问</value></data>
   <data name="RecoveredTaskBox" xml:space="preserve"><value>已恢复的待办</value></data>
+  <data name="PendingTodosOnly" xml:space="preserve">
+    <value>只看待办</value>
+  </data>
+  <data name="NoCompletedTodosYet" xml:space="preserve">
+    <value>还没有已完成的事项</value>
+  </data>
+  <data name="TodoOrderChanged" xml:space="preserve">
+    <value>清单顺序已变化，请确认后再试。</value>
+  </data>
+  <data name="TodoOrderSaved" xml:space="preserve">
+    <value>清单顺序已保存</value>
+  </data>
+  <data name="TodoManualOrder" xml:space="preserve">
+    <value>手动排序</value>
+  </data>
+  <data name="TodoNewestFirst" xml:space="preserve">
+    <value>创建时间 · 最新在前</value>
+  </data>
+  <data name="TodoOldestFirst" xml:space="preserve">
+    <value>创建时间 · 最早在前</value>
+  </data>
+  <data name="MoveTodoHint" xml:space="preserve">
+    <value>拖动调整位置，或点击选择上移、下移</value>
+  </data>
+  <data name="MoveTodoUp" xml:space="preserve">
+    <value>上移</value>
+  </data>
+  <data name="MoveTodoDown" xml:space="preserve">
+    <value>下移</value>
+  </data>
 </root>

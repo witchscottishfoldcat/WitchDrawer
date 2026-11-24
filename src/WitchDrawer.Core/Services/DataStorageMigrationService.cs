@@ -62,7 +62,7 @@ public sealed class DataStorageMigrationService
         ArgumentException.ThrowIfNullOrWhiteSpace(targetRootDirectory);
 
         var sourceRoot = Path.GetFullPath(_paths.RootDirectory);
-        var targetRoot = Path.GetFullPath(targetRootDirectory.Trim());
+        var targetRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(targetRootDirectory.Trim()));
 
         if (PathSafety.PathsEqual(sourceRoot, targetRoot))
         {

@@ -202,6 +202,33 @@ public sealed class PluginServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task CleanupPreservesPackagesUntilAnInstallationIndexIsAvailable()
+    {
+        using var service = Service();
+        var package = Package(Manifest());
+        var installed = await service.InstallLocalAsync(package, Hash(package));
+        var assembly = await service.VerifyInstalledAsync(installed);
+        var statePath = Path.Combine(_root, "Plugins", "installed.json");
+        var savedState = File.ReadAllBytes(statePath);
+        File.Delete(statePath);
+
+        await service.CleanupUnusedAsync();
+        Assert.True(File.Exists(assembly));
+        Assert.False(File.Exists(statePath));
+
+        File.WriteAllText(statePath, """{"schemaVersion":1}""");
+        await Assert.ThrowsAsync<JsonException>(() => service.CleanupUnusedAsync());
+        Assert.True(File.Exists(assembly));
+
+        File.WriteAllBytes(statePath, savedState);
+        Assert.Equal(assembly, await service.VerifyInstalledAsync(Assert.Single(await service.GetInstalledAsync())));
+        // An explicitly empty index still authorizes cleanup of obsolete generations.
+        File.WriteAllText(statePath, """{"schemaVersion":1,"plugins":[]}""");
+        await service.CleanupUnusedAsync();
+        Assert.False(File.Exists(assembly));
+    }
+
+    [Fact]
     public async Task CorruptedStateIsPreservedInsteadOfOverwritten()
     {
         using var service = Service();
@@ -222,17 +249,30 @@ public sealed class PluginServiceTests : IDisposable
         Assert.Empty(await service.GetInstalledAsync());
     }
 
-    [Fact]
-    public async Task CatalogRefreshFallsBackToLastGoodCatalogAfterInvalidResponse()
+    [Theory]
+    [InlineData("broken")]
+    [InlineData("""{"schemaVersion":2,"plugins":[]}""")]
+    public async Task CatalogRefreshFallsBackToLastGoodCatalogAfterInvalidResponse(string invalidResponse)
     {
         var bytes = JsonSerializer.SerializeToUtf8Bytes(Catalog(new string('1', 64)), PluginJson.Options);
         var calls = 0;
-        using var http = new HttpClient(new Handler(_ => new(HttpStatusCode.OK) { Content = new ByteArrayContent(++calls == 1 ? bytes : Encoding.UTF8.GetBytes("broken")) }));
+        using var http = new HttpClient(new Handler(_ => new(HttpStatusCode.OK) { Content = new ByteArrayContent(++calls == 1 ? bytes : Encoding.UTF8.GetBytes(invalidResponse)) }));
         using var service = Service(http);
         Assert.False((await service.RefreshCatalogAsync()).Offline);
         var fallback = await service.RefreshCatalogAsync();
         Assert.True(fallback.Offline);
         Assert.Equal("tests.clock", Assert.Single(fallback.Catalog.Plugins).Plugin.Id);
+    }
+
+    [Fact]
+    public async Task UnsupportedCachedCatalogFallsBackToBundledEntries()
+    {
+        var cacheDirectory = Directory.CreateDirectory(Path.Combine(_root, "Plugins"));
+        File.WriteAllText(Path.Combine(cacheDirectory.FullName, "catalog.json"), """{"schemaVersion":2,"plugins":[]}""");
+        var bundled = Path.Combine(_root, "bundled.json");
+        File.WriteAllBytes(bundled, JsonSerializer.SerializeToUtf8Bytes(Catalog(new string('1', 64)), PluginJson.Options));
+        using var service = new PluginService(new AppPaths(_root), new Version(1, 4, 4), bundled);
+        Assert.Equal("tests.clock", Assert.Single((await service.GetCachedCatalogAsync()).Plugins).Plugin.Id);
     }
 
     [Fact]

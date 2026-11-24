@@ -49,6 +49,7 @@ public sealed record InstalledPlugin
 internal sealed record PluginState
 {
     public int SchemaVersion { get; init; } = 1;
+    [System.Text.Json.Serialization.JsonRequired]
     public List<InstalledPlugin> Plugins { get; init; } = [];
 }
 

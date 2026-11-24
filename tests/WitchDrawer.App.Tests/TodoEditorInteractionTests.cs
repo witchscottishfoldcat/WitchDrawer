@@ -197,6 +197,23 @@ public sealed class TodoEditorInteractionTests
                 using var stream = File.Create(Path.ChangeExtension(output, ".desktop.png"));
                 encoder.Save(stream);
             }
+
+            var filter = (System.Windows.Controls.Primitives.ToggleButton)window.FindName("OnlyPendingToggle");
+            var first = model.TodoItems[0];
+            first.Update(first.Model with { IsCompleted = true });
+            filter.IsChecked = true;
+            content.UpdateLayout();
+            Assert.Same(model.PendingTodos, list.ItemsSource);
+            Assert.DoesNotContain(first, list.Items.Cast<TodoItemViewModel>());
+            var moved = model.TodoItems[3];
+            model.TodoItems.Move(3, 1);
+            Assert.Same(moved, list.Items[0]);
+            list.ScrollIntoView(moved);
+            content.UpdateLayout();
+            var movedRow = Assert.IsType<ListBoxItem>(list.ItemContainerGenerator.ContainerFromItem(moved));
+            Assert.Single(Descendants<TodoReorderHandle>(movedRow));
+            filter.IsChecked = false;
+            Assert.Same(first, list.Items[0]);
         }
         finally
         {
